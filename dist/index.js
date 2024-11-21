@@ -30080,7 +30080,7 @@ class BranchRepository {
                   issue(number: $issueNumber) {
                     id
                   }
-                  ref(qualifiedName: "refs/heads/${baseBranchName}") {
+                  ref(qualifiedName: "refs/heads/master") {
                     target {
                       ... on Commit {
                         oid
