@@ -41,7 +41,7 @@ export class IssueLinkUseCase implements UseCase<void> {
          * Link issue to project
          */
         for (const projectUrl of this.projectUrls) {
-            const projectId = await this.projectRepository.getProjectId(projectUrl, this.token)
+            const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat)
             const issueId = await this.issueRepository.getId(this.token)
             await this.projectRepository.linkContentId(projectId, issueId, this.token)
         }
@@ -132,7 +132,7 @@ export class IssueLinkUseCase implements UseCase<void> {
             console.log(`Hotfix branch: ${this.hotfixBranch}`);
 
             const result = await this.branchRepository.createLinkedBranch(
-                this.token,
+                this.tokenPat,
                 baseBranchName,
                 this.hotfixBranch,
                 issueNumber,
@@ -145,7 +145,7 @@ export class IssueLinkUseCase implements UseCase<void> {
 
         console.log(`Branch type: ${branchType}`);
 
-        this.featureBugfixBranchOrigin = await this.branchRepository.manageBranches(this.token,
+        this.featureBugfixBranchOrigin = await this.branchRepository.manageBranches(this.tokenPat,
             issueNumber,
             issueTitle,
             branchType,
