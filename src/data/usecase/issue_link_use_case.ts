@@ -43,7 +43,7 @@ export class IssueLinkUseCase implements UseCase<void> {
         for (const projectUrl of this.projectUrls) {
             const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat)
             const issueId = await this.issueRepository.getId(this.token)
-            await this.projectRepository.linkContentId(projectId, issueId, this.token)
+            await this.projectRepository.linkContentId(projectId, issueId, this.tokenPat)
         }
 
         /**
