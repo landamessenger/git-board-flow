@@ -1,0 +1,16 @@
+name: "Git Board"
+description: "Issues, branches and pull requests linked."
+author: "Landa Messenger"
+inputs:
+  project-ids:
+    description: "List of projects to link issues and pull requests"
+    required: false
+  github-token:
+    description: "GitHub token to interact with branches and projects"
+    required: true
+runs:
+  using: "node18"
+  main: "dist/index.js"
+branding:
+  icon: "project"
+  color: "blue"
