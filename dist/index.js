@@ -30015,9 +30015,10 @@ class BranchRepository {
         this.manageBranches = async (token, issueNumber, issueTitle, branchType, developmentBranch, hotfixBranch, isHotfix) => {
             const octokit = github.getOctokit(token);
             const branchName = `${branchType}/${issueNumber}`;
-            console.log(`Creando o actualizando rama: ${branchName}`);
+            console.log(`Creating or updating branch (prefix): ${branchName}`);
             const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
             const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+            console.log(`New branch: ${newBranchName}`);
             const branchTypes = ["feature", "bugfix"];
             /**
              * Default base branch name. (ex. [develop])
@@ -30054,6 +30055,7 @@ class BranchRepository {
                 baseBranchName = hotfixBranch;
             }
             console.log(`Base branch: ${baseBranchName}`);
+            console.log(`New branch: ${newBranchName}`);
             await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined);
             return featureOrBugfixOrigin;
         };
@@ -30069,6 +30071,7 @@ class BranchRepository {
             return sanitizedTitle;
         };
         this.createLinkedBranch = async (token, baseBranchName, newBranchName, issueNumber, oid) => {
+            core.info(`Getting info of ${baseBranchName}`);
             const octokit = github.getOctokit(token);
             const repository = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {

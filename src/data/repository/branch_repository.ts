@@ -90,11 +90,13 @@ export class BranchRepository {
     ): Promise<string | undefined> => {
         const octokit = github.getOctokit(token);
         const branchName = `${branchType}/${issueNumber}`;
-        console.log(`Creando o actualizando rama: ${branchName}`);
+        console.log(`Creating or updating branch (prefix): ${branchName}`);
 
         const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
 
         const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+
+        console.log(`New branch: ${newBranchName}`);
 
         const branchTypes = ["feature", "bugfix"];
 
@@ -137,6 +139,7 @@ export class BranchRepository {
         }
 
         console.log(`Base branch: ${baseBranchName}`);
+        console.log(`New branch: ${newBranchName}`);
 
 
         await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined)
@@ -168,6 +171,7 @@ export class BranchRepository {
         issueNumber: number,
         oid: string | undefined,
     ): Promise<any> => {
+        core.info(`Getting info of ${baseBranchName}`)
         const octokit = github.getOctokit(token);
         const repository: any = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
