@@ -34,24 +34,24 @@ export class ProjectRepository {
         return projectId
     }
 
-    linkPullRequest = async (projectId: string, token: string) => {
+    linkContentId = async (projectId: string, contentId: string, token: string) => {
         const octokit = github.getOctokit(token);
-        const contentId = github.context.payload.pull_request?.node_id;
 
-        const mutation = `
-        mutation($input: AddProjectV2ItemByIdInput!) {
-          addProjectV2ItemById(input: $input) {
-            item {
-              id
+        // Link the issue to the project
+        const linkMutation = `
+          mutation($projectId: ID!, $contentId: ID!) {
+            addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+              item {
+                id
+              }
             }
           }
-        }
         `;
-
-        const response = await octokit.graphql<AddProjectItemResponse>(mutation, {
-            input: {projectId, contentId},
+        const linkResult: any = await octokit.graphql(linkMutation, {
+            projectId,
+            contentId: contentId,
         });
 
-        core.info(`PR added to project with item ID: ${response.addProjectV2ItemById.item.id}`);
+        core.info(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
     }
 }

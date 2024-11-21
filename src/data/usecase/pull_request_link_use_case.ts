@@ -8,8 +8,15 @@ export class PullRequestLinkUseCase implements UseCase<void> {
     private projectRepository = new ProjectRepository();
     private pullRequestRepository = new PullRequestRepository();
 
-    private projectUrl = core.getInput('project-url', {required: true});
+    private projectUrlsInput = core.getInput('project-urls', {required: true});
+    private projectUrls: string[] = this.projectUrlsInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+    private defaultBranch = core.getInput('default-branch', {required: true});
     private token = core.getInput('github-token', {required: true});
+    private tokenPat = core.getInput('github-token-personal', {required: true});
 
     async invoke(): Promise<void> {
         const isLinked = await this.pullRequestRepository.isLinked();
@@ -23,10 +30,13 @@ export class PullRequestLinkUseCase implements UseCase<void> {
         core.info(`PullRequestIssueLinkUseCase executed: ${issueNumber}`);
 
         /**
-         * Link project to Pull Request
+         * Link Pull Request to projects
          */
-        const projectId = await this.projectRepository.getProjectId(this.projectUrl, this.token)
-        await this.projectRepository.linkPullRequest(projectId, this.token)
+        for (const projectUrl of this.projectUrls) {
+            const projectId = await this.projectRepository.getProjectId(projectUrl, this.token)
+            const prId = github.context.payload.pull_request?.node_id;
+            await this.projectRepository.linkContentId(projectId, prId, this.token)
+        }
 
         /**
          *  Set the primary/default branch

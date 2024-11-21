@@ -80,6 +80,6 @@ export class PullRequestRepository {
             body: comment,
         });
 
-        core.info('Comment added to PR.');
+        core.info(`Comment added to PR ${prNumber}.`);
     }
 }

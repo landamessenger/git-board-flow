@@ -1,16 +1,31 @@
-name: "Git Board"
+name: "Git Board Flow"
 description: "Issues, branches and pull requests linked."
 author: "Landa Messenger"
 inputs:
-  project-ids:
-    description: "List of projects to link issues and pull requests"
+  action:
+    description: "Action to handle"
+    required: true
+  branch-management-label:
+    description: "Activation label for branch management"
+    required: true
+  project-urls:
+    description: "List of projects urls to link issues and pull requests"
     required: false
+  default-branch:
+    description: "Default branch of the repository"
+    required: true
+  development-branch:
+    description: "Development branch of the repository"
+    required: true
   github-token:
-    description: "GitHub token to interact with branches and projects"
+    description: "GitHub token to interact with branches and projects in the current scope"
+    required: true
+  github-token-personal:
+    description: "GitHub PAT to interact with commits, branches and projects"
     required: true
 runs:
-  using: "node18"
+  using: "node20"
   main: "dist/index.js"
 branding:
-  icon: "project"
-  color: "blue"
+  icon: git-branch
+  color: "gray-dark"
