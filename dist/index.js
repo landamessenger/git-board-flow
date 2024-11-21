@@ -30553,7 +30553,7 @@ class IssueLinkUseCase {
          * Link issue to project
          */
         for (const projectUrl of this.projectUrls) {
-            const projectId = await this.projectRepository.getProjectId(projectUrl, this.token);
+            const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat);
             const issueId = await this.issueRepository.getId(this.token);
             await this.projectRepository.linkContentId(projectId, issueId, this.token);
         }
@@ -30621,12 +30621,12 @@ class IssueLinkUseCase {
             this.hotfixBranch = `hotfix/${this.hotfixVersion}`;
             console.log(`Tag branch: ${baseBranchName}`);
             console.log(`Hotfix branch: ${this.hotfixBranch}`);
-            const result = await this.branchRepository.createLinkedBranch(this.token, baseBranchName, this.hotfixBranch, issueNumber, branchOid);
+            const result = await this.branchRepository.createLinkedBranch(this.tokenPat, baseBranchName, this.hotfixBranch, issueNumber, branchOid);
             console.log(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
         }
         const branchType = await this.issueRepository.branchesForIssue(this.token);
         console.log(`Branch type: ${branchType}`);
-        this.featureBugfixBranchOrigin = await this.branchRepository.manageBranches(this.token, issueNumber, issueTitle, branchType, this.developmentBranch, this.hotfixBranch, this.isHotfix);
+        this.featureBugfixBranchOrigin = await this.branchRepository.manageBranches(this.tokenPat, issueNumber, issueTitle, branchType, this.developmentBranch, this.hotfixBranch, this.isHotfix);
         /**
          * Remove unnecessary branches
          */
