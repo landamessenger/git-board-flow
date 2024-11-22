@@ -138,6 +138,10 @@ export class BranchRepository {
             baseBranchName = hotfixBranch;
         }
 
+        if (featureOrBugfixOrigin === undefined) {
+            featureOrBugfixOrigin = baseBranchName
+        }
+
         console.log(`Base branch: ${baseBranchName}`);
         console.log(`New branch: ${newBranchName}`);
 
@@ -170,18 +174,17 @@ export class BranchRepository {
         newBranchName: string,
         issueNumber: number,
         oid: string | undefined,
-    ): Promise<any> => {
+    ): Promise<LinkedBranchResponse | undefined> => {
         core.info(`Getting info of ${baseBranchName} ...`)
         const octokit = github.getOctokit(token);
-        // @ts-ignore
-        const { repository } = await octokit.graphql(`
+        const {repository} = await octokit.graphql<RepositoryResponse>(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
                 repository(name: $repo, owner: $owner) {
                   id
                   issue(number: $issueNumber) {
                     id
                   }
-                  ref(qualifiedName: "refs/heads/master") {
+                  ref(qualifiedName: "refs/heads/${baseBranchName}") {
                     target {
                       ... on Commit {
                         oid
@@ -196,16 +199,21 @@ export class BranchRepository {
             issueNumber: issueNumber
         });
 
-        console.log(`Repository information retrieved: ${JSON.stringify(repository.ref)}`)
+        console.log(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`)
 
-        const repositoryId = repository.id;
-        const issueId = repository.issue.id;
-        const branchOid = oid ?? repository.ref.target.oid;
+        const repositoryId: string | undefined = repository?.id ?? undefined;
+        const issueId: string | undefined = repository?.issue?.id ?? undefined;
+        const branchOid: string | undefined = oid ?? repository?.ref?.target?.oid ?? undefined;
 
-        console.log(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
+        if (repositoryId === undefined || issueNumber === undefined || branchOid === undefined) {
+            core.error(`Error searching repository "${baseBranchName}": id: ${repositoryId}, oid: ${branchOid}), issue #${issueNumber}`);
+            return;
+        }
+
+        core.info(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
 
         try {
-            return await octokit.graphql(`
+            const mutationResponse = await octokit.graphql<LinkedBranchResponse>(`
                 mutation($issueId: ID!, $name: String!, $repositoryId: ID!, $oid: GitObjectID!) {
                   createLinkedBranch(input: {
                     issueId: $issueId,
@@ -227,9 +235,13 @@ export class BranchRepository {
                 repositoryId: repositoryId,
                 oid: branchOid,
             });
+
+            core.info(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch)}`);
+
+            return mutationResponse;
         } catch (e) {
-            console.log(`Error Linking branch "${e}"`);
-            return null;
+            core.error(`Error Linking branch "${e}"`);
+            return undefined;
         }
     }
 
@@ -265,7 +277,7 @@ export class BranchRepository {
 
     getListOfBranches = async (token: string): Promise<string[]> => {
         const octokit = github.getOctokit(token);
-        const { data } = await octokit.rest.repos.listBranches({
+        const {data} = await octokit.rest.repos.listBranches({
             owner: github.context.repo.owner,
             repo: github.context.repo.repo,
         });

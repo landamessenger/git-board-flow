@@ -30054,6 +30054,9 @@ class BranchRepository {
             else {
                 baseBranchName = hotfixBranch;
             }
+            if (featureOrBugfixOrigin === undefined) {
+                featureOrBugfixOrigin = baseBranchName;
+            }
             console.log(`Base branch: ${baseBranchName}`);
             console.log(`New branch: ${newBranchName}`);
             await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined);
@@ -30073,7 +30076,6 @@ class BranchRepository {
         this.createLinkedBranch = async (token, baseBranchName, newBranchName, issueNumber, oid) => {
             core.info(`Getting info of ${baseBranchName} ...`);
             const octokit = github.getOctokit(token);
-            // @ts-ignore
             const { repository } = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
                 repository(name: $repo, owner: $owner) {
@@ -30081,7 +30083,7 @@ class BranchRepository {
                   issue(number: $issueNumber) {
                     id
                   }
-                  ref(qualifiedName: "refs/heads/master") {
+                  ref(qualifiedName: "refs/heads/${baseBranchName}") {
                     target {
                       ... on Commit {
                         oid
@@ -30095,13 +30097,17 @@ class BranchRepository {
                 owner: github.context.repo.owner,
                 issueNumber: issueNumber
             });
-            console.log(`Repository information retrieved: ${JSON.stringify(repository.ref)}`);
-            const repositoryId = repository.id;
-            const issueId = repository.issue.id;
-            const branchOid = oid ?? repository.ref.target.oid;
-            console.log(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
+            console.log(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`);
+            const repositoryId = repository?.id ?? undefined;
+            const issueId = repository?.issue?.id ?? undefined;
+            const branchOid = oid ?? repository?.ref?.target?.oid ?? undefined;
+            if (repositoryId === undefined || issueNumber === undefined || branchOid === undefined) {
+                core.error(`Error searching repository "${baseBranchName}": id: ${repositoryId}, oid: ${branchOid}), issue #${issueNumber}`);
+                return;
+            }
+            core.info(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
             try {
-                return await octokit.graphql(`
+                const mutationResponse = await octokit.graphql(`
                 mutation($issueId: ID!, $name: String!, $repositoryId: ID!, $oid: GitObjectID!) {
                   createLinkedBranch(input: {
                     issueId: $issueId,
@@ -30123,10 +30129,12 @@ class BranchRepository {
                     repositoryId: repositoryId,
                     oid: branchOid,
                 });
+                core.info(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch)}`);
+                return mutationResponse;
             }
             catch (e) {
-                console.log(`Error Linking branch "${e}"`);
-                return null;
+                core.error(`Error Linking branch "${e}"`);
+                return undefined;
             }
         };
         this.removeBranch = async (token, branch) => {
@@ -30604,7 +30612,7 @@ class IssueLinkUseCase {
                 deletedBranchesMessage += `\n${i + 1}. The branch \`${branch}\` was removed.`;
             }
             const commentBody = `## 🗑️ Cleanup Actions:
-            ${deletedBranchesMessage}
+${deletedBranchesMessage}
             `;
             await this.issueRepository.addComment(this.token, commentBody);
             return;
@@ -30704,42 +30712,42 @@ class IssueLinkUseCase {
         if (this.isHotfix) {
             title = '🔥🐛 Hotfix Actions';
             content = `
-              1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${this.hotfixBranch}\`](${hotfixUrl}).
-              2. The branch [\`${this.hotfixBranch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${this.hotfixBranch}\`](${hotfixUrl}).
+2. The branch [\`${this.hotfixBranch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
               `;
             footer = `
-              ### Reminder
-              1. Make yourself a coffee ☕.
-              2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-              3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${this.hotfixBranch}\`](${hotfixUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${this.hotfixBranch}...${newBranchName}?expand=1)
-              4. After merging into [\`${this.hotfixBranch}\`](${hotfixUrl}), create the tag \`tags/${this.hotfixVersion}\`.
-              5. Open a Pull Request from [\`${this.hotfixBranch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${this.hotfixBranch}?expand=1)
+### Reminder
+1. Make yourself a coffee ☕.
+2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${this.hotfixBranch}\`](${hotfixUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${this.hotfixBranch}...${newBranchName}?expand=1)
+4. After merging into [\`${this.hotfixBranch}\`](${hotfixUrl}), create the tag \`tags/${this.hotfixVersion}\`.
+5. Open a Pull Request from [\`${this.hotfixBranch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${this.hotfixBranch}?expand=1)
               `;
             stepOn = 2;
         }
         else if (isBugfix) {
             title = '🐛 Bugfix Actions';
             content = `
-              1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
               `;
             footer = `
-              ### Reminder
-              1. Make yourself a coffee ☕.
-              2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-              3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
+### Reminder
+1. Make yourself a coffee ☕.
+2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
               `;
         }
         else if (isFeature) {
             title = '🛠️ Feature Actions';
             content = `
-              1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
               `;
             footer = `
-              ### Reminder
-              1. Make yourself a coffee ☕.
-              2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-              3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
-              `;
+### Reminder
+1. Make yourself a coffee ☕.
+2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
+`;
         }
         for (let i = 0; i < deletedBranches.length; i++) {
             const branch = deletedBranches[i];
