@@ -30002,7 +30002,7 @@ class BranchRepository {
             return undefined;
         };
         /**
-         * Returns the feature/bugfix branch origin.
+         * Returns replaced branch (if any).
          *
          * @param token
          * @param issueNumber
@@ -30022,7 +30022,7 @@ class BranchRepository {
              * Default base branch name. (ex. [develop])
              */
             let baseBranchName = developmentBranch;
-            let featureOrBugfixOrigin;
+            let replacedBranchName;
             if (!isHotfix) {
                 /**
                  * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
@@ -30039,6 +30039,7 @@ class BranchRepository {
                         if (matchingBranch) {
                             baseBranchName = matchingBranch.name;
                             core.info(`Found previous issue branch: ${baseBranchName}`);
+                            replacedBranchName = baseBranchName;
                             break;
                         }
                     }
@@ -30050,17 +30051,12 @@ class BranchRepository {
             }
             else {
                 baseBranchName = hotfixBranch;
-                featureOrBugfixOrigin = baseBranchName;
-            }
-            if (featureOrBugfixOrigin === undefined) {
-                featureOrBugfixOrigin = developmentBranch;
             }
             core.info(`============================================================================================`);
             core.info(`Base branch: ${baseBranchName}`);
             core.info(`New branch: ${newBranchName}`);
-            core.info(`Finish branch: ${featureOrBugfixOrigin}`);
             await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined);
-            return featureOrBugfixOrigin;
+            return replacedBranchName;
         };
         this.formatBranchName = (issueTitle, issueNumber) => {
             let sanitizedTitle = issueTitle.toLowerCase();
@@ -30636,7 +30632,7 @@ ${deletedBranchesMessage}
         }
         const branchType = await this.issueRepository.branchesForIssue(this.token);
         console.log(`Branch type: ${branchType}`);
-        this.featureBugfixBranchOrigin = await this.branchRepository.manageBranches(this.tokenPat, issueNumber, issueTitle, branchType, this.developmentBranch, this.hotfixBranch, this.isHotfix);
+        this.replacedBranch = await this.branchRepository.manageBranches(this.tokenPat, issueNumber, issueTitle, branchType, this.developmentBranch, this.hotfixBranch, this.isHotfix);
         /**
          * Remove unnecessary branches
          */
@@ -30684,12 +30680,10 @@ ${deletedBranchesMessage}
         const isFeature = branchType === 'feature';
         const tagBranch = `tags/${lastTag}`;
         const tagUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${tagBranch}`;
-        const featureOriginBranch = this.featureBugfixBranchOrigin;
-        const featureOriginUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${featureOriginBranch}`;
-        const defaultBranch = this.developmentBranch;
-        const defaultUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${defaultBranch}`;
-        let developmentBranch = defaultBranch;
-        let developmentUrl = defaultUrl;
+        const originBranch = this.replacedBranch ?? this.developmentBranch;
+        const originUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${originBranch}`;
+        let developmentBranch = this.developmentBranch;
+        let developmentUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${developmentBranch}`;
         const hotfixUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${this.hotfixBranch}`;
         const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
         const newRepoUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${newBranchName}`;
@@ -30726,7 +30720,7 @@ ${deletedBranchesMessage}
         else if (isBugfix) {
             title = '🐛 Bugfix Actions';
             content = `
-1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
               `;
             footer = `
 ### Reminder
@@ -30738,7 +30732,7 @@ ${deletedBranchesMessage}
         else if (isFeature) {
             title = '🛠️ Feature Actions';
             content = `
-1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
               `;
             footer = `
 ### Reminder

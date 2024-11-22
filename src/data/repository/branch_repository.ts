@@ -69,7 +69,7 @@ export class BranchRepository {
     }
 
     /**
-     * Returns the feature/bugfix branch origin.
+     * Returns replaced branch (if any).
      *
      * @param token
      * @param issueNumber
@@ -96,7 +96,6 @@ export class BranchRepository {
 
         const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
 
-
         const branchTypes = ["feature", "bugfix"];
 
         /**
@@ -104,7 +103,7 @@ export class BranchRepository {
          */
         let baseBranchName = developmentBranch;
 
-        let featureOrBugfixOrigin: string | undefined
+        let replacedBranchName: string | undefined
         if (!isHotfix) {
             /**
              * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
@@ -125,6 +124,7 @@ export class BranchRepository {
                     if (matchingBranch) {
                         baseBranchName = matchingBranch.name;
                         core.info(`Found previous issue branch: ${baseBranchName}`);
+                        replacedBranchName = baseBranchName
                         break;
                     }
                 } catch (error) {
@@ -134,21 +134,15 @@ export class BranchRepository {
             }
         } else {
             baseBranchName = hotfixBranch;
-            featureOrBugfixOrigin = baseBranchName
-        }
-
-        if (featureOrBugfixOrigin === undefined) {
-            featureOrBugfixOrigin = developmentBranch
         }
 
         core.info(`============================================================================================`);
         core.info(`Base branch: ${baseBranchName}`);
         core.info(`New branch: ${newBranchName}`);
-        core.info(`Finish branch: ${featureOrBugfixOrigin}`);
 
         await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined)
 
-        return featureOrBugfixOrigin;
+        return replacedBranchName;
     }
 
     formatBranchName = (issueTitle: string, issueNumber: number): string => {

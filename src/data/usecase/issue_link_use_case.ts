@@ -25,7 +25,7 @@ export class IssueLinkUseCase implements UseCase<void> {
     private isHotfix: boolean = false;
     private hotfixVersion: string = '';
     private hotfixBranch: string = '';
-    private featureBugfixBranchOrigin: string | undefined;
+    private replacedBranch: string | undefined;
 
     async invoke(): Promise<void> {
         const issueNumber = github.context.payload.issue?.number;
@@ -145,7 +145,7 @@ ${deletedBranchesMessage}
 
         console.log(`Branch type: ${branchType}`);
 
-        this.featureBugfixBranchOrigin = await this.branchRepository.manageBranches(this.tokenPat,
+        this.replacedBranch = await this.branchRepository.manageBranches(this.tokenPat,
             issueNumber,
             issueTitle,
             branchType,
@@ -205,14 +205,11 @@ ${deletedBranchesMessage}
         const tagBranch = `tags/${lastTag}`;
         const tagUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${tagBranch}`;
 
-        const featureOriginBranch = this.featureBugfixBranchOrigin;
-        const featureOriginUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${featureOriginBranch}`;
+        const originBranch = this.replacedBranch ?? this.developmentBranch;
+        const originUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${originBranch}`;
 
-        const defaultBranch = this.developmentBranch;
-        const defaultUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${defaultBranch}`;
-
-        let developmentBranch = defaultBranch;
-        let developmentUrl = defaultUrl;
+        let developmentBranch = this.developmentBranch;
+        let developmentUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${developmentBranch}`;
 
         const hotfixUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${this.hotfixBranch}`;
 
@@ -253,7 +250,7 @@ ${deletedBranchesMessage}
         } else if (isBugfix) {
             title = '🐛 Bugfix Actions'
             content = `
-1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
               `
             footer = `
 ### Reminder
@@ -265,7 +262,7 @@ ${deletedBranchesMessage}
         } else if (isFeature) {
             title = '🛠️ Feature Actions'
             content = `
-1. The branch [\`${featureOriginBranch}\`](${featureOriginUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
               `
             footer = `
 ### Reminder
