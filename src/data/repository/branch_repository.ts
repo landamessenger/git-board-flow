@@ -171,9 +171,10 @@ export class BranchRepository {
         issueNumber: number,
         oid: string | undefined,
     ): Promise<any> => {
-        core.info(`Getting info of ${baseBranchName}`)
+        core.info(`Getting info of ${baseBranchName} ...`)
         const octokit = github.getOctokit(token);
-        const repository: any = await octokit.graphql(`
+        // @ts-ignore
+        const { repository } = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
                 repository(name: $repo, owner: $owner) {
                   id
