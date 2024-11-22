@@ -30071,9 +30071,10 @@ class BranchRepository {
             return sanitizedTitle;
         };
         this.createLinkedBranch = async (token, baseBranchName, newBranchName, issueNumber, oid) => {
-            core.info(`Getting info of ${baseBranchName}`);
+            core.info(`Getting info of ${baseBranchName} ...`);
             const octokit = github.getOctokit(token);
-            const repository = await octokit.graphql(`
+            // @ts-ignore
+            const { repository } = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
                 repository(name: $repo, owner: $owner) {
                   id
