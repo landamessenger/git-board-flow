@@ -30039,7 +30039,6 @@ class BranchRepository {
                         if (matchingBranch) {
                             baseBranchName = matchingBranch.name;
                             core.info(`Found previous issue branch: ${baseBranchName}`);
-                            featureOrBugfixOrigin = baseBranchName;
                             break;
                         }
                     }
