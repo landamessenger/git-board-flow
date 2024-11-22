@@ -30013,12 +30013,10 @@ class BranchRepository {
          * @param isHotfix
          */
         this.manageBranches = async (token, issueNumber, issueTitle, branchType, developmentBranch, hotfixBranch, isHotfix) => {
+            core.info(`Managing branches`);
             const octokit = github.getOctokit(token);
-            const branchName = `${branchType}/${issueNumber}`;
-            console.log(`Creating or updating branch (prefix): ${branchName}`);
             const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
             const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
-            console.log(`New branch: ${newBranchName}`);
             const branchTypes = ["feature", "bugfix"];
             /**
              * Default base branch name. (ex. [develop])
@@ -30029,7 +30027,7 @@ class BranchRepository {
                 /**
                  * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
                  */
-                console.log(`Searching for branches related to issue #${issueNumber}...`);
+                core.info(`Searching for branches related to issue #${issueNumber}...`);
                 const { data } = await octokit.rest.repos.listBranches({
                     owner: github.context.repo.owner,
                     repo: github.context.repo.repo,
@@ -30040,25 +30038,28 @@ class BranchRepository {
                         const matchingBranch = data.find(branch => branch.name.indexOf(prefix) > -1);
                         if (matchingBranch) {
                             baseBranchName = matchingBranch.name;
-                            console.log(`Found branch: ${baseBranchName}`);
+                            core.info(`Found previous issue branch: ${baseBranchName}`);
                             featureOrBugfixOrigin = baseBranchName;
                             break;
                         }
                     }
                     catch (error) {
-                        console.error(`Error while listing branches: ${error}`);
+                        core.info(`Error while listing branches: ${error}`);
                         throw error;
                     }
                 }
             }
             else {
                 baseBranchName = hotfixBranch;
-            }
-            if (featureOrBugfixOrigin === undefined) {
                 featureOrBugfixOrigin = baseBranchName;
             }
-            console.log(`Base branch: ${baseBranchName}`);
-            console.log(`New branch: ${newBranchName}`);
+            if (featureOrBugfixOrigin === undefined) {
+                featureOrBugfixOrigin = developmentBranch;
+            }
+            core.info(`============================================================================================`);
+            core.info(`Base branch: ${baseBranchName}`);
+            core.info(`New branch: ${newBranchName}`);
+            core.info(`Finish branch: ${featureOrBugfixOrigin}`);
             await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined);
             return featureOrBugfixOrigin;
         };
@@ -30074,7 +30075,7 @@ class BranchRepository {
             return sanitizedTitle;
         };
         this.createLinkedBranch = async (token, baseBranchName, newBranchName, issueNumber, oid) => {
-            core.info(`Getting info of ${baseBranchName} ...`);
+            core.info(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`);
             const octokit = github.getOctokit(token);
             const { repository } = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
@@ -30097,7 +30098,7 @@ class BranchRepository {
                 owner: github.context.repo.owner,
                 issueNumber: issueNumber
             });
-            console.log(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`);
+            core.info(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`);
             const repositoryId = repository?.id ?? undefined;
             const issueId = repository?.issue?.id ?? undefined;
             const branchOid = oid ?? repository?.ref?.target?.oid ?? undefined;
@@ -30140,24 +30141,23 @@ class BranchRepository {
         this.removeBranch = async (token, branch) => {
             const octokit = github.getOctokit(token);
             const ref = `heads/${branch}`;
-            console.log(`Checking branch reference: ${branch}`);
             try {
                 const { data } = await octokit.rest.git.getRef({
                     owner: github.context.repo.owner,
                     repo: github.context.repo.repo,
                     ref,
                 });
-                console.log(`Branch found: ${data.ref}`);
+                core.info(`Branch found: ${data.ref}`);
                 await octokit.rest.git.deleteRef({
                     owner: github.context.repo.owner,
                     repo: github.context.repo.repo,
                     ref,
                 });
-                console.log(`Successfully deleted branch: ${branch}`);
+                core.info(`Successfully deleted branch: ${branch}`);
                 return true;
             }
             catch (error) {
-                console.error(`Error processing branch ${branch}: ${error}`);
+                core.error(`Error processing branch ${branch}: ${error}`);
                 throw error;
             }
         };
@@ -30608,7 +30608,6 @@ class IssueLinkUseCase {
             let deletedBranchesMessage = '';
             for (let i = 0; i < deletedBranches.length; i++) {
                 const branch = deletedBranches[i];
-                core.info(`Processing branch: ${branch}`);
                 deletedBranchesMessage += `\n${i + 1}. The branch \`${branch}\` was removed.`;
             }
             const commentBody = `## 🗑️ Cleanup Actions:
@@ -30751,7 +30750,6 @@ ${deletedBranchesMessage}
         }
         for (let i = 0; i < deletedBranches.length; i++) {
             const branch = deletedBranches[i];
-            console.log(`Processing branch: ${branch}`);
             deletedBranchesMessage += `\n${stepOn + i + 1}. The branch \`${branch}\` was removed.`;
         }
         const commentBody = `## ${title}:

@@ -88,15 +88,14 @@ export class BranchRepository {
         hotfixBranch: string,
         isHotfix: boolean,
     ): Promise<string | undefined> => {
+        core.info(`Managing branches`);
+
         const octokit = github.getOctokit(token);
-        const branchName = `${branchType}/${issueNumber}`;
-        console.log(`Creating or updating branch (prefix): ${branchName}`);
 
         const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
 
         const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
 
-        console.log(`New branch: ${newBranchName}`);
 
         const branchTypes = ["feature", "bugfix"];
 
@@ -110,7 +109,7 @@ export class BranchRepository {
             /**
              * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
              */
-            console.log(`Searching for branches related to issue #${issueNumber}...`);
+            core.info(`Searching for branches related to issue #${issueNumber}...`);
 
             const {data} = await octokit.rest.repos.listBranches({
                 owner: github.context.repo.owner,
@@ -125,26 +124,28 @@ export class BranchRepository {
 
                     if (matchingBranch) {
                         baseBranchName = matchingBranch.name;
-                        console.log(`Found branch: ${baseBranchName}`);
+                        core.info(`Found previous issue branch: ${baseBranchName}`);
                         featureOrBugfixOrigin = baseBranchName
                         break;
                     }
                 } catch (error) {
-                    console.error(`Error while listing branches: ${error}`);
+                    core.info(`Error while listing branches: ${error}`);
                     throw error;
                 }
             }
         } else {
             baseBranchName = hotfixBranch;
-        }
-
-        if (featureOrBugfixOrigin === undefined) {
             featureOrBugfixOrigin = baseBranchName
         }
 
-        console.log(`Base branch: ${baseBranchName}`);
-        console.log(`New branch: ${newBranchName}`);
+        if (featureOrBugfixOrigin === undefined) {
+            featureOrBugfixOrigin = developmentBranch
+        }
 
+        core.info(`============================================================================================`);
+        core.info(`Base branch: ${baseBranchName}`);
+        core.info(`New branch: ${newBranchName}`);
+        core.info(`Finish branch: ${featureOrBugfixOrigin}`);
 
         await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined)
 
@@ -175,7 +176,8 @@ export class BranchRepository {
         issueNumber: number,
         oid: string | undefined,
     ): Promise<LinkedBranchResponse | undefined> => {
-        core.info(`Getting info of ${baseBranchName} ...`)
+        core.info(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`)
+
         const octokit = github.getOctokit(token);
         const {repository} = await octokit.graphql<RepositoryResponse>(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
@@ -199,7 +201,7 @@ export class BranchRepository {
             issueNumber: issueNumber
         });
 
-        console.log(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`)
+        core.info(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`)
 
         const repositoryId: string | undefined = repository?.id ?? undefined;
         const issueId: string | undefined = repository?.issue?.id ?? undefined;
@@ -250,7 +252,6 @@ export class BranchRepository {
 
         const ref = `heads/${branch}`;
 
-        console.log(`Checking branch reference: ${branch}`);
         try {
             const {data} = await octokit.rest.git.getRef({
                 owner: github.context.repo.owner,
@@ -258,7 +259,7 @@ export class BranchRepository {
                 ref,
             });
 
-            console.log(`Branch found: ${data.ref}`);
+            core.info(`Branch found: ${data.ref}`);
 
             await octokit.rest.git.deleteRef({
                 owner: github.context.repo.owner,
@@ -266,11 +267,11 @@ export class BranchRepository {
                 ref,
             });
 
-            console.log(`Successfully deleted branch: ${branch}`);
+            core.info(`Successfully deleted branch: ${branch}`);
 
             return true;
         } catch (error) {
-            console.error(`Error processing branch ${branch}: ${error}`);
+            core.error(`Error processing branch ${branch}: ${error}`);
             throw error;
         }
     }

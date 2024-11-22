@@ -97,7 +97,6 @@ export class IssueLinkUseCase implements UseCase<void> {
             let deletedBranchesMessage = ''
             for (let i = 0; i < deletedBranches.length; i++) {
                 const branch = deletedBranches[i];
-                core.info(`Processing branch: ${branch}`);
                 deletedBranchesMessage += `\n${i + 1}. The branch \`${branch}\` was removed.`
             }
 
@@ -278,7 +277,6 @@ ${deletedBranchesMessage}
 
         for (let i = 0; i < deletedBranches.length; i++) {
             const branch = deletedBranches[i];
-            console.log(`Processing branch: ${branch}`);
             deletedBranchesMessage += `\n${stepOn + i + 1}. The branch \`${branch}\` was removed.`
         }
 
