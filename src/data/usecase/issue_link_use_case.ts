@@ -217,16 +217,6 @@ ${deletedBranchesMessage}
         const newRepoUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${newBranchName}`;
 
         let deletedBranchesMessage = ''
-        if (!this.isHotfix) {
-            for (let i = 0; i < deletedBranches.length; i++) {
-                const branch = deletedBranches[i];
-                if (branch.indexOf('feature/') > -1 || branch.indexOf('bugfix/') > -1) {
-                    developmentBranch = branch;
-                    developmentUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${developmentBranch}`;
-                }
-            }
-        }
-
         let title = ''
         let content = ''
         let footer = ''
