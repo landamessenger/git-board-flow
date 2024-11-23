@@ -30071,6 +30071,10 @@ class BranchRepository {
         };
         this.createLinkedBranch = async (token, baseBranchName, newBranchName, issueNumber, oid) => {
             core.info(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`);
+            let ref = `heads/${baseBranchName}`;
+            if (baseBranchName.indexOf('tags/') > -1) {
+                ref = baseBranchName;
+            }
             const octokit = github.getOctokit(token);
             const { repository } = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
@@ -30079,7 +30083,7 @@ class BranchRepository {
                   issue(number: $issueNumber) {
                     id
                   }
-                  ref(qualifiedName: "refs/heads/${baseBranchName}") {
+                  ref(qualifiedName: "refs/${ref}") {
                     target {
                       ... on Commit {
                         oid
