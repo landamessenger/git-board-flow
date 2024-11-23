@@ -5,9 +5,9 @@ inputs:
   action:
     description: "Action to handle"
     required: true
-  branch-management-label:
+  action-launcher-label:
     description: "Activation label for branch management"
-    default: "branching"
+    default: "git-board"
   hotfix-label:
     description: "Hotfix branch behaviour"
     default: "hotfix"
@@ -23,6 +23,9 @@ inputs:
   development-branch:
     description: "Development branch of the repository"
     default: "develop"
+  run-always:
+    description: "Set if action-launcher-label is needed or not for launching git-board"
+    default: "false"
   github-token:
     description: "GitHub token to interact with branches and projects in the current scope"
     required: true

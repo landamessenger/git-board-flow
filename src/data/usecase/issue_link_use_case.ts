@@ -10,6 +10,8 @@ export class IssueLinkUseCase implements UseCase<void> {
     private projectRepository = new ProjectRepository();
     private branchRepository = new BranchRepository();
 
+    private runAlways = core.getInput('run-always', {required: true}) === 'true';
+
     private projectUrlsInput = core.getInput('project-urls', {required: true});
     private projectUrls: string[] = this.projectUrlsInput
         .split(',')
@@ -27,7 +29,7 @@ export class IssueLinkUseCase implements UseCase<void> {
      * Labels
      * @private
      */
-    private branchManagementLabel = core.getInput('branch-management-label', {required: true});
+    private actionLauncherLabel = core.getInput('action-launcher-label', {required: true});
     private bugfixLabel = core.getInput('bugfix-label', {required: true});
     private hotfixLabel = core.getInput('hotfix-label', {required: true});
 
@@ -82,7 +84,7 @@ export class IssueLinkUseCase implements UseCase<void> {
         const labels = await this.issueRepository.getIssueLabels(this.token);
         console.log(`Founds labels: ${labels.join(', ')}`);
 
-        if (!labels.includes(this.branchManagementLabel)) {
+        if (!labels.includes(this.actionLauncherLabel) && !this.runAlways) {
             /**
              * Remove any branch created for this issue
              */

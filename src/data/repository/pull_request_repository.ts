@@ -82,4 +82,20 @@ export class PullRequestRepository {
 
         core.info(`Comment added to PR ${prNumber}.`);
     }
+
+    getLabels = async (token: string): Promise<string[]> => {
+        const prNumber = github.context.payload.pull_request?.number;
+        if (!prNumber) {
+            core.error(`PR number not found`);
+            return [];
+        }
+        const { owner, repo } = github.context.repo;
+        const octokit = github.getOctokit(token);
+        const {data: labels} = await octokit.rest.issues.listLabelsOnIssue({
+            owner: owner,
+            repo: repo,
+            issue_number: prNumber,
+        });
+        return labels.map(label => label.name);
+    }
 }

@@ -8,7 +8,7 @@ async function run(): Promise<void> {
     try {
         if (action === 'issue') {
             await new IssueLinkUseCase().invoke()
-        } else if (action === 'pull_request') {
+        } else if (action === 'pull-request') {
             await new PullRequestLinkUseCase().invoke()
         } else {
             core.info(`Action not handled: ${action}`);
