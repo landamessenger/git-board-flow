@@ -19,10 +19,6 @@ export class IssueRepository {
 
             let emoji = '🤖';
 
-            const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
-
-            const sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
-
             if (isHelp) {
                 emoji = '🆘';
             } else if (isQuestion) {
@@ -34,6 +30,12 @@ export class IssueRepository {
             } else if (branchType === 'feature') {
                 emoji = '🛠️';
             }
+
+            const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
+
+            let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
+
+            sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-');
 
             const formattedTitle = `${emoji} - ${sanitizedTitle}`;
 
@@ -48,7 +50,7 @@ export class IssueRepository {
         } catch (error) {
             core.setFailed(`Failed to check or update issue title: ${error}`);
         }
-    }
+    };
 
     getId = async (
         owner: string,

@@ -30583,8 +30583,6 @@ class IssueRepository {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
-                const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
-                const sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
                 if (isHelp) {
                     emoji = '🆘';
                 }
@@ -30600,6 +30598,9 @@ class IssueRepository {
                 else if (branchType === 'feature') {
                     emoji = '🛠️';
                 }
+                const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
+                let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
+                sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-');
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
                 await octokit.rest.issues.update({
                     owner: owner,
