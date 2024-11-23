@@ -35,7 +35,6 @@ export class IssueLinkUseCase implements UseCase<void> {
      * Branches
      * @private
      */
-    private defaultBranch = core.getInput('default-branch', {required: true});
     private developmentBranch = core.getInput('development-branch', {required: true});
 
     private isHotfix: boolean = false;
@@ -98,12 +97,8 @@ export class IssueLinkUseCase implements UseCase<void> {
                 const prefix = `${type}/${issueNumber}-`;
 
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
-
                 if (!matchingBranch) continue;
-
                 branchName = matchingBranch;
-                core.info(`Found branch: ${branchName}`);
-
                 const removed = await this.branchRepository.removeBranch(this.token, branchName);
                 if (removed) {
                     deletedBranches.push(branchName);
@@ -118,7 +113,7 @@ export class IssueLinkUseCase implements UseCase<void> {
 
             const commentBody = `## 🗑️ Cleanup Actions:
 ${deletedBranchesMessage}
-            `;
+`;
 
             await this.issueRepository.addComment(this.token, commentBody);
 
@@ -193,11 +188,8 @@ ${deletedBranchesMessage}
                 }
 
                 branchName = matchingBranch;
-                core.info(`Found branch for deletion ${branchName}`);
-
                 const removed = await this.branchRepository.removeBranch(this.token, branchName)
                 if (removed) {
-                    core.info(`Deleted ${branchName}`);
                     deletedBranches.push(branchName)
                 } else {
                     core.error(`Error deleting ${branchName}`);
@@ -207,7 +199,6 @@ ${deletedBranchesMessage}
                     if (branch.indexOf(prefix) > -1 && branch !== finalBranch) {
                         const removed = await this.branchRepository.removeBranch(this.token, branch)
                         if (removed) {
-                            core.info(`Deleted ${branch}`);
                             deletedBranches.push(branch)
                         } else {
                             core.error(`Error deleting ${branch}`);
@@ -247,7 +238,7 @@ ${deletedBranchesMessage}
             content = `
 1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${this.hotfixBranch}\`](${hotfixUrl}).
 2. The branch [\`${this.hotfixBranch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
-              `
+`
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
@@ -255,25 +246,25 @@ ${deletedBranchesMessage}
 3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${this.hotfixBranch}\`](${hotfixUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${this.hotfixBranch}...${newBranchName}?expand=1)
 4. After merging into [\`${this.hotfixBranch}\`](${hotfixUrl}), create the tag \`tags/${this.hotfixVersion}\`.
 5. Open a Pull Request from [\`${this.hotfixBranch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${this.hotfixBranch}?expand=1)
-              `
+`
             stepOn = 2
         } else if (isBugfix) {
             title = '🐛 Bugfix Actions'
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
-              `
+`
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
 3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
-              `
+`
 
         } else if (isFeature) {
             title = '🛠️ Feature Actions'
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
-              `
+`
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
@@ -294,7 +285,5 @@ ${deletedBranchesMessage}
             `;
 
         await this.issueRepository.addComment(this.token, commentBody)
-
-        console.log(`Commented on issue #${issueNumber}`);
     }
 }

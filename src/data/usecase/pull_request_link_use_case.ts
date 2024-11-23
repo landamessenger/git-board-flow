@@ -14,7 +14,6 @@ export class PullRequestLinkUseCase implements UseCase<void> {
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
-    private defaultBranch = core.getInput('default-branch', {required: true});
     private token = core.getInput('github-token', {required: true});
     private tokenPat = core.getInput('github-token-personal', {required: true});
 
@@ -33,9 +32,9 @@ export class PullRequestLinkUseCase implements UseCase<void> {
          * Link Pull Request to projects
          */
         for (const projectUrl of this.projectUrls) {
-            const projectId = await this.projectRepository.getProjectId(projectUrl, this.token)
+            const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat)
             const prId = github.context.payload.pull_request?.node_id;
-            await this.projectRepository.linkContentId(projectId, prId, this.token)
+            await this.projectRepository.linkContentId(projectId, prId, this.tokenPat)
         }
 
         /**

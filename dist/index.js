@@ -30559,7 +30559,6 @@ class IssueLinkUseCase {
          * Branches
          * @private
          */
-        this.defaultBranch = core.getInput('default-branch', { required: true });
         this.developmentBranch = core.getInput('development-branch', { required: true });
         this.isHotfix = false;
         this.hotfixVersion = '';
@@ -30612,7 +30611,6 @@ class IssueLinkUseCase {
                 if (!matchingBranch)
                     continue;
                 branchName = matchingBranch;
-                core.info(`Found branch: ${branchName}`);
                 const removed = await this.branchRepository.removeBranch(this.token, branchName);
                 if (removed) {
                     deletedBranches.push(branchName);
@@ -30625,7 +30623,7 @@ class IssueLinkUseCase {
             }
             const commentBody = `## 🗑️ Cleanup Actions:
 ${deletedBranchesMessage}
-            `;
+`;
             await this.issueRepository.addComment(this.token, commentBody);
             return;
         }
@@ -30666,10 +30664,8 @@ ${deletedBranchesMessage}
                     continue;
                 }
                 branchName = matchingBranch;
-                core.info(`Found branch for deletion ${branchName}`);
                 const removed = await this.branchRepository.removeBranch(this.token, branchName);
                 if (removed) {
-                    core.info(`Deleted ${branchName}`);
                     deletedBranches.push(branchName);
                 }
                 else {
@@ -30681,7 +30677,6 @@ ${deletedBranchesMessage}
                     if (branch.indexOf(prefix) > -1 && branch !== finalBranch) {
                         const removed = await this.branchRepository.removeBranch(this.token, branch);
                         if (removed) {
-                            core.info(`Deleted ${branch}`);
                             deletedBranches.push(branch);
                         }
                         else {
@@ -30715,7 +30710,7 @@ ${deletedBranchesMessage}
             content = `
 1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${this.hotfixBranch}\`](${hotfixUrl}).
 2. The branch [\`${this.hotfixBranch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
-              `;
+`;
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
@@ -30723,26 +30718,26 @@ ${deletedBranchesMessage}
 3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${this.hotfixBranch}\`](${hotfixUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${this.hotfixBranch}...${newBranchName}?expand=1)
 4. After merging into [\`${this.hotfixBranch}\`](${hotfixUrl}), create the tag \`tags/${this.hotfixVersion}\`.
 5. Open a Pull Request from [\`${this.hotfixBranch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${this.hotfixBranch}?expand=1)
-              `;
+`;
             stepOn = 2;
         }
         else if (isBugfix) {
             title = '🐛 Bugfix Actions';
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
-              `;
+`;
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
 3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
-              `;
+`;
         }
         else if (isFeature) {
             title = '🛠️ Feature Actions';
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
-              `;
+`;
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
@@ -30760,7 +30755,6 @@ ${deletedBranchesMessage}
             ${footer}
             `;
         await this.issueRepository.addComment(this.token, commentBody);
-        console.log(`Commented on issue #${issueNumber}`);
     }
 }
 exports.IssueLinkUseCase = IssueLinkUseCase;
@@ -30811,7 +30805,6 @@ class PullRequestLinkUseCase {
             .split(',')
             .map(url => url.trim())
             .filter(url => url.length > 0);
-        this.defaultBranch = core.getInput('default-branch', { required: true });
         this.token = core.getInput('github-token', { required: true });
         this.tokenPat = core.getInput('github-token-personal', { required: true });
     }
@@ -30827,9 +30820,9 @@ class PullRequestLinkUseCase {
          * Link Pull Request to projects
          */
         for (const projectUrl of this.projectUrls) {
-            const projectId = await this.projectRepository.getProjectId(projectUrl, this.token);
+            const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat);
             const prId = github.context.payload.pull_request?.node_id;
-            await this.projectRepository.linkContentId(projectId, prId, this.token);
+            await this.projectRepository.linkContentId(projectId, prId, this.tokenPat);
         }
         /**
          *  Set the primary/default branch
