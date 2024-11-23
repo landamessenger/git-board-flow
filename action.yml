@@ -5,6 +5,9 @@ inputs:
   action:
     description: "Action to handle"
     required: true
+  emoji-labeled-title:
+    description: "Title with emojis based on labels"
+    default: "false"
   action-launcher-label:
     description: "Activation label for branch management"
     default: "git-board"
