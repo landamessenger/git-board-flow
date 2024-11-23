@@ -17,8 +17,8 @@ inputs:
   project-urls:
     description: "List of projects urls to link issues and pull requests"
     default: ""
-  default-branch:
-    description: "Default branch of the repository"
+  main-branch:
+    description: "Main branch of the repository"
     default: "master"
   development-branch:
     description: "Development branch of the repository"

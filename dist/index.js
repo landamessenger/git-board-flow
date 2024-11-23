@@ -29907,6 +29907,187 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 5308:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Branches = void 0;
+class Branches {
+    constructor(main, development) {
+        this.main = main;
+        this.development = development;
+    }
+}
+exports.Branches = Branches;
+
+
+/***/ }),
+
+/***/ 7550:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Execution = void 0;
+const pull_request_repository_1 = __nccwpck_require__(634);
+const issue_repository_1 = __nccwpck_require__(57);
+const github = __importStar(__nccwpck_require__(5438));
+const label_utils_1 = __nccwpck_require__(6093);
+class Execution {
+    get repo() {
+        return github.context.repo.repo;
+    }
+    get owner() {
+        return github.context.repo.owner;
+    }
+    get isFeature() {
+        return this.branchType === 'feature';
+    }
+    get isBugfix() {
+        return this.branchType === 'bugfix';
+    }
+    get mustRun() {
+        return this.runAlways || this.labels.runnerLabels;
+    }
+    get branchType() {
+        return (0, label_utils_1.branchesForIssue)(this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
+    }
+    constructor(runAlways, issueAction, pullRequestAction, tokens, labels, branches, hotfix, projects) {
+        this.number = -1;
+        this.issueAction = false;
+        this.pullRequestAction = false;
+        this.setup = async () => {
+            if (this.issueAction) {
+                this.number = github.context.payload.issue?.number ?? -1;
+                const issueRepository = new issue_repository_1.IssueRepository();
+                this.labels.currentLabels = await issueRepository.getIssueLabels(this.tokens.token);
+            }
+            else if (this.pullRequestAction) {
+                const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+                this.number = await pullRequestRepository.extractIssueNumberFromBranch();
+                this.labels.currentLabels = await pullRequestRepository.getLabels(this.tokens.token);
+            }
+        };
+        this.tokens = tokens;
+        this.labels = labels;
+        this.branches = branches;
+        this.hotfix = hotfix;
+        this.runAlways = runAlways;
+        this.issueAction = issueAction;
+        this.pullRequestAction = pullRequestAction;
+        this.projects = projects;
+    }
+}
+exports.Execution = Execution;
+
+
+/***/ }),
+
+/***/ 7341:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Hotfix = void 0;
+class Hotfix {
+    constructor() {
+        this.active = false;
+    }
+}
+exports.Hotfix = Hotfix;
+
+
+/***/ }),
+
+/***/ 818:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Labels = void 0;
+class Labels {
+    get runnerLabels() {
+        return this.currentLabels.includes(this.actionLauncher);
+    }
+    constructor(actionLauncher, bugfix, hotfix) {
+        this.currentLabels = [];
+        this.actionLauncher = actionLauncher;
+        this.bugfix = bugfix;
+        this.hotfix = hotfix;
+    }
+}
+exports.Labels = Labels;
+
+
+/***/ }),
+
+/***/ 3765:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProjectDetail = void 0;
+class ProjectDetail {
+    constructor(data) {
+        this.id = data[`id`] ?? '';
+        this.type = data[`type`] ?? '';
+        this.owner = data[`owner`] ?? '';
+        this.url = data[`url`] ?? '';
+        this.number = data[`number`] ?? -1;
+    }
+}
+exports.ProjectDetail = ProjectDetail;
+
+
+/***/ }),
+
+/***/ 3421:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Tokens = void 0;
+class Tokens {
+    constructor(token, tokenPat) {
+        this.token = token;
+        this.tokenPat = tokenPat;
+    }
+}
+exports.Tokens = Tokens;
+
+
+/***/ }),
+
 /***/ 7701:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -30014,6 +30195,9 @@ class BranchRepository {
          */
         this.manageBranches = async (token, issueNumber, issueTitle, branchType, developmentBranch, hotfixBranch, isHotfix) => {
             core.info(`Managing branches`);
+            if (hotfixBranch === undefined && isHotfix) {
+                throw Error('Missing hotfix branch on hotfix scenario');
+            }
             const octokit = github.getOctokit(token);
             const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
             const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
@@ -30050,7 +30234,7 @@ class BranchRepository {
                 }
             }
             else {
-                baseBranchName = hotfixBranch;
+                baseBranchName = hotfixBranch ?? developmentBranch;
             }
             core.info(`============================================================================================`);
             core.info(`Base branch: ${baseBranchName}`);
@@ -30207,6 +30391,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
+const label_utils_1 = __nccwpck_require__(6093);
 class IssueRepository {
     constructor() {
         this.updateTitle = async (token) => {
@@ -30272,20 +30457,13 @@ class IssueRepository {
             });
             return labels.map(label => label.name);
         };
-        this._branchesForIssue = (labels, bugfixLabel, hotfixLabel) => {
-            if (labels.includes(bugfixLabel))
-                return 'bugfix';
-            if (labels.includes(hotfixLabel))
-                return 'bugfix';
-            return 'feature';
-        };
         this.isHotfix = async (token, hotfixLabel) => {
             const labels = await this.getIssueLabels(token);
             return labels.includes(hotfixLabel);
         };
-        this.branchesForIssue = async (token, bugfixLabel, hotfixLabel) => {
+        this.branchType = async (token, bugfixLabel, hotfixLabel) => {
             const labels = await this.getIssueLabels(token);
-            return this._branchesForIssue(labels, bugfixLabel, hotfixLabel);
+            return (0, label_utils_1.branchesForIssue)(labels, bugfixLabel, hotfixLabel);
         };
         this.addComment = async (token, comment) => {
             const issueNumber = github.context.payload.issue?.number;
@@ -30340,6 +30518,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ProjectRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
+const project_detail_1 = __nccwpck_require__(3765);
 class ProjectRepository {
     constructor() {
         this.getProjectId = async (projectUrl, token) => {
@@ -30367,7 +30546,38 @@ class ProjectRepository {
             core.info(`Project ID: ${projectId}`);
             return projectId;
         };
-        this.linkContentId = async (projectId, contentId, token) => {
+        this.getProjectDetail = async (projectUrl, token) => {
+            const octokit = github.getOctokit(token);
+            const projectMatch = projectUrl.match(/\/(?<ownerType>orgs|users)\/(?<ownerName>[^/]+)\/projects\/(?<projectNumber>\d+)/);
+            if (!projectMatch || !projectMatch.groups) {
+                throw new Error(`Invalid project URL: ${projectUrl}`);
+            }
+            const { ownerType, ownerName, projectNumber } = projectMatch.groups;
+            const ownerQueryField = ownerType === 'orgs' ? 'organization' : 'user';
+            const queryProject = `
+        query($ownerName: String!, $projectNumber: Int!) {
+          ${ownerQueryField}(login: $ownerName) {
+            projectV2(number: $projectNumber) {
+              id
+            }
+          }
+        }
+        `;
+            const projectResult = await octokit.graphql(queryProject, {
+                ownerName,
+                projectNumber: parseInt(projectNumber, 10),
+            });
+            const projectId = projectResult[ownerQueryField].projectV2.id;
+            core.info(`Project ID: ${projectId}`);
+            return new project_detail_1.ProjectDetail({
+                id: projectId,
+                type: ownerQueryField,
+                owner: ownerName,
+                url: projectUrl,
+                number: parseInt(projectNumber, 10),
+            });
+        };
+        this.linkContentId = async (project, contentId, token) => {
             const octokit = github.getOctokit(token);
             // Link the issue to the project
             const linkMutation = `
@@ -30380,7 +30590,7 @@ class ProjectRepository {
           }
         `;
             const linkResult = await octokit.graphql(linkMutation, {
-                projectId,
+                projectId: project.id,
                 contentId: contentId,
             });
             core.info(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
@@ -30552,50 +30762,21 @@ class IssueLinkUseCase {
         this.issueRepository = new issue_repository_1.IssueRepository();
         this.projectRepository = new project_repository_1.ProjectRepository();
         this.branchRepository = new branch_repository_1.BranchRepository();
-        this.runAlways = core.getInput('run-always', { required: true }) === 'true';
-        this.projectUrlsInput = core.getInput('project-urls', { required: true });
-        this.projectUrls = this.projectUrlsInput
-            .split(',')
-            .map(url => url.trim())
-            .filter(url => url.length > 0);
-        /**
-         * Tokens
-         * @private
-         */
-        this.token = core.getInput('github-token', { required: true });
-        this.tokenPat = core.getInput('github-token-personal', { required: true });
-        /**
-         * Labels
-         * @private
-         */
-        this.actionLauncherLabel = core.getInput('action-launcher-label', { required: true });
-        this.bugfixLabel = core.getInput('bugfix-label', { required: true });
-        this.hotfixLabel = core.getInput('hotfix-label', { required: true });
-        /**
-         * Branches
-         * @private
-         */
-        this.developmentBranch = core.getInput('development-branch', { required: true });
-        this.isHotfix = false;
-        this.hotfixVersion = '';
-        this.hotfixBranch = '';
     }
-    async invoke() {
-        const issueNumber = github.context.payload.issue?.number;
+    async invoke(param) {
         const issueTitle = github.context.payload.issue?.title;
-        if (!issueNumber || !issueTitle) {
-            core.setFailed('Issue number not available.');
+        if (!issueTitle) {
+            core.setFailed('Issue title not available.');
             return;
         }
-        const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, issueNumber);
+        const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.number);
         const deletedBranches = [];
         /**
          * Link issue to project
          */
-        for (const projectUrl of this.projectUrls) {
-            const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat);
-            const issueId = await this.issueRepository.getId(this.token);
-            await this.projectRepository.linkContentId(projectId, issueId, this.tokenPat);
+        for (const project of param.projects) {
+            const issueId = await this.issueRepository.getId(param.tokens.token);
+            await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
         }
         /**
          * Fetch all branches/tags
@@ -30604,83 +30785,48 @@ class IssueLinkUseCase {
         /**
          * Update title
          */
-        await this.issueRepository.updateTitle(this.token);
+        await this.issueRepository.updateTitle(param.tokens.token);
         /**
          * Get last tag for hotfix
          */
         const lastTag = await this.branchRepository.getLatestTag();
-        /**
-         * Get issue labels
-         */
-        const labels = await this.issueRepository.getIssueLabels(this.token);
-        console.log(`Founds labels: ${labels.join(', ')}`);
-        if (!labels.includes(this.actionLauncherLabel) && !this.runAlways) {
-            /**
-             * Remove any branch created for this issue
-             */
-            const branchTypes = ["feature", "bugfix"];
-            const branches = await this.branchRepository.getListOfBranches(this.token);
-            for (const type of branchTypes) {
-                let branchName = `${type}/${issueNumber}-${sanitizedTitle}`;
-                const prefix = `${type}/${issueNumber}-`;
-                const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
-                if (!matchingBranch)
-                    continue;
-                branchName = matchingBranch;
-                const removed = await this.branchRepository.removeBranch(this.token, branchName);
-                if (removed) {
-                    deletedBranches.push(branchName);
-                }
-            }
-            let deletedBranchesMessage = '';
-            for (let i = 0; i < deletedBranches.length; i++) {
-                const branch = deletedBranches[i];
-                deletedBranchesMessage += `\n${i + 1}. The branch \`${branch}\` was removed.`;
-            }
-            const commentBody = `## 🗑️ Cleanup Actions:
-${deletedBranchesMessage}
-`;
-            await this.issueRepository.addComment(this.token, commentBody);
-            return;
-        }
-        this.isHotfix = await this.issueRepository.isHotfix(this.token, this.hotfixLabel);
+        param.hotfix.active = await this.issueRepository.isHotfix(param.tokens.token, param.labels.hotfix);
         /**
          * When hotfix, prepare it first
          */
-        if (this.isHotfix && lastTag !== undefined) {
+        if (param.hotfix.active && lastTag !== undefined) {
             const branchOid = await this.branchRepository.getCommitTag(lastTag);
             const incrementHotfixVersion = (version) => {
                 const parts = version.split('.').map(Number);
                 parts[parts.length - 1] += 1;
                 return parts.join('.');
             };
-            this.hotfixVersion = incrementHotfixVersion(lastTag);
+            param.hotfix.version = incrementHotfixVersion(lastTag);
             const baseBranchName = `tags/${lastTag}`;
-            this.hotfixBranch = `hotfix/${this.hotfixVersion}`;
-            console.log(`Tag branch: ${baseBranchName}`);
-            console.log(`Hotfix branch: ${this.hotfixBranch}`);
-            const result = await this.branchRepository.createLinkedBranch(this.tokenPat, baseBranchName, this.hotfixBranch, issueNumber, branchOid);
-            console.log(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
+            param.hotfix.branch = `hotfix/${param.hotfix.version}`;
+            core.info(`Tag branch: ${baseBranchName}`);
+            core.info(`Hotfix branch: ${param.hotfix.branch}`);
+            const result = await this.branchRepository.createLinkedBranch(param.tokens.tokenPat, baseBranchName, param.hotfix.branch, param.number, branchOid);
+            core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
         }
-        const branchType = await this.issueRepository.branchesForIssue(this.token, this.bugfixLabel, this.hotfixLabel);
-        core.info(`Branch type: ${branchType}`);
-        this.replacedBranch = await this.branchRepository.manageBranches(this.tokenPat, issueNumber, issueTitle, branchType, this.developmentBranch, this.hotfixBranch, this.isHotfix);
+        core.info(`Branch type: ${param.branchType}`);
+        param.branches.replacedBranch = await this.branchRepository.manageBranches(param.tokens.tokenPat, param.number, issueTitle, param.branchType, param.branches.development, param.hotfix?.branch, param.hotfix.active);
         /**
          * Remove unnecessary branches
          */
-        const branches = await this.branchRepository.getListOfBranches(this.token);
-        const finalBranch = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+        const branches = await this.branchRepository.getListOfBranches(param.tokens.token);
+        const finalBranch = `${param.branchType}/${param.number}-${sanitizedTitle}`;
         const branchTypes = ["feature", "bugfix"];
         for (const type of branchTypes) {
-            let branchName = `${type}/${issueNumber}-${sanitizedTitle}`;
-            const prefix = `${type}/${issueNumber}-`;
-            if (type !== branchType) {
+            let branchName = `${type}/${param.number}-${sanitizedTitle}`;
+            const prefix = `${type}/${param.number}-`;
+            if (type !== param.branchType) {
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                 if (!matchingBranch) {
                     continue;
                 }
                 branchName = matchingBranch;
-                const removed = await this.branchRepository.removeBranch(this.token, branchName);
+                const removed = await this.branchRepository.removeBranch(param.tokens.token, branchName);
                 if (removed) {
                     deletedBranches.push(branchName);
                 }
@@ -30691,7 +30837,7 @@ ${deletedBranchesMessage}
             else {
                 for (const branch of branches) {
                     if (branch.indexOf(prefix) > -1 && branch !== finalBranch) {
-                        const removed = await this.branchRepository.removeBranch(this.token, branch);
+                        const removed = await this.branchRepository.removeBranch(param.tokens.token, branch);
                         if (removed) {
                             deletedBranches.push(branch);
                         }
@@ -30705,39 +30851,37 @@ ${deletedBranchesMessage}
         /**
          * Comment resume of actions
          */
-        const isBugfix = branchType === 'bugfix';
-        const isFeature = branchType === 'feature';
         const tagBranch = `tags/${lastTag}`;
-        const tagUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${tagBranch}`;
-        const originBranch = this.replacedBranch ?? this.developmentBranch;
-        const originUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${originBranch}`;
-        let developmentBranch = this.developmentBranch;
-        let developmentUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${developmentBranch}`;
-        const hotfixUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${this.hotfixBranch}`;
-        const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
-        const newRepoUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${newBranchName}`;
+        const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
+        const originBranch = param.branches.replacedBranch ?? param.branches.development;
+        const originUrl = `https://github.com/${param.owner}/${param.repo}/tree/${originBranch}`;
+        let developmentBranch = param.branches.development;
+        let developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${developmentBranch}`;
+        const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+        const newBranchName = `${param.branchType}/${param.number}-${sanitizedTitle}`;
+        const newRepoUrl = `https://github.com/${param.owner}/${param.repo}/tree/${newBranchName}`;
         let deletedBranchesMessage = '';
         let title = '';
         let content = '';
         let footer = '';
         let stepOn = 1;
-        if (this.isHotfix) {
+        if (param.hotfix.active) {
             title = '🔥🐛 Hotfix Actions';
             content = `
-1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${this.hotfixBranch}\`](${hotfixUrl}).
-2. The branch [\`${this.hotfixBranch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${param.hotfix.branch}\`](${hotfixUrl}).
+2. The branch [\`${param.hotfix.branch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
 `;
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${this.hotfixBranch}\`](${hotfixUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${this.hotfixBranch}...${newBranchName}?expand=1)
-4. After merging into [\`${this.hotfixBranch}\`](${hotfixUrl}), create the tag \`tags/${this.hotfixVersion}\`.
-5. Open a Pull Request from [\`${this.hotfixBranch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${this.hotfixBranch}?expand=1)
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${param.hotfix.branch}\`](${hotfixUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.hotfix.branch}...${newBranchName}?expand=1)
+4. After merging into [\`${param.hotfix.branch}\`](${hotfixUrl}), create the tag \`tags/${param.hotfix.version}\`.
+5. Open a Pull Request from [\`${param.hotfix.branch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${developmentBranch}...${param.hotfix.branch}?expand=1)
 `;
             stepOn = 2;
         }
-        else if (isBugfix) {
+        else if (param.isBugfix) {
             title = '🐛 Bugfix Actions';
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
@@ -30746,10 +30890,10 @@ ${deletedBranchesMessage}
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
 `;
         }
-        else if (isFeature) {
+        else if (param.isFeature) {
             title = '🛠️ Feature Actions';
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
@@ -30758,7 +30902,7 @@ ${deletedBranchesMessage}
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
 `;
         }
         for (let i = 0; i < deletedBranches.length; i++) {
@@ -30770,7 +30914,7 @@ ${deletedBranchesMessage}
             ${deletedBranchesMessage}
             ${footer}
             `;
-        await this.issueRepository.addComment(this.token, commentBody);
+        await this.issueRepository.addComment(param.tokens.token, commentBody);
     }
 }
 exports.IssueLinkUseCase = IssueLinkUseCase;
@@ -30809,53 +30953,34 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestLinkUseCase = void 0;
 const pull_request_repository_1 = __nccwpck_require__(634);
-const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const project_repository_1 = __nccwpck_require__(7917);
 class PullRequestLinkUseCase {
     constructor() {
         this.projectRepository = new project_repository_1.ProjectRepository();
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
-        this.projectUrlsInput = core.getInput('project-urls', { required: true });
-        this.projectUrls = this.projectUrlsInput
-            .split(',')
-            .map(url => url.trim())
-            .filter(url => url.length > 0);
-        this.token = core.getInput('github-token', { required: true });
-        this.tokenPat = core.getInput('github-token-personal', { required: true });
-        this.runAlways = core.getInput('run-always', { required: true }) === 'true';
-        this.actionLauncherLabel = core.getInput('action-launcher-label', { required: true });
     }
-    async invoke() {
-        const issueNumber = await this.pullRequestRepository.extractIssueNumberFromBranch();
-        const labels = await this.pullRequestRepository.getLabels(this.token);
-        console.log(`Founds labels: ${labels.join(', ')}`);
-        if (!labels.includes(this.actionLauncherLabel) && !this.runAlways) {
-            core.info(`PullRequestIssueLinkUseCase skipped: ${issueNumber}`);
-            return;
-        }
+    async invoke(param) {
         const isLinked = await this.pullRequestRepository.isLinked();
-        core.info(`PullRequestIssueLinkUseCase executed: ${issueNumber}`);
         /**
          * Link Pull Request to projects
          */
-        for (const projectUrl of this.projectUrls) {
-            const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat);
+        for (const project of param.projects) {
             const prId = github.context.payload.pull_request?.node_id;
-            await this.projectRepository.linkContentId(projectId, prId, this.tokenPat);
+            await this.projectRepository.linkContentId(project, prId, param.tokens.tokenPat);
         }
         if (!isLinked) {
             /**
              *  Set the primary/default branch
              */
             const defaultBranch = github.context.payload.repository?.default_branch;
-            await this.pullRequestRepository.updateBaseBranch(this.token, defaultBranch);
+            await this.pullRequestRepository.updateBaseBranch(param.tokens.token, defaultBranch);
             /**
              *  Update PR's description.
              */
-            const prBody = github.context.payload.pull_request?.body || '';
-            const updatedBody = `${prBody}\n\nResolves #${issueNumber}`;
-            await this.pullRequestRepository.updateDescription(this.token, updatedBody);
+            let prBody = github.context.payload.pull_request?.body || '';
+            let updatedBody = `${prBody}\n\nResolves #${param.number}`;
+            await this.pullRequestRepository.updateDescription(param.tokens.token, updatedBody);
             /**
              *  Await 20 seconds
              */
@@ -30864,19 +30989,26 @@ class PullRequestLinkUseCase {
              *  Restore the original branch
              */
             const originalBranch = github.context.payload.pull_request?.base.ref || '';
-            await this.pullRequestRepository.updateBaseBranch(this.token, originalBranch);
+            await this.pullRequestRepository.updateBaseBranch(param.tokens.token, originalBranch);
+            /**
+             * Restore comment on description
+             */
+            prBody = github.context.payload.pull_request?.body ?? "";
+            updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
+            await this.pullRequestRepository.updateDescription(param.tokens.token, updatedBody);
+            console.log(`Removed "Resolves #${param.number}" from PR description`);
             /**
              * Add comment
              */
-            await this.pullRequestRepository.addComment(this.token, `
+            await this.pullRequestRepository.addComment(param.tokens.token, `
 ## 🛠️ Pull Request Linking Summary
 
 The following actions were performed to ensure the pull request is properly linked to the related issue:
   
 1. The base branch was temporarily updated to \`${defaultBranch}\`.
-2. The description was temporarily modified to include a reference to issue **#${issueNumber}**.
+2. The description was temporarily modified to include a reference to issue **#${param.number}**.
 3. The base branch was reverted to its original value: \`${originalBranch}\`.
-4. The temporary issue reference **#${issueNumber}** was removed from the description.
+4. The temporary issue reference **#${param.number}** was removed from the description.
 
 Thank you for contributing! 🙌
 `);
@@ -30884,6 +31016,74 @@ Thank you for contributing! 🙌
     }
 }
 exports.PullRequestLinkUseCase = PullRequestLinkUseCase;
+
+
+/***/ }),
+
+/***/ 2041:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RemoveIssueBranchesUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const branch_repository_1 = __nccwpck_require__(7701);
+/**
+ * Remove any branch created for this issue
+ */
+class RemoveIssueBranchesUseCase {
+    constructor() {
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.branchRepository = new branch_repository_1.BranchRepository();
+    }
+    async invoke(param) {
+        const deletedBranches = [];
+        const branchTypes = ["feature", "bugfix"];
+        const branches = await this.branchRepository.getListOfBranches(param.tokens.token);
+        for (const type of branchTypes) {
+            let branchName = '';
+            const prefix = `${type}/${param.number}-`;
+            const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
+            if (!matchingBranch)
+                continue;
+            branchName = matchingBranch;
+            const removed = await this.branchRepository.removeBranch(param.tokens.token, branchName);
+            if (removed) {
+                deletedBranches.push(branchName);
+            }
+        }
+        let deletedBranchesMessage = '';
+        for (let i = 0; i < deletedBranches.length; i++) {
+            const branch = deletedBranches[i];
+            deletedBranchesMessage += `\n${i + 1}. The branch \`${branch}\` was removed.`;
+        }
+        const commentBody = `## 🗑️ Cleanup Actions:
+${deletedBranchesMessage}
+`;
+        await this.issueRepository.addComment(param.tokens.token, commentBody);
+    }
+}
+exports.RemoveIssueBranchesUseCase = RemoveIssueBranchesUseCase;
+
+
+/***/ }),
+
+/***/ 6093:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.branchesForIssue = void 0;
+const branchesForIssue = (labels, bugfixLabel, hotfixLabel) => {
+    if (labels.includes(bugfixLabel))
+        return 'bugfix';
+    if (labels.includes(hotfixLabel))
+        return 'bugfix';
+    return 'feature';
+};
+exports.branchesForIssue = branchesForIssue;
 
 
 /***/ }),
@@ -30920,17 +31120,72 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const pull_request_link_use_case_1 = __nccwpck_require__(29);
 const issue_link_use_case_1 = __nccwpck_require__(5877);
+const project_repository_1 = __nccwpck_require__(7917);
+const execution_1 = __nccwpck_require__(7550);
+const tokens_1 = __nccwpck_require__(3421);
+const labels_1 = __nccwpck_require__(818);
+const branches_1 = __nccwpck_require__(5308);
+const hotfix_1 = __nccwpck_require__(7341);
+const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
 async function run() {
+    const projectRepository = new project_repository_1.ProjectRepository();
     const action = core.getInput('action', { required: true });
+    /**
+     * Tokens
+     */
+    const token = core.getInput('github-token', { required: true });
+    const tokenPat = core.getInput('github-token-personal', { required: true });
+    /**
+     * Projects Details
+     */
+    const projectUrlsInput = core.getInput('project-urls', { required: true });
+    const projectUrls = projectUrlsInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    const projects = [];
+    for (const projectUrl of projectUrls) {
+        const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat);
+        projects.push(detail);
+    }
+    /**
+     * Runs always
+     */
+    const runAlways = core.getInput('run-always', { required: true }) === 'true';
+    /**
+     * Labels
+     */
+    const actionLauncherLabel = core.getInput('action-launcher-label', { required: true });
+    const bugfixLabel = core.getInput('bugfix-label', { required: true });
+    const hotfixLabel = core.getInput('hotfix-label', { required: true });
+    /**
+     * Branches
+     */
+    const mainBranch = core.getInput('main-branch', { required: true });
+    const developmentBranch = core.getInput('development-branch', { required: true });
+    const execution = new execution_1.Execution(runAlways, action === 'issue', action === 'pull-request', new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel), new branches_1.Branches(mainBranch, developmentBranch), new hotfix_1.Hotfix(), projects);
+    await execution.setup();
+    if (execution.number === -1) {
+        core.setFailed(`Issue ${execution.number}. Skipping.`);
+        return;
+    }
+    if (execution.issueAction && !execution.mustRun) {
+        await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(execution);
+        return;
+    }
+    if (!execution.mustRun) {
+        core.setFailed(`Issue ${execution.number}. Skipping.`);
+        return;
+    }
     try {
-        if (action === 'issue') {
-            await new issue_link_use_case_1.IssueLinkUseCase().invoke();
+        if (execution.issueAction) {
+            await new issue_link_use_case_1.IssueLinkUseCase().invoke(execution);
         }
-        else if (action === 'pull-request') {
-            await new pull_request_link_use_case_1.PullRequestLinkUseCase().invoke();
+        else if (execution.pullRequestAction) {
+            await new pull_request_link_use_case_1.PullRequestLinkUseCase().invoke(execution);
         }
         else {
-            core.info(`Action not handled: ${action}`);
+            core.setFailed(`Action not handled: ${action}`);
         }
     }
     catch (error) {

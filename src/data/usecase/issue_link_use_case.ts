@@ -1,66 +1,31 @@
 import * as core from "@actions/core";
 import {ProjectRepository} from "../repository/project_repository";
-import {UseCase} from "./base/usecase";
 import {IssueRepository} from "../repository/issue_repository";
 import {BranchRepository} from "../repository/branch_repository";
 import * as github from "@actions/github";
+import {ParamUseCase} from "./base/param_usecase";
+import {Execution} from "../model/execution";
 
-export class IssueLinkUseCase implements UseCase<void> {
+export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
     private issueRepository = new IssueRepository();
     private projectRepository = new ProjectRepository();
     private branchRepository = new BranchRepository();
 
-    private runAlways = core.getInput('run-always', {required: true}) === 'true';
-
-    private projectUrlsInput = core.getInput('project-urls', {required: true});
-    private projectUrls: string[] = this.projectUrlsInput
-        .split(',')
-        .map(url => url.trim())
-        .filter(url => url.length > 0);
-
-    /**
-     * Tokens
-     * @private
-     */
-    private token = core.getInput('github-token', {required: true});
-    private tokenPat = core.getInput('github-token-personal', {required: true});
-
-    /**
-     * Labels
-     * @private
-     */
-    private actionLauncherLabel = core.getInput('action-launcher-label', {required: true});
-    private bugfixLabel = core.getInput('bugfix-label', {required: true});
-    private hotfixLabel = core.getInput('hotfix-label', {required: true});
-
-    /**
-     * Branches
-     * @private
-     */
-    private developmentBranch = core.getInput('development-branch', {required: true});
-
-    private isHotfix: boolean = false;
-    private hotfixVersion: string = '';
-    private hotfixBranch: string = '';
-    private replacedBranch: string | undefined;
-
-    async invoke(): Promise<void> {
-        const issueNumber = github.context.payload.issue?.number;
+    async invoke(param: Execution): Promise<void> {
         const issueTitle: string | undefined = github.context.payload.issue?.title;
-        if (!issueNumber || !issueTitle) {
-            core.setFailed('Issue number not available.');
+        if (!issueTitle) {
+            core.setFailed('Issue title not available.');
             return;
         }
-        const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, issueNumber)
+        const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.number)
         const deletedBranches = []
 
         /**
          * Link issue to project
          */
-        for (const projectUrl of this.projectUrls) {
-            const projectId = await this.projectRepository.getProjectId(projectUrl, this.tokenPat)
-            const issueId = await this.issueRepository.getId(this.token)
-            await this.projectRepository.linkContentId(projectId, issueId, this.tokenPat)
+        for (const project of param.projects) {
+            const issueId = await this.issueRepository.getId(param.tokens.token)
+            await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
         }
 
         /**
@@ -71,63 +36,20 @@ export class IssueLinkUseCase implements UseCase<void> {
         /**
          * Update title
          */
-        await this.issueRepository.updateTitle(this.token);
+        await this.issueRepository.updateTitle(param.tokens.token);
 
         /**
          * Get last tag for hotfix
          */
         const lastTag = await this.branchRepository.getLatestTag();
 
-        /**
-         * Get issue labels
-         */
-        const labels = await this.issueRepository.getIssueLabels(this.token);
-        console.log(`Founds labels: ${labels.join(', ')}`);
 
-        if (!labels.includes(this.actionLauncherLabel) && !this.runAlways) {
-            /**
-             * Remove any branch created for this issue
-             */
-
-            const branchTypes = ["feature", "bugfix"];
-
-            const branches = await this.branchRepository.getListOfBranches(this.token);
-
-
-            for (const type of branchTypes) {
-                let branchName = `${type}/${issueNumber}-${sanitizedTitle}`;
-                const prefix = `${type}/${issueNumber}-`;
-
-                const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
-                if (!matchingBranch) continue;
-                branchName = matchingBranch;
-                const removed = await this.branchRepository.removeBranch(this.token, branchName);
-                if (removed) {
-                    deletedBranches.push(branchName);
-                }
-            }
-
-            let deletedBranchesMessage = ''
-            for (let i = 0; i < deletedBranches.length; i++) {
-                const branch = deletedBranches[i];
-                deletedBranchesMessage += `\n${i + 1}. The branch \`${branch}\` was removed.`
-            }
-
-            const commentBody = `## 🗑️ Cleanup Actions:
-${deletedBranchesMessage}
-`;
-
-            await this.issueRepository.addComment(this.token, commentBody);
-
-            return
-        }
-
-        this.isHotfix = await this.issueRepository.isHotfix(this.token, this.hotfixLabel);
+        param.hotfix.active = await this.issueRepository.isHotfix(param.tokens.token, param.labels.hotfix);
 
         /**
          * When hotfix, prepare it first
          */
-        if (this.isHotfix && lastTag !== undefined) {
+        if (param.hotfix.active && lastTag !== undefined) {
             const branchOid = await this.branchRepository.getCommitTag(lastTag)
             const incrementHotfixVersion = (version: string) => {
                 const parts = version.split('.').map(Number);
@@ -135,62 +57,56 @@ ${deletedBranchesMessage}
                 return parts.join('.');
             };
 
-            this.hotfixVersion = incrementHotfixVersion(lastTag);
+            param.hotfix.version = incrementHotfixVersion(lastTag);
 
             const baseBranchName = `tags/${lastTag}`;
-            this.hotfixBranch = `hotfix/${this.hotfixVersion}`;
+            param.hotfix.branch = `hotfix/${param.hotfix.version}`;
 
-            console.log(`Tag branch: ${baseBranchName}`);
-            console.log(`Hotfix branch: ${this.hotfixBranch}`);
+            core.info(`Tag branch: ${baseBranchName}`);
+            core.info(`Hotfix branch: ${param.hotfix.branch}`);
 
             const result = await this.branchRepository.createLinkedBranch(
-                this.tokenPat,
+                param.tokens.tokenPat,
                 baseBranchName,
-                this.hotfixBranch,
-                issueNumber,
+                param.hotfix.branch,
+                param.number,
                 branchOid
             )
 
-            console.log(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
+            core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
         }
 
-        const branchType = await this.issueRepository.branchesForIssue(
-            this.token,
-            this.bugfixLabel,
-            this.hotfixLabel,
-        );
+        core.info(`Branch type: ${param.branchType}`);
 
-        core.info(`Branch type: ${branchType}`);
-
-        this.replacedBranch = await this.branchRepository.manageBranches(this.tokenPat,
-            issueNumber,
+        param.branches.replacedBranch = await this.branchRepository.manageBranches(param.tokens.tokenPat,
+            param.number,
             issueTitle,
-            branchType,
-            this.developmentBranch,
-            this.hotfixBranch,
-            this.isHotfix,
+            param.branchType,
+            param.branches.development,
+            param.hotfix?.branch,
+            param.hotfix.active,
         );
 
         /**
          * Remove unnecessary branches
          */
-        const branches = await this.branchRepository.getListOfBranches(this.token);
+        const branches = await this.branchRepository.getListOfBranches(param.tokens.token);
 
-        const finalBranch = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+        const finalBranch = `${param.branchType}/${param.number}-${sanitizedTitle}`;
 
         const branchTypes = ["feature", "bugfix"];
         for (const type of branchTypes) {
-            let branchName = `${type}/${issueNumber}-${sanitizedTitle}`;
-            const prefix = `${type}/${issueNumber}-`;
+            let branchName = `${type}/${param.number}-${sanitizedTitle}`;
+            const prefix = `${type}/${param.number}-`;
 
-            if (type !== branchType) {
+            if (type !== param.branchType) {
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                 if (!matchingBranch) {
                     continue;
                 }
 
                 branchName = matchingBranch;
-                const removed = await this.branchRepository.removeBranch(this.token, branchName)
+                const removed = await this.branchRepository.removeBranch(param.tokens.token, branchName)
                 if (removed) {
                     deletedBranches.push(branchName)
                 } else {
@@ -199,7 +115,7 @@ ${deletedBranchesMessage}
             } else {
                 for (const branch of branches) {
                     if (branch.indexOf(prefix) > -1 && branch !== finalBranch) {
-                        const removed = await this.branchRepository.removeBranch(this.token, branch)
+                        const removed = await this.branchRepository.removeBranch(param.tokens.token, branch)
                         if (removed) {
                             deletedBranches.push(branch)
                         } else {
@@ -213,21 +129,20 @@ ${deletedBranchesMessage}
         /**
          * Comment resume of actions
          */
-        const isBugfix = branchType === 'bugfix';
-        const isFeature = branchType === 'feature';
+
         const tagBranch = `tags/${lastTag}`;
-        const tagUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${tagBranch}`;
+        const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
 
-        const originBranch = this.replacedBranch ?? this.developmentBranch;
-        const originUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${originBranch}`;
+        const originBranch = param.branches.replacedBranch ?? param.branches.development;
+        const originUrl = `https://github.com/${param.owner}/${param.repo}/tree/${originBranch}`;
 
-        let developmentBranch = this.developmentBranch;
-        let developmentUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${developmentBranch}`;
+        let developmentBranch = param.branches.development;
+        let developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${developmentBranch}`;
 
-        const hotfixUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${this.hotfixBranch}`;
+        const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
 
-        const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
-        const newRepoUrl = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/tree/${newBranchName}`;
+        const newBranchName = `${param.branchType}/${param.number}-${sanitizedTitle}`;
+        const newRepoUrl = `https://github.com/${param.owner}/${param.repo}/tree/${newBranchName}`;
 
         let deletedBranchesMessage = ''
         let title = ''
@@ -235,22 +150,22 @@ ${deletedBranchesMessage}
         let footer = ''
         let stepOn = 1
 
-        if (this.isHotfix) {
+        if (param.hotfix.active) {
             title = '🔥🐛 Hotfix Actions'
             content = `
-1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${this.hotfixBranch}\`](${hotfixUrl}).
-2. The branch [\`${this.hotfixBranch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
+1. The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${param.hotfix.branch}\`](${hotfixUrl}).
+2. The branch [\`${param.hotfix.branch}\`](${hotfixUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
 `
             footer = `
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${this.hotfixBranch}\`](${hotfixUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${this.hotfixBranch}...${newBranchName}?expand=1)
-4. After merging into [\`${this.hotfixBranch}\`](${hotfixUrl}), create the tag \`tags/${this.hotfixVersion}\`.
-5. Open a Pull Request from [\`${this.hotfixBranch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${this.hotfixBranch}?expand=1)
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${param.hotfix.branch}\`](${hotfixUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.hotfix.branch}...${newBranchName}?expand=1)
+4. After merging into [\`${param.hotfix.branch}\`](${hotfixUrl}), create the tag \`tags/${param.hotfix.version}\`.
+5. Open a Pull Request from [\`${param.hotfix.branch}\`](${hotfixUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${developmentBranch}...${param.hotfix.branch}?expand=1)
 `
             stepOn = 2
-        } else if (isBugfix) {
+        } else if (param.isBugfix) {
             title = '🐛 Bugfix Actions'
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
@@ -259,10 +174,10 @@ ${deletedBranchesMessage}
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
 `
 
-        } else if (isFeature) {
+        } else if (param.isFeature) {
             title = '🛠️ Feature Actions'
             content = `
 1. The branch [\`${originBranch}\`](${originUrl}) was used to create the branch [\`${newBranchName}\`](${newRepoUrl}).
@@ -271,7 +186,7 @@ ${deletedBranchesMessage}
 ### Reminder
 1. Make yourself a coffee ☕.
 2. Commit the necessary changes to [\`${newBranchName}\`](${newRepoUrl}).
-3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
+3. Open a Pull Request from [\`${newBranchName}\`](${newRepoUrl}) to [\`${developmentBranch}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${developmentBranch}...${newBranchName}?expand=1)
 `
         }
 
@@ -286,6 +201,6 @@ ${deletedBranchesMessage}
             ${footer}
             `;
 
-        await this.issueRepository.addComment(this.token, commentBody)
+        await this.issueRepository.addComment(param.tokens.token, commentBody)
     }
 }

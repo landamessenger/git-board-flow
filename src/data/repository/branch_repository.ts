@@ -85,10 +85,14 @@ export class BranchRepository {
         issueTitle: string,
         branchType: string,
         developmentBranch: string,
-        hotfixBranch: string,
+        hotfixBranch: string | undefined,
         isHotfix: boolean,
     ): Promise<string | undefined> => {
         core.info(`Managing branches`);
+
+        if (hotfixBranch === undefined && isHotfix) {
+            throw Error('Missing hotfix branch on hotfix scenario');
+        }
 
         const octokit = github.getOctokit(token);
 
@@ -133,7 +137,7 @@ export class BranchRepository {
                 }
             }
         } else {
-            baseBranchName = hotfixBranch;
+            baseBranchName = hotfixBranch ?? developmentBranch;
         }
 
         core.info(`============================================================================================`);

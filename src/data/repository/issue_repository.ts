@@ -1,5 +1,6 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
+import {branchesForIssue} from "../utils/label_utils";
 
 export class IssueRepository {
     updateTitle = async (token: string): Promise<void> => {
@@ -76,28 +77,18 @@ export class IssueRepository {
         return labels.map(label => label.name);
     }
 
-    _branchesForIssue = (
-        labels: string[],
-        bugfixLabel: string,
-        hotfixLabel: string,
-    ): string => {
-        if (labels.includes(bugfixLabel)) return 'bugfix';
-        if (labels.includes(hotfixLabel)) return 'bugfix';
-        return 'feature';
-    }
-
     isHotfix = async (token: string, hotfixLabel: string): Promise<boolean> => {
         const labels = await this.getIssueLabels(token)
         return labels.includes(hotfixLabel)
     }
 
-    branchesForIssue = async (
+    branchType = async (
         token: string,
         bugfixLabel: string,
         hotfixLabel: string,
     ): Promise<string> => {
         const labels = await this.getIssueLabels(token)
-        return this._branchesForIssue(labels, bugfixLabel, hotfixLabel)
+        return branchesForIssue(labels, bugfixLabel, hotfixLabel)
     }
 
     addComment = async (token: string, comment: string) => {
