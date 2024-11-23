@@ -7,16 +7,22 @@ inputs:
     required: true
   branch-management-label:
     description: "Activation label for branch management"
-    required: true
+    default: "branching"
+  hotfix-label:
+    description: "Hotfix branch behaviour"
+    default: "hotfix"
+  bugfix-label:
+    description: "Bugfix branch behaviour"
+    default: "bugfix"
   project-urls:
     description: "List of projects urls to link issues and pull requests"
-    required: false
+    default: ""
   default-branch:
     description: "Default branch of the repository"
-    required: true
+    default: "master"
   development-branch:
     description: "Development branch of the repository"
-    required: true
+    default: "develop"
   github-token:
     description: "GitHub token to interact with branches and projects in the current scope"
     required: true

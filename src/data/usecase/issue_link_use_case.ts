@@ -16,9 +16,25 @@ export class IssueLinkUseCase implements UseCase<void> {
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
+    /**
+     * Tokens
+     * @private
+     */
     private token = core.getInput('github-token', {required: true});
     private tokenPat = core.getInput('github-token-personal', {required: true});
+
+    /**
+     * Labels
+     * @private
+     */
     private branchManagementLabel = core.getInput('branch-management-label', {required: true});
+    private bugfixLabel = core.getInput('bugfix-label', {required: true});
+    private hotfixLabel = core.getInput('hotfix-label', {required: true});
+
+    /**
+     * Branches
+     * @private
+     */
     private defaultBranch = core.getInput('default-branch', {required: true});
     private developmentBranch = core.getInput('development-branch', {required: true});
 
@@ -109,7 +125,7 @@ ${deletedBranchesMessage}
             return
         }
 
-        this.isHotfix = await this.issueRepository.isHotfix(this.token);
+        this.isHotfix = await this.issueRepository.isHotfix(this.token, this.hotfixLabel);
 
         /**
          * When hotfix, prepare it first
@@ -141,9 +157,13 @@ ${deletedBranchesMessage}
             console.log(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
         }
 
-        const branchType = await this.issueRepository.branchesForIssue(this.token);
+        const branchType = await this.issueRepository.branchesForIssue(
+            this.token,
+            this.bugfixLabel,
+            this.hotfixLabel,
+        );
 
-        console.log(`Branch type: ${branchType}`);
+        core.info(`Branch type: ${branchType}`);
 
         this.replacedBranch = await this.branchRepository.manageBranches(this.tokenPat,
             issueNumber,
@@ -264,7 +284,7 @@ ${deletedBranchesMessage}
 
         for (let i = 0; i < deletedBranches.length; i++) {
             const branch = deletedBranches[i];
-            deletedBranchesMessage += `\n${stepOn + i + 1}. The branch \`${branch}\` was removed.`
+            deletedBranchesMessage += `${stepOn + i + 1}. The branch \`${branch}\` was removed.\n`
         }
 
         const commentBody = `## ${title}:

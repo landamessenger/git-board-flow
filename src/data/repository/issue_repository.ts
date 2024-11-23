@@ -76,20 +76,28 @@ export class IssueRepository {
         return labels.map(label => label.name);
     }
 
-    _branchesForIssue = (labels: string[]): string => {
-        if (labels.includes('bug')) return 'bugfix';
-        if (labels.includes('hotfix')) return 'bugfix';
+    _branchesForIssue = (
+        labels: string[],
+        bugfixLabel: string,
+        hotfixLabel: string,
+    ): string => {
+        if (labels.includes(bugfixLabel)) return 'bugfix';
+        if (labels.includes(hotfixLabel)) return 'bugfix';
         return 'feature';
     }
 
-    isHotfix = async (token: string): Promise<boolean> => {
+    isHotfix = async (token: string, hotfixLabel: string): Promise<boolean> => {
         const labels = await this.getIssueLabels(token)
-        return labels.includes('hotfix')
+        return labels.includes(hotfixLabel)
     }
 
-    branchesForIssue = async (token: string): Promise<string> => {
+    branchesForIssue = async (
+        token: string,
+        bugfixLabel: string,
+        hotfixLabel: string,
+    ): Promise<string> => {
         const labels = await this.getIssueLabels(token)
-        return this._branchesForIssue(labels)
+        return this._branchesForIssue(labels, bugfixLabel, hotfixLabel)
     }
 
     addComment = async (token: string, comment: string) => {

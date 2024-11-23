@@ -30272,20 +30272,20 @@ class IssueRepository {
             });
             return labels.map(label => label.name);
         };
-        this._branchesForIssue = (labels) => {
-            if (labels.includes('bug'))
+        this._branchesForIssue = (labels, bugfixLabel, hotfixLabel) => {
+            if (labels.includes(bugfixLabel))
                 return 'bugfix';
-            if (labels.includes('hotfix'))
+            if (labels.includes(hotfixLabel))
                 return 'bugfix';
             return 'feature';
         };
-        this.isHotfix = async (token) => {
+        this.isHotfix = async (token, hotfixLabel) => {
             const labels = await this.getIssueLabels(token);
-            return labels.includes('hotfix');
+            return labels.includes(hotfixLabel);
         };
-        this.branchesForIssue = async (token) => {
+        this.branchesForIssue = async (token, bugfixLabel, hotfixLabel) => {
             const labels = await this.getIssueLabels(token);
-            return this._branchesForIssue(labels);
+            return this._branchesForIssue(labels, bugfixLabel, hotfixLabel);
         };
         this.addComment = async (token, comment) => {
             const issueNumber = github.context.payload.issue?.number;
@@ -30542,9 +30542,23 @@ class IssueLinkUseCase {
             .split(',')
             .map(url => url.trim())
             .filter(url => url.length > 0);
+        /**
+         * Tokens
+         * @private
+         */
         this.token = core.getInput('github-token', { required: true });
         this.tokenPat = core.getInput('github-token-personal', { required: true });
+        /**
+         * Labels
+         * @private
+         */
         this.branchManagementLabel = core.getInput('branch-management-label', { required: true });
+        this.bugfixLabel = core.getInput('bugfix-label', { required: true });
+        this.hotfixLabel = core.getInput('hotfix-label', { required: true });
+        /**
+         * Branches
+         * @private
+         */
         this.defaultBranch = core.getInput('default-branch', { required: true });
         this.developmentBranch = core.getInput('development-branch', { required: true });
         this.isHotfix = false;
@@ -30615,7 +30629,7 @@ ${deletedBranchesMessage}
             await this.issueRepository.addComment(this.token, commentBody);
             return;
         }
-        this.isHotfix = await this.issueRepository.isHotfix(this.token);
+        this.isHotfix = await this.issueRepository.isHotfix(this.token, this.hotfixLabel);
         /**
          * When hotfix, prepare it first
          */
@@ -30634,8 +30648,8 @@ ${deletedBranchesMessage}
             const result = await this.branchRepository.createLinkedBranch(this.tokenPat, baseBranchName, this.hotfixBranch, issueNumber, branchOid);
             console.log(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
         }
-        const branchType = await this.issueRepository.branchesForIssue(this.token);
-        console.log(`Branch type: ${branchType}`);
+        const branchType = await this.issueRepository.branchesForIssue(this.token, this.bugfixLabel, this.hotfixLabel);
+        core.info(`Branch type: ${branchType}`);
         this.replacedBranch = await this.branchRepository.manageBranches(this.tokenPat, issueNumber, issueTitle, branchType, this.developmentBranch, this.hotfixBranch, this.isHotfix);
         /**
          * Remove unnecessary branches
@@ -30738,7 +30752,7 @@ ${deletedBranchesMessage}
         }
         for (let i = 0; i < deletedBranches.length; i++) {
             const branch = deletedBranches[i];
-            deletedBranchesMessage += `\n${stepOn + i + 1}. The branch \`${branch}\` was removed.`;
+            deletedBranchesMessage += `${stepOn + i + 1}. The branch \`${branch}\` was removed.\n`;
         }
         const commentBody = `## ${title}:
             ${content}
