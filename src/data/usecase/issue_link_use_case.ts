@@ -37,23 +37,6 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
          */
         await this.branchRepository.fetchRemoteBranches();
 
-        /**
-         * Update title
-         */
-        await this.issueRepository.updateTitle(
-            param.owner,
-            param.repo,
-            param.issue.number,
-            param.issue.title,
-            param.tokens.token,
-        );
-
-        /**
-         * Get last tag for hotfix
-         */
-        const lastTag = await this.branchRepository.getLatestTag();
-
-
         param.hotfix.active = await this.issueRepository.isHotfix(
             param.owner,
             param.repo,
@@ -63,8 +46,26 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
         );
 
         /**
+         * Update title
+         */
+        if (param.emojiLabeledTitle) {
+            await this.issueRepository.updateTitle(
+                param.owner,
+                param.repo,
+                param.issue.title,
+                param.issue.number,
+                param.branchType,
+                param.hotfix.active,
+                param.labels.isQuestion,
+                param.labels.isHelp,
+                param.tokens.token,
+            );
+        }
+
+        /**
          * When hotfix, prepare it first
          */
+        const lastTag = await this.branchRepository.getLatestTag();
         if (param.hotfix.active && lastTag !== undefined) {
             const branchOid = await this.branchRepository.getCommitTag(lastTag)
             const incrementHotfixVersion = (version: string) => {

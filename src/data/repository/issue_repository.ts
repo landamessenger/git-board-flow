@@ -1,33 +1,50 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
-import {branchesForIssue} from "../utils/label_utils";
 import {Milestone} from "../model/milestone";
 
 export class IssueRepository {
     updateTitle = async (
         owner: string,
         repository: string,
-        issueNumber: number,
         issueTitle: string,
+        issueNumber: number,
+        branchType: string,
+        isHotfix: boolean,
+        isQuestion: boolean,
+        isHelp: boolean,
         token: string,
     ): Promise<void> => {
         try {
             const octokit = github.getOctokit(token);
 
-            const titlePattern = new RegExp(`^\\d+\\s*-\\s*`);
+            let emoji = '🤖';
 
-            if (!titlePattern.test(issueTitle)) {
-                const formattedTitle = `${issueNumber} - ${issueTitle}`;
+            const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
 
-                await octokit.rest.issues.update({
-                    owner: owner,
-                    repo: repository,
-                    issue_number: issueNumber,
-                    title: formattedTitle
-                });
+            const sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
 
-                core.info(`Issue title updated to: ${formattedTitle}`);
+            if (isHelp) {
+                emoji = '🆘';
+            } else if (isQuestion) {
+                emoji = '❓';
+            } else if (isHotfix) {
+                emoji = '🔥';
+            } else if (branchType === 'bugfix') {
+                emoji = '🐛';
+            } else if (branchType === 'feature') {
+                emoji = '🛠️';
             }
+
+            const formattedTitle = `${emoji} - ${sanitizedTitle}`;
+
+            await octokit.rest.issues.update({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+                title: formattedTitle,
+            });
+
+            core.info(`Issue title updated to: ${formattedTitle}`);
         } catch (error) {
             core.setFailed(`Failed to check or update issue title: ${error}`);
         }

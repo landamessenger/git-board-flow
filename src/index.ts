@@ -41,11 +41,19 @@ async function run(): Promise<void> {
     const runAlways = core.getInput('run-always', {required: true}) === 'true';
 
     /**
+     * Emoji-title
+     */
+    const titleEmoji = core.getInput('emoji-labeled-title', {required: true}) === 'true';
+
+    /**
      * Labels
      */
     const actionLauncherLabel = core.getInput('action-launcher-label', {required: true});
     const bugfixLabel = core.getInput('bugfix-label', {required: true});
     const hotfixLabel = core.getInput('hotfix-label', {required: true});
+    const featureLabel = core.getInput('feature-label', {required: true});
+    const questionLabel = core.getInput('question-label', {required: true});
+    const helpLabel = core.getInput('help-label', {required: true});
 
     /**
      * Branches
@@ -55,6 +63,7 @@ async function run(): Promise<void> {
 
     const execution = new Execution(
         runAlways,
+        titleEmoji,
         action === 'issue',
         action === 'pull-request',
         new Tokens(token, tokenPat),
@@ -62,6 +71,9 @@ async function run(): Promise<void> {
             actionLauncherLabel,
             bugfixLabel,
             hotfixLabel,
+            featureLabel,
+            questionLabel,
+            helpLabel,
         ),
         new Branches(
             mainBranch,

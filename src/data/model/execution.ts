@@ -13,6 +13,7 @@ import {extractIssueNumberFromBranch} from "../utils/title_utils";
 
 export class Execution {
     runAlways: boolean;
+    emojiLabeledTitle: boolean;
     number: number = -1
     issueAction: boolean = false;
     pullRequestAction: boolean = false;
@@ -60,6 +61,7 @@ export class Execution {
 
     constructor(
         runAlways: boolean,
+        emojiLabeledTitle: boolean,
         issueAction: boolean,
         pullRequestAction: boolean,
         tokens: Tokens,
@@ -69,6 +71,7 @@ export class Execution {
         projects: ProjectDetail[],
     ) {
         this.tokens = tokens;
+        this.emojiLabeledTitle = emojiLabeledTitle;
         this.labels = labels;
         this.branches = branches;
         this.hotfix = hotfix;

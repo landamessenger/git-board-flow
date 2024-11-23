@@ -30014,7 +30014,7 @@ class Execution {
     get pullRequest() {
         return new pull_request_1.PullRequest();
     }
-    constructor(runAlways, issueAction, pullRequestAction, tokens, labels, branches, hotfix, projects) {
+    constructor(runAlways, emojiLabeledTitle, issueAction, pullRequestAction, tokens, labels, branches, hotfix, projects) {
         this.number = -1;
         this.issueAction = false;
         this.pullRequestAction = false;
@@ -30031,6 +30031,7 @@ class Execution {
             }
         };
         this.tokens = tokens;
+        this.emojiLabeledTitle = emojiLabeledTitle;
         this.labels = labels;
         this.branches = branches;
         this.hotfix = hotfix;
@@ -30123,11 +30124,29 @@ class Labels {
     get runnerLabels() {
         return this.currentLabels.includes(this.actionLauncher);
     }
-    constructor(actionLauncher, bugfix, hotfix) {
+    get isHelp() {
+        return this.currentLabels.includes(this.help);
+    }
+    get isQuestion() {
+        return this.currentLabels.includes(this.question);
+    }
+    get isFeature() {
+        return this.currentLabels.includes(this.feature);
+    }
+    get isBugfix() {
+        return this.currentLabels.includes(this.bugfix);
+    }
+    get isHotfix() {
+        return this.currentLabels.includes(this.hotfix);
+    }
+    constructor(actionLauncher, bugfix, hotfix, feature, question, help) {
         this.currentLabels = [];
         this.actionLauncher = actionLauncher;
         this.bugfix = bugfix;
         this.hotfix = hotfix;
+        this.feature = feature;
+        this.question = question;
+        this.help = help;
     }
 }
 exports.Labels = Labels;
@@ -30560,20 +30579,35 @@ const core = __importStar(__nccwpck_require__(2186));
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
-        this.updateTitle = async (owner, repository, issueNumber, issueTitle, token) => {
+        this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchType, isHotfix, isQuestion, isHelp, token) => {
             try {
                 const octokit = github.getOctokit(token);
-                const titlePattern = new RegExp(`^\\d+\\s*-\\s*`);
-                if (!titlePattern.test(issueTitle)) {
-                    const formattedTitle = `${issueNumber} - ${issueTitle}`;
-                    await octokit.rest.issues.update({
-                        owner: owner,
-                        repo: repository,
-                        issue_number: issueNumber,
-                        title: formattedTitle
-                    });
-                    core.info(`Issue title updated to: ${formattedTitle}`);
+                let emoji = '🤖';
+                const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
+                const sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
+                if (isHelp) {
+                    emoji = '🆘';
                 }
+                else if (isQuestion) {
+                    emoji = '❓';
+                }
+                else if (isHotfix) {
+                    emoji = '🔥';
+                }
+                else if (branchType === 'bugfix') {
+                    emoji = '🐛';
+                }
+                else if (branchType === 'feature') {
+                    emoji = '🛠️';
+                }
+                const formattedTitle = `${emoji} - ${sanitizedTitle}`;
+                await octokit.rest.issues.update({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                    title: formattedTitle,
+                });
+                core.info(`Issue title updated to: ${formattedTitle}`);
             }
             catch (error) {
                 core.setFailed(`Failed to check or update issue title: ${error}`);
@@ -30881,18 +30915,17 @@ class IssueLinkUseCase {
          * Fetch all branches/tags
          */
         await this.branchRepository.fetchRemoteBranches();
+        param.hotfix.active = await this.issueRepository.isHotfix(param.owner, param.repo, param.issue.number, param.labels.hotfix, param.tokens.token);
         /**
          * Update title
          */
-        await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.number, param.issue.title, param.tokens.token);
-        /**
-         * Get last tag for hotfix
-         */
-        const lastTag = await this.branchRepository.getLatestTag();
-        param.hotfix.active = await this.issueRepository.isHotfix(param.owner, param.repo, param.issue.number, param.labels.hotfix, param.tokens.token);
+        if (param.emojiLabeledTitle) {
+            await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.branchType, param.hotfix.active, param.labels.isQuestion, param.labels.isHelp, param.tokens.token);
+        }
         /**
          * When hotfix, prepare it first
          */
+        const lastTag = await this.branchRepository.getLatestTag();
         if (param.hotfix.active && lastTag !== undefined) {
             const branchOid = await this.branchRepository.getCommitTag(lastTag);
             const incrementHotfixVersion = (version) => {
@@ -31269,17 +31302,24 @@ async function run() {
      */
     const runAlways = core.getInput('run-always', { required: true }) === 'true';
     /**
+     * Emoji-title
+     */
+    const titleEmoji = core.getInput('emoji-labeled-title', { required: true }) === 'true';
+    /**
      * Labels
      */
     const actionLauncherLabel = core.getInput('action-launcher-label', { required: true });
     const bugfixLabel = core.getInput('bugfix-label', { required: true });
     const hotfixLabel = core.getInput('hotfix-label', { required: true });
+    const featureLabel = core.getInput('feature-label', { required: true });
+    const questionLabel = core.getInput('question-label', { required: true });
+    const helpLabel = core.getInput('help-label', { required: true });
     /**
      * Branches
      */
     const mainBranch = core.getInput('main-branch', { required: true });
     const developmentBranch = core.getInput('development-branch', { required: true });
-    const execution = new execution_1.Execution(runAlways, action === 'issue', action === 'pull-request', new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel), new branches_1.Branches(mainBranch, developmentBranch), new hotfix_1.Hotfix(), projects);
+    const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.setFailed(`Issue ${execution.number}. Skipping.`);
