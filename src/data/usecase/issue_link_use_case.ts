@@ -232,9 +232,9 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
         }
 
         const commentBody = `## ${title}:
-            ${content}
-            ${deletedBranchesMessage}
-            ${footer}
+${content}
+${deletedBranchesMessage}
+${footer}
             `;
 
         await this.issueRepository.addComment(

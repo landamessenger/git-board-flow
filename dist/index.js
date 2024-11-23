@@ -30600,7 +30600,11 @@ class IssueRepository {
                 }
                 const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
                 let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
-                sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-');
+                sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-').trim();
+                const e = '- ';
+                if (sanitizedTitle.startsWith(e)) {
+                    sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length);
+                }
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
                 await octokit.rest.issues.update({
                     owner: owner,
@@ -31043,9 +31047,9 @@ class IssueLinkUseCase {
             deletedBranchesMessage += `${stepOn + i + 1}. The branch \`${branch}\` was removed.\n`;
         }
         const commentBody = `## ${title}:
-            ${content}
-            ${deletedBranchesMessage}
-            ${footer}
+${content}
+${deletedBranchesMessage}
+${footer}
             `;
         await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
     }

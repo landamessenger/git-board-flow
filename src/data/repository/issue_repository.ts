@@ -35,7 +35,11 @@ export class IssueRepository {
 
             let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
 
-            sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-');
+            sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-').trim();
+            const e = '- '
+            if (sanitizedTitle.startsWith(e)) {
+                sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length);
+            }
 
             const formattedTitle = `${emoji} - ${sanitizedTitle}`;
 
