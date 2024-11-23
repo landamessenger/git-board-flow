@@ -71,6 +71,8 @@ export class BranchRepository {
     /**
      * Returns replaced branch (if any).
      *
+     * @param repository
+     * @param owner
      * @param token
      * @param issueNumber
      * @param issueTitle
@@ -80,13 +82,15 @@ export class BranchRepository {
      * @param isHotfix
      */
     manageBranches = async (
-        token: string,
+        owner: string,
+        repository: string,
         issueNumber: number,
         issueTitle: string,
         branchType: string,
         developmentBranch: string,
         hotfixBranch: string | undefined,
         isHotfix: boolean,
+        token: string,
     ): Promise<string | undefined> => {
         core.info(`Managing branches`);
 
@@ -115,8 +119,8 @@ export class BranchRepository {
             core.info(`Searching for branches related to issue #${issueNumber}...`);
 
             const {data} = await octokit.rest.repos.listBranches({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
+                owner: owner,
+                repo: repository,
             });
 
             for (const type of branchTypes) {
@@ -144,7 +148,7 @@ export class BranchRepository {
         core.info(`Base branch: ${baseBranchName}`);
         core.info(`New branch: ${newBranchName}`);
 
-        await this.createLinkedBranch(token, baseBranchName, newBranchName, issueNumber, undefined)
+        await this.createLinkedBranch(owner, repository, baseBranchName, newBranchName, issueNumber, undefined, token)
 
         return replacedBranchName;
     }
@@ -167,11 +171,13 @@ export class BranchRepository {
     }
 
     createLinkedBranch = async (
-        token: string,
+        owner: string,
+        repo: string,
         baseBranchName: string,
         newBranchName: string,
         issueNumber: number,
         oid: string | undefined,
+        token: string,
     ): Promise<LinkedBranchResponse | undefined> => {
         core.info(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`)
 
@@ -198,8 +204,8 @@ export class BranchRepository {
                 }
               }
             `, {
-            repo: github.context.repo.repo,
-            owner: github.context.repo.owner,
+            repo: repo,
+            owner: owner,
             issueNumber: issueNumber
         });
 
@@ -249,23 +255,28 @@ export class BranchRepository {
         }
     }
 
-    removeBranch = async (token: string, branch: string): Promise<boolean> => {
+    removeBranch = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        token: string,
+    ): Promise<boolean> => {
         const octokit = github.getOctokit(token);
 
         const ref = `heads/${branch}`;
 
         try {
             const {data} = await octokit.rest.git.getRef({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
+                owner: owner,
+                repo: repository,
                 ref,
             });
 
             core.info(`Branch found: ${data.ref}`);
 
             await octokit.rest.git.deleteRef({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
+                owner: owner,
+                repo: repository,
                 ref,
             });
 
@@ -278,11 +289,15 @@ export class BranchRepository {
         }
     }
 
-    getListOfBranches = async (token: string): Promise<string[]> => {
+    getListOfBranches = async (
+        owner: string,
+        repository: string,
+        token: string
+    ): Promise<string[]> => {
         const octokit = github.getOctokit(token);
         const {data} = await octokit.rest.repos.listBranches({
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
+            owner: owner,
+            repo: repository,
         });
         return data.map(branch => branch.name);
     }

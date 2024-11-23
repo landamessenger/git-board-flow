@@ -7,6 +7,9 @@ import {PullRequestRepository} from "../repository/pull_request_repository";
 import {IssueRepository} from "../repository/issue_repository";
 import * as github from "@actions/github";
 import {branchesForIssue} from "../utils/label_utils";
+import {Issue} from "./issue";
+import {PullRequest} from "./pull_request";
+import {extractIssueNumberFromBranch} from "../utils/title_utils";
 
 export class Execution {
     runAlways: boolean;
@@ -47,6 +50,14 @@ export class Execution {
         );
     }
 
+    get issue(): Issue {
+        return new Issue();
+    }
+
+    get pullRequest(): PullRequest {
+        return new PullRequest();
+    }
+
     constructor(
         runAlways: boolean,
         issueAction: boolean,
@@ -69,13 +80,23 @@ export class Execution {
 
     setup = async () => {
         if (this.issueAction) {
-            this.number = github.context.payload.issue?.number ?? -1;
+            this.number = this.issue.number;
             const issueRepository = new IssueRepository();
-            this.labels.currentLabels = await issueRepository.getIssueLabels(this.tokens.token);
+            this.labels.currentLabels = await issueRepository.getLabels(
+                this.owner,
+                this.repo,
+                this.number,
+                this.tokens.token
+            );
         } else if (this.pullRequestAction) {
             const pullRequestRepository = new PullRequestRepository();
-            this.number = await pullRequestRepository.extractIssueNumberFromBranch();
-            this.labels.currentLabels = await pullRequestRepository.getLabels(this.tokens.token);
+            this.number = extractIssueNumberFromBranch(this.pullRequest.head);
+            this.labels.currentLabels = await pullRequestRepository.getLabels(
+                this.owner,
+                this.repo,
+                this.pullRequest.number,
+                this.tokens.token
+            );
         }
     }
 }

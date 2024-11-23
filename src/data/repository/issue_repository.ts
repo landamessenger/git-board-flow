@@ -1,17 +1,18 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
 import {branchesForIssue} from "../utils/label_utils";
+import {Milestone} from "../model/milestone";
 
 export class IssueRepository {
-    updateTitle = async (token: string): Promise<void> => {
+    updateTitle = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        issueTitle: string,
+        token: string,
+    ): Promise<void> => {
         try {
             const octokit = github.getOctokit(token);
-            const issueNumber = github.context.payload.issue?.number;
-            const issueTitle = github.context.payload.issue?.title as string | undefined;
-
-            if (!issueTitle || !issueNumber) {
-                return
-            }
 
             const titlePattern = new RegExp(`^\\d+\\s*-\\s*`);
 
@@ -19,8 +20,8 @@ export class IssueRepository {
                 const formattedTitle = `${issueNumber} - ${issueTitle}`;
 
                 await octokit.rest.issues.update({
-                    owner: github.context.repo.owner,
-                    repo: github.context.repo.repo,
+                    owner: owner,
+                    repo: repository,
                     issue_number: issueNumber,
                     title: formattedTitle
                 });
@@ -32,15 +33,14 @@ export class IssueRepository {
         }
     }
 
-    getId = async (token: string): Promise<string> => {
+    getId = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<string> => {
         const octokit = github.getOctokit(token);
-        const issueNumber = github.context.payload.issue?.number;
 
-        if (!issueNumber) {
-            throw new Error("No issue number found in the context payload.");
-        }
-
-        // Fetch the Issue ID
         const issueQuery = `
           query($repo: String!, $owner: String!, $issueNumber: Int!) {
             repository(name: $repo, owner: $owner) {
@@ -51,8 +51,8 @@ export class IssueRepository {
           }
         `;
         const issueResult: any = await octokit.graphql(issueQuery, {
-            repo: github.context.repo.repo,
-            owner: github.context.repo.owner,
+            owner: owner,
+            repo: repository,
             issueNumber,
         });
 
@@ -62,46 +62,68 @@ export class IssueRepository {
         return issueId;
     }
 
-    getIssueLabels = async (token: string): Promise<string[]> => {
-        const issueNumber = github.context.payload.issue?.number;
-        if (!issueNumber) {
-            core.error(`Issue number not found`);
-            return [];
+    getMilestone = async (
+        owner: string,
+        repository: string,
+        token: string,
+        issueNumber: number,
+    ): Promise<Milestone | undefined> => {
+        const octokit = github.getOctokit(token);
+
+        const {data: issue} = await octokit.rest.issues.get({
+            owner: owner,
+            repo: repository,
+            issue_number: issueNumber,
+        });
+
+        if (issue.milestone) {
+            return new Milestone(
+                issue.milestone.id,
+                issue.milestone.title,
+                issue.milestone.description ?? '',
+            )
+        } else {
+            return undefined
         }
+    }
+
+    getLabels = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<string[]> => {
         const octokit = github.getOctokit(token);
         const {data: labels} = await octokit.rest.issues.listLabelsOnIssue({
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
+            owner: owner,
+            repo: repository,
             issue_number: issueNumber,
         });
         return labels.map(label => label.name);
     }
 
-    isHotfix = async (token: string, hotfixLabel: string): Promise<boolean> => {
-        const labels = await this.getIssueLabels(token)
+    isHotfix = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        hotfixLabel: string,
+        token: string,
+    ): Promise<boolean> => {
+        const labels = await this.getLabels(owner, repository, issueNumber, token)
         return labels.includes(hotfixLabel)
     }
 
-    branchType = async (
+    addComment = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        comment: string,
         token: string,
-        bugfixLabel: string,
-        hotfixLabel: string,
-    ): Promise<string> => {
-        const labels = await this.getIssueLabels(token)
-        return branchesForIssue(labels, bugfixLabel, hotfixLabel)
-    }
-
-    addComment = async (token: string, comment: string) => {
-        const issueNumber = github.context.payload.issue?.number;
-
-        if (!issueNumber) {
-            throw new Error('Issue number not found.');
-        }
-
+    ) => {
         const octokit = github.getOctokit(token);
         await octokit.rest.issues.createComment({
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
+            owner: owner,
+            repo: repository,
             issue_number: issueNumber,
             body: comment,
         });

@@ -2,7 +2,6 @@ import * as core from "@actions/core";
 import {ProjectRepository} from "../repository/project_repository";
 import {IssueRepository} from "../repository/issue_repository";
 import {BranchRepository} from "../repository/branch_repository";
-import * as github from "@actions/github";
 import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
 
@@ -12,8 +11,8 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<void> {
-        const issueTitle: string | undefined = github.context.payload.issue?.title;
-        if (!issueTitle) {
+        const issueTitle: string = param.issue.title;
+        if (issueTitle.length === 0) {
             core.setFailed('Issue title not available.');
             return;
         }
@@ -24,7 +23,12 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
          * Link issue to project
          */
         for (const project of param.projects) {
-            const issueId = await this.issueRepository.getId(param.tokens.token)
+            const issueId = await this.issueRepository.getId(
+                param.owner,
+                param.repo,
+                param.issue.number,
+                param.tokens.token,
+            )
             await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
         }
 
@@ -36,7 +40,13 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
         /**
          * Update title
          */
-        await this.issueRepository.updateTitle(param.tokens.token);
+        await this.issueRepository.updateTitle(
+            param.owner,
+            param.repo,
+            param.issue.number,
+            param.issue.title,
+            param.tokens.token,
+        );
 
         /**
          * Get last tag for hotfix
@@ -44,7 +54,13 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
         const lastTag = await this.branchRepository.getLatestTag();
 
 
-        param.hotfix.active = await this.issueRepository.isHotfix(param.tokens.token, param.labels.hotfix);
+        param.hotfix.active = await this.issueRepository.isHotfix(
+            param.owner,
+            param.repo,
+            param.issue.number,
+            param.labels.hotfix,
+            param.tokens.token,
+        );
 
         /**
          * When hotfix, prepare it first
@@ -66,11 +82,13 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
             core.info(`Hotfix branch: ${param.hotfix.branch}`);
 
             const result = await this.branchRepository.createLinkedBranch(
-                param.tokens.tokenPat,
+                param.owner,
+                param.repo,
                 baseBranchName,
                 param.hotfix.branch,
                 param.number,
-                branchOid
+                branchOid,
+                param.tokens.tokenPat,
             )
 
             core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(result)}`);
@@ -78,19 +96,26 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
 
         core.info(`Branch type: ${param.branchType}`);
 
-        param.branches.replacedBranch = await this.branchRepository.manageBranches(param.tokens.tokenPat,
+        param.branches.replacedBranch = await this.branchRepository.manageBranches(
+            param.owner,
+            param.repo,
             param.number,
             issueTitle,
             param.branchType,
             param.branches.development,
             param.hotfix?.branch,
             param.hotfix.active,
+            param.tokens.tokenPat,
         );
 
         /**
          * Remove unnecessary branches
          */
-        const branches = await this.branchRepository.getListOfBranches(param.tokens.token);
+        const branches = await this.branchRepository.getListOfBranches(
+            param.owner,
+            param.repo,
+            param.tokens.token,
+        );
 
         const finalBranch = `${param.branchType}/${param.number}-${sanitizedTitle}`;
 
@@ -106,7 +131,12 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
                 }
 
                 branchName = matchingBranch;
-                const removed = await this.branchRepository.removeBranch(param.tokens.token, branchName)
+                const removed = await this.branchRepository.removeBranch(
+                    param.owner,
+                    param.repo,
+                    branchName,
+                    param.tokens.token,
+                )
                 if (removed) {
                     deletedBranches.push(branchName)
                 } else {
@@ -115,7 +145,12 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
             } else {
                 for (const branch of branches) {
                     if (branch.indexOf(prefix) > -1 && branch !== finalBranch) {
-                        const removed = await this.branchRepository.removeBranch(param.tokens.token, branch)
+                        const removed = await this.branchRepository.removeBranch(
+                            param.owner,
+                            param.repo,
+                            branch,
+                            param.tokens.token,
+                        )
                         if (removed) {
                             deletedBranches.push(branch)
                         } else {
@@ -201,6 +236,12 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
             ${footer}
             `;
 
-        await this.issueRepository.addComment(param.tokens.token, commentBody)
+        await this.issueRepository.addComment(
+            param.owner,
+            param.repo,
+            param.issue.number,
+            commentBody,
+            param.tokens.token,
+        )
     }
 }

@@ -3,38 +3,6 @@ import * as core from "@actions/core";
 import {ProjectDetail} from "../model/project_detail";
 
 export class ProjectRepository {
-    getProjectId = async (projectUrl: string, token: string) => {
-        const octokit = github.getOctokit(token);
-        const projectMatch = projectUrl.match(/\/(?<ownerType>orgs|users)\/(?<ownerName>[^/]+)\/projects\/(?<projectNumber>\d+)/);
-
-        if (!projectMatch || !projectMatch.groups) {
-            throw new Error(`Invalid project URL: ${projectUrl}`);
-        }
-
-        const {ownerType, ownerName, projectNumber} = projectMatch.groups;
-        const ownerQueryField = ownerType === 'orgs' ? 'organization' : 'user';
-
-        const queryProject = `
-        query($ownerName: String!, $projectNumber: Int!) {
-          ${ownerQueryField}(login: $ownerName) {
-            projectV2(number: $projectNumber) {
-              id
-            }
-          }
-        }
-        `;
-        const projectResult = await octokit.graphql<ProjectResult>(queryProject, {
-            ownerName,
-            projectNumber: parseInt(projectNumber, 10),
-        });
-
-        const projectId = projectResult[ownerQueryField].projectV2.id;
-
-        core.info(`Project ID: ${projectId}`);
-
-        return projectId
-    }
-
     getProjectDetail = async (projectUrl: string, token: string) => {
         const octokit = github.getOctokit(token);
         const projectMatch = projectUrl.match(/\/(?<ownerType>orgs|users)\/(?<ownerName>[^/]+)\/projects\/(?<projectNumber>\d+)/);

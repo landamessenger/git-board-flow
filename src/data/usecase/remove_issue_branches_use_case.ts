@@ -15,7 +15,11 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, void>
 
         const branchTypes = ["feature", "bugfix"];
 
-        const branches = await this.branchRepository.getListOfBranches(param.tokens.token);
+        const branches = await this.branchRepository.getListOfBranches(
+            param.owner,
+            param.repo,
+            param.tokens.token,
+        );
 
         for (const type of branchTypes) {
             let branchName = '';
@@ -24,7 +28,12 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, void>
             const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
             if (!matchingBranch) continue;
             branchName = matchingBranch;
-            const removed = await this.branchRepository.removeBranch(param.tokens.token, branchName);
+            const removed = await this.branchRepository.removeBranch(
+                param.owner,
+                param.repo,
+                branchName,
+                param.tokens.token,
+            );
             if (removed) {
                 deletedBranches.push(branchName);
             }
@@ -40,6 +49,12 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, void>
 ${deletedBranchesMessage}
 `;
 
-        await this.issueRepository.addComment(param.tokens.token, commentBody);
+        await this.issueRepository.addComment(
+            param.owner,
+            param.repo,
+            param.issue.number,
+            commentBody,
+            param.tokens.token,
+        );
     }
 }

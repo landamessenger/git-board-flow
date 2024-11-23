@@ -9,22 +9,26 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, void> {
     private pullRequestRepository = new PullRequestRepository();
 
     async invoke(param: Execution): Promise<void> {
-        const isLinked = await this.pullRequestRepository.isLinked();
+        const isLinked = await this.pullRequestRepository.isLinked(github.context.payload.pull_request?.html_url ?? '');
 
         /**
          * Link Pull Request to projects
          */
         for (const project of param.projects) {
-            const prId = github.context.payload.pull_request?.node_id;
-            await this.projectRepository.linkContentId(project, prId, param.tokens.tokenPat)
+            await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat)
         }
 
         if (!isLinked) {
             /**
              *  Set the primary/default branch
              */
-            const defaultBranch = github.context.payload.repository?.default_branch;
-            await this.pullRequestRepository.updateBaseBranch(param.tokens.token, defaultBranch)
+            await this.pullRequestRepository.updateBaseBranch(
+                param.owner,
+                param.repo,
+                param.pullRequest.number,
+                param.branches.defaultBranch,
+                param.tokens.token,
+            )
 
             /**
              *  Update PR's description.
@@ -32,7 +36,13 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, void> {
             let prBody = github.context.payload.pull_request?.body || '';
 
             let updatedBody = `${prBody}\n\nResolves #${param.number}`;
-            await this.pullRequestRepository.updateDescription(param.tokens.token, updatedBody);
+            await this.pullRequestRepository.updateDescription(
+                param.owner,
+                param.repo,
+                param.pullRequest.number,
+                updatedBody,
+                param.tokens.token,
+            );
 
             /**
              *  Await 20 seconds
@@ -42,32 +52,48 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, void> {
             /**
              *  Restore the original branch
              */
-            const originalBranch = github.context.payload.pull_request?.base.ref || '';
-            await this.pullRequestRepository.updateBaseBranch(param.tokens.token, originalBranch)
+            await this.pullRequestRepository.updateBaseBranch(
+                param.owner,
+                param.repo,
+                param.pullRequest.number,
+                param.pullRequest.base,
+                param.tokens.token,
+            )
 
             /**
              * Restore comment on description
              */
             prBody = github.context.payload.pull_request?.body ?? "";
             updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
-            await this.pullRequestRepository.updateDescription(param.tokens.token, updatedBody);
+            await this.pullRequestRepository.updateDescription(
+                param.owner,
+                param.repo,
+                param.pullRequest.number,
+                updatedBody,
+                param.tokens.token,
+            );
 
-            console.log(`Removed "Resolves #${param.number}" from PR description`);
             /**
              * Add comment
              */
-            await this.pullRequestRepository.addComment(param.tokens.token, `
+            await this.pullRequestRepository.addComment(
+                param.owner,
+                param.repo,
+                param.pullRequest.number,
+                `
 ## 🛠️ Pull Request Linking Summary
 
 The following actions were performed to ensure the pull request is properly linked to the related issue:
   
-1. The base branch was temporarily updated to \`${defaultBranch}\`.
+1. The base branch was temporarily updated to \`${param.branches.defaultBranch}\`.
 2. The description was temporarily modified to include a reference to issue **#${param.number}**.
-3. The base branch was reverted to its original value: \`${originalBranch}\`.
+3. The base branch was reverted to its original value: \`${param.pullRequest.base}\`.
 4. The temporary issue reference **#${param.number}** was removed from the description.
 
 Thank you for contributing! 🙌
-`);
+`,
+                param.tokens.token,
+                );
         }
     }
 }
