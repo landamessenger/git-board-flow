@@ -5,6 +5,7 @@ import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
 
 export class PullRequestLinkUseCase implements ParamUseCase<Execution, void> {
+    taskId: string = 'PullRequestLinkUseCase';
     private projectRepository = new ProjectRepository();
     private pullRequestRepository = new PullRequestRepository();
 

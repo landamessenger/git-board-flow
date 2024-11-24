@@ -7,6 +7,7 @@ import {Execution} from "../model/execution";
  * Remove any branch created for this issue
  */
 export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, void> {
+    taskId: string = 'RemoveIssueBranchesUseCase';
     private issueRepository = new IssueRepository();
     private branchRepository = new BranchRepository();
 

@@ -44,7 +44,6 @@ export class ProjectRepository {
     linkContentId = async (project: ProjectDetail, contentId: string, token: string) => {
         const octokit = github.getOctokit(token);
 
-        // Link the issue to the project
         const linkMutation = `
           mutation($projectId: ID!, $contentId: ID!) {
             addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {

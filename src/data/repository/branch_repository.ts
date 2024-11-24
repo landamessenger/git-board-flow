@@ -1,6 +1,7 @@
 import * as exec from '@actions/exec';
 import * as core from '@actions/core';
 import * as github from "@actions/github";
+import {Result} from "../model/result";
 
 export class BranchRepository {
 
@@ -91,66 +92,110 @@ export class BranchRepository {
         hotfixBranch: string | undefined,
         isHotfix: boolean,
         token: string,
-    ): Promise<string | undefined> => {
-        core.info(`Managing branches`);
+    ): Promise<Result[]> => {
+        const result: Result[] = []
+        try {
+            core.info(`Managing branches`);
 
-        if (hotfixBranch === undefined && isHotfix) {
-            throw Error('Missing hotfix branch on hotfix scenario');
-        }
-
-        const octokit = github.getOctokit(token);
-
-        const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
-
-        const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
-
-        const branchTypes = ["feature", "bugfix"];
-
-        /**
-         * Default base branch name. (ex. [develop])
-         */
-        let baseBranchName = developmentBranch;
-
-        let replacedBranchName: string | undefined
-        if (!isHotfix) {
-            /**
-             * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
-             */
-            core.info(`Searching for branches related to issue #${issueNumber}...`);
-
-            const {data} = await octokit.rest.repos.listBranches({
-                owner: owner,
-                repo: repository,
-            });
-
-            for (const type of branchTypes) {
-                const prefix = `${type}/${issueNumber}-`;
-
-                try {
-                    const matchingBranch = data.find(branch => branch.name.indexOf(prefix) > -1);
-
-                    if (matchingBranch) {
-                        baseBranchName = matchingBranch.name;
-                        core.info(`Found previous issue branch: ${baseBranchName}`);
-                        replacedBranchName = baseBranchName
-                        break;
-                    }
-                } catch (error) {
-                    core.info(`Error while listing branches: ${error}`);
-                    throw error;
-                }
+            if (hotfixBranch === undefined && isHotfix) {
+                result.push(
+                    new Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Tried to prepare the hotfix branch of the issue, but hotfix branch was not found.`,
+                        ],
+                    })
+                )
+                return result
             }
-        } else {
-            baseBranchName = hotfixBranch ?? developmentBranch;
+
+            const octokit = github.getOctokit(token);
+
+            const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
+
+            const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+
+            const branchTypes = ["feature", "bugfix"];
+
+            /**
+             * Default base branch name. (ex. [develop])
+             */
+            let baseBranchName = developmentBranch;
+
+            if (!isHotfix) {
+                /**
+                 * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
+                 */
+                core.info(`Searching for branches related to issue #${issueNumber}...`);
+
+                const {data} = await octokit.rest.repos.listBranches({
+                    owner: owner,
+                    repo: repository,
+                });
+
+                for (const type of branchTypes) {
+                    const prefix = `${type}/${issueNumber}-`;
+
+                    try {
+                        const matchingBranch = data.find(branch => branch.name.indexOf(prefix) > -1);
+
+                        if (matchingBranch) {
+                            baseBranchName = matchingBranch.name;
+                            core.info(`Found previous issue branch: ${baseBranchName}`);
+                            // TODO replacedBranchName = baseBranchName
+                            break;
+                        }
+                    } catch (error) {
+                        core.error(`Error while listing branches: ${error}`);
+                        result.push(
+                            new Result({
+                                id: 'branch_repository',
+                                success: false,
+                                executed: true,
+                                steps: [
+                                    `Error while listing branches.`,
+                                ],
+                                error: error,
+                            })
+                        )
+                    }
+                }
+            } else {
+                baseBranchName = hotfixBranch ?? developmentBranch;
+            }
+
+            core.info(`============================================================================================`);
+            core.info(`Base branch: ${baseBranchName}`);
+            core.info(`New branch: ${newBranchName}`);
+
+            result.push(
+                ...await this.createLinkedBranch(
+                    owner,
+                    repository,
+                    baseBranchName,
+                    newBranchName,
+                    issueNumber,
+                    undefined,
+                    token
+                )
+            )
+        } catch (error) {
+            console.error(error);
+            result.push(
+                new Result({
+                    id: 'branch_repository',
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Tried to prepare the hotfix to the issue, but there was a problem.`,
+                    ],
+                    error: error,
+                })
+            )
         }
-
-        core.info(`============================================================================================`);
-        core.info(`Base branch: ${baseBranchName}`);
-        core.info(`New branch: ${newBranchName}`);
-
-        await this.createLinkedBranch(owner, repository, baseBranchName, newBranchName, issueNumber, undefined, token)
-
-        return replacedBranchName;
+        return result
     }
 
     formatBranchName = (issueTitle: string, issueNumber: number): string => {
@@ -178,16 +223,18 @@ export class BranchRepository {
         issueNumber: number,
         oid: string | undefined,
         token: string,
-    ): Promise<LinkedBranchResponse | undefined> => {
-        core.info(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`)
+    ): Promise<Result[]> => {
+        const result: Result[] = []
+        try {
+            core.info(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`)
 
-        let ref = `heads/${baseBranchName}`
-        if (baseBranchName.indexOf('tags/') > -1) {
-            ref = baseBranchName
-        }
+            let ref = `heads/${baseBranchName}`
+            if (baseBranchName.indexOf('tags/') > -1) {
+                ref = baseBranchName
+            }
 
-        const octokit = github.getOctokit(token);
-        const {repository} = await octokit.graphql<RepositoryResponse>(`
+            const octokit = github.getOctokit(token);
+            const {repository} = await octokit.graphql<RepositoryResponse>(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
                 repository(name: $repo, owner: $owner) {
                   id
@@ -204,25 +251,34 @@ export class BranchRepository {
                 }
               }
             `, {
-            repo: repo,
-            owner: owner,
-            issueNumber: issueNumber
-        });
+                repo: repo,
+                owner: owner,
+                issueNumber: issueNumber
+            });
 
-        core.info(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`)
+            core.info(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`)
 
-        const repositoryId: string | undefined = repository?.id ?? undefined;
-        const issueId: string | undefined = repository?.issue?.id ?? undefined;
-        const branchOid: string | undefined = oid ?? repository?.ref?.target?.oid ?? undefined;
+            const repositoryId: string | undefined = repository?.id ?? undefined;
+            const issueId: string | undefined = repository?.issue?.id ?? undefined;
+            const branchOid: string | undefined = oid ?? repository?.ref?.target?.oid ?? undefined;
 
-        if (repositoryId === undefined || issueNumber === undefined || branchOid === undefined) {
-            core.error(`Error searching repository "${baseBranchName}": id: ${repositoryId}, oid: ${branchOid}), issue #${issueNumber}`);
-            return;
-        }
+            if (repositoryId === undefined || issueNumber === undefined || branchOid === undefined) {
+                core.error(`Error searching repository "${baseBranchName}": id: ${repositoryId}, oid: ${branchOid}), issue #${issueNumber}`);
+                result.push(
+                    new Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Error linking branch ${newBranchName} to issue: Repository not found.`,
+                        ],
+                    })
+                )
+                return result;
+            }
 
-        core.info(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
+            core.info(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
 
-        try {
             const mutationResponse = await octokit.graphql<LinkedBranchResponse>(`
                 mutation($issueId: ID!, $name: String!, $repositoryId: ID!, $oid: GitObjectID!) {
                   createLinkedBranch(input: {
@@ -246,13 +302,38 @@ export class BranchRepository {
                 oid: branchOid,
             });
 
-            core.info(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch)}`);
+            core.info(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch?.linkedBranch)}`);
 
-            return mutationResponse;
-        } catch (e) {
-            core.error(`Error Linking branch "${e}"`);
-            return undefined;
+            const baseBranchUrl = `https://github.com/${owner}/${repository}/tree/${baseBranchName}`;
+            const newBranchUrl = `https://github.com/${owner}/${repository}/tree/${newBranchName}`;
+            result.push(
+                new Result({
+                    id: 'branch_repository',
+                    success: true,
+                    executed: true,
+                    payload: {
+                        baseBranchName: baseBranchName,
+                        baseBranchUrl: baseBranchUrl,
+                        newBranchName: newBranchName,
+                        newBranchUrl: newBranchUrl,
+                    },
+                })
+            )
+        } catch (error) {
+            core.error(`Error Linking branch "${error}"`);
+            result.push(
+                new Result({
+                    id: 'branch_repository',
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Tried to link branch to the issue, but there was a problem.`,
+                    ],
+                    error: error,
+                })
+            )
         }
+        return result;
     }
 
     removeBranch = async (
