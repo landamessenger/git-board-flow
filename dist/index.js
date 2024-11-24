@@ -30624,6 +30624,8 @@ const milestone_1 = __nccwpck_require__(2298);
 const config_1 = __nccwpck_require__(1106);
 class IssueRepository {
     constructor() {
+        this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
+        this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
         this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchType, isHotfix, isQuestion, isHelp, token) => {
             try {
                 const octokit = github.getOctokit(token);
@@ -30672,19 +30674,11 @@ class IssueRepository {
                     issue_number: issueNumber,
                 });
                 const currentDescription = issue.body || '';
-                const configBlock = `<details>
-<summary><code>Git-Board</code> config</summary>
-<br>
-
-\`\`\`json
+                const configBlock = `${this.startConfigPattern} 
 ${JSON.stringify(config, null, 4)}
-\`\`\`
-
-</details>`;
-                const updatedDescription = currentDescription.replace(/<details>\s*<summary><code>Git-Board<\/code> config<\/summary>[\s\S]*?<\/details>/, configBlock);
-                const finalDescription = updatedDescription === currentDescription
-                    ? `${currentDescription}\n\n${configBlock}`
-                    : updatedDescription;
+${this.endConfigPattern}`;
+                const updatedDescription = currentDescription.split(this.startConfigPattern)[0];
+                const finalDescription = `${updatedDescription}\n\n${configBlock}`;
                 await octokit.rest.issues.update({
                     owner,
                     repo,
@@ -30707,13 +30701,10 @@ ${JSON.stringify(config, null, 4)}
                     issue_number: issueNumber,
                 });
                 const currentDescription = issue.body || '';
-                const configMatch = currentDescription.match(/<details>\s*<summary><code>Git-Board<\/code> config<\/summary>[\s\S]*?\n```json\n([\s\S]*?)\n```\n<\/details>/);
-                if (!configMatch || configMatch.length < 2) {
-                    console.log("No Git-Board configuration found in the issue description.");
+                if (currentDescription.indexOf(this.startConfigPattern) === -1) {
                     return undefined;
                 }
-                const configJson = configMatch[1];
-                const branchConfig = JSON.parse(configJson);
+                const branchConfig = JSON.parse(currentDescription.split(this.startConfigPattern)[1]);
                 console.log("Git-Board configuration successfully read:", branchConfig);
                 return new config_1.Config(branchConfig);
             }
