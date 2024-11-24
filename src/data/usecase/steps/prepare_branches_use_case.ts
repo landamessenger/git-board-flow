@@ -114,7 +114,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success) {
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
-                    && lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1
+                    || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1
                 let step: string
                 if (rename) {
                     step = `The branch \`${lastAction.payload.baseBranchName}\` was renamed to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`
