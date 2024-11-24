@@ -12,14 +12,6 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
         const result: Result[] = []
         try {
             if (param.emojiLabeledTitle) {
-                param.hotfix.active = await this.issueRepository.isHotfix(
-                    param.owner,
-                    param.repo,
-                    param.issue.number,
-                    param.labels.hotfix,
-                    param.tokens.token,
-                );
-
                 const title = await this.issueRepository.updateTitle(
                     param.owner,
                     param.repo,
@@ -38,7 +30,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                             success: true,
                             executed: true,
                             steps: [
-                                `The issue's title was updated from \`${param.issue.title}\` to \`${title}\``,
+                                `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
                             ]
                         })
                     )

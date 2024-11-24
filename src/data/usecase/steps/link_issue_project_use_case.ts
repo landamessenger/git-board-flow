@@ -38,7 +38,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                         success: true,
                         executed: true,
                         steps: [
-                            `The issue was linked to \`${project.url}\``,
+                            `The issue was linked to \`${project.url}\`.`,
                         ]
                     })
                 )
@@ -53,7 +53,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to prepare the hotfix to the issue, but there was a problem.`,
+                        `Tried to link issue to project, but there was a problem.`,
                     ],
                     error: error,
                 })

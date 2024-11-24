@@ -24,21 +24,13 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
              */
             await this.branchRepository.fetchRemoteBranches();
 
-            param.hotfix.active = await this.issueRepository.isHotfix(
-                param.owner,
-                param.repo,
-                param.issue.number,
-                param.labels.hotfix,
-                param.tokens.token,
-            );
-
             result.push(
                 new Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     reminders: [
-                        `Make yourself a coffee ☕`
+                        `Make yourself a coffee ☕.`
                     ]
                 })
             )
@@ -130,7 +122,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             `The branch [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) was used to create the branch [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`,
                         ],
                         reminders: [
-                            `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`,
+                            `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`,
                             `Open a Pull Request from [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}) to [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${lastAction.payload.baseBranchName}...${lastAction.payload.newBranchName}?expand=1)`,
                         ]
                     })

@@ -29966,9 +29966,12 @@ class Branches {
     get defaultBranch() {
         return github.context.payload.repository?.default_branch ?? '';
     }
-    constructor(main, development) {
+    constructor(main, development, featureTree, bugfixTree, hotfixTree) {
         this.main = main;
         this.development = development;
+        this.featureTree = featureTree;
+        this.bugfixTree = bugfixTree;
+        this.hotfixTree = hotfixTree;
     }
 }
 exports.Branches = Branches;
@@ -29986,6 +29989,8 @@ exports.Config = void 0;
 const branch_configuration_1 = __nccwpck_require__(2141);
 class Config {
     constructor(data) {
+        this.results = [];
+        this.branchType = data['branchType'] ?? '';
         if (data['branchConfiguration'] !== undefined) {
             this.branchConfiguration = new branch_configuration_1.BranchConfiguration(data['branchConfiguration']);
         }
@@ -30033,6 +30038,7 @@ const label_utils_1 = __nccwpck_require__(6093);
 const issue_1 = __nccwpck_require__(2632);
 const pull_request_1 = __nccwpck_require__(4179);
 const title_utils_1 = __nccwpck_require__(6212);
+const config_1 = __nccwpck_require__(1106);
 class Execution {
     get repo() {
         return github.context.repo.repo;
@@ -30049,8 +30055,14 @@ class Execution {
     get mustRun() {
         return this.runAlways || this.labels.runnerLabels;
     }
+    get mustCleanAll() {
+        return this.issueAction && !this.mustRun;
+    }
     get branchType() {
         return (0, label_utils_1.branchesForIssue)(this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
+    }
+    get cleanManagement() {
+        return this.issueAction && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
     }
     get issue() {
         return new issue_1.Issue();
@@ -30063,15 +30075,20 @@ class Execution {
         this.issueAction = false;
         this.pullRequestAction = false;
         this.setup = async () => {
+            this.currentConfiguration.branchType = this.branchType;
             if (this.issueAction) {
                 this.number = this.issue.number;
                 const issueRepository = new issue_repository_1.IssueRepository();
                 this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
+                this.previousConfiguration = await issueRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
             }
             else if (this.pullRequestAction) {
                 const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
                 this.number = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
                 this.labels.currentLabels = await pullRequestRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
+                this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
+                this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
             }
         };
         this.tokens = tokens;
@@ -30083,6 +30100,7 @@ class Execution {
         this.issueAction = issueAction;
         this.pullRequestAction = pullRequestAction;
         this.projects = projects;
+        this.currentConfiguration = new config_1.Config({});
     }
 }
 exports.Execution = Execution;
@@ -30751,7 +30769,7 @@ class IssueRepository {
                 return undefined;
             }
         };
-        this.updateIssueBranchConfig = async (owner, repo, issueNumber, config, token) => {
+        this.updateConfig = async (owner, repo, issueNumber, config, token) => {
             const octokit = github.getOctokit(token);
             try {
                 const { data: issue } = await octokit.rest.issues.get({
@@ -30780,7 +30798,7 @@ ${this.endConfigPattern}`;
                 throw error;
             }
         };
-        this.readIssueBranchConfig = async (owner, repo, issueNumber, token) => {
+        this.readConfig = async (owner, repo, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             try {
                 const { data: issue } = await octokit.rest.issues.get({
@@ -31027,8 +31045,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
+const config_1 = __nccwpck_require__(1106);
 class PullRequestRepository {
     constructor() {
+        this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
+        this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
         this.isLinked = async (pullRequestUrl) => {
             core.info(`Fetching PR URL: ${pullRequestUrl}`);
             const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
@@ -31076,6 +31097,56 @@ class PullRequestRepository {
             });
             return labels.map(label => label.name);
         };
+        this.updateConfig = async (owner, repo, issueNumber, config, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: issue } = await octokit.rest.issues.get({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                });
+                const currentDescription = issue.body || '';
+                const configBlock = `${this.startConfigPattern} 
+${JSON.stringify(config, null, 4)}
+${this.endConfigPattern}`;
+                const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
+                const oldContent = `${this.startConfigPattern}${storedConfig}${this.endConfigPattern}`;
+                const updatedDescription = currentDescription.replace(oldContent, '');
+                const finalDescription = `${updatedDescription}\n\n${configBlock}`;
+                await octokit.rest.issues.update({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    body: finalDescription,
+                });
+                console.log(`Issue #${issueNumber} updated with branch configuration.`);
+            }
+            catch (error) {
+                console.error(`Error updating issue description: ${error}`);
+                throw error;
+            }
+        };
+        this.readConfig = async (owner, repo, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: issue } = await octokit.rest.issues.get({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                });
+                const currentDescription = issue.body || '';
+                if (currentDescription.indexOf(this.startConfigPattern) === -1) {
+                    return undefined;
+                }
+                const config = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
+                const branchConfig = JSON.parse(config);
+                return new config_1.Config(branchConfig);
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
     }
 }
 exports.PullRequestRepository = PullRequestRepository;
@@ -31090,27 +31161,20 @@ exports.PullRequestRepository = PullRequestRepository;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueLinkUseCase = void 0;
-const issue_repository_1 = __nccwpck_require__(57);
-const branch_repository_1 = __nccwpck_require__(7701);
-const config_1 = __nccwpck_require__(1106);
 const link_issue_project_use_case_1 = __nccwpck_require__(1503);
 const update_title_use_case_1 = __nccwpck_require__(8411);
 const prepare_branches_use_case_1 = __nccwpck_require__(9883);
 const remove_not_needed_branches_use_case_1 = __nccwpck_require__(9871);
+const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
 class IssueLinkUseCase {
     constructor() {
         this.taskId = 'IssueLinkUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
         const results = [];
-        /**
-         * Issue Description
-         */
-        const config = await this.issueRepository.readIssueBranchConfig(param.owner, param.repo, param.issue.number, param.tokens.token);
-        const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-        console.log(JSON.stringify(config, null, 2));
+        if (param.cleanManagement) {
+            results.push(...await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(param));
+        }
         /**
          * Link issue to project
          */
@@ -31127,71 +31191,7 @@ class IssueLinkUseCase {
          * Remove unnecessary branches
          */
         results.push(...await new remove_not_needed_branches_use_case_1.RemoveNotNeededBranchesUseCase().invoke(param));
-        /**
-         * Issue Description
-         */
-        await this.issueRepository.updateIssueBranchConfig(param.owner, param.repo, param.issue.number, new config_1.Config({
-            branchConfiguration: {
-                name: 'tags/1.0.0',
-                oid: '123ekdj1b3ldjb',
-                children: [
-                    {
-                        name: 'hotfix/1.0.1',
-                        oid: '123ekdj1b3ldjb',
-                        children: [
-                            {
-                                name: 'bugfix/2-issue-b',
-                                oid: '123ekdj1b3ldjb',
-                                children: []
-                            }
-                        ]
-                    }
-                ]
-            }
-        }), param.tokens.token);
-        /**
-         * Comment resume of actions
-         */
-        let title = '';
-        let content = '';
-        let footer = '';
-        if (param.hotfix.active) {
-            title = '🔥🐛 Hotfix Actions';
-        }
-        else if (param.isBugfix) {
-            title = '🐛 Bugfix Actions';
-        }
-        else if (param.isFeature) {
-            title = '🛠️ Feature Actions';
-        }
-        let extra = 0;
-        for (let i = 0; i < results.length; i++) {
-            const r = results[i];
-            for (const step of r.steps) {
-                content += `${i + 1 + extra}. ${step}\n`;
-                extra++;
-            }
-        }
-        let extraReminder = 0;
-        for (let i = 0; i < results.length; i++) {
-            const r = results[i];
-            for (const reminder of r.reminders) {
-                footer += `${i + 1 + extraReminder}. ${reminder}\n`;
-                extraReminder++;
-            }
-        }
-        if (footer.length > 0) {
-            footer = `
-### Reminder
-
-${footer}
-`;
-        }
-        const commentBody = `## ${title}:
-${content}
-${footer}
-            `;
-        await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
+        return results;
     }
 }
 exports.IssueLinkUseCase = IssueLinkUseCase;
@@ -31199,94 +31199,142 @@ exports.IssueLinkUseCase = IssueLinkUseCase;
 
 /***/ }),
 
-/***/ 29:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ 5487:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PullRequestLinkUseCase = void 0;
+exports.PublishResultUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const result_1 = __nccwpck_require__(7305);
 const pull_request_repository_1 = __nccwpck_require__(634);
-const github = __importStar(__nccwpck_require__(5438));
-const project_repository_1 = __nccwpck_require__(7917);
-class PullRequestLinkUseCase {
+/**
+ * Publish the resume of actions
+ */
+class PublishResultUseCase {
     constructor() {
-        this.taskId = 'PullRequestLinkUseCase';
-        this.projectRepository = new project_repository_1.ProjectRepository();
+        this.taskId = 'PublishResultUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
-        const isLinked = await this.pullRequestRepository.isLinked(github.context.payload.pull_request?.html_url ?? '');
-        /**
-         * Link Pull Request to projects
-         */
-        for (const project of param.projects) {
-            await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
-        }
-        if (!isLinked) {
+        try {
             /**
-             *  Set the primary/default branch
+             * Comment resume of actions
              */
-            await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.branches.defaultBranch, param.tokens.token);
-            /**
-             *  Update PR's description.
-             */
-            let prBody = github.context.payload.pull_request?.body || '';
-            let updatedBody = `${prBody}\n\nResolves #${param.number}`;
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
-            /**
-             *  Await 20 seconds
-             */
-            await new Promise(resolve => setTimeout(resolve, 20 * 1000));
-            /**
-             *  Restore the original branch
-             */
-            await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.pullRequest.base, param.tokens.token);
-            /**
-             * Restore comment on description
-             */
-            prBody = github.context.payload.pull_request?.body ?? "";
-            updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
-            /**
-             * Add comment
-             */
-            await this.pullRequestRepository.addComment(param.owner, param.repo, param.pullRequest.number, `
-## 🛠️ Pull Request Linking Summary
+            let title = '';
+            let content = '';
+            let footer = '';
+            if (param.issueAction) {
+                if (param.mustCleanAll) {
+                    title = '🗑️ Cleanup Actions';
+                }
+                else if (param.hotfix.active) {
+                    title = '🔥🐛 Hotfix Actions';
+                }
+                else if (param.isBugfix) {
+                    title = '🐛 Bugfix Actions';
+                }
+                else if (param.isFeature) {
+                    title = '🛠️ Feature Actions';
+                }
+            }
+            else if (param.pullRequestAction) {
+                title = '🛠️ Pull Request Linking Summary';
+            }
+            let indexStep = 0;
+            param.currentConfiguration.results.forEach(r => {
+                for (const step of r.steps) {
+                    content += `${indexStep + 1}. ${step}\n`;
+                    indexStep++;
+                }
+            });
+            let indexReminder = 0;
+            param.currentConfiguration.results.forEach(r => {
+                for (const reminder of r.reminders) {
+                    footer += `${indexReminder + 1}. ${reminder}\n`;
+                    indexReminder++;
+                }
+            });
+            if (footer.length > 0) {
+                footer = `
+### Reminder
 
-The following actions were performed to ensure the pull request is properly linked to the related issue:
-  
-1. The base branch was temporarily updated to \`${param.branches.defaultBranch}\`.
-2. The description was temporarily modified to include a reference to issue **#${param.number}**.
-3. The base branch was reverted to its original value: \`${param.pullRequest.base}\`.
-4. The temporary issue reference **#${param.number}** was removed from the description.
+${footer}
+`;
+            }
+            const commentBody = `## ${title}:
+${content}
+${footer}
 
 Thank you for contributing! 🙌
-`, param.tokens.token);
+            `;
+            if (param.issueAction) {
+                await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
+            }
+            else if (param.pullRequestAction) {
+                await this.pullRequestRepository.addComment(param.owner, param.repo, param.pullRequest.number, commentBody, param.tokens.token);
+            }
         }
+        catch (error) {
+            console.error(error);
+            param.currentConfiguration.results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to publish the resume, but there was a problem.`,
+                ],
+                error: error,
+            }));
+        }
+    }
+}
+exports.PublishResultUseCase = PublishResultUseCase;
+
+
+/***/ }),
+
+/***/ 29:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PullRequestLinkUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const link_pull_request_project_use_case_1 = __nccwpck_require__(5154);
+const link_pull_request_issue_use_case_1 = __nccwpck_require__(768);
+class PullRequestLinkUseCase {
+    constructor() {
+        this.taskId = 'PullRequestLinkUseCase';
+    }
+    async invoke(param) {
+        const results = [];
+        try {
+            /**
+             * Link Pull Request to projects
+             */
+            results.push(...await new link_pull_request_project_use_case_1.LinkPullRequestProjectUseCase().invoke(param));
+            /**
+             * Link Pull Request to issue
+             */
+            results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
+        }
+        catch (error) {
+            console.error(error);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Error linking projects/issues with pull request.`,
+                ],
+                error: error,
+            }));
+        }
+        return results;
     }
 }
 exports.PullRequestLinkUseCase = PullRequestLinkUseCase;
@@ -31303,6 +31351,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.RemoveIssueBranchesUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
+const result_1 = __nccwpck_require__(7305);
 /**
  * Remove any branch created for this issue
  */
@@ -31313,30 +31362,43 @@ class RemoveIssueBranchesUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
-        const deletedBranches = [];
-        const branchTypes = ["feature", "bugfix"];
-        const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-        for (const type of branchTypes) {
-            let branchName = '';
-            const prefix = `${type}/${param.number}-`;
-            const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
-            if (!matchingBranch)
-                continue;
-            branchName = matchingBranch;
-            const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branchName, param.tokens.token);
-            if (removed) {
-                deletedBranches.push(branchName);
+        const results = [];
+        try {
+            const branchTypes = ["feature", "bugfix"];
+            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
+            for (const type of branchTypes) {
+                let branchName = '';
+                const prefix = `${type}/${param.number}-`;
+                const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
+                if (!matchingBranch)
+                    continue;
+                branchName = matchingBranch;
+                const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branchName, param.tokens.token);
+                if (removed) {
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `The branch \`${branchName}\` was removed.`,
+                        ],
+                    }));
+                }
             }
         }
-        let deletedBranchesMessage = '';
-        for (let i = 0; i < deletedBranches.length; i++) {
-            const branch = deletedBranches[i];
-            deletedBranchesMessage += `\n${i + 1}. The branch \`${branch}\` was removed.`;
+        catch (error) {
+            console.error(error);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to update issue's title, but there was a problem.`,
+                ],
+                error: error,
+            }));
         }
-        const commentBody = `## 🗑️ Cleanup Actions:
-${deletedBranchesMessage}
-`;
-        await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
+        return results;
     }
 }
 exports.RemoveIssueBranchesUseCase = RemoveIssueBranchesUseCase;
@@ -31397,7 +31459,7 @@ class LinkIssueProjectUseCase {
                     success: true,
                     executed: true,
                     steps: [
-                        `The issue was linked to \`${project.url}\``,
+                        `The issue was linked to \`${project.url}\`.`,
                     ]
                 }));
             }
@@ -31410,7 +31472,7 @@ class LinkIssueProjectUseCase {
                 success: false,
                 executed: true,
                 steps: [
-                    `Tried to prepare the hotfix to the issue, but there was a problem.`,
+                    `Tried to link issue to project, but there was a problem.`,
                 ],
                 error: error,
             }));
@@ -31419,6 +31481,180 @@ class LinkIssueProjectUseCase {
     }
 }
 exports.LinkIssueProjectUseCase = LinkIssueProjectUseCase;
+
+
+/***/ }),
+
+/***/ 768:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LinkPullRequestIssueUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const github = __importStar(__nccwpck_require__(5438));
+const pull_request_repository_1 = __nccwpck_require__(634);
+class LinkPullRequestIssueUseCase {
+    constructor() {
+        this.taskId = 'LinkPullRequestIssueUseCase';
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    }
+    async invoke(param) {
+        const result = [];
+        try {
+            const isLinked = await this.pullRequestRepository.isLinked(github.context.payload.pull_request?.html_url ?? '');
+            if (!isLinked) {
+                /**
+                 *  Set the primary/default branch
+                 */
+                await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.branches.defaultBranch, param.tokens.token);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `The base branch was temporarily updated to \`${param.branches.defaultBranch}\`.`,
+                    ],
+                }));
+                /**
+                 *  Update PR's description.
+                 */
+                let prBody = github.context.payload.pull_request?.body || '';
+                let updatedBody = `${prBody}\n\nResolves #${param.number}`;
+                await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `The description was temporarily modified to include a reference to issue **#${param.number}**.`,
+                    ],
+                }));
+                /**
+                 *  Await 20 seconds
+                 */
+                await new Promise(resolve => setTimeout(resolve, 20 * 1000));
+                /**
+                 *  Restore the original branch
+                 */
+                await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.pullRequest.base, param.tokens.token);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `The base branch was reverted to its original value: \`${param.pullRequest.base}\`.`,
+                    ],
+                }));
+                /**
+                 * Restore comment on description
+                 */
+                prBody = github.context.payload.pull_request?.body ?? "";
+                updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
+                await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `The temporary issue reference **#${param.number}** was removed from the description.`,
+                    ],
+                }));
+                return result;
+            }
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to link pull request to project, but there was a problem.`,
+                ],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.LinkPullRequestIssueUseCase = LinkPullRequestIssueUseCase;
+
+
+/***/ }),
+
+/***/ 5154:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LinkPullRequestProjectUseCase = void 0;
+const project_repository_1 = __nccwpck_require__(7917);
+const core_1 = __nccwpck_require__(2186);
+const result_1 = __nccwpck_require__(7305);
+class LinkPullRequestProjectUseCase {
+    constructor() {
+        this.taskId = 'LinkPullRequestProjectUseCase';
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        const result = [];
+        try {
+            for (const project of param.projects) {
+                await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `The pull request was linked to \`${project.url}\`.`,
+                    ],
+                    error: core_1.error,
+                }));
+            }
+            return result;
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to link pull request to project, but there was a problem.`,
+                ],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.LinkPullRequestProjectUseCase = LinkPullRequestProjectUseCase;
 
 
 /***/ }),
@@ -31475,13 +31711,12 @@ class PrepareBranchesUseCase {
              * Fetch all branches/tags
              */
             await this.branchRepository.fetchRemoteBranches();
-            param.hotfix.active = await this.issueRepository.isHotfix(param.owner, param.repo, param.issue.number, param.labels.hotfix, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
                 reminders: [
-                    `Make yourself a coffee ☕`
+                    `Make yourself a coffee ☕.`
                 ]
             }));
             const lastTag = await this.branchRepository.getLatestTag();
@@ -31537,7 +31772,7 @@ class PrepareBranchesUseCase {
                         `The branch [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) was used to create the branch [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`,
                     ],
                     reminders: [
-                        `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`,
+                        `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`,
                         `Open a Pull Request from [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}) to [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${lastAction.payload.baseBranchName}...${lastAction.payload.newBranchName}?expand=1)`,
                     ]
                 }));
@@ -31650,7 +31885,7 @@ class RemoveNotNeededBranchesUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The branch ${branchName} was removed.`,
+                                `The branch \`${branchName}\` was removed.`,
                             ],
                         }));
                     }
@@ -31661,7 +31896,7 @@ class RemoveNotNeededBranchesUseCase {
                             success: false,
                             executed: true,
                             steps: [
-                                `Tried to remove not needed branch ${branchName}, but there was a problem.`,
+                                `Tried to remove not needed branch \`${branchName}\`, but there was a problem.`,
                             ],
                         }));
                     }
@@ -31676,7 +31911,7 @@ class RemoveNotNeededBranchesUseCase {
                                     success: true,
                                     executed: true,
                                     steps: [
-                                        `The branch ${branch} was removed.`,
+                                        `The branch \`${branch}\` was removed.`,
                                     ],
                                 }));
                             }
@@ -31687,7 +31922,7 @@ class RemoveNotNeededBranchesUseCase {
                                     success: false,
                                     executed: true,
                                     steps: [
-                                        `Tried to remove not needed branch ${branch}, but there was a problem.`,
+                                        `Tried to remove not needed branch \`${branch}\`, but there was a problem.`,
                                     ],
                                 }));
                             }
@@ -31733,7 +31968,6 @@ class UpdateTitleUseCase {
         const result = [];
         try {
             if (param.emojiLabeledTitle) {
-                param.hotfix.active = await this.issueRepository.isHotfix(param.owner, param.repo, param.issue.number, param.labels.hotfix, param.tokens.token);
                 const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.branchType, param.hotfix.active, param.labels.isQuestion, param.labels.isHelp, param.tokens.token);
                 if (title) {
                     result.push(new result_1.Result({
@@ -31741,7 +31975,7 @@ class UpdateTitleUseCase {
                         success: true,
                         executed: true,
                         steps: [
-                            `The issue's title was updated from \`${param.issue.title}\` to \`${title}\``,
+                            `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
                         ]
                     }));
                 }
@@ -31779,6 +32013,43 @@ class UpdateTitleUseCase {
     }
 }
 exports.UpdateTitleUseCase = UpdateTitleUseCase;
+
+
+/***/ }),
+
+/***/ 4879:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.StoreConfigurationUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const pull_request_repository_1 = __nccwpck_require__(634);
+/**
+ * Store las configuration in the description
+ */
+class StoreConfigurationUseCase {
+    constructor() {
+        this.taskId = 'StoreConfigurationUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    }
+    async invoke(param) {
+        try {
+            if (param.issueAction) {
+                await this.issueRepository.updateConfig(param.owner, param.repo, param.issue.number, param.currentConfiguration, param.tokens.token);
+            }
+            else if (param.pullRequestAction) {
+                await this.pullRequestRepository.updateConfig(param.owner, param.repo, param.pullRequest.number, param.currentConfiguration, param.tokens.token);
+            }
+        }
+        catch (error) {
+            console.error(error);
+        }
+    }
+}
+exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
 
 
 /***/ }),
@@ -31862,6 +32133,8 @@ const labels_1 = __nccwpck_require__(818);
 const branches_1 = __nccwpck_require__(5308);
 const hotfix_1 = __nccwpck_require__(7341);
 const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
+const publish_resume_use_case_1 = __nccwpck_require__(5487);
+const store_configuration_use_case_1 = __nccwpck_require__(4879);
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     const action = core.getInput('action', { required: true });
@@ -31905,14 +32178,19 @@ async function run() {
      */
     const mainBranch = core.getInput('main-branch', { required: true });
     const developmentBranch = core.getInput('development-branch', { required: true });
-    const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch), new hotfix_1.Hotfix(), projects);
+    const featureTree = core.getInput('feature-tree', { required: true });
+    const bugfixTree = core.getInput('bugfix-tree', { required: true });
+    const hotfixTree = core.getInput('hotfix-tree', { required: true });
+    const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.setFailed(`Issue ${execution.number}. Skipping.`);
         return;
     }
-    if (execution.issueAction && !execution.mustRun) {
-        await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(execution);
+    const results = [];
+    if (execution.mustCleanAll) {
+        results.push(...await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(execution));
+        await finishWithResults(execution, results);
         return;
     }
     if (!execution.mustRun) {
@@ -31921,18 +32199,24 @@ async function run() {
     }
     try {
         if (execution.issueAction) {
-            await new issue_link_use_case_1.IssueLinkUseCase().invoke(execution);
+            results.push(...await new issue_link_use_case_1.IssueLinkUseCase().invoke(execution));
         }
         else if (execution.pullRequestAction) {
-            await new pull_request_link_use_case_1.PullRequestLinkUseCase().invoke(execution);
+            results.push(...await new pull_request_link_use_case_1.PullRequestLinkUseCase().invoke(execution));
         }
         else {
             core.setFailed(`Action not handled: ${action}`);
         }
+        await finishWithResults(execution, results);
     }
     catch (error) {
         core.setFailed(error.message);
     }
+}
+async function finishWithResults(execution, results) {
+    execution.currentConfiguration.results = results;
+    await new publish_resume_use_case_1.PublishResultUseCase().invoke(execution);
+    await new store_configuration_use_case_1.StoreConfigurationUseCase().invoke(execution);
 }
 run();
 

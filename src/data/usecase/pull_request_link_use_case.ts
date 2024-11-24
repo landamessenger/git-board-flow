@@ -1,100 +1,38 @@
-import {PullRequestRepository} from "../repository/pull_request_repository";
-import * as github from "@actions/github";
-import {ProjectRepository} from "../repository/project_repository";
 import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
+import {Result} from "../model/result";
+import {LinkPullRequestProjectUseCase} from "./steps/link_pull_request_project_use_case";
+import {LinkPullRequestIssueUseCase} from "./steps/link_pull_request_issue_use_case";
 
-export class PullRequestLinkUseCase implements ParamUseCase<Execution, void> {
+export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestLinkUseCase';
-    private projectRepository = new ProjectRepository();
-    private pullRequestRepository = new PullRequestRepository();
 
-    async invoke(param: Execution): Promise<void> {
-        const isLinked = await this.pullRequestRepository.isLinked(github.context.payload.pull_request?.html_url ?? '');
-
-        /**
-         * Link Pull Request to projects
-         */
-        for (const project of param.projects) {
-            await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat)
-        }
-
-        if (!isLinked) {
+    async invoke(param: Execution): Promise<Result[]> {
+        const results: Result[] = []
+        try {
             /**
-             *  Set the primary/default branch
+             * Link Pull Request to projects
              */
-            await this.pullRequestRepository.updateBaseBranch(
-                param.owner,
-                param.repo,
-                param.pullRequest.number,
-                param.branches.defaultBranch,
-                param.tokens.token,
+            results.push(...await new LinkPullRequestProjectUseCase().invoke(param));
+
+            /**
+             * Link Pull Request to issue
+             */
+            results.push(...await new LinkPullRequestIssueUseCase().invoke(param));
+        } catch (error) {
+            console.error(error);
+            results.push(
+                new Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Error linking projects/issues with pull request.`,
+                    ],
+                    error: error,
+                })
             )
-
-            /**
-             *  Update PR's description.
-             */
-            let prBody = github.context.payload.pull_request?.body || '';
-
-            let updatedBody = `${prBody}\n\nResolves #${param.number}`;
-            await this.pullRequestRepository.updateDescription(
-                param.owner,
-                param.repo,
-                param.pullRequest.number,
-                updatedBody,
-                param.tokens.token,
-            );
-
-            /**
-             *  Await 20 seconds
-             */
-            await new Promise(resolve => setTimeout(resolve, 20 * 1000));
-
-            /**
-             *  Restore the original branch
-             */
-            await this.pullRequestRepository.updateBaseBranch(
-                param.owner,
-                param.repo,
-                param.pullRequest.number,
-                param.pullRequest.base,
-                param.tokens.token,
-            )
-
-            /**
-             * Restore comment on description
-             */
-            prBody = github.context.payload.pull_request?.body ?? "";
-            updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
-            await this.pullRequestRepository.updateDescription(
-                param.owner,
-                param.repo,
-                param.pullRequest.number,
-                updatedBody,
-                param.tokens.token,
-            );
-
-            /**
-             * Add comment
-             */
-            await this.pullRequestRepository.addComment(
-                param.owner,
-                param.repo,
-                param.pullRequest.number,
-                `
-## 🛠️ Pull Request Linking Summary
-
-The following actions were performed to ensure the pull request is properly linked to the related issue:
-  
-1. The base branch was temporarily updated to \`${param.branches.defaultBranch}\`.
-2. The description was temporarily modified to include a reference to issue **#${param.number}**.
-3. The base branch was reverted to its original value: \`${param.pullRequest.base}\`.
-4. The temporary issue reference **#${param.number}** was removed from the description.
-
-Thank you for contributing! 🙌
-`,
-                param.tokens.token,
-                );
         }
+        return results;
     }
 }

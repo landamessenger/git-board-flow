@@ -9,6 +9,9 @@ import {Labels} from "./data/model/labels";
 import {Branches} from "./data/model/branches";
 import {Hotfix} from "./data/model/hotfix";
 import {RemoveIssueBranchesUseCase} from "./data/usecase/remove_issue_branches_use_case";
+import {Result} from "./data/model/result";
+import {PublishResultUseCase} from "./data/usecase/publish_resume_use_case";
+import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_case";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -60,6 +63,9 @@ async function run(): Promise<void> {
      */
     const mainBranch = core.getInput('main-branch', {required: true});
     const developmentBranch = core.getInput('development-branch', {required: true});
+    const featureTree = core.getInput('feature-tree', {required: true});
+    const bugfixTree = core.getInput('bugfix-tree', {required: true});
+    const hotfixTree = core.getInput('hotfix-tree', {required: true});
 
     const execution = new Execution(
         runAlways,
@@ -77,7 +83,10 @@ async function run(): Promise<void> {
         ),
         new Branches(
             mainBranch,
-            developmentBranch
+            developmentBranch,
+            featureTree,
+            bugfixTree,
+            hotfixTree,
         ),
         new Hotfix(),
         projects
@@ -90,8 +99,11 @@ async function run(): Promise<void> {
         return;
     }
 
-    if (execution.issueAction && !execution.mustRun) {
-        await new RemoveIssueBranchesUseCase().invoke(execution);
+    const results: Result[] = []
+
+    if (execution.mustCleanAll) {
+        results.push(...await new RemoveIssueBranchesUseCase().invoke(execution));
+        await finishWithResults(execution, results)
         return;
     }
 
@@ -102,15 +114,23 @@ async function run(): Promise<void> {
 
     try {
         if (execution.issueAction) {
-            await new IssueLinkUseCase().invoke(execution)
+            results.push(...await new IssueLinkUseCase().invoke(execution));
         } else if (execution.pullRequestAction) {
-            await new PullRequestLinkUseCase().invoke(execution)
+            results.push(...await new PullRequestLinkUseCase().invoke(execution));
         } else {
             core.setFailed(`Action not handled: ${action}`);
         }
+
+        await finishWithResults(execution, results)
     } catch (error: any) {
         core.setFailed(error.message);
     }
+}
+
+async function finishWithResults(execution: Execution, results: Result[]): Promise<void> {
+    execution.currentConfiguration.results = results;
+    await new PublishResultUseCase().invoke(execution)
+    await new StoreConfigurationUseCase().invoke(execution)
 }
 
 run();

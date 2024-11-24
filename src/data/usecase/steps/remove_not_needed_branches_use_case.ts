@@ -63,7 +63,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The branch ${branchName} was removed.`,
+                                    `The branch \`${branchName}\` was removed.`,
                                 ],
                             })
                         )
@@ -75,7 +75,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                                 success: false,
                                 executed: true,
                                 steps: [
-                                    `Tried to remove not needed branch ${branchName}, but there was a problem.`,
+                                    `Tried to remove not needed branch \`${branchName}\`, but there was a problem.`,
                                 ],
                             })
                         )
@@ -96,7 +96,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                                         success: true,
                                         executed: true,
                                         steps: [
-                                            `The branch ${branch} was removed.`,
+                                            `The branch \`${branch}\` was removed.`,
                                         ],
                                     })
                                 )
@@ -108,7 +108,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                                         success: false,
                                         executed: true,
                                         steps: [
-                                            `Tried to remove not needed branch ${branch}, but there was a problem.`,
+                                            `Tried to remove not needed branch \`${branch}\`, but there was a problem.`,
                                         ],
                                     })
                                 )

@@ -10,6 +10,8 @@ import {branchesForIssue} from "../utils/label_utils";
 import {Issue} from "./issue";
 import {PullRequest} from "./pull_request";
 import {extractIssueNumberFromBranch} from "../utils/title_utils";
+import {Config} from "./config";
+import {Result} from "./result";
 
 export class Execution {
     runAlways: boolean;
@@ -22,6 +24,8 @@ export class Execution {
     branches: Branches;
     hotfix: Hotfix;
     projects: ProjectDetail[];
+    previousConfiguration: Config | undefined;
+    currentConfiguration: Config;
 
     get repo(): string {
         return github.context.repo.repo;
@@ -43,12 +47,20 @@ export class Execution {
         return this.runAlways || this.labels.runnerLabels;
     }
 
+    get mustCleanAll(): boolean {
+        return this.issueAction && !this.mustRun;
+    }
+
     get branchType(): string {
         return branchesForIssue(
             this.labels.currentLabels,
             this.labels.bugfix,
             this.labels.hotfix,
         );
+    }
+
+    get cleanManagement(): boolean {
+        return this.issueAction && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
     }
 
     get issue(): Issue {
@@ -79,9 +91,11 @@ export class Execution {
         this.issueAction = issueAction;
         this.pullRequestAction = pullRequestAction;
         this.projects = projects;
+        this.currentConfiguration = new Config({});
     }
 
     setup = async () => {
+        this.currentConfiguration.branchType = this.branchType
         if (this.issueAction) {
             this.number = this.issue.number;
             const issueRepository = new IssueRepository();
@@ -91,6 +105,19 @@ export class Execution {
                 this.number,
                 this.tokens.token
             );
+            this.hotfix.active = await issueRepository.isHotfix(
+                this.owner,
+                this.repo,
+                this.issue.number,
+                this.labels.hotfix,
+                this.tokens.token,
+            );
+            this.previousConfiguration = await issueRepository.readConfig(
+                this.owner,
+                this.repo,
+                this.issue.number,
+                this.tokens.token,
+            )
         } else if (this.pullRequestAction) {
             const pullRequestRepository = new PullRequestRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
@@ -100,6 +127,13 @@ export class Execution {
                 this.pullRequest.number,
                 this.tokens.token
             );
+            this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
+            this.previousConfiguration = await pullRequestRepository.readConfig(
+                this.owner,
+                this.repo,
+                this.issue.number,
+                this.tokens.token,
+            )
         }
     }
 }

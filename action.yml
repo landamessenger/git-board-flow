@@ -35,6 +35,15 @@ inputs:
   development-branch:
     description: "Development branch of the repository"
     default: "develop"
+  feature-tree:
+    description: "Tree for new features"
+    default: "feature"
+  bugfix-tree:
+    description: "Tree for new bugfix"
+    default: "bugfix"
+  hotfix-tree:
+    description: "Tree for new hotfix"
+    default: "hotfix"
   run-always:
     description: "Set if action-launcher-label is needed or not for launching git-board"
     default: "false"

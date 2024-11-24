@@ -64,7 +64,7 @@ export class IssueRepository {
     };
 
 
-    updateIssueBranchConfig = async (
+    updateConfig = async (
         owner: string,
         repo: string,
         issueNumber: number,
@@ -106,7 +106,7 @@ ${this.endConfigPattern}`;
         }
     }
 
-    readIssueBranchConfig = async (
+    readConfig = async (
         owner: string,
         repo: string,
         issueNumber: number,
