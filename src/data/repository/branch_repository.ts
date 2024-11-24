@@ -304,8 +304,8 @@ export class BranchRepository {
 
             core.info(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch?.linkedBranch)}`);
 
-            const baseBranchUrl = `https://github.com/${owner}/${repository}/tree/${baseBranchName}`;
-            const newBranchUrl = `https://github.com/${owner}/${repository}/tree/${newBranchName}`;
+            const baseBranchUrl = `https://github.com/${owner}/${repo}/tree/${baseBranchName}`;
+            const newBranchUrl = `https://github.com/${owner}/${repo}/tree/${newBranchName}`;
             result.push(
                 new Result({
                     id: 'branch_repository',

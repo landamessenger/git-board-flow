@@ -30606,8 +30606,8 @@ class BranchRepository {
                     oid: branchOid,
                 });
                 core.info(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch?.linkedBranch)}`);
-                const baseBranchUrl = `https://github.com/${owner}/${repository}/tree/${baseBranchName}`;
-                const newBranchUrl = `https://github.com/${owner}/${repository}/tree/${newBranchName}`;
+                const baseBranchUrl = `https://github.com/${owner}/${repo}/tree/${baseBranchName}`;
+                const newBranchUrl = `https://github.com/${owner}/${repo}/tree/${newBranchName}`;
                 result.push(new result_1.Result({
                     id: 'branch_repository',
                     success: true,
