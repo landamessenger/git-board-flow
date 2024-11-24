@@ -1,6 +1,7 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
 import {Milestone} from "../model/milestone";
+import {Config} from "../model/config";
 
 export class IssueRepository {
     updateTitle = async (
@@ -55,6 +56,98 @@ export class IssueRepository {
             core.setFailed(`Failed to check or update issue title: ${error}`);
         }
     };
+
+
+    updateIssueBranchConfig = async (
+        owner: string,
+        repo: string,
+        issueNumber: number,
+        config: Config,
+        token: string
+    ) => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const {data: issue} = await octokit.rest.issues.get({
+                owner,
+                repo,
+                issue_number: issueNumber,
+            });
+
+            const currentDescription = issue.body || '';
+
+            const configBlock = `<details>
+<summary><code>Git-Board</code> config</summary>
+<br>
+
+\`\`\`json
+${JSON.stringify(config, null, 4)}
+\`\`\`
+
+</details>`;
+
+            const updatedDescription = currentDescription.replace(
+                /<details>\s*<summary><code>Git-Board<\/code> config<\/summary>[\s\S]*?<\/details>/,
+                configBlock
+            );
+
+            const finalDescription =
+                updatedDescription === currentDescription
+                    ? `${currentDescription}\n\n${configBlock}`
+                    : updatedDescription;
+
+            await octokit.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: finalDescription,
+            });
+
+            console.log(`Issue #${issueNumber} updated with branch configuration.`);
+        } catch (error) {
+            console.error(`Error updating issue description: ${error}`);
+            throw error;
+        }
+    }
+
+    readIssueBranchConfig = async (
+        owner: string,
+        repo: string,
+        issueNumber: number,
+        token: string
+    ): Promise<Config | undefined> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const { data: issue } = await octokit.rest.issues.get({
+                owner,
+                repo,
+                issue_number: issueNumber,
+            });
+
+            const currentDescription = issue.body || '';
+
+            const configMatch = currentDescription.match(
+                /<details>\s*<summary><code>Git-Board<\/code> config<\/summary>[\s\S]*?\n```json\n([\s\S]*?)\n```\n<\/details>/
+            );
+
+            if (!configMatch || configMatch.length < 2) {
+                console.log("No Git-Board configuration found in the issue description.");
+                return undefined;
+            }
+
+            const configJson = configMatch[1];
+            const branchConfig = JSON.parse(configJson);
+
+
+            console.log("Git-Board configuration successfully read:", branchConfig);
+            return new Config(branchConfig);
+        } catch (error) {
+            console.error(`Error reading issue configuration: ${error}`);
+            throw error;
+        }
+    }
+
 
     getId = async (
         owner: string,

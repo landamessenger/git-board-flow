@@ -29907,6 +29907,30 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 2141:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BranchConfiguration = void 0;
+class BranchConfiguration {
+    constructor(data) {
+        this.name = data['name'] ?? '';
+        this.oid = data['oid'] ?? '';
+        this.children = [];
+        if (data['children'] !== undefined && data['children'].length > 0) {
+            for (let child of data['children']) {
+                this.children.push(new BranchConfiguration(child));
+            }
+        }
+    }
+}
+exports.BranchConfiguration = BranchConfiguration;
+
+
+/***/ }),
+
 /***/ 5308:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -29948,6 +29972,26 @@ class Branches {
     }
 }
 exports.Branches = Branches;
+
+
+/***/ }),
+
+/***/ 1106:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Config = void 0;
+const branch_configuration_1 = __nccwpck_require__(2141);
+class Config {
+    constructor(data) {
+        if (data['branchConfiguration'] !== undefined) {
+            this.branchConfiguration = new branch_configuration_1.BranchConfiguration(data['branchConfiguration']);
+        }
+    }
+}
+exports.Config = Config;
 
 
 /***/ }),
@@ -30577,6 +30621,7 @@ exports.IssueRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
 const milestone_1 = __nccwpck_require__(2298);
+const config_1 = __nccwpck_require__(1106);
 class IssueRepository {
     constructor() {
         this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchType, isHotfix, isQuestion, isHelp, token) => {
@@ -30616,6 +30661,65 @@ class IssueRepository {
             }
             catch (error) {
                 core.setFailed(`Failed to check or update issue title: ${error}`);
+            }
+        };
+        this.updateIssueBranchConfig = async (owner, repo, issueNumber, config, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: issue } = await octokit.rest.issues.get({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                });
+                const currentDescription = issue.body || '';
+                const configBlock = `<details>
+<summary><code>Git-Board</code> config</summary>
+<br>
+
+\`\`\`json
+${JSON.stringify(config, null, 4)}
+\`\`\`
+
+</details>`;
+                const updatedDescription = currentDescription.replace(/<details>\s*<summary><code>Git-Board<\/code> config<\/summary>[\s\S]*?<\/details>/, configBlock);
+                const finalDescription = updatedDescription === currentDescription
+                    ? `${currentDescription}\n\n${configBlock}`
+                    : updatedDescription;
+                await octokit.rest.issues.update({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                    body: finalDescription,
+                });
+                console.log(`Issue #${issueNumber} updated with branch configuration.`);
+            }
+            catch (error) {
+                console.error(`Error updating issue description: ${error}`);
+                throw error;
+            }
+        };
+        this.readIssueBranchConfig = async (owner, repo, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: issue } = await octokit.rest.issues.get({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                });
+                const currentDescription = issue.body || '';
+                const configMatch = currentDescription.match(/<details>\s*<summary><code>Git-Board<\/code> config<\/summary>[\s\S]*?\n```json\n([\s\S]*?)\n```\n<\/details>/);
+                if (!configMatch || configMatch.length < 2) {
+                    console.log("No Git-Board configuration found in the issue description.");
+                    return undefined;
+                }
+                const configJson = configMatch[1];
+                const branchConfig = JSON.parse(configJson);
+                console.log("Git-Board configuration successfully read:", branchConfig);
+                return new config_1.Config(branchConfig);
+            }
+            catch (error) {
+                console.error(`Error reading issue configuration: ${error}`);
+                throw error;
             }
         };
         this.getId = async (owner, repository, issueNumber, token) => {
@@ -30895,6 +30999,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const project_repository_1 = __nccwpck_require__(7917);
 const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
+const config_1 = __nccwpck_require__(1106);
 class IssueLinkUseCase {
     constructor() {
         this.issueRepository = new issue_repository_1.IssueRepository();
@@ -30909,6 +31014,11 @@ class IssueLinkUseCase {
         }
         const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.number);
         const deletedBranches = [];
+        /**
+         * Issue Description
+         */
+        const config = await this.issueRepository.readIssueBranchConfig(param.owner, param.repo, param.issue.number, param.tokens.token);
+        console.log(JSON.stringify(config, null, 2));
         /**
          * Link issue to project
          */
@@ -30985,6 +31095,28 @@ class IssueLinkUseCase {
                 }
             }
         }
+        /**
+         * Issue Description
+         */
+        await this.issueRepository.updateIssueBranchConfig(param.owner, param.repo, param.issue.number, new config_1.Config({
+            branchConfiguration: {
+                name: 'tags/1.0.0',
+                oid: '123ekdj1b3ldjb',
+                children: [
+                    {
+                        name: 'hotfix/1.0.1',
+                        oid: '123ekdj1b3ldjb',
+                        children: [
+                            {
+                                name: 'bugfix/2-issue-b',
+                                oid: '123ekdj1b3ldjb',
+                                children: []
+                            }
+                        ]
+                    }
+                ]
+            }
+        }), param.tokens.token);
         /**
          * Comment resume of actions
          */

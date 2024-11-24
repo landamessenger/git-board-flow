@@ -4,6 +4,7 @@ import {IssueRepository} from "../repository/issue_repository";
 import {BranchRepository} from "../repository/branch_repository";
 import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
+import {Config} from "../model/config";
 
 export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
     private issueRepository = new IssueRepository();
@@ -18,6 +19,18 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
         }
         const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.number)
         const deletedBranches = []
+
+        /**
+         * Issue Description
+         */
+        const config = await this.issueRepository.readIssueBranchConfig(
+            param.owner,
+            param.repo,
+            param.issue.number,
+            param.tokens.token,
+        )
+
+        console.log(JSON.stringify(config, null, 2));
 
         /**
          * Link issue to project
@@ -161,6 +174,35 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, void> {
                 }
             }
         }
+
+        /**
+         * Issue Description
+         */
+        await this.issueRepository.updateIssueBranchConfig(
+            param.owner,
+            param.repo,
+            param.issue.number,
+            new Config({
+                branchConfiguration: {
+                    name: 'tags/1.0.0',
+                    oid: '123ekdj1b3ldjb',
+                    children: [
+                        {
+                            name: 'hotfix/1.0.1',
+                            oid: '123ekdj1b3ldjb',
+                            children: [
+                                {
+                                    name: 'bugfix/2-issue-b',
+                                    oid: '123ekdj1b3ldjb',
+                                    children: []
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }),
+            param.tokens.token,
+        )
 
         /**
          * Comment resume of actions
