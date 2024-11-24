@@ -87,7 +87,8 @@ ${JSON.stringify(config, null, 4)}
 ${this.endConfigPattern}`;
 
             const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0]
-            const updatedDescription = currentDescription.replace(storedConfig, '')
+            const oldContent = `${this.startConfigPattern}${storedConfig}${this.endConfigPattern}`
+            const updatedDescription = currentDescription.replace(oldContent, '')
 
             const finalDescription = `${updatedDescription}\n\n${configBlock}`;
 
