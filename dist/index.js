@@ -30677,7 +30677,8 @@ class IssueRepository {
                 const configBlock = `${this.startConfigPattern} 
 ${JSON.stringify(config, null, 4)}
 ${this.endConfigPattern}`;
-                const updatedDescription = currentDescription.split(this.startConfigPattern)[0];
+                const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
+                const updatedDescription = currentDescription.replace(storedConfig, '');
                 const finalDescription = `${updatedDescription}\n\n${configBlock}`;
                 await octokit.rest.issues.update({
                     owner,
@@ -30704,7 +30705,8 @@ ${this.endConfigPattern}`;
                 if (currentDescription.indexOf(this.startConfigPattern) === -1) {
                     return undefined;
                 }
-                const branchConfig = JSON.parse(currentDescription.split(this.startConfigPattern)[1]);
+                const config = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
+                const branchConfig = JSON.parse(config);
                 console.log("Git-Board configuration successfully read:", branchConfig);
                 return new config_1.Config(branchConfig);
             }
