@@ -60,7 +60,9 @@ export class Execution {
     }
 
     get cleanManagement(): boolean {
-        return this.issueAction && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
+        return this.issueAction
+            && this.previousConfiguration !== undefined
+            && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
     }
 
     get issue(): Issue {

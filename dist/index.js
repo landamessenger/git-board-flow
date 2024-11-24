@@ -30062,7 +30062,9 @@ class Execution {
         return (0, label_utils_1.branchesForIssue)(this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
     }
     get cleanManagement() {
-        return this.issueAction && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
+        return this.issueAction
+            && this.previousConfiguration !== undefined
+            && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
     }
     get issue() {
         return new issue_1.Issue();
@@ -31349,7 +31351,6 @@ exports.PullRequestLinkUseCase = PullRequestLinkUseCase;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.RemoveIssueBranchesUseCase = void 0;
-const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
 /**
@@ -31358,7 +31359,6 @@ const result_1 = __nccwpck_require__(7305);
 class RemoveIssueBranchesUseCase {
     constructor() {
         this.taskId = 'RemoveIssueBranchesUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
@@ -31764,12 +31764,21 @@ class PrepareBranchesUseCase {
             result.push(...branchesResult);
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success) {
+                const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
+                    && lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1;
+                let step;
+                if (rename) {
+                    step = `The branch \`${lastAction.payload.baseBranchName}\` was renamed to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`;
+                }
+                else {
+                    step = `The branch [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) was used to create the branch [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`;
+                }
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `The branch [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) was used to create the branch [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`,
+                        step,
                     ],
                     reminders: [
                         `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`,

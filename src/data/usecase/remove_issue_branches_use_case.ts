@@ -1,4 +1,3 @@
-import {IssueRepository} from "../repository/issue_repository";
 import {BranchRepository} from "../repository/branch_repository";
 import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
@@ -9,7 +8,6 @@ import {Result} from "../model/result";
  */
 export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'RemoveIssueBranchesUseCase';
-    private issueRepository = new IssueRepository();
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
