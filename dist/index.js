@@ -30077,7 +30077,6 @@ class Execution {
         this.issueAction = false;
         this.pullRequestAction = false;
         this.setup = async () => {
-            this.currentConfiguration.branchType = this.branchType;
             if (this.issueAction) {
                 this.number = this.issue.number;
                 const issueRepository = new issue_repository_1.IssueRepository();
@@ -30092,6 +30091,7 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
                 this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
             }
+            this.currentConfiguration.branchType = this.branchType;
         };
         this.tokens = tokens;
         this.emojiLabeledTitle = emojiLabeledTitle;

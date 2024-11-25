@@ -97,7 +97,6 @@ export class Execution {
     }
 
     setup = async () => {
-        this.currentConfiguration.branchType = this.branchType
         if (this.issueAction) {
             this.number = this.issue.number;
             const issueRepository = new IssueRepository();
@@ -137,5 +136,6 @@ export class Execution {
                 this.tokens.token,
             )
         }
+        this.currentConfiguration.branchType = this.branchType
     }
 }
