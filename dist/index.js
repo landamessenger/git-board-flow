@@ -31477,6 +31477,8 @@ class LinkIssueProjectUseCase {
                 }
                 let currentProject;
                 for (const p of projects) {
+                    console.log(`p.project.url: ${p.project.url}`);
+                    console.log(`project.url: ${project.url}`);
                     if (p.project.url === project.url) {
                         currentProject = p;
                         break;
