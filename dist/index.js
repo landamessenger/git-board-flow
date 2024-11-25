@@ -30762,12 +30762,16 @@ class IssueRepository {
                 }
                 const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
                 let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
+                console.log(`1 - ${sanitizedTitle}`);
                 sanitizedTitle = sanitizedTitle.replace(/- -/g, '-').trim();
+                console.log(`2 - ${sanitizedTitle}`);
                 const e = '-';
                 if (sanitizedTitle.startsWith(e)) {
                     sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length).trim();
+                    console.log(`3 - ${sanitizedTitle}`);
                 }
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
+                console.log(`4 - ${formattedTitle}`);
                 if (formattedTitle !== issueTitle) {
                     await octokit.rest.issues.update({
                         owner: owner,
