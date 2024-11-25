@@ -18,7 +18,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                 param.owner,
                 param.repo,
                 param.issue.number,
-                param.tokens.token,
+                param.tokens.tokenPat,
             )
             core.info(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
 

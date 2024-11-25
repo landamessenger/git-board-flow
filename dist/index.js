@@ -31469,7 +31469,7 @@ class LinkIssueProjectUseCase {
     async invoke(param) {
         const result = [];
         try {
-            const projects = await this.issueRepository.fetchIssueProjects(param.owner, param.repo, param.issue.number, param.tokens.token);
+            const projects = await this.issueRepository.fetchIssueProjects(param.owner, param.repo, param.issue.number, param.tokens.tokenPat);
             core.info(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
             for (const project of param.projects) {
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
