@@ -97,6 +97,9 @@ export class BranchRepository {
         try {
             core.info(`Managing branches`);
 
+            const branches = await this.getListOfBranches(owner, repository, token)
+            console.log(JSON.stringify(branches, null, 2));
+
             if (hotfixBranch === undefined && isHotfix) {
                 result.push(
                     new Result({
@@ -116,6 +119,17 @@ export class BranchRepository {
             const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
 
             const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+            if (branches.indexOf(newBranchName) > -1) {
+                result.push(
+                    new Result({
+                        id: 'branch_repository',
+                        success: true,
+                        executed: false,
+                        steps: [],
+                    })
+                )
+                return result
+            }
 
             const branchTypes = ["feature", "bugfix"];
 

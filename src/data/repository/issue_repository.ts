@@ -39,27 +39,28 @@ export class IssueRepository {
 
             let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
 
+            sanitizedTitle = sanitizedTitle.replace(/\s*-\s*-\s*/g, '-');
+
             sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-').trim();
-            const e = '- '
-            if (sanitizedTitle.startsWith(e)) {
-                sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length);
-            }
 
             const formattedTitle = `${emoji} - ${sanitizedTitle}`;
 
-            await octokit.rest.issues.update({
-                owner: owner,
-                repo: repository,
-                issue_number: issueNumber,
-                title: formattedTitle,
-            });
+            if (formattedTitle !== issueTitle) {
+                await octokit.rest.issues.update({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                    title: formattedTitle,
+                });
 
-            core.info(`Issue title updated to: ${formattedTitle}`);
+                core.info(`Issue title updated to: ${formattedTitle}`);
+                return formattedTitle;
+            }
 
-            return formattedTitle
+            return undefined;
         } catch (error) {
             core.setFailed(`Failed to check or update issue title: ${error}`);
-            return undefined
+            return undefined;
         }
     };
 

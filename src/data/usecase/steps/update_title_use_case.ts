@@ -38,11 +38,8 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                     result.push(
                         new Result({
                             id: this.taskId,
-                            success: false,
-                            executed: true,
-                            steps: [
-                                `Tried to update the issue's title \`${param.issue.title}\` but there was a problem.`,
-                            ]
+                            success: true,
+                            executed: false,
                         })
                     )
                 }

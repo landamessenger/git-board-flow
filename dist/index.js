@@ -30470,6 +30470,8 @@ class BranchRepository {
             const result = [];
             try {
                 core.info(`Managing branches`);
+                const branches = await this.getListOfBranches(owner, repository, token);
+                console.log(JSON.stringify(branches, null, 2));
                 if (hotfixBranch === undefined && isHotfix) {
                     result.push(new result_1.Result({
                         id: 'branch_repository',
@@ -30484,6 +30486,15 @@ class BranchRepository {
                 const octokit = github.getOctokit(token);
                 const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
                 const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+                if (branches.indexOf(newBranchName) > -1) {
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: true,
+                        executed: false,
+                        steps: [],
+                    }));
+                    return result;
+                }
                 const branchTypes = ["feature", "bugfix"];
                 /**
                  * Default base branch name. (ex. [develop])
@@ -30751,20 +30762,20 @@ class IssueRepository {
                 }
                 const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
                 let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
+                sanitizedTitle = sanitizedTitle.replace(/\s*-\s*-\s*/g, '-');
                 sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-').trim();
-                const e = '- ';
-                if (sanitizedTitle.startsWith(e)) {
-                    sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length);
-                }
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
-                await octokit.rest.issues.update({
-                    owner: owner,
-                    repo: repository,
-                    issue_number: issueNumber,
-                    title: formattedTitle,
-                });
-                core.info(`Issue title updated to: ${formattedTitle}`);
-                return formattedTitle;
+                if (formattedTitle !== issueTitle) {
+                    await octokit.rest.issues.update({
+                        owner: owner,
+                        repo: repository,
+                        issue_number: issueNumber,
+                        title: formattedTitle,
+                    });
+                    core.info(`Issue title updated to: ${formattedTitle}`);
+                    return formattedTitle;
+                }
+                return undefined;
             }
             catch (error) {
                 core.setFailed(`Failed to check or update issue title: ${error}`);
@@ -31719,6 +31730,8 @@ class PrepareBranchesUseCase {
                     `Make yourself a coffee ☕.`
                 ]
             }));
+            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
+            console.log(JSON.stringify(branches, null, 2));
             const lastTag = await this.branchRepository.getLatestTag();
             if (param.hotfix.active && lastTag !== undefined) {
                 const branchOid = await this.branchRepository.getCommitTag(lastTag);
@@ -31729,23 +31742,35 @@ class PrepareBranchesUseCase {
                 };
                 param.hotfix.version = incrementHotfixVersion(lastTag);
                 const baseBranchName = `tags/${lastTag}`;
-                param.hotfix.branch = `hotfix/${param.hotfix.version}`;
+                param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
                 core.info(`Tag branch: ${baseBranchName}`);
                 core.info(`Hotfix branch: ${param.hotfix.branch}`);
-                const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.number, branchOid, param.tokens.tokenPat);
-                if (linkResult[linkResult.length - 1].success) {
-                    const tagBranch = `tags/${lastTag}`;
-                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
-                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+                const tagBranch = `tags/${lastTag}`;
+                const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
+                const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+                if (branches.indexOf(param.hotfix.branch) > -1) {
+                    const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.number, branchOid, param.tokens.tokenPat);
+                    if (linkResult[linkResult.length - 1].success) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${param.hotfix.branch}\`](${hotfixUrl})`,
+                            ],
+                        }));
+                        core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
+                    }
+                }
+                else {
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
                         executed: true,
                         steps: [
-                            `The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${param.hotfix.branch}\`](${hotfixUrl})`,
+                            `The branch already exists [\`${param.hotfix.branch}\`](${hotfixUrl}) and won't be created from the tag [\`${tagBranch}\`](${tagUrl}).`,
                         ],
                     }));
-                    core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
                 }
             }
             else if (param.hotfix.active && lastTag === undefined) {
@@ -31763,7 +31788,7 @@ class PrepareBranchesUseCase {
             const branchesResult = await this.branchRepository.manageBranches(param.owner, param.repo, param.number, issueTitle, param.branchType, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
             result.push(...branchesResult);
             const lastAction = branchesResult[branchesResult.length - 1];
-            if (lastAction.success) {
+            if (lastAction.success && lastAction.executed) {
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1;
                 let step;
@@ -31991,11 +32016,8 @@ class UpdateTitleUseCase {
                 else {
                     result.push(new result_1.Result({
                         id: this.taskId,
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Tried to update the issue's title \`${param.issue.title}\` but there was a problem.`,
-                        ]
+                        success: true,
+                        executed: false,
                     }));
                 }
             }
