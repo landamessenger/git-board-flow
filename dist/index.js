@@ -31331,7 +31331,7 @@ ${commit.message}
 
 ------------------------------------------------------
 `;
-                if (commit.message.indexOf(param.commit.branch) !== 0) {
+                if (commit.message.indexOf(param.commit.prefix) !== 0) {
                     shouldWarn = true;
                 }
             }
