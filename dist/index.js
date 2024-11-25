@@ -30761,28 +30761,14 @@ class IssueRepository {
                     emoji = '🛠️';
                 }
                 const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
-                let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
-                console.log(`1 - ${sanitizedTitle}`);
-                for (const char of sanitizedTitle) {
-                    console.log(`char: "${char}"`);
-                }
-                const w = '  ';
-                const f = '- -';
-                while (sanitizedTitle.indexOf(w) > -1) {
-                    sanitizedTitle = sanitizedTitle.replace(w, ' ').trim();
-                    console.log(`1 - ${sanitizedTitle}`);
-                }
-                while (sanitizedTitle.indexOf(f) > -1) {
-                    sanitizedTitle = sanitizedTitle.replace(f, '-').trim();
-                    console.log(`2 - ${sanitizedTitle}`);
-                }
-                const e = '-';
-                if (sanitizedTitle.startsWith(e)) {
-                    sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length).trim();
-                    console.log(`3 - ${sanitizedTitle}`);
-                }
+                let sanitizedTitle = issueTitle
+                    .replace(emojiPattern, '') // Elimina el emoji inicial
+                    .replace(/\u200D/g, '') // Elimina "Zero Width Joiner"
+                    .replace(/[^\S\r\n]+/g, ' ') // Colapsa espacios repetidos
+                    .replace(/^-+|-+$/g, '') // Elimina guiones al inicio y al final
+                    .replace(/-+/g, '-') // Reemplaza guiones repetidos
+                    .trim();
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
-                console.log(`4 - ${formattedTitle}`);
                 if (formattedTitle !== issueTitle) {
                     await octokit.rest.issues.update({
                         owner: owner,
