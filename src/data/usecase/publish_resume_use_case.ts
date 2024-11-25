@@ -3,6 +3,7 @@ import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
 import {Result} from "../model/result";
 import {PullRequestRepository} from "../repository/pull_request_repository";
+import {getRandomElement} from "../utils/list_utils";
 
 /**
  * Publish the resume of actions

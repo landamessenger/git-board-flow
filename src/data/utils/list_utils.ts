@@ -1,4 +1,4 @@
-const getRandomElement = <T>(list: T[]): T | undefined => {
+export const getRandomElement = <T>(list: T[]): T | undefined => {
     if (list.length === 0) {
         return undefined;
     }

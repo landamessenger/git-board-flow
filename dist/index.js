@@ -31263,6 +31263,7 @@ exports.PublishResultUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const result_1 = __nccwpck_require__(7305);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const list_utils_1 = __nccwpck_require__(834);
 /**
  * Publish the resume of actions
  */
@@ -31285,24 +31286,24 @@ class PublishResultUseCase {
             if (param.issueAction) {
                 if (param.mustCleanAll) {
                     title = '🗑️ Cleanup Actions';
-                    image = getRandomElement(param.giphy.cleanUpGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.cleanUpGifs);
                 }
                 else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions';
-                    image = getRandomElement(param.giphy.hotfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.hotfixGifs);
                 }
                 else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions';
-                    image = getRandomElement(param.giphy.bugfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.bugfixGifs);
                 }
                 else if (param.isFeature) {
                     title = '🛠️ Feature Actions';
-                    image = getRandomElement(param.giphy.featureGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.featureGifs);
                 }
             }
             else if (param.pullRequestAction) {
                 title = '🛠️ Pull Request Linking Summary';
-                image = getRandomElement(param.giphy.prLinkGifs);
+                image = (0, list_utils_1.getRandomElement)(param.giphy.prLinkGifs);
             }
             if (image) {
                 stupidGif = `![image](${image})`;
@@ -32180,6 +32181,28 @@ const branchesForIssue = (labels, bugfixLabel, hotfixLabel) => {
     return 'feature';
 };
 exports.branchesForIssue = branchesForIssue;
+
+
+/***/ }),
+
+/***/ 834:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getRandomElement = void 0;
+const getRandomElement = (list) => {
+    if (list.length === 0) {
+        return undefined;
+    }
+    if (list.length === 1) {
+        return list[0];
+    }
+    const randomIndex = Math.floor(Math.random() * list.length);
+    return list[randomIndex];
+};
+exports.getRandomElement = getRandomElement;
 
 
 /***/ }),
