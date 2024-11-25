@@ -50,7 +50,7 @@ ${commit.message}
             if (shouldWarn) {
                 commentBody += `
 ${this.separator}
-### ⚠️ Attention
+## ⚠️ Attention
 
 One or more commits should start with the prefix **${param.commit.prefix}**.
 

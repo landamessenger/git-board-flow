@@ -31339,7 +31339,7 @@ ${commit.message}
             if (shouldWarn) {
                 commentBody += `
 ${this.separator}
-### ⚠️ Attention
+## ⚠️ Attention
 
 One or more commits should start with the prefix **${param.commit.prefix}**.
 
@@ -31486,12 +31486,12 @@ class PublishResultUseCase {
             });
             if (footer.length > 0) {
                 footer = `
-### Reminder
+## Reminder
 
 ${footer}
 `;
             }
-            const commentBody = `## ${title}:
+            const commentBody = `# ${title}:
 ${content}
 
 ${stupidGif}
@@ -31595,7 +31595,7 @@ class RemoveIssueBranchesUseCase {
     async invoke(param) {
         const results = [];
         try {
-            const branchTypes = ["feature", "bugfix"];
+            const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             for (const type of branchTypes) {
                 let branchName = '';
@@ -31620,7 +31620,7 @@ class RemoveIssueBranchesUseCase {
                             success: true,
                             executed: true,
                             reminders: [
-                                `Ensure if \`${branchName}\` was removed.`,
+                                `Ensure if \`${param.branches.featureTree}\` should be removed.`,
                             ],
                         }));
                     }

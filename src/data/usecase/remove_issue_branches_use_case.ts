@@ -13,7 +13,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
     async invoke(param: Execution): Promise<Result[]> {
         const results: Result[] = []
         try {
-            const branchTypes = ["feature", "bugfix"];
+            const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
 
             const branches = await this.branchRepository.getListOfBranches(
                 param.owner,
@@ -52,7 +52,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                                 success: true,
                                 executed: true,
                                 reminders: [
-                                    `Ensure if \`${branchName}\` was removed.`,
+                                    `Ensure if \`${param.branches.featureTree}\` should be removed.`,
                                 ],
                             })
                         )

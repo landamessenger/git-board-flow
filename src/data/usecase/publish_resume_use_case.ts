@@ -64,13 +64,13 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
 
             if (footer.length > 0) {
                 footer = `
-### Reminder
+## Reminder
 
 ${footer}
 `
             }
 
-            const commentBody = `## ${title}:
+            const commentBody = `# ${title}:
 ${content}
 
 ${stupidGif}
