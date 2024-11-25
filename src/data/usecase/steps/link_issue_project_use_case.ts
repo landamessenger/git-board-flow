@@ -26,12 +26,29 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                 if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
                     continue;
                 }
+
                 let currentProject: ProjectItem | undefined;
                 for (const p of projects) {
-                    if (project.id === p.id) {
+                    if (p.project.url === project.url) {
                         currentProject = p;
+                        break;
                     }
                 }
+
+                if (currentProject === undefined) {
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Tried to link the issue to [\`${project.url}\`](${project.url}) but there was a problem.`,
+                            ]
+                        })
+                    )
+                    continue;
+                }
+
                 const issueId = await this.issueRepository.getId(
                     param.owner,
                     param.repo,

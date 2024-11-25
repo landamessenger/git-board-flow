@@ -31477,9 +31477,21 @@ class LinkIssueProjectUseCase {
                 }
                 let currentProject;
                 for (const p of projects) {
-                    if (project.id === p.id) {
+                    if (p.project.url === project.url) {
                         currentProject = p;
+                        break;
                     }
+                }
+                if (currentProject === undefined) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Tried to link the issue to [\`${project.url}\`](${project.url}) but there was a problem.`,
+                        ]
+                    }));
+                    continue;
                 }
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
                 await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
