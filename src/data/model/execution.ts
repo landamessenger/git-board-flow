@@ -9,15 +9,17 @@ import * as github from "@actions/github";
 import {branchesForIssue} from "../utils/label_utils";
 import {Issue} from "./issue";
 import {PullRequest} from "./pull_request";
-import {extractIssueNumberFromBranch} from "../utils/title_utils";
+import {extractIssueNumberFromBranch, extractIssueNumberFromBranchB} from "../utils/title_utils";
 import {Config} from "./config";
 import {Images} from "./images";
+import {Commit} from "./commit";
 
 export class Execution {
     runAlways: boolean;
     emojiLabeledTitle: boolean;
     number: number = -1
     issueAction: boolean = false;
+    commitAction: boolean = false;
     pullRequestAction: boolean = false;
     giphy: Images;
     tokens: Tokens;
@@ -74,11 +76,16 @@ export class Execution {
         return new PullRequest();
     }
 
+    get commit(): Commit {
+        return new Commit();
+    }
+
     constructor(
         runAlways: boolean,
         emojiLabeledTitle: boolean,
         issueAction: boolean,
         pullRequestAction: boolean,
+        commitAction: boolean,
         giphy: Images,
         tokens: Tokens,
         labels: Labels,
@@ -95,6 +102,7 @@ export class Execution {
         this.runAlways = runAlways;
         this.issueAction = issueAction;
         this.pullRequestAction = pullRequestAction;
+        this.commitAction = commitAction;
         this.projects = projects;
         this.currentConfiguration = new Config({});
     }
@@ -139,6 +147,8 @@ export class Execution {
                 this.issue.number,
                 this.tokens.token,
             )
+        } else if (this.commitAction) {
+            this.number = extractIssueNumberFromBranchB(this.commit.branch)
         }
         this.currentConfiguration.branchType = this.branchType
     }

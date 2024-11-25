@@ -13,6 +13,7 @@ import {Result} from "./data/model/result";
 import {PublishResultUseCase} from "./data/usecase/publish_resume_use_case";
 import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_case";
 import {Images} from "./data/model/images";
+import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -110,6 +111,7 @@ async function run(): Promise<void> {
         titleEmoji,
         action === 'issue',
         action === 'pull-request',
+        action === 'commit',
         new Images(
             imagesUrlsCleanUp,
             imagesUrlsFeature,
@@ -162,6 +164,8 @@ async function run(): Promise<void> {
             results.push(...await new IssueLinkUseCase().invoke(execution));
         } else if (execution.pullRequestAction) {
             results.push(...await new PullRequestLinkUseCase().invoke(execution));
+        } else if (execution.commitAction) {
+            results.push(...await new CommitCheckUseCase().invoke(execution));
         } else {
             core.setFailed(`Action not handled: ${action}`);
         }

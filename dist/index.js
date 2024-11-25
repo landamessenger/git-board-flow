@@ -29979,6 +29979,50 @@ exports.Branches = Branches;
 
 /***/ }),
 
+/***/ 3993:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Commit = void 0;
+const github = __importStar(__nccwpck_require__(5438));
+class Commit {
+    get branch() {
+        return github.context.payload.ref.replace('refs/heads/', '');
+    }
+    get commits() {
+        return github.context.payload.commits || [];
+    }
+}
+exports.Commit = Commit;
+
+
+/***/ }),
+
 /***/ 1106:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -30041,6 +30085,7 @@ const issue_1 = __nccwpck_require__(2632);
 const pull_request_1 = __nccwpck_require__(4179);
 const title_utils_1 = __nccwpck_require__(6212);
 const config_1 = __nccwpck_require__(1106);
+const commit_1 = __nccwpck_require__(3993);
 class Execution {
     get repo() {
         return github.context.repo.repo;
@@ -30074,9 +30119,13 @@ class Execution {
     get pullRequest() {
         return new pull_request_1.PullRequest();
     }
-    constructor(runAlways, emojiLabeledTitle, issueAction, pullRequestAction, giphy, tokens, labels, branches, hotfix, projects) {
+    get commit() {
+        return new commit_1.Commit();
+    }
+    constructor(runAlways, emojiLabeledTitle, issueAction, pullRequestAction, commitAction, giphy, tokens, labels, branches, hotfix, projects) {
         this.number = -1;
         this.issueAction = false;
+        this.commitAction = false;
         this.pullRequestAction = false;
         this.setup = async () => {
             if (this.issueAction) {
@@ -30094,6 +30143,9 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
                 this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
             }
+            else if (this.commitAction) {
+                this.number = (0, title_utils_1.extractIssueNumberFromBranchB)(this.commit.branch);
+            }
             this.currentConfiguration.branchType = this.branchType;
         };
         this.giphy = giphy;
@@ -30105,6 +30157,7 @@ class Execution {
         this.runAlways = runAlways;
         this.issueAction = issueAction;
         this.pullRequestAction = pullRequestAction;
+        this.commitAction = commitAction;
         this.projects = projects;
         this.currentConfiguration = new config_1.Config({});
     }
@@ -31208,6 +31261,86 @@ exports.PullRequestRepository = PullRequestRepository;
 
 /***/ }),
 
+/***/ 3316:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CommitCheckUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+const issue_repository_1 = __nccwpck_require__(57);
+class CommitCheckUseCase {
+    constructor() {
+        this.taskId = 'CommitCheckUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        const results = [];
+        try {
+            if (param.commit.commits.length === 0) {
+                core.info('No commits found in this push.');
+                return results;
+            }
+            core.info(`Branch: ${param.commit.branch}`);
+            core.info(`Commits detected: ${param.commit.commits.length}`);
+            core.info(`Commits detected: ${param.number}`);
+            for (const commit of param.commit.commits) {
+                const commitMessage = commit.message;
+                const commitUrl = commit.url;
+                const commentBody = `
+**New commit detected on branch \`${param.commit.branch}\`:**
+
+- Message: ${commitMessage}
+- URL: [See Commit](${commitUrl})
+`;
+                await this.issueRepository.addComment(param.owner, param.repo, param.number, commentBody, param.tokens.token);
+            }
+        }
+        catch (error) {
+            console.error(error);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Error linking projects/issues with pull request.`,
+                ],
+                error: error,
+            }));
+        }
+        return results;
+    }
+}
+exports.CommitCheckUseCase = CommitCheckUseCase;
+
+
+/***/ }),
+
 /***/ 5877:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -32212,12 +32345,36 @@ exports.getRandomElement = getRandomElement;
 /***/ }),
 
 /***/ 6212:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractIssueNumberFromBranch = void 0;
+exports.extractIssueNumberFromBranchB = exports.extractIssueNumberFromBranch = void 0;
+const core = __importStar(__nccwpck_require__(2186));
 const extractIssueNumberFromBranch = (branchName) => {
     const match = branchName?.match(/[a-zA-Z]+\/([0-9]+)-.*/);
     if (match) {
@@ -32228,6 +32385,17 @@ const extractIssueNumberFromBranch = (branchName) => {
     }
 };
 exports.extractIssueNumberFromBranch = extractIssueNumberFromBranch;
+const extractIssueNumberFromBranchB = (branchName) => {
+    const issueNumberMatch = branchName.match(/^[^/]+\/(\d+)-/);
+    if (!issueNumberMatch) {
+        core.info('No issue number found in the branch name.');
+        return -1;
+    }
+    const issueNumber = parseInt(issueNumberMatch[1], 10);
+    core.info(`Linked Issue: #${issueNumber}`);
+    return issueNumber;
+};
+exports.extractIssueNumberFromBranchB = extractIssueNumberFromBranchB;
 
 
 /***/ }),
@@ -32274,6 +32442,7 @@ const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
 const publish_resume_use_case_1 = __nccwpck_require__(5487);
 const store_configuration_use_case_1 = __nccwpck_require__(4879);
 const images_1 = __nccwpck_require__(1721);
+const commit_check_use_case_1 = __nccwpck_require__(3316);
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     const action = core.getInput('action', { required: true });
@@ -32348,7 +32517,7 @@ async function run() {
     const featureTree = core.getInput('feature-tree', { required: true });
     const bugfixTree = core.getInput('bugfix-tree', { required: true });
     const hotfixTree = core.getInput('hotfix-tree', { required: true });
-    const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree), new hotfix_1.Hotfix(), projects);
+    const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', action === 'commit', new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.setFailed(`Issue ${execution.number}. Skipping.`);
@@ -32370,6 +32539,9 @@ async function run() {
         }
         else if (execution.pullRequestAction) {
             results.push(...await new pull_request_link_use_case_1.PullRequestLinkUseCase().invoke(execution));
+        }
+        else if (execution.commitAction) {
+            results.push(...await new commit_check_use_case_1.CommitCheckUseCase().invoke(execution));
         }
         else {
             core.setFailed(`Action not handled: ${action}`);
