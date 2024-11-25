@@ -30898,6 +30898,38 @@ ${this.endConfigPattern}`;
                 throw error;
             }
         };
+        this.fetchProjectByUrl = async (projectUrl, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                const query = `
+        query($projectUrl: URI!) {
+            resource(url: $projectUrl) {
+                ... on ProjectV2 {
+                    id
+                    title
+                    url
+                }
+            }
+        }
+        `;
+                const response = await octokit.graphql(query, { projectUrl });
+                if (response.resource.__typename !== "ProjectV2") {
+                    throw new Error("The provided URL does not correspond to a valid project.");
+                }
+                return {
+                    id: response.resource.id,
+                    project: {
+                        id: response.resource.id,
+                        title: response.resource.title,
+                        url: response.resource.url,
+                    },
+                };
+            }
+            catch (error) {
+                core.setFailed(`Error fetching project by URL: ${error}`);
+                return undefined;
+            }
+        };
         this.getMilestone = async (owner, repository, token, issueNumber) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
@@ -31475,15 +31507,7 @@ class LinkIssueProjectUseCase {
                 if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
                     continue;
                 }
-                let currentProject;
-                for (const p of projects) {
-                    console.log(`p.project.url: ${p.project.url}`);
-                    console.log(`project.url: ${project.url}`);
-                    if (p.project.url === project.url) {
-                        currentProject = p;
-                        break;
-                    }
-                }
+                let currentProject = await this.issueRepository.fetchProjectByUrl(project.url, param.tokens.tokenPat);
                 if (currentProject === undefined) {
                     result.push(new result_1.Result({
                         id: this.taskId,
