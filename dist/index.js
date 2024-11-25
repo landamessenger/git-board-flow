@@ -32073,6 +32073,11 @@ class StoreConfigurationUseCase {
     }
     async invoke(param) {
         try {
+            console.log(`storing configuration
+            
+            ${JSON.stringify(param.currentConfiguration, null, 2)}
+            
+            `);
             if (param.issueAction) {
                 await this.issueRepository.updateConfig(param.owner, param.repo, param.issue.number, param.currentConfiguration, param.tokens.token);
             }
