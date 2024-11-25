@@ -41,6 +41,10 @@ export class IssueRepository {
 
             console.log(`1 - ${sanitizedTitle}`)
 
+            for (const char of sanitizedTitle) {
+                console.log(`char: "${char}"`);
+            }
+
             const w = '  '
             const f = '- -'
 

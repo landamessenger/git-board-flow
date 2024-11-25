@@ -30763,6 +30763,9 @@ class IssueRepository {
                 const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
                 let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
                 console.log(`1 - ${sanitizedTitle}`);
+                for (const char of sanitizedTitle) {
+                    console.log(`char: "${char}"`);
+                }
                 const w = '  ';
                 const f = '- -';
                 while (sanitizedTitle.indexOf(w) > -1) {
