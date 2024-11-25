@@ -30014,6 +30014,9 @@ class Commit {
     get branch() {
         return github.context.payload.ref.replace('refs/heads/', '');
     }
+    get prefix() {
+        return this.branch.replace('/', '-');
+    }
     get commits() {
         return github.context.payload.commits || [];
     }
@@ -31311,17 +31314,39 @@ class CommitCheckUseCase {
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.number}`);
-            for (const commit of param.commit.commits) {
-                const commitMessage = commit.message;
-                const commitUrl = commit.url;
-                const commentBody = `
-**New commit detected on branch \`${param.commit.branch}\`:**
+            let commentBody = `
+# 🎉  News
 
-- Message: ${commitMessage}
-- URL: [See Commit](${commitUrl})
+**Changes on branch \`${param.commit.branch}\`:**
+
+------------------------------------------------------
 `;
-                await this.issueRepository.addComment(param.owner, param.repo, param.number, commentBody, param.tokens.token);
+            let shouldWarn = false;
+            for (const commit of param.commit.commits) {
+                commentBody += `
+- ${commit.hash} 
+\`\`\`
+${commit.message}
+\`\`\`
+
+------------------------------------------------------
+`;
+                if (commit.message.indexOf(param.commit.branch) !== 0) {
+                    shouldWarn = true;
+                }
             }
+            if (shouldWarn) {
+                commentBody += `
+### ⚠️ Attention
+
+One or more commits should start with the prefix **${param.commit.prefix}**.
+
+\`\`\`
+${param.commit.prefix}: created hello-world app
+\`\`\`
+`;
+            }
+            await this.issueRepository.addComment(param.owner, param.repo, param.number, commentBody, param.tokens.token);
         }
         catch (error) {
             console.error(error);

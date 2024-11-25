@@ -22,24 +22,48 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.number}`);
 
+            let commentBody = `
+# 🎉  News
+
+**Changes on branch \`${param.commit.branch}\`:**
+
+------------------------------------------------------
+`
+
+            let shouldWarn = false
             for (const commit of param.commit.commits) {
-                const commitMessage = commit.message;
-                const commitUrl = commit.url;
-                const commentBody = `
-**New commit detected on branch \`${param.commit.branch}\`:**
+                commentBody += `
+- ${commit.hash} 
+\`\`\`
+${commit.message}
+\`\`\`
 
-- Message: ${commitMessage}
-- URL: [See Commit](${commitUrl})
+------------------------------------------------------
 `;
-
-                await this.issueRepository.addComment(
-                    param.owner,
-                    param.repo,
-                    param.number,
-                    commentBody,
-                    param.tokens.token,
-                )
+                if (commit.message.indexOf(param.commit.branch) !== 0) {
+                    shouldWarn = true;
+                }
             }
+
+            if (shouldWarn) {
+                commentBody += `
+### ⚠️ Attention
+
+One or more commits should start with the prefix **${param.commit.prefix}**.
+
+\`\`\`
+${param.commit.prefix}: created hello-world app
+\`\`\`
+`
+            }
+
+            await this.issueRepository.addComment(
+                param.owner,
+                param.repo,
+                param.number,
+                commentBody,
+                param.tokens.token,
+            )
         } catch (error) {
             console.error(error);
             results.push(
