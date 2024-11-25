@@ -30764,7 +30764,9 @@ class IssueRepository {
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                     .replace(/\u200D/g, '') // Elimina "Zero Width Joiner"
                     .replace(/[^\S\r\n]+/g, ' ') // Colapsa espacios repetidos
+                    .replace(/[^a-z0-9 ]/g, '')
                     .replace(/^-+|-+$/g, '') // Elimina guiones al inicio y al final
+                    .replace(/- -/g, '-').trim() // Elimina guiones al inicio y al final
                     .replace(/-+/g, '-') // Reemplaza guiones repetidos
                     .trim();
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
