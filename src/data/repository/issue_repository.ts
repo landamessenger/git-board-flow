@@ -35,10 +35,8 @@ export class IssueRepository {
                 emoji = '🛠️';
             }
 
-            const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
-
             let sanitizedTitle = issueTitle
-                .replace(emojiPattern, '') // Elimina el emoji inicial
+                .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')   // Elimina "Zero Width Joiner"
                 .replace(/[^\S\r\n]+/g, ' ') // Colapsa espacios repetidos
                 .replace(/^-+|-+$/g, '') // Elimina guiones al inicio y al final
