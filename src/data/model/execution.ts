@@ -11,7 +11,7 @@ import {Issue} from "./issue";
 import {PullRequest} from "./pull_request";
 import {extractIssueNumberFromBranch} from "../utils/title_utils";
 import {Config} from "./config";
-import {Result} from "./result";
+import {Images} from "./images";
 
 export class Execution {
     runAlways: boolean;
@@ -19,6 +19,7 @@ export class Execution {
     number: number = -1
     issueAction: boolean = false;
     pullRequestAction: boolean = false;
+    giphy: Images;
     tokens: Tokens;
     labels: Labels;
     branches: Branches;
@@ -78,12 +79,14 @@ export class Execution {
         emojiLabeledTitle: boolean,
         issueAction: boolean,
         pullRequestAction: boolean,
+        giphy: Images,
         tokens: Tokens,
         labels: Labels,
         branches: Branches,
         hotfix: Hotfix,
         projects: ProjectDetail[],
     ) {
+        this.giphy = giphy;
         this.tokens = tokens;
         this.emojiLabeledTitle = emojiLabeledTitle;
         this.labels = labels;
@@ -119,6 +122,7 @@ export class Execution {
                 this.issue.number,
                 this.tokens.token,
             )
+            this.currentConfiguration.issueBranch = this.branchType
         } else if (this.pullRequestAction) {
             const pullRequestRepository = new PullRequestRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);

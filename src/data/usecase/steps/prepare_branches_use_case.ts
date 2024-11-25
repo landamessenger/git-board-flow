@@ -52,6 +52,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
                 const baseBranchName = `tags/${lastTag}`;
                 param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
+                param.currentConfiguration.hotfixBranch = param.hotfix.branch;
 
                 core.info(`Tag branch: ${baseBranchName}`);
                 core.info(`Hotfix branch: ${param.hotfix.branch}`);
@@ -78,7 +79,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${param.hotfix.branch}\`](${hotfixUrl})`,
+                                    `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
                                 ],
                             })
                         )
@@ -91,7 +92,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             success: true,
                             executed: true,
                             steps: [
-                                `The branch already exists [\`${param.hotfix.branch}\`](${hotfixUrl}) and won't be created from the tag [\`${tagBranch}\`](${tagUrl}).`,
+                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and won't be created from the tag [**${tagBranch}**](${tagUrl}).`,
                             ],
                         })
                     )
@@ -135,9 +136,9 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1
                 let step: string
                 if (rename) {
-                    step = `The branch \`${lastAction.payload.baseBranchName}\` was renamed to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`
+                    step = `The branch **${lastAction.payload.baseBranchName}** was renamed to [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`
                 } else {
-                    step = `The branch [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) was used to create the branch [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`
+                    step = `The branch [**${lastAction.payload.baseBranchName}**](${lastAction.payload.baseBranchUrl}) was used to create the branch [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`
                 }
                 result.push(
                     new Result({
@@ -162,7 +163,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             executed: true,
                             reminders: [
                                 `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`,
-                                `Create the tag \`tags/${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl})`,
+                                `Create the tag \`tags/${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
                             ]
                         })
                     )

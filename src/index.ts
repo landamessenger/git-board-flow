@@ -12,6 +12,7 @@ import {RemoveIssueBranchesUseCase} from "./data/usecase/remove_issue_branches_u
 import {Result} from "./data/model/result";
 import {PublishResultUseCase} from "./data/usecase/publish_resume_use_case";
 import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_case";
+import {Images} from "./data/model/images";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -37,6 +38,43 @@ async function run(): Promise<void> {
         const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat)
         projects.push(detail)
     }
+
+    /**
+     * Images
+     */
+    const imagesUrlsCleanUpInput = core.getInput('images-clean-up', {required: true});
+    const imagesUrlsCleanUp: string[] = imagesUrlsCleanUpInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+
+    const imagesUrlsFeatureInput = core.getInput('images-feature', {required: true});
+    const imagesUrlsFeature: string[] = imagesUrlsFeatureInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+
+    const imagesUrlsBugfixInput = core.getInput('images-bugfix', {required: true});
+    const imagesUrlsBugfix: string[] = imagesUrlsBugfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+
+    const imagesUrlsHotfixInput = core.getInput('images-hotfix', {required: true});
+    const imagesUrlsHotfix: string[] = imagesUrlsHotfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+    const imagesUrlsPrLinkInput = core.getInput('images-pr-link', {required: true});
+    const imagesUrlsPrLink: string[] = imagesUrlsPrLinkInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
 
     /**
      * Runs always
@@ -72,6 +110,13 @@ async function run(): Promise<void> {
         titleEmoji,
         action === 'issue',
         action === 'pull-request',
+        new Images(
+            imagesUrlsCleanUp,
+            imagesUrlsFeature,
+            imagesUrlsBugfix,
+            imagesUrlsHotfix,
+            imagesUrlsPrLink,
+        ),
         new Tokens(token, tokenPat),
         new Labels(
             actionLauncherLabel,

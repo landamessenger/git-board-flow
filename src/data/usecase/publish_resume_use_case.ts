@@ -19,19 +19,30 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
              */
             let title = ''
             let content = ''
+            let stupidGif = ''
+            let image: string | undefined
             let footer = ''
             if (param.issueAction) {
                 if (param.mustCleanAll) {
                     title = '🗑️ Cleanup Actions'
+                    image = getRandomElement(param.giphy.cleanUpGifs)
                 } else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions'
+                    image = getRandomElement(param.giphy.hotfixGifs)
                 } else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions'
+                    image = getRandomElement(param.giphy.bugfixGifs)
                 } else if (param.isFeature) {
                     title = '🛠️ Feature Actions'
+                    image = getRandomElement(param.giphy.featureGifs)
                 }
             } else if (param.pullRequestAction) {
                 title = '🛠️ Pull Request Linking Summary'
+                image = getRandomElement(param.giphy.prLinkGifs)
+            }
+
+            if (image) {
+                stupidGif = `![image](${image})`
             }
 
             let indexStep = 0
@@ -60,6 +71,9 @@ ${footer}
 
             const commentBody = `## ${title}:
 ${content}
+
+${stupidGif}
+
 ${footer}
 
 Thank you for contributing! 🙌

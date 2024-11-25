@@ -45,6 +45,18 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                             ],
                         })
                     )
+                    if (param.previousConfiguration?.branchType === param.branches.hotfixTree) {
+                        results.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                reminders: [
+                                    `Ensure if \`${branchName}\` was removed.`,
+                                ],
+                            })
+                        )
+                    }
                 }
             }
         } catch (error) {

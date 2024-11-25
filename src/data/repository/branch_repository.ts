@@ -122,6 +122,7 @@ export class BranchRepository {
             const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
 
             const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+            param.currentConfiguration.issueBranch = newBranchName;
             if (branches.indexOf(newBranchName) > -1) {
                 result.push(
                     new Result({

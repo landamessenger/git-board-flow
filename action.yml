@@ -44,6 +44,21 @@ inputs:
   hotfix-tree:
     description: "Tree for new hotfix"
     default: "hotfix"
+  images-clean-up:
+    description: "Images for displaying on cleanup action comments"
+    default: ""
+  images-feature:
+    description: "Images for displaying on feature action comments"
+    default: ""
+  images-bugfix:
+    description: "Images for displaying on bugfix action comments"
+    default: ""
+  images-hotfix:
+    description: "Images for displaying on hotfix action comments"
+    default: ""
+  images-pr-link:
+    description: "Images for displaying on pull request link action comments"
+    default: ""
   run-always:
     description: "Set if action-launcher-label is needed or not for launching git-board"
     default: "false"

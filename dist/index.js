@@ -29991,6 +29991,8 @@ class Config {
     constructor(data) {
         this.results = [];
         this.branchType = data['branchType'] ?? '';
+        this.issueBranch = data['issueBranch'] ?? '';
+        this.hotfixBranch = data['hotfixBranch'];
         if (data['branchConfiguration'] !== undefined) {
             this.branchConfiguration = new branch_configuration_1.BranchConfiguration(data['branchConfiguration']);
         }
@@ -30072,7 +30074,7 @@ class Execution {
     get pullRequest() {
         return new pull_request_1.PullRequest();
     }
-    constructor(runAlways, emojiLabeledTitle, issueAction, pullRequestAction, tokens, labels, branches, hotfix, projects) {
+    constructor(runAlways, emojiLabeledTitle, issueAction, pullRequestAction, giphy, tokens, labels, branches, hotfix, projects) {
         this.number = -1;
         this.issueAction = false;
         this.pullRequestAction = false;
@@ -30083,6 +30085,7 @@ class Execution {
                 this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
                 this.previousConfiguration = await issueRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
+                this.currentConfiguration.issueBranch = this.branchType;
             }
             else if (this.pullRequestAction) {
                 const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
@@ -30093,6 +30096,7 @@ class Execution {
             }
             this.currentConfiguration.branchType = this.branchType;
         };
+        this.giphy = giphy;
         this.tokens = tokens;
         this.emojiLabeledTitle = emojiLabeledTitle;
         this.labels = labels;
@@ -30123,6 +30127,27 @@ class Hotfix {
     }
 }
 exports.Hotfix = Hotfix;
+
+
+/***/ }),
+
+/***/ 1721:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Images = void 0;
+class Images {
+    constructor(cleanUpGifs, featureGifs, bugfixGifs, hotfixGifs, prLinkGifs) {
+        this.cleanUpGifs = cleanUpGifs;
+        this.featureGifs = featureGifs;
+        this.bugfixGifs = bugfixGifs;
+        this.hotfixGifs = hotfixGifs;
+        this.prLinkGifs = prLinkGifs;
+    }
+}
+exports.Images = Images;
 
 
 /***/ }),
@@ -30488,6 +30513,7 @@ class BranchRepository {
                 const octokit = github.getOctokit(token);
                 const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
                 const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+                param.currentConfiguration.issueBranch = newBranchName;
                 if (branches.indexOf(newBranchName) > -1) {
                     result.push(new result_1.Result({
                         id: 'branch_repository',
@@ -31253,23 +31279,33 @@ class PublishResultUseCase {
              */
             let title = '';
             let content = '';
+            let stupidGif = '';
+            let image;
             let footer = '';
             if (param.issueAction) {
                 if (param.mustCleanAll) {
                     title = '🗑️ Cleanup Actions';
+                    image = getRandomElement(param.giphy.cleanUpGifs);
                 }
                 else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions';
+                    image = getRandomElement(param.giphy.hotfixGifs);
                 }
                 else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions';
+                    image = getRandomElement(param.giphy.bugfixGifs);
                 }
                 else if (param.isFeature) {
                     title = '🛠️ Feature Actions';
+                    image = getRandomElement(param.giphy.featureGifs);
                 }
             }
             else if (param.pullRequestAction) {
                 title = '🛠️ Pull Request Linking Summary';
+                image = getRandomElement(param.giphy.prLinkGifs);
+            }
+            if (image) {
+                stupidGif = `![image](${image})`;
             }
             let indexStep = 0;
             param.currentConfiguration.results.forEach(r => {
@@ -31294,6 +31330,9 @@ ${footer}
             }
             const commentBody = `## ${title}:
 ${content}
+
+${stupidGif}
+
 ${footer}
 
 Thank you for contributing! 🙌
@@ -31412,6 +31451,16 @@ class RemoveIssueBranchesUseCase {
                             `The branch \`${branchName}\` was removed.`,
                         ],
                     }));
+                    if (param.previousConfiguration?.branchType === param.branches.hotfixTree) {
+                        results.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            reminders: [
+                                `Ensure if \`${branchName}\` was removed.`,
+                            ],
+                        }));
+                    }
                 }
             }
         }
@@ -31773,6 +31822,7 @@ class PrepareBranchesUseCase {
                 param.hotfix.version = incrementHotfixVersion(lastTag);
                 const baseBranchName = `tags/${lastTag}`;
                 param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
+                param.currentConfiguration.hotfixBranch = param.hotfix.branch;
                 core.info(`Tag branch: ${baseBranchName}`);
                 core.info(`Hotfix branch: ${param.hotfix.branch}`);
                 const tagBranch = `tags/${lastTag}`;
@@ -31786,7 +31836,7 @@ class PrepareBranchesUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The tag [\`${tagBranch}\`](${tagUrl}) was used to create the branch [\`${param.hotfix.branch}\`](${hotfixUrl})`,
+                                `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
                             ],
                         }));
                         core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
@@ -31798,7 +31848,7 @@ class PrepareBranchesUseCase {
                         success: true,
                         executed: true,
                         steps: [
-                            `The branch already exists [\`${param.hotfix.branch}\`](${hotfixUrl}) and won't be created from the tag [\`${tagBranch}\`](${tagUrl}).`,
+                            `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and won't be created from the tag [**${tagBranch}**](${tagUrl}).`,
                         ],
                     }));
                 }
@@ -31823,10 +31873,10 @@ class PrepareBranchesUseCase {
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1;
                 let step;
                 if (rename) {
-                    step = `The branch \`${lastAction.payload.baseBranchName}\` was renamed to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`;
+                    step = `The branch **${lastAction.payload.baseBranchName}** was renamed to [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`;
                 }
                 else {
-                    step = `The branch [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) was used to create the branch [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl})`;
+                    step = `The branch [**${lastAction.payload.baseBranchName}**](${lastAction.payload.baseBranchUrl}) was used to create the branch [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`;
                 }
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -31848,7 +31898,7 @@ class PrepareBranchesUseCase {
                         executed: true,
                         reminders: [
                             `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`,
-                            `Create the tag \`tags/${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl})`,
+                            `Create the tag \`tags/${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
                         ]
                     }));
                 }
@@ -32196,6 +32246,7 @@ const hotfix_1 = __nccwpck_require__(7341);
 const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
 const publish_resume_use_case_1 = __nccwpck_require__(5487);
 const store_configuration_use_case_1 = __nccwpck_require__(4879);
+const images_1 = __nccwpck_require__(1721);
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     const action = core.getInput('action', { required: true });
@@ -32217,6 +32268,34 @@ async function run() {
         const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat);
         projects.push(detail);
     }
+    /**
+     * Images
+     */
+    const imagesUrlsCleanUpInput = core.getInput('images-clean-up', { required: true });
+    const imagesUrlsCleanUp = imagesUrlsCleanUpInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    const imagesUrlsFeatureInput = core.getInput('images-feature', { required: true });
+    const imagesUrlsFeature = imagesUrlsFeatureInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    const imagesUrlsBugfixInput = core.getInput('images-bugfix', { required: true });
+    const imagesUrlsBugfix = imagesUrlsBugfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    const imagesUrlsHotfixInput = core.getInput('images-hotfix', { required: true });
+    const imagesUrlsHotfix = imagesUrlsHotfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    const imagesUrlsPrLinkInput = core.getInput('images-pr-link', { required: true });
+    const imagesUrlsPrLink = imagesUrlsPrLinkInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
     /**
      * Runs always
      */
@@ -32242,7 +32321,7 @@ async function run() {
     const featureTree = core.getInput('feature-tree', { required: true });
     const bugfixTree = core.getInput('bugfix-tree', { required: true });
     const hotfixTree = core.getInput('hotfix-tree', { required: true });
-    const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree), new hotfix_1.Hotfix(), projects);
+    const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.setFailed(`Issue ${execution.number}. Skipping.`);
