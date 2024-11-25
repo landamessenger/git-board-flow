@@ -30456,6 +30456,7 @@ class BranchRepository {
         /**
          * Returns replaced branch (if any).
          *
+         * @param param
          * @param repository
          * @param owner
          * @param token
@@ -30466,7 +30467,7 @@ class BranchRepository {
          * @param hotfixBranch
          * @param isHotfix
          */
-        this.manageBranches = async (owner, repository, issueNumber, issueTitle, branchType, developmentBranch, hotfixBranch, isHotfix, token) => {
+        this.manageBranches = async (param, owner, repository, issueNumber, issueTitle, branchType, developmentBranch, hotfixBranch, isHotfix, token) => {
             const result = [];
             try {
                 core.info(`Managing branches`);
@@ -30495,7 +30496,7 @@ class BranchRepository {
                     }));
                     return result;
                 }
-                const branchTypes = ["feature", "bugfix"];
+                const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
                 /**
                  * Default base branch name. (ex. [develop])
                  */
@@ -31706,13 +31707,11 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PrepareBranchesUseCase = void 0;
 const core = __importStar(__nccwpck_require__(2186));
-const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
 class PrepareBranchesUseCase {
     constructor() {
         this.taskId = 'PrepareBranchesUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
@@ -31736,7 +31735,6 @@ class PrepareBranchesUseCase {
                 ]
             }));
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-            console.log(JSON.stringify(branches, null, 2));
             const lastTag = await this.branchRepository.getLatestTag();
             if (param.hotfix.active && lastTag !== undefined) {
                 const branchOid = await this.branchRepository.getCommitTag(lastTag);
@@ -31753,7 +31751,7 @@ class PrepareBranchesUseCase {
                 const tagBranch = `tags/${lastTag}`;
                 const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
                 const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
-                if (branches.indexOf(param.hotfix.branch) > -1) {
+                if (branches.indexOf(param.hotfix.branch) === -1) {
                     const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.number, branchOid, param.tokens.tokenPat);
                     if (linkResult[linkResult.length - 1].success) {
                         result.push(new result_1.Result({
@@ -31790,7 +31788,7 @@ class PrepareBranchesUseCase {
                 return result;
             }
             core.info(`Branch type: ${param.branchType}`);
-            const branchesResult = await this.branchRepository.manageBranches(param.owner, param.repo, param.number, issueTitle, param.branchType, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
+            const branchesResult = await this.branchRepository.manageBranches(param, param.owner, param.repo, param.number, issueTitle, param.branchType, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
             result.push(...branchesResult);
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success && lastAction.executed) {
@@ -32073,11 +32071,6 @@ class StoreConfigurationUseCase {
     }
     async invoke(param) {
         try {
-            console.log(`storing configuration
-            
-            ${JSON.stringify(param.currentConfiguration, null, 2)}
-            
-            `);
             if (param.issueAction) {
                 await this.issueRepository.updateConfig(param.owner, param.repo, param.issue.number, param.currentConfiguration, param.tokens.token);
             }

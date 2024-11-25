@@ -1,13 +1,11 @@
 import * as core from "@actions/core";
 import {ParamUseCase} from "../base/param_usecase";
 import {Execution} from "../../model/execution";
-import {IssueRepository} from "../../repository/issue_repository";
 import {BranchRepository} from "../../repository/branch_repository";
 import {Result} from "../../model/result";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
-    private issueRepository = new IssueRepository();
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
@@ -40,7 +38,6 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 param.repo,
                 param.tokens.token,
             )
-            console.log(JSON.stringify(branches, null, 2));
 
             const lastTag = await this.branchRepository.getLatestTag();
             if (param.hotfix.active && lastTag !== undefined) {
@@ -63,7 +60,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
                 const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
 
-                if (branches.indexOf(param.hotfix.branch) > -1) {
+                if (branches.indexOf(param.hotfix.branch) === -1) {
                     const linkResult = await this.branchRepository.createLinkedBranch(
                         param.owner,
                         param.repo,
@@ -116,6 +113,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             core.info(`Branch type: ${param.branchType}`);
 
             const branchesResult = await this.branchRepository.manageBranches(
+                param,
                 param.owner,
                 param.repo,
                 param.number,

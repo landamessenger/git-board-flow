@@ -2,6 +2,7 @@ import * as exec from '@actions/exec';
 import * as core from '@actions/core';
 import * as github from "@actions/github";
 import {Result} from "../model/result";
+import {Execution} from "../model/execution";
 
 export class BranchRepository {
 
@@ -72,6 +73,7 @@ export class BranchRepository {
     /**
      * Returns replaced branch (if any).
      *
+     * @param param
      * @param repository
      * @param owner
      * @param token
@@ -83,6 +85,7 @@ export class BranchRepository {
      * @param isHotfix
      */
     manageBranches = async (
+        param: Execution,
         owner: string,
         repository: string,
         issueNumber: number,
@@ -131,7 +134,7 @@ export class BranchRepository {
                 return result
             }
 
-            const branchTypes = ["feature", "bugfix"];
+            const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
 
             /**
              * Default base branch name. (ex. [develop])

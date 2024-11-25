@@ -13,11 +13,6 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
 
     async invoke(param: Execution): Promise<void> {
         try {
-            console.log(`storing configuration
-            
-            ${JSON.stringify(param.currentConfiguration, null, 2)}
-            
-            `)
             if (param.issueAction) {
                 await this.issueRepository.updateConfig(
                     param.owner,
