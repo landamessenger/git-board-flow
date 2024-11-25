@@ -32454,7 +32454,7 @@ async function run() {
     /**
      * Projects Details
      */
-    const projectUrlsInput = core.getInput('project-urls', { required: true });
+    const projectUrlsInput = core.getInput('project-urls');
     const projectUrls = projectUrlsInput
         .split(',')
         .map(url => url.trim())
@@ -32467,27 +32467,27 @@ async function run() {
     /**
      * Images
      */
-    const imagesUrlsCleanUpInput = core.getInput('images-clean-up', { required: true });
+    const imagesUrlsCleanUpInput = core.getInput('images-clean-up');
     const imagesUrlsCleanUp = imagesUrlsCleanUpInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsFeatureInput = core.getInput('images-feature', { required: true });
+    const imagesUrlsFeatureInput = core.getInput('images-feature');
     const imagesUrlsFeature = imagesUrlsFeatureInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsBugfixInput = core.getInput('images-bugfix', { required: true });
+    const imagesUrlsBugfixInput = core.getInput('images-bugfix');
     const imagesUrlsBugfix = imagesUrlsBugfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsHotfixInput = core.getInput('images-hotfix', { required: true });
+    const imagesUrlsHotfixInput = core.getInput('images-hotfix');
     const imagesUrlsHotfix = imagesUrlsHotfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsPrLinkInput = core.getInput('images-pr-link', { required: true });
+    const imagesUrlsPrLinkInput = core.getInput('images-pr-link');
     const imagesUrlsPrLink = imagesUrlsPrLinkInput
         .split(',')
         .map(url => url.trim())
@@ -32495,28 +32495,28 @@ async function run() {
     /**
      * Runs always
      */
-    const runAlways = core.getInput('run-always', { required: true }) === 'true';
+    const runAlways = core.getInput('run-always') === 'true';
     /**
      * Emoji-title
      */
-    const titleEmoji = core.getInput('emoji-labeled-title', { required: true }) === 'true';
+    const titleEmoji = core.getInput('emoji-labeled-title') === 'true';
     /**
      * Labels
      */
-    const actionLauncherLabel = core.getInput('action-launcher-label', { required: true });
-    const bugfixLabel = core.getInput('bugfix-label', { required: true });
-    const hotfixLabel = core.getInput('hotfix-label', { required: true });
-    const featureLabel = core.getInput('feature-label', { required: true });
-    const questionLabel = core.getInput('question-label', { required: true });
-    const helpLabel = core.getInput('help-label', { required: true });
+    const actionLauncherLabel = core.getInput('action-launcher-label');
+    const bugfixLabel = core.getInput('bugfix-label');
+    const hotfixLabel = core.getInput('hotfix-label');
+    const featureLabel = core.getInput('feature-label');
+    const questionLabel = core.getInput('question-label');
+    const helpLabel = core.getInput('help-label');
     /**
      * Branches
      */
-    const mainBranch = core.getInput('main-branch', { required: true });
-    const developmentBranch = core.getInput('development-branch', { required: true });
-    const featureTree = core.getInput('feature-tree', { required: true });
-    const bugfixTree = core.getInput('bugfix-tree', { required: true });
-    const hotfixTree = core.getInput('hotfix-tree', { required: true });
+    const mainBranch = core.getInput('main-branch');
+    const developmentBranch = core.getInput('development-branch');
+    const featureTree = core.getInput('feature-tree');
+    const bugfixTree = core.getInput('bugfix-tree');
+    const hotfixTree = core.getInput('hotfix-tree');
     const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', action === 'commit', new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
