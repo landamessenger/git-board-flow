@@ -31475,6 +31475,12 @@ class LinkIssueProjectUseCase {
                 if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
                     continue;
                 }
+                let currentProject;
+                for (const p of projects) {
+                    if (project.id === p.id) {
+                        currentProject = p;
+                    }
+                }
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
                 await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
                 result.push(new result_1.Result({
@@ -31482,7 +31488,7 @@ class LinkIssueProjectUseCase {
                     success: true,
                     executed: true,
                     steps: [
-                        `The issue was linked to \`${project.url}\`.`,
+                        `The issue was linked to [**${currentProject?.project.title}**](${currentProject?.project.url}).`,
                     ]
                 }));
             }
