@@ -40,10 +40,12 @@ export class IssueRepository {
             let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
 
             console.log(`1 - ${sanitizedTitle}`)
-            while (sanitizedTitle.indexOf('  ') > -1) {
-                sanitizedTitle = sanitizedTitle.replace(/ {2}/g, ' ').trim();
+            const w = '  '
+            while (sanitizedTitle.indexOf(w) > -1) {
+                sanitizedTitle = sanitizedTitle.replace(w, ' ').trim();
+                console.log(`1 - ${sanitizedTitle}`)
             }
-            sanitizedTitle = sanitizedTitle.replace(/- -/g, '-').trim();
+            sanitizedTitle = sanitizedTitle.replace('- -', '-').trim();
             console.log(`2 - ${sanitizedTitle}`)
             const e = '-'
             if (sanitizedTitle.startsWith(e)) {
