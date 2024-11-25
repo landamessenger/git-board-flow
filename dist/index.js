@@ -31289,6 +31289,9 @@ ${footer}
 
 Thank you for contributing! 🙌
             `;
+            if (content.length === 0) {
+                return;
+            }
             if (param.issueAction) {
                 await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
             }
