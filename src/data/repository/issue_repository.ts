@@ -226,7 +226,6 @@ ${this.endConfigPattern}`;
             const query = `
             query($projectUrl: URI!) {
                 resource(url: $projectUrl) {
-                    __typename
                     ... on ProjectV2 {
                         id
                         title
@@ -238,7 +237,6 @@ ${this.endConfigPattern}`;
 
             type ProjectResponse = {
                 resource: {
-                    __typename: string;
                     id?: string;
                     title?: string;
                     url?: string;
@@ -246,10 +244,6 @@ ${this.endConfigPattern}`;
             };
 
             const response = await octokit.graphql<ProjectResponse>(query, { projectUrl });
-
-            if (response.resource.__typename !== "ProjectV2") {
-                throw new Error(`The provided URL does not correspond to a valid ProjectV2. Found type: ${response.resource.__typename}`);
-            }
 
             return {
                 id: response.resource.id!,
