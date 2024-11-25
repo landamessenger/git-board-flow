@@ -28,7 +28,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                     continue;
                 }
 
-                let currentProject = await this.issueRepository.fetchProjectByUrl(
+                let currentProject = await this.projectRepository.getProjectDetail(
                     project.url,
                     param.tokens.tokenPat,
                 )
@@ -62,7 +62,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                         success: true,
                         executed: true,
                         steps: [
-                            `The issue was linked to [**${currentProject?.project.title}**](${currentProject?.project.url}).`,
+                            `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
                         ]
                     })
                 )

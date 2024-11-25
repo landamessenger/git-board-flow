@@ -11,35 +11,45 @@ export class ProjectRepository {
             throw new Error(`Invalid project URL: ${projectUrl}`);
         }
 
-        const {ownerType, ownerName, projectNumber} = projectMatch.groups;
+        const { ownerType, ownerName, projectNumber } = projectMatch.groups;
         const ownerQueryField = ownerType === 'orgs' ? 'organization' : 'user';
 
         const queryProject = `
-        query($ownerName: String!, $projectNumber: Int!) {
-          ${ownerQueryField}(login: $ownerName) {
-            projectV2(number: $projectNumber) {
-              id
-            }
-          }
+    query($ownerName: String!, $projectNumber: Int!) {
+      ${ownerQueryField}(login: $ownerName) {
+        projectV2(number: $projectNumber) {
+          id
+          title
+          url
         }
-        `;
+      }
+    }
+    `;
+
         const projectResult = await octokit.graphql<ProjectResult>(queryProject, {
             ownerName,
             projectNumber: parseInt(projectNumber, 10),
         });
 
-        const projectId = projectResult[ownerQueryField].projectV2.id;
+        const projectData = projectResult[ownerQueryField].projectV2;
 
-        core.info(`Project ID: ${projectId}`);
+        if (!projectData) {
+            throw new Error(`Project not found: ${projectUrl}`);
+        }
+
+        core.info(`Project ID: ${projectData.id}`);
+        core.info(`Project Title: ${projectData.title}`);
+        core.info(`Project URL: ${projectData.url}`);
 
         return new ProjectDetail({
-            id: projectId,
+            id: projectData.id,
+            title: projectData.title,
+            url: projectData.url,
             type: ownerQueryField,
             owner: ownerName,
-            url: projectUrl,
             number: parseInt(projectNumber, 10),
-        })
-    }
+        });
+    };
 
     linkContentId = async (project: ProjectDetail, contentId: string, token: string) => {
         const octokit = github.getOctokit(token);

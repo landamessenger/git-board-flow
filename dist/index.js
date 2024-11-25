@@ -30247,6 +30247,7 @@ exports.ProjectDetail = void 0;
 class ProjectDetail {
     constructor(data) {
         this.id = data[`id`] ?? '';
+        this.title = data[`title`] ?? '';
         this.type = data[`type`] ?? '';
         this.owner = data[`owner`] ?? '';
         this.url = data[`url`] ?? '';
@@ -30898,35 +30899,6 @@ ${this.endConfigPattern}`;
                 throw error;
             }
         };
-        this.fetchProjectByUrl = async (projectUrl, token) => {
-            try {
-                const octokit = github.getOctokit(token);
-                const query = `
-            query($projectUrl: URI!) {
-                resource(url: $projectUrl) {
-                    ... on ProjectV2 {
-                        id
-                        title
-                        url
-                    }
-                }
-            }
-            `;
-                const response = await octokit.graphql(query, { projectUrl });
-                return {
-                    id: response.resource.id,
-                    project: {
-                        id: response.resource.id,
-                        title: response.resource.title,
-                        url: response.resource.url,
-                    },
-                };
-            }
-            catch (error) {
-                core.setFailed(`Error fetching project by URL: ${error}`);
-                return undefined;
-            }
-        };
         this.getMilestone = async (owner, repository, token, issueNumber) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
@@ -31015,25 +30987,33 @@ class ProjectRepository {
             const { ownerType, ownerName, projectNumber } = projectMatch.groups;
             const ownerQueryField = ownerType === 'orgs' ? 'organization' : 'user';
             const queryProject = `
-        query($ownerName: String!, $projectNumber: Int!) {
-          ${ownerQueryField}(login: $ownerName) {
-            projectV2(number: $projectNumber) {
-              id
-            }
-          }
+    query($ownerName: String!, $projectNumber: Int!) {
+      ${ownerQueryField}(login: $ownerName) {
+        projectV2(number: $projectNumber) {
+          id
+          title
+          url
         }
-        `;
+      }
+    }
+    `;
             const projectResult = await octokit.graphql(queryProject, {
                 ownerName,
                 projectNumber: parseInt(projectNumber, 10),
             });
-            const projectId = projectResult[ownerQueryField].projectV2.id;
-            core.info(`Project ID: ${projectId}`);
+            const projectData = projectResult[ownerQueryField].projectV2;
+            if (!projectData) {
+                throw new Error(`Project not found: ${projectUrl}`);
+            }
+            core.info(`Project ID: ${projectData.id}`);
+            core.info(`Project Title: ${projectData.title}`);
+            core.info(`Project URL: ${projectData.url}`);
             return new project_detail_1.ProjectDetail({
-                id: projectId,
+                id: projectData.id,
+                title: projectData.title,
+                url: projectData.url,
                 type: ownerQueryField,
                 owner: ownerName,
-                url: projectUrl,
                 number: parseInt(projectNumber, 10),
             });
         };
@@ -31504,7 +31484,7 @@ class LinkIssueProjectUseCase {
                 if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
                     continue;
                 }
-                let currentProject = await this.issueRepository.fetchProjectByUrl(project.url, param.tokens.tokenPat);
+                let currentProject = await this.projectRepository.getProjectDetail(project.url, param.tokens.tokenPat);
                 if (currentProject === undefined) {
                     result.push(new result_1.Result({
                         id: this.taskId,
@@ -31523,7 +31503,7 @@ class LinkIssueProjectUseCase {
                     success: true,
                     executed: true,
                     steps: [
-                        `The issue was linked to [**${currentProject?.project.title}**](${currentProject?.project.url}).`,
+                        `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
                     ]
                 }));
             }

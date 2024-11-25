@@ -219,47 +219,6 @@ ${this.endConfigPattern}`;
         }
     };
 
-    fetchProjectByUrl = async (projectUrl: string, token: string): Promise<ProjectItem | undefined> => {
-        try {
-            const octokit = github.getOctokit(token);
-
-            const query = `
-            query($projectUrl: URI!) {
-                resource(url: $projectUrl) {
-                    ... on ProjectV2 {
-                        id
-                        title
-                        url
-                    }
-                }
-            }
-            `;
-
-            type ProjectResponse = {
-                resource: {
-                    id?: string;
-                    title?: string;
-                    url?: string;
-                };
-            };
-
-            const response = await octokit.graphql<ProjectResponse>(query, { projectUrl });
-
-            return {
-                id: response.resource.id!,
-                project: {
-                    id: response.resource.id!,
-                    title: response.resource.title!,
-                    url: response.resource.url!,
-                },
-            };
-        } catch (error) {
-            core.setFailed(`Error fetching project by URL: ${error}`);
-            return undefined;
-        }
-    };
-
-
     getMilestone = async (
         owner: string,
         repository: string,
