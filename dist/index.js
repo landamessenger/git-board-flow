@@ -31303,6 +31303,7 @@ class CommitCheckUseCase {
     constructor() {
         this.taskId = 'CommitCheckUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
+        this.separator = '------------------------------------------------------';
     }
     async invoke(param) {
         const results = [];
@@ -31319,17 +31320,17 @@ class CommitCheckUseCase {
 
 **Changes on branch \`${param.commit.branch}\`:**
 
-------------------------------------------------------
 `;
             let shouldWarn = false;
             for (const commit of param.commit.commits) {
                 commentBody += `
+${this.separator}
+
 - ${commit.id} 
 \`\`\`
 ${commit.message}
 \`\`\`
 
-------------------------------------------------------
 `;
                 if (commit.message.indexOf(param.commit.prefix) !== 0) {
                     shouldWarn = true;
@@ -31337,6 +31338,7 @@ ${commit.message}
             }
             if (shouldWarn) {
                 commentBody += `
+${this.separator}
 ### ⚠️ Attention
 
 One or more commits should start with the prefix **${param.commit.prefix}**.

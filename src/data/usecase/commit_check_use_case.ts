@@ -10,6 +10,8 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitCheckUseCase';
     private issueRepository = new IssueRepository();
 
+    private separator = '------------------------------------------------------'
+
     async invoke(param: Execution): Promise<Result[]> {
         const results: Result[] = []
         try {
@@ -27,18 +29,18 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
 
 **Changes on branch \`${param.commit.branch}\`:**
 
-------------------------------------------------------
 `
 
             let shouldWarn = false
             for (const commit of param.commit.commits) {
                 commentBody += `
+${this.separator}
+
 - ${commit.id} 
 \`\`\`
 ${commit.message}
 \`\`\`
 
-------------------------------------------------------
 `;
                 if (commit.message.indexOf(param.commit.prefix) !== 0) {
                     shouldWarn = true;
@@ -47,6 +49,7 @@ ${commit.message}
 
             if (shouldWarn) {
                 commentBody += `
+${this.separator}
 ### ⚠️ Attention
 
 One or more commits should start with the prefix **${param.commit.prefix}**.
