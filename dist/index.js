@@ -30764,12 +30764,15 @@ class IssueRepository {
                 let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
                 console.log(`1 - ${sanitizedTitle}`);
                 const w = '  ';
+                const f = '- -';
                 while (sanitizedTitle.indexOf(w) > -1) {
                     sanitizedTitle = sanitizedTitle.replace(w, ' ').trim();
                     console.log(`1 - ${sanitizedTitle}`);
                 }
-                sanitizedTitle = sanitizedTitle.replace('- -', '-').trim();
-                console.log(`2 - ${sanitizedTitle}`);
+                while (sanitizedTitle.indexOf(f) > -1) {
+                    sanitizedTitle = sanitizedTitle.replace(f, '-').trim();
+                    console.log(`2 - ${sanitizedTitle}`);
+                }
                 const e = '-';
                 if (sanitizedTitle.startsWith(e)) {
                     sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length).trim();
