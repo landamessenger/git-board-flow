@@ -142,7 +142,7 @@ async function run(): Promise<void> {
     await execution.setup();
 
     if (execution.number === -1) {
-        core.setFailed(`Issue ${execution.number}. Skipping.`);
+        core.setFailed(`Issue number not found. Skipping.`);
         return;
     }
 

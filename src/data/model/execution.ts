@@ -47,7 +47,7 @@ export class Execution {
     }
 
     get mustRun(): boolean {
-        return this.runAlways || this.labels.runnerLabels;
+        return this.commitAction || (this.runAlways || this.labels.runnerLabels);
     }
 
     get mustCleanAll(): boolean {
@@ -149,6 +149,13 @@ export class Execution {
             )
         } else if (this.commitAction) {
             this.number = extractIssueNumberFromBranchB(this.commit.branch)
+            const pullRequestRepository = new PullRequestRepository();
+            this.previousConfiguration = await pullRequestRepository.readConfig(
+                this.owner,
+                this.repo,
+                this.number,
+                this.tokens.token,
+            )
         }
         this.currentConfiguration.branchType = this.branchType
     }

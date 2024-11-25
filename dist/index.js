@@ -30100,7 +30100,7 @@ class Execution {
         return this.branchType === 'bugfix';
     }
     get mustRun() {
-        return this.runAlways || this.labels.runnerLabels;
+        return this.commitAction || (this.runAlways || this.labels.runnerLabels);
     }
     get mustCleanAll() {
         return this.issueAction && !this.mustRun;
@@ -30145,6 +30145,8 @@ class Execution {
             }
             else if (this.commitAction) {
                 this.number = (0, title_utils_1.extractIssueNumberFromBranchB)(this.commit.branch);
+                const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+                this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.number, this.tokens.token);
             }
             this.currentConfiguration.branchType = this.branchType;
         };
@@ -32520,7 +32522,7 @@ async function run() {
     const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', action === 'commit', new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
-        core.setFailed(`Issue ${execution.number}. Skipping.`);
+        core.setFailed(`Issue number not found. Skipping.`);
         return;
     }
     const results = [];
