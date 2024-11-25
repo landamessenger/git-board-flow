@@ -33,7 +33,7 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
             let shouldWarn = false
             for (const commit of param.commit.commits) {
                 commentBody += `
-- ${commit.hash} 
+- ${commit.id} 
 \`\`\`
 ${commit.message}
 \`\`\`
