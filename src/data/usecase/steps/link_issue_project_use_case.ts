@@ -14,7 +14,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
         const result: Result[] = []
 
         try {
-            const projects = this.issueRepository.fetchIssueProjects(
+            const projects = await this.issueRepository.fetchIssueProjects(
                 param.owner,
                 param.repo,
                 param.issue.number,
