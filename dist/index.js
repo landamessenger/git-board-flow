@@ -31472,6 +31472,9 @@ class LinkIssueProjectUseCase {
             const projects = await this.issueRepository.fetchIssueProjects(param.owner, param.repo, param.issue.number, param.tokens.tokenPat);
             core.info(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
             for (const project of param.projects) {
+                if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
+                    continue;
+                }
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
                 await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
                 result.push(new result_1.Result({

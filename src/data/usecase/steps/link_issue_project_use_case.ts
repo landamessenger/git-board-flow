@@ -23,6 +23,9 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
             core.info(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
 
             for (const project of param.projects) {
+                if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
+                    continue;
+                }
                 const issueId = await this.issueRepository.getId(
                     param.owner,
                     param.repo,
