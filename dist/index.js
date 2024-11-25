@@ -30762,8 +30762,11 @@ class IssueRepository {
                 }
                 const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
                 let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
-                sanitizedTitle = sanitizedTitle.replace(/\s*-\s*-\s*/g, '-');
-                sanitizedTitle = sanitizedTitle.replace(/^-+|-+$/g, '').replace(/-+/g, '-').trim();
+                sanitizedTitle = sanitizedTitle.replace(`- -`, '-').trim();
+                const e = '-';
+                if (sanitizedTitle.startsWith(e)) {
+                    sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length).trim();
+                }
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
                 if (formattedTitle !== issueTitle) {
                     await octokit.rest.issues.update({
