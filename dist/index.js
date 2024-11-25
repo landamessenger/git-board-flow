@@ -30762,7 +30762,7 @@ class IssueRepository {
                 }
                 const emojiPattern = /^[\p{Emoji_Presentation}\p{Emoji}\u200D]+(\s*-\s*)?/u;
                 let sanitizedTitle = issueTitle.replace(emojiPattern, '').trim();
-                sanitizedTitle = sanitizedTitle.replace(`- -`, '-').trim();
+                sanitizedTitle = sanitizedTitle.replace(/- -/g, '-').trim();
                 const e = '-';
                 if (sanitizedTitle.startsWith(e)) {
                     sanitizedTitle = sanitizedTitle.substring(e.length, sanitizedTitle.length).trim();
