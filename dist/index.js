@@ -32054,6 +32054,7 @@ class PrepareBranchesUseCase {
                     ],
                     reminders: [
                         `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`,
+                        `Consider commiting with the prefix **${lastAction.payload.newBranchName.replace('/', '-')}**.`,
                         reminder,
                     ]
                 }));
