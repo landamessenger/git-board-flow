@@ -40934,9 +40934,6 @@ class Commit {
     get branch() {
         return github.context.payload.ref.replace('refs/heads/', '');
     }
-    get prefix() {
-        return this.branch.replace('/', '-');
-    }
     get commits() {
         return github.context.payload.commits || [];
     }
@@ -42239,9 +42236,10 @@ class CommitCheckUseCase {
                 timeout: 1000,
                 sandbox: { branchName },
             });
-            core.info('Executing script with inputString in secure VM:');
+            core.info(`Executing script with branchName ${branchName} in secure VM:`);
             const result = vm.run(param.commitPrefixBuilder);
-            core.info(`Script result: ${result}`);
+            const commitPrefix = result.toString() ?? '';
+            core.info(`Commit prefix: ${commitPrefix}`);
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.number}`);
@@ -42262,19 +42260,19 @@ ${commit.message}
 \`\`\`
 
 `;
-                if (commit.message.indexOf(param.commit.prefix) !== 0) {
+                if (commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0) {
                     shouldWarn = true;
                 }
             }
-            if (shouldWarn) {
+            if (shouldWarn && commitPrefix.length > 0) {
                 commentBody += `
 ${this.separator}
 ## ⚠️ Attention
 
-One or more commits didn't start with the prefix **${param.commit.prefix}**.
+One or more commits didn't start with the prefix **${commitPrefix}**.
 
 \`\`\`
-${param.commit.prefix}: created hello-world app
+${commitPrefix}: created hello-world app
 \`\`\`
 `;
             }
@@ -42878,6 +42876,7 @@ exports.PrepareBranchesUseCase = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
+const vm2_1 = __nccwpck_require__(2417);
 class PrepareBranchesUseCase {
     constructor() {
         this.taskId = 'PrepareBranchesUseCase';
@@ -42962,6 +42961,14 @@ class PrepareBranchesUseCase {
             result.push(...branchesResult);
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success && lastAction.executed) {
+                const branchName = lastAction.payload.newBranchName;
+                const vm = new vm2_1.VM({
+                    timeout: 1000,
+                    sandbox: { branchName },
+                });
+                core.info(`Executing script with branchName ${branchName} in secure VM:`);
+                const result = vm.run(param.commitPrefixBuilder);
+                const commitPrefix = result.toString() ?? '';
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1;
                 let step;
@@ -42975,6 +42982,11 @@ class PrepareBranchesUseCase {
                     step = `The branch [**${lastAction.payload.baseBranchName}**](${lastAction.payload.baseBranchUrl}) was used to create the branch [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`;
                     reminder = `Open a Pull Request from [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}) to [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${lastAction.payload.baseBranchName}...${lastAction.payload.newBranchName}?expand=1)`;
                 }
+                let firstReminder = `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`;
+                if (commitPrefix.length > 0) {
+                    firstReminder += `
+> Consider commiting with the prefix \`${commitPrefix}\`.`;
+                }
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -42983,19 +42995,23 @@ class PrepareBranchesUseCase {
                         step,
                     ],
                     reminders: [
-                        `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).
-                            > Consider commiting with the prefix \`${lastAction.payload.newBranchName.replace('/', '-')}\`.`,
+                        firstReminder,
                         reminder,
                     ]
                 }));
                 if (param.hotfix.active) {
                     const mainBranchUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.main}`;
+                    firstReminder = `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`;
+                    if (commitPrefix.length > 0) {
+                        firstReminder += `
+> Consider commiting with the prefix \`${commitPrefix}\`.`;
+                    }
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
                         executed: true,
                         reminders: [
-                            `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`,
+                            firstReminder,
                             `Create the tag \`tags/${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
                         ]
                     }));

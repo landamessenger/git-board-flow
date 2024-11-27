@@ -26,10 +26,11 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
                 sandbox: { branchName },
             });
 
-            core.info('Executing script with inputString in secure VM:');
+            core.info(`Executing script with branchName ${branchName} in secure VM:`);
             const result = vm.run(param.commitPrefixBuilder);
-            core.info(`Script result: ${result}`);
+            const commitPrefix = result.toString() ?? ''
 
+            core.info(`Commit prefix: ${commitPrefix}`);
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.number}`);
@@ -52,20 +53,20 @@ ${commit.message}
 \`\`\`
 
 `;
-                if (commit.message.indexOf(param.commit.prefix) !== 0) {
+                if (commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0) {
                     shouldWarn = true;
                 }
             }
 
-            if (shouldWarn) {
+            if (shouldWarn && commitPrefix.length > 0) {
                 commentBody += `
 ${this.separator}
 ## ⚠️ Attention
 
-One or more commits didn't start with the prefix **${param.commit.prefix}**.
+One or more commits didn't start with the prefix **${commitPrefix}**.
 
 \`\`\`
-${param.commit.prefix}: created hello-world app
+${commitPrefix}: created hello-world app
 \`\`\`
 `
             }

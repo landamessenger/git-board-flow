@@ -5,10 +5,6 @@ export class Commit {
         return github.context.payload.ref.replace('refs/heads/', '');
     }
 
-    get prefix(): string {
-        return this.branch.replace('/', '-');
-    }
-
     get commits(): any[] {
         return github.context.payload.commits || [];
     }

@@ -3,6 +3,7 @@ import {ParamUseCase} from "../base/param_usecase";
 import {Execution} from "../../model/execution";
 import {BranchRepository} from "../../repository/branch_repository";
 import {Result} from "../../model/result";
+import {VM} from "vm2";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
@@ -132,6 +133,18 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success && lastAction.executed) {
+
+                const branchName = lastAction.payload.newBranchName;
+
+                const vm = new VM({
+                    timeout: 1000,
+                    sandbox: { branchName },
+                });
+
+                core.info(`Executing script with branchName ${branchName} in secure VM:`);
+                const result = vm.run(param.commitPrefixBuilder);
+                const commitPrefix = result.toString() ?? ''
+
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1
                 let step: string
@@ -144,6 +157,12 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     step = `The branch [**${lastAction.payload.baseBranchName}**](${lastAction.payload.baseBranchUrl}) was used to create the branch [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`
                     reminder = `Open a Pull Request from [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}) to [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${lastAction.payload.baseBranchName}...${lastAction.payload.newBranchName}?expand=1)`
                 }
+
+                let firstReminder = `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`
+                if (commitPrefix.length > 0) {
+                    firstReminder += `
+> Consider commiting with the prefix \`${commitPrefix}\`.`
+                }
                 result.push(
                     new Result({
                         id: this.taskId,
@@ -153,21 +172,25 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             step,
                         ],
                         reminders: [
-                            `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).
-                            > Consider commiting with the prefix \`${lastAction.payload.newBranchName.replace('/', '-')}\`.`,
+                            firstReminder,
                             reminder,
                         ]
                     })
                 )
                 if (param.hotfix.active) {
                     const mainBranchUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.main}`;
+                    firstReminder = `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`
+                    if (commitPrefix.length > 0) {
+                        firstReminder += `
+> Consider commiting with the prefix \`${commitPrefix}\`.`
+                    }
                     result.push(
                         new Result({
                             id: this.taskId,
                             success: true,
                             executed: true,
                             reminders: [
-                                `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`,
+                                firstReminder,
                                 `Create the tag \`tags/${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
                             ]
                         })
