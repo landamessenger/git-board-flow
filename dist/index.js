@@ -42967,8 +42967,8 @@ class PrepareBranchesUseCase {
                     sandbox: { branchName },
                 });
                 core.info(`Executing script with branchName ${branchName} in secure VM:`);
-                const result = vm.run(param.commitPrefixBuilder);
-                const commitPrefix = result.toString() ?? '';
+                const prefixResult = vm.run(param.commitPrefixBuilder);
+                const commitPrefix = prefixResult.toString() ?? '';
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1;
                 let step;
@@ -43012,7 +43012,7 @@ class PrepareBranchesUseCase {
                         executed: true,
                         reminders: [
                             firstReminder,
-                            `Create the tag \`tags/${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
+                            `Create the tag \`${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
                         ]
                     }));
                 }
