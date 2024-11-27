@@ -182,18 +182,13 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 )
                 if (param.hotfix.active) {
                     const mainBranchUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.main}`;
-                    firstReminder = `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`
-                    if (commitPrefix.length > 0) {
-                        firstReminder += `
-> Consider commiting with the prefix \`${commitPrefix}\`.`
-                    }
                     result.push(
                         new Result({
                             id: this.taskId,
                             success: true,
                             executed: true,
                             reminders: [
-                                firstReminder,
+                                `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`,
                                 `Create the tag \`${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
                             ]
                         })
