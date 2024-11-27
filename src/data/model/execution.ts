@@ -150,7 +150,8 @@ export class Execution {
         } else if (this.pullRequestAction) {
             const pullRequestRepository = new PullRequestRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
-            console.log('issue number (PR)')
+            console.log(`this.pullRequest.head: ${this.pullRequest.head}`)
+            console.log(`issue number (PR): ${this.number}`)
             this.labels.currentLabels = await pullRequestRepository.getLabels(
                 this.owner,
                 this.repo,
