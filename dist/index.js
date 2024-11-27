@@ -40955,7 +40955,6 @@ class Config {
     constructor(data) {
         this.results = [];
         this.branchType = data['branchType'] ?? '';
-        this.issueBranch = data['issueBranch'] ?? '';
         this.hotfixBranch = data['hotfixBranch'];
         if (data['branchConfiguration'] !== undefined) {
             this.branchConfiguration = new branch_configuration_1.BranchConfiguration(data['branchConfiguration']);
@@ -41014,10 +41013,10 @@ class Execution {
         return github.context.repo.owner;
     }
     get isFeature() {
-        return this.branchType === 'feature';
+        return this.issueType === 'feature';
     }
     get isBugfix() {
-        return this.branchType === 'bugfix';
+        return this.issueType === 'bugfix';
     }
     get mustRun() {
         return this.commitAction || (this.runAlways || this.labels.runnerLabels);
@@ -41025,8 +41024,11 @@ class Execution {
     get mustCleanAll() {
         return this.issueAction && !this.mustRun;
     }
-    get branchType() {
-        return (0, label_utils_1.branchesForIssue)(this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
+    get managementBranch() {
+        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
+    }
+    get issueType() {
+        return (0, label_utils_1.typesForIssue)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
     }
     get cleanManagement() {
         console.log(`issueAction: ${this.issueAction}`);
@@ -41058,7 +41060,6 @@ class Execution {
                 this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
                 this.previousConfiguration = await issueRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
-                this.currentConfiguration.issueBranch = this.branchType;
             }
             else if (this.pullRequestAction) {
                 const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
@@ -41072,7 +41073,7 @@ class Execution {
                 const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
                 this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.number, this.tokens.token);
             }
-            this.currentConfiguration.branchType = this.branchType;
+            this.currentConfiguration.branchType = this.issueType;
         };
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.giphy = giphy;
@@ -41493,7 +41494,6 @@ class BranchRepository {
                 const octokit = github.getOctokit(token);
                 const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
                 const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
-                param.currentConfiguration.issueBranch = newBranchName;
                 if (branches.indexOf(newBranchName) > -1) {
                     result.push(new result_1.Result({
                         id: 'branch_repository',
@@ -42992,8 +42992,8 @@ class PrepareBranchesUseCase {
                 }));
                 return result;
             }
-            core.info(`Branch type: ${param.branchType}`);
-            const branchesResult = await this.branchRepository.manageBranches(param, param.owner, param.repo, param.number, issueTitle, param.branchType, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
+            core.info(`Branch type: ${param.managementBranch}`);
+            const branchesResult = await this.branchRepository.manageBranches(param, param.owner, param.repo, param.number, issueTitle, param.managementBranch, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
             result.push(...branchesResult);
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success && lastAction.executed) {
@@ -43129,12 +43129,12 @@ class RemoveNotNeededBranchesUseCase {
             }
             const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.number);
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-            const finalBranch = `${param.branchType}/${param.number}-${sanitizedTitle}`;
-            const branchTypes = ["feature", "bugfix"];
+            const finalBranch = `${param.managementBranch}/${param.number}-${sanitizedTitle}`;
+            const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
             for (const type of branchTypes) {
                 let branchName = `${type}/${param.number}-${sanitizedTitle}`;
                 const prefix = `${type}/${param.number}-`;
-                if (type !== param.branchType) {
+                if (type !== param.managementBranch) {
                     const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                     if (!matchingBranch) {
                         continue;
@@ -43230,7 +43230,7 @@ class UpdateTitleUseCase {
         const result = [];
         try {
             if (param.emojiLabeledTitle) {
-                const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.branchType, param.hotfix.active, param.labels.isQuestion, param.labels.isHelp, param.tokens.token);
+                const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.issueType, param.hotfix.active, param.labels.isQuestion, param.labels.isHelp, param.tokens.token);
                 if (title) {
                     result.push(new result_1.Result({
                         id: this.taskId,
@@ -43319,15 +43319,23 @@ exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.branchesForIssue = void 0;
-const branchesForIssue = (labels, bugfixLabel, hotfixLabel) => {
+exports.typesForIssue = exports.branchesForManagement = void 0;
+const branchesForManagement = (params, labels, bugfixLabel, hotfixLabel) => {
     if (labels.includes(bugfixLabel))
-        return 'bugfix';
+        return params.branches.bugfixTree;
     if (labels.includes(hotfixLabel))
-        return 'bugfix';
-    return 'feature';
+        return params.branches.bugfixTree;
+    return params.branches.featureTree;
 };
-exports.branchesForIssue = branchesForIssue;
+exports.branchesForManagement = branchesForManagement;
+const typesForIssue = (params, labels, bugfixLabel, hotfixLabel) => {
+    if (labels.includes(bugfixLabel))
+        return params.branches.bugfixTree;
+    if (labels.includes(hotfixLabel))
+        return params.branches.hotfixTree;
+    return params.branches.featureTree;
+};
+exports.typesForIssue = typesForIssue;
 
 
 /***/ }),

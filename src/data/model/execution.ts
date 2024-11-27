@@ -6,7 +6,7 @@ import {Hotfix} from "./hotfix";
 import {PullRequestRepository} from "../repository/pull_request_repository";
 import {IssueRepository} from "../repository/issue_repository";
 import * as github from "@actions/github";
-import {branchesForIssue} from "../utils/label_utils";
+import {typesForIssue, branchesForManagement} from "../utils/label_utils";
 import {Issue} from "./issue";
 import {PullRequest} from "./pull_request";
 import {extractIssueNumberFromBranch, extractIssueNumberFromBranchB} from "../utils/title_utils";
@@ -40,11 +40,11 @@ export class Execution {
     }
 
     get isFeature(): boolean {
-        return this.branchType === 'feature';
+        return this.issueType === 'feature';
     }
 
     get isBugfix(): boolean {
-        return this.branchType === 'bugfix';
+        return this.issueType === 'bugfix';
     }
 
     get mustRun(): boolean {
@@ -55,8 +55,18 @@ export class Execution {
         return this.issueAction && !this.mustRun;
     }
 
-    get branchType(): string {
-        return branchesForIssue(
+    get managementBranch(): string {
+        return branchesForManagement(
+            this,
+            this.labels.currentLabels,
+            this.labels.bugfix,
+            this.labels.hotfix,
+        );
+    }
+
+    get issueType(): string {
+        return typesForIssue(
+            this,
             this.labels.currentLabels,
             this.labels.bugfix,
             this.labels.hotfix,
@@ -137,7 +147,6 @@ export class Execution {
                 this.issue.number,
                 this.tokens.token,
             )
-            this.currentConfiguration.issueBranch = this.branchType
         } else if (this.pullRequestAction) {
             const pullRequestRepository = new PullRequestRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
@@ -164,6 +173,6 @@ export class Execution {
                 this.tokens.token,
             )
         }
-        this.currentConfiguration.branchType = this.branchType
+        this.currentConfiguration.branchType = this.issueType
     }
 }

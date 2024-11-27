@@ -17,7 +17,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                     param.repo,
                     param.issue.title,
                     param.issue.number,
-                    param.branchType,
+                    param.issueType,
                     param.hotfix.active,
                     param.labels.isQuestion,
                     param.labels.isHelp,

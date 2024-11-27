@@ -36,14 +36,14 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                 param.tokens.token,
             );
 
-            const finalBranch = `${param.branchType}/${param.number}-${sanitizedTitle}`;
+            const finalBranch = `${param.managementBranch}/${param.number}-${sanitizedTitle}`;
 
-            const branchTypes = ["feature", "bugfix"];
+            const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
             for (const type of branchTypes) {
                 let branchName = `${type}/${param.number}-${sanitizedTitle}`;
                 const prefix = `${type}/${param.number}-`;
 
-                if (type !== param.branchType) {
+                if (type !== param.managementBranch) {
                     const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                     if (!matchingBranch) {
                         continue;

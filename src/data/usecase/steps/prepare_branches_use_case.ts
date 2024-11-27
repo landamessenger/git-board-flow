@@ -112,7 +112,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 return result
             }
 
-            core.info(`Branch type: ${param.branchType}`);
+            core.info(`Branch type: ${param.managementBranch}`);
 
             const branchesResult = await this.branchRepository.manageBranches(
                 param,
@@ -120,7 +120,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 param.repo,
                 param.number,
                 issueTitle,
-                param.branchType,
+                param.managementBranch,
                 param.branches.development,
                 param.hotfix?.branch,
                 param.hotfix.active,

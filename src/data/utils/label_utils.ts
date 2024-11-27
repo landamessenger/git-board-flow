@@ -1,9 +1,23 @@
-export const branchesForIssue = (
+import {Execution} from "../model/execution";
+
+export const branchesForManagement = (
+    params: Execution,
     labels: string[],
     bugfixLabel: string,
     hotfixLabel: string,
 ): string => {
-    if (labels.includes(bugfixLabel)) return 'bugfix';
-    if (labels.includes(hotfixLabel)) return 'bugfix';
-    return 'feature';
+    if (labels.includes(bugfixLabel)) return params.branches.bugfixTree;
+    if (labels.includes(hotfixLabel)) return params.branches.bugfixTree;
+    return params.branches.featureTree;
+}
+
+export const typesForIssue = (
+    params: Execution,
+    labels: string[],
+    bugfixLabel: string,
+    hotfixLabel: string,
+): string => {
+    if (labels.includes(bugfixLabel)) return params.branches.bugfixTree;
+    if (labels.includes(hotfixLabel)) return params.branches.hotfixTree;
+    return params.branches.featureTree;
 }
