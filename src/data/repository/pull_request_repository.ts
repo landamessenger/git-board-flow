@@ -155,7 +155,7 @@ ${this.endConfigPattern}`;
 
             return new Config(branchConfig);
         } catch (error) {
-            core.error(`Error reading issue configuration: ${error}`);
+            core.error(`Error reading pull request configuration: ${error}`);
             throw error;
         }
     }

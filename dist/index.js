@@ -41064,6 +41064,7 @@ class Execution {
             else if (this.pullRequestAction) {
                 const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
                 this.number = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
+                console.log('issue number (PR)');
                 this.labels.currentLabels = await pullRequestRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
                 this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
@@ -42179,7 +42180,7 @@ ${this.endConfigPattern}`;
                 return new config_1.Config(branchConfig);
             }
             catch (error) {
-                core.error(`Error reading issue configuration: ${error}`);
+                core.error(`Error reading pull request configuration: ${error}`);
                 throw error;
             }
         };
