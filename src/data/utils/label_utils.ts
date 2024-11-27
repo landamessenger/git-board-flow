@@ -6,8 +6,8 @@ export const branchesForManagement = (
     bugfixLabel: string,
     hotfixLabel: string,
 ): string => {
-    if (labels.includes(bugfixLabel)) return params.branches.bugfixTree;
     if (labels.includes(hotfixLabel)) return params.branches.bugfixTree;
+    if (labels.includes(bugfixLabel)) return params.branches.bugfixTree;
     return params.branches.featureTree;
 }
 
@@ -17,7 +17,7 @@ export const typesForIssue = (
     bugfixLabel: string,
     hotfixLabel: string,
 ): string => {
-    if (labels.includes(bugfixLabel)) return params.branches.bugfixTree;
     if (labels.includes(hotfixLabel)) return params.branches.hotfixTree;
+    if (labels.includes(bugfixLabel)) return params.branches.bugfixTree;
     return params.branches.featureTree;
 }

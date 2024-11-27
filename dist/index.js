@@ -43321,18 +43321,18 @@ exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.typesForIssue = exports.branchesForManagement = void 0;
 const branchesForManagement = (params, labels, bugfixLabel, hotfixLabel) => {
-    if (labels.includes(bugfixLabel))
-        return params.branches.bugfixTree;
     if (labels.includes(hotfixLabel))
+        return params.branches.bugfixTree;
+    if (labels.includes(bugfixLabel))
         return params.branches.bugfixTree;
     return params.branches.featureTree;
 };
 exports.branchesForManagement = branchesForManagement;
 const typesForIssue = (params, labels, bugfixLabel, hotfixLabel) => {
-    if (labels.includes(bugfixLabel))
-        return params.branches.bugfixTree;
     if (labels.includes(hotfixLabel))
         return params.branches.hotfixTree;
+    if (labels.includes(bugfixLabel))
+        return params.branches.bugfixTree;
     return params.branches.featureTree;
 };
 exports.typesForIssue = typesForIssue;
