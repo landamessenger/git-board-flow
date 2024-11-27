@@ -21,6 +21,7 @@ export class Execution {
     issueAction: boolean = false;
     commitAction: boolean = false;
     pullRequestAction: boolean = false;
+    commitPrefixBuilder: string;
     giphy: Images;
     tokens: Tokens;
     labels: Labels;
@@ -86,6 +87,7 @@ export class Execution {
         issueAction: boolean,
         pullRequestAction: boolean,
         commitAction: boolean,
+        commitPrefixBuilder: string,
         giphy: Images,
         tokens: Tokens,
         labels: Labels,
@@ -93,6 +95,7 @@ export class Execution {
         hotfix: Hotfix,
         projects: ProjectDetail[],
     ) {
+        this.commitPrefixBuilder = commitPrefixBuilder;
         this.giphy = giphy;
         this.tokens = tokens;
         this.emojiLabeledTitle = emojiLabeledTitle;

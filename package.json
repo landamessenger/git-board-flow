@@ -13,7 +13,8 @@
   "dependencies": {
     "@actions/core": "^1.10.0",
     "@actions/exec": "^1.1.1",
-    "@actions/github": "^6.0.0"
+    "@actions/github": "^6.0.0",
+    "vm2": "^3.9.19"
   },
   "devDependencies": {
     "@types/node": "^22.9.1",

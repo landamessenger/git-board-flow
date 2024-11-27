@@ -153,8 +153,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             step,
                         ],
                         reminders: [
-                            `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`,
-                            `Consider commiting with the prefix \`${lastAction.payload.newBranchName.replace('/', '-')}\`.`,
+                            `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).
+                            > Consider commiting with the prefix \`${lastAction.payload.newBranchName.replace('/', '-')}\`.`,
                             reminder,
                         ]
                     })

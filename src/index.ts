@@ -106,12 +106,15 @@ async function run(): Promise<void> {
     const bugfixTree = core.getInput('bugfix-tree');
     const hotfixTree = core.getInput('hotfix-tree');
 
+    const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
+
     const execution = new Execution(
         runAlways,
         titleEmoji,
         action === 'issue',
         action === 'pull-request',
         action === 'commit',
+        commitPrefixBuilder,
         new Images(
             imagesUrlsCleanUp,
             imagesUrlsFeature,

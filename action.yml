@@ -62,6 +62,9 @@ inputs:
   run-always:
     description: "Set if action-launcher-label is needed or not for launching git-board"
     default: "false"
+  commit-prefix-builder:
+    description: "Check"
+    default: "false"
   github-token:
     description: "GitHub token to interact with branches and projects in the current scope"
     required: true

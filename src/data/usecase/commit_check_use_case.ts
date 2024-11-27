@@ -1,10 +1,9 @@
 import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
 import {Result} from "../model/result";
-import {LinkPullRequestProjectUseCase} from "./steps/link_pull_request_project_use_case";
-import {LinkPullRequestIssueUseCase} from "./steps/link_pull_request_issue_use_case";
 import * as core from '@actions/core';
 import {IssueRepository} from "../repository/issue_repository";
+import { VM } from 'vm2';
 
 export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitCheckUseCase';
@@ -19,6 +18,17 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
                 core.info('No commits found in this push.');
                 return results;
             }
+
+            const branchName = param.commit.branch;
+
+            const vm = new VM({
+                timeout: 1000,
+                sandbox: { branchName },
+            });
+
+            core.info('Executing script with inputString in secure VM:');
+            const result = vm.run(param.commitPrefixBuilder);
+            core.info(`Script result: ${result}`);
 
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
@@ -52,7 +62,7 @@ ${commit.message}
 ${this.separator}
 ## ⚠️ Attention
 
-One or more commits should start with the prefix **${param.commit.prefix}**.
+One or more commits didn't start with the prefix **${param.commit.prefix}**.
 
 \`\`\`
 ${param.commit.prefix}: created hello-world app
