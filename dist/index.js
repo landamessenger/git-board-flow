@@ -41029,6 +41029,10 @@ class Execution {
         return (0, label_utils_1.branchesForIssue)(this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
     }
     get cleanManagement() {
+        console.log(`issueAction: ${this.issueAction}`);
+        console.log(`previousConfiguration: ${JSON.stringify(this.previousConfiguration)}`);
+        console.log(`previousConfiguration.branchType: ${this.previousConfiguration?.branchType}`);
+        console.log(`currentConfiguration.branchType: ${this.currentConfiguration?.branchType}`);
         return this.issueAction
             && this.previousConfiguration !== undefined
             && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;

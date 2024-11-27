@@ -64,6 +64,10 @@ export class Execution {
     }
 
     get cleanManagement(): boolean {
+        console.log(`issueAction: ${this.issueAction}`)
+        console.log(`previousConfiguration: ${JSON.stringify(this.previousConfiguration)}`)
+        console.log(`previousConfiguration.branchType: ${this.previousConfiguration?.branchType}`)
+        console.log(`currentConfiguration.branchType: ${this.currentConfiguration?.branchType}`)
         return this.issueAction
             && this.previousConfiguration !== undefined
             && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
