@@ -130,7 +130,7 @@ export class BranchRepository {
                         success: true,
                         executed: false,
                         steps: [
-                            `The branch \`${newBranchName}\` already exist. Skipping creation.`
+                            `[THIS IS AN ERROR] The branch \`${newBranchName}\` already exist. Skipping creation.`
                         ],
                     })
                 )

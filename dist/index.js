@@ -41496,7 +41496,7 @@ class BranchRepository {
                         success: true,
                         executed: false,
                         steps: [
-                            `The branch \`${newBranchName}\` already exist. Skipping creation.`
+                            `[THIS IS AN ERROR] The branch \`${newBranchName}\` already exist. Skipping creation.`
                         ],
                     }));
                     return result;
@@ -42509,14 +42509,38 @@ exports.PullRequestLinkUseCase = PullRequestLinkUseCase;
 /***/ }),
 
 /***/ 2041:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.RemoveIssueBranchesUseCase = void 0;
 const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
 /**
  * Remove any branch created for this issue
  */
@@ -42526,13 +42550,16 @@ class RemoveIssueBranchesUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
+        core.info(`Running ${this.taskId}`);
         const results = [];
         try {
             const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             for (const type of branchTypes) {
+                core.info(`Checking branch type ${type}`);
                 let branchName = '';
                 const prefix = `${type}/${param.number}-`;
+                core.info(`Checking prefix ${prefix}`);
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                 if (!matchingBranch)
                     continue;
