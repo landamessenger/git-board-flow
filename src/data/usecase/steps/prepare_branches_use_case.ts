@@ -136,14 +136,17 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
                 const branchName = lastAction.payload.newBranchName;
 
-                const vm = new VM({
-                    timeout: 1000,
-                    sandbox: { branchName },
-                });
+                let commitPrefix = ''
+                if (param.commitPrefixBuilder.length > 0) {
+                    const vm = new VM({
+                        timeout: 1000,
+                        sandbox: {branchName},
+                    });
 
-                core.info(`Executing script with branchName ${branchName} in secure VM:`);
-                const prefixResult = vm.run(param.commitPrefixBuilder);
-                const commitPrefix = prefixResult.toString() ?? ''
+                    core.info(`Executing script with branchName ${branchName} in secure VM:`);
+                    const prefixResult = vm.run(param.commitPrefixBuilder);
+                    commitPrefix = prefixResult.toString() ?? ''
+                }
 
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1

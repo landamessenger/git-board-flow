@@ -129,7 +129,9 @@ export class BranchRepository {
                         id: 'branch_repository',
                         success: true,
                         executed: false,
-                        steps: [],
+                        steps: [
+                            `The branch \`${newBranchName}\` already exist. Skipping creation.`
+                        ],
                     })
                 )
                 return result

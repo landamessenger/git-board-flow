@@ -21,16 +21,19 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
 
             const branchName = param.commit.branch;
 
-            const vm = new VM({
-                timeout: 1000,
-                sandbox: { branchName },
-            });
+            let commitPrefix = ''
+            if (param.commitPrefixBuilder.length > 0) {
+                const vm = new VM({
+                    timeout: 1000,
+                    sandbox: {branchName},
+                });
 
-            core.info(`Executing script with branchName ${branchName} in secure VM:`);
-            const result = vm.run(param.commitPrefixBuilder);
-            const commitPrefix = result.toString() ?? ''
+                core.info(`Executing script with branchName ${branchName} in secure VM:`);
+                const prefixResult = vm.run(param.commitPrefixBuilder);
+                commitPrefix = prefixResult.toString() ?? ''
+                core.info(`Commit prefix: ${commitPrefix}`);
+            }
 
-            core.info(`Commit prefix: ${commitPrefix}`);
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.number}`);

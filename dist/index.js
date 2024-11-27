@@ -41495,7 +41495,9 @@ class BranchRepository {
                         id: 'branch_repository',
                         success: true,
                         executed: false,
-                        steps: [],
+                        steps: [
+                            `The branch \`${newBranchName}\` already exist. Skipping creation.`
+                        ],
                     }));
                     return result;
                 }
@@ -42232,14 +42234,17 @@ class CommitCheckUseCase {
                 return results;
             }
             const branchName = param.commit.branch;
-            const vm = new vm2_1.VM({
-                timeout: 1000,
-                sandbox: { branchName },
-            });
-            core.info(`Executing script with branchName ${branchName} in secure VM:`);
-            const result = vm.run(param.commitPrefixBuilder);
-            const commitPrefix = result.toString() ?? '';
-            core.info(`Commit prefix: ${commitPrefix}`);
+            let commitPrefix = '';
+            if (param.commitPrefixBuilder.length > 0) {
+                const vm = new vm2_1.VM({
+                    timeout: 1000,
+                    sandbox: { branchName },
+                });
+                core.info(`Executing script with branchName ${branchName} in secure VM:`);
+                const prefixResult = vm.run(param.commitPrefixBuilder);
+                commitPrefix = prefixResult.toString() ?? '';
+                core.info(`Commit prefix: ${commitPrefix}`);
+            }
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.number}`);
@@ -42962,13 +42967,16 @@ class PrepareBranchesUseCase {
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success && lastAction.executed) {
                 const branchName = lastAction.payload.newBranchName;
-                const vm = new vm2_1.VM({
-                    timeout: 1000,
-                    sandbox: { branchName },
-                });
-                core.info(`Executing script with branchName ${branchName} in secure VM:`);
-                const prefixResult = vm.run(param.commitPrefixBuilder);
-                const commitPrefix = prefixResult.toString() ?? '';
+                let commitPrefix = '';
+                if (param.commitPrefixBuilder.length > 0) {
+                    const vm = new vm2_1.VM({
+                        timeout: 1000,
+                        sandbox: { branchName },
+                    });
+                    core.info(`Executing script with branchName ${branchName} in secure VM:`);
+                    const prefixResult = vm.run(param.commitPrefixBuilder);
+                    commitPrefix = prefixResult.toString() ?? '';
+                }
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1
                     || lastAction.payload.baseBranchName.indexOf(`${param.branches.bugfixTree}/`) > -1;
                 let step;
