@@ -1,0 +1,33 @@
+name: Update Dist Directory
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  update-dist:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Project
+        run: npm run build
+
+      - name: Commit and Push Dist Directory Changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: './dist/'
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          default_author: user_info
+          message: 'gh-action: updated compiled files'
