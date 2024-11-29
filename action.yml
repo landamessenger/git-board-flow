@@ -1,79 +1,88 @@
-name: "Git Board Flow"
-description: "Issues, branches and pull requests linked."
+name: "Git Board"
+description: "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology."
 author: "Landa Messenger"
 inputs:
   action:
-    description: "Action to handle"
+    description: "Specifies the action to perform (e.g., manage branches, link projects)."
     required: true
   emoji-labeled-title:
-    description: "Title with emojis based on labels"
+    description: "Enable titles with emojis based on issue labels."
     default: "false"
   action-launcher-label:
-    description: "Activation label for branch management"
+    description: "Label to trigger branch management actions."
     default: "git-board"
   hotfix-label:
-    description: "Hotfix branch behaviour"
+    description: "Label to manage hotfix branches."
     default: "hotfix"
+  release-label:
+    description: "Label to manage release branches."
+    default: "release"
   bugfix-label:
-    description: "Bugfix branch behaviour"
+    description: "Label to manage bugfix branches."
     default: "bugfix"
   feature-label:
-    description: "Feature branch behaviour"
+    description: "Label to manage feature branches."
     default: "feature"
   question-label:
-    description: "Label for detecting questions"
+    description: "Label to detect issues marked as questions."
     default: "question"
   help-label:
-    description: "Label for detecting help requests"
+    description: "Label to detect help request issues."
     default: "help"
   project-urls:
-    description: "List of projects urls to link issues and pull requests"
+    description: "Comma-separated list of project URLs to link issues and pull requests."
     default: ""
   main-branch:
-    description: "Main branch of the repository"
+    description: "Name of the main branch (e.g., master)."
     default: "master"
   development-branch:
-    description: "Development branch of the repository"
+    description: "Name of the development branch (e.g., develop)."
     default: "develop"
   feature-tree:
-    description: "Tree for new features"
+    description: "Naming convention for feature branches."
     default: "feature"
   bugfix-tree:
-    description: "Tree for new bugfix"
+    description: "Naming convention for bugfix branches."
     default: "bugfix"
   hotfix-tree:
-    description: "Tree for new hotfix"
+    description: "Naming convention for hotfix branches."
     default: "hotfix"
+  release-tree:
+    description: "Naming convention for release branches."
+    default: "release"
   images-clean-up:
-    description: "Images for displaying on cleanup action comments"
+    description: "Image URLs to display in cleanup action comments."
     default: ""
   images-feature:
-    description: "Images for displaying on feature action comments"
+    description: "Image URLs to display in feature action comments."
     default: ""
   images-bugfix:
-    description: "Images for displaying on bugfix action comments"
+    description: "Image URLs to display in bugfix action comments."
     default: ""
   images-hotfix:
-    description: "Images for displaying on hotfix action comments"
+    description: "Image URLs to display in hotfix action comments."
+    default: ""
+  images-release:
+    description: "Image URLs to display in release action comments."
     default: ""
   images-pr-link:
-    description: "Images for displaying on pull request link action comments"
+    description: "Image URLs to display in PR linking action comments."
     default: ""
   run-always:
-    description: "Set if action-launcher-label is needed or not for launching git-board"
+    description: "If true, ignores the action-launcher-label requirement for running Git Board."
     default: "false"
   commit-prefix-builder:
-    description: "Check"
+    description: "Enable commit prefix generation."
     default: "false"
   github-token:
-    description: "GitHub token to interact with branches and projects in the current scope"
+    description: "GitHub token for branch and project operations within the repository scope."
     required: true
   github-token-personal:
-    description: "GitHub PAT to interact with commits, branches and projects"
+    description: "GitHub PAT for extended operations on commits, branches, and projects."
     required: true
 runs:
   using: "node20"
   main: "dist/index.js"
 branding:
-  icon: git-branch
+  icon: "git-branch"
   color: "gray-dark"

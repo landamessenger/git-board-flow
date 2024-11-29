@@ -3,7 +3,7 @@ import {Execution} from "../model/execution";
 import {Result} from "../model/result";
 import * as core from '@actions/core';
 import {IssueRepository} from "../repository/issue_repository";
-import { VM } from 'vm2';
+import {ExecuteScriptUseCase} from "./steps/execute_script_use_case";
 
 export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitCheckUseCase';
@@ -23,14 +23,12 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
 
             let commitPrefix = ''
             if (param.commitPrefixBuilder.length > 0) {
-                const vm = new VM({
-                    timeout: 1000,
-                    sandbox: {branchName},
-                });
-
-                core.info(`Executing script with branchName ${branchName} in secure VM:`);
-                const prefixResult = vm.run(param.commitPrefixBuilder);
-                commitPrefix = prefixResult.toString() ?? ''
+                param.commitPrefixBuilderParams = {
+                    branchName: branchName,
+                }
+                const executor = new ExecuteScriptUseCase();
+                const prefixResult = await executor.invoke(param);
+                commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
                 core.info(`Commit prefix: ${commitPrefix}`);
             }
 

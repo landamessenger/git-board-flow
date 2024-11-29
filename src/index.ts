@@ -94,6 +94,7 @@ async function run(): Promise<void> {
     const bugfixLabel = core.getInput('bugfix-label');
     const hotfixLabel = core.getInput('hotfix-label');
     const featureLabel = core.getInput('feature-label');
+    const releaseLabel = core.getInput('release-label');
     const questionLabel = core.getInput('question-label');
     const helpLabel = core.getInput('help-label');
 
@@ -105,6 +106,7 @@ async function run(): Promise<void> {
     const featureTree = core.getInput('feature-tree');
     const bugfixTree = core.getInput('bugfix-tree');
     const hotfixTree = core.getInput('hotfix-tree');
+    const releaseTree = core.getInput('release-tree');
 
     const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
 
@@ -128,6 +130,7 @@ async function run(): Promise<void> {
             bugfixLabel,
             hotfixLabel,
             featureLabel,
+            releaseLabel,
             questionLabel,
             helpLabel,
         ),
@@ -137,6 +140,7 @@ async function run(): Promise<void> {
             featureTree,
             bugfixTree,
             hotfixTree,
+            releaseTree,
         ),
         new Hotfix(),
         projects

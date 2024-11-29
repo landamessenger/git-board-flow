@@ -3,7 +3,7 @@ import {ParamUseCase} from "../base/param_usecase";
 import {Execution} from "../../model/execution";
 import {BranchRepository} from "../../repository/branch_repository";
 import {Result} from "../../model/result";
-import {VM} from "vm2";
+import {ExecuteScriptUseCase} from "./execute_script_use_case";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
@@ -138,14 +138,12 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
                 let commitPrefix = ''
                 if (param.commitPrefixBuilder.length > 0) {
-                    const vm = new VM({
-                        timeout: 1000,
-                        sandbox: {branchName},
-                    });
-
-                    core.info(`Executing script with branchName ${branchName} in secure VM:`);
-                    const prefixResult = vm.run(param.commitPrefixBuilder);
-                    commitPrefix = prefixResult.toString() ?? ''
+                    param.commitPrefixBuilderParams = {
+                        branchName: branchName,
+                    }
+                    const executor = new ExecuteScriptUseCase();
+                    const prefixResult = await executor.invoke(param);
+                    commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
                 }
 
                 const rename = lastAction.payload.baseBranchName.indexOf(`${param.branches.featureTree}/`) > -1

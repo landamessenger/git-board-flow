@@ -3,6 +3,7 @@ export class Labels {
     bugfix: string;
     hotfix: string;
     feature: string;
+    release: string;
     question: string;
     help: string;
     currentLabels: string[] = [];
@@ -36,6 +37,7 @@ export class Labels {
         bugfix: string,
         hotfix: string,
         feature: string,
+        release: string,
         question: string,
         help: string,
     ) {
@@ -43,6 +45,7 @@ export class Labels {
         this.bugfix = bugfix;
         this.hotfix = hotfix;
         this.feature = feature;
+        this.release = release;
         this.question = question;
         this.help = help;
     }

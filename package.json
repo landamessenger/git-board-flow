@@ -14,7 +14,7 @@
     "@actions/core": "^1.10.0",
     "@actions/exec": "^1.1.1",
     "@actions/github": "^6.0.0",
-    "vm2": "^3.9.19"
+    "isolated-vm": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.1",

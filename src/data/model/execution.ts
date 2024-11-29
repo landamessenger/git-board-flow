@@ -22,6 +22,7 @@ export class Execution {
     commitAction: boolean = false;
     pullRequestAction: boolean = false;
     commitPrefixBuilder: string;
+    commitPrefixBuilderParams: any = {};
     giphy: Images;
     tokens: Tokens;
     labels: Labels;
