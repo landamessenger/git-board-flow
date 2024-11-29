@@ -10,6 +10,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
+        core.info(`Executing ${this.taskId}.`)
+
         const result: Result[] = []
         try {
             const issueTitle: string = param.issue.title;

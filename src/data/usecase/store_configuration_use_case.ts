@@ -2,6 +2,7 @@ import {IssueRepository} from "../repository/issue_repository";
 import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
 import {PullRequestRepository} from "../repository/pull_request_repository";
+import * as core from '@actions/core';
 
 /**
  * Store las configuration in the description
@@ -12,6 +13,7 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
     private pullRequestRepository = new PullRequestRepository();
 
     async invoke(param: Execution): Promise<void> {
+        core.info(`Executing ${this.taskId}.`)
         try {
             if (param.issueAction) {
                 await this.issueRepository.updateConfig(

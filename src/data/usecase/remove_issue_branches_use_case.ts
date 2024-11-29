@@ -12,7 +12,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Running ${this.taskId}`)
+        core.info(`Executing ${this.taskId}.`)
 
         const results: Result[] = []
         try {

@@ -4,6 +4,7 @@ import {Execution} from "../model/execution";
 import {Result} from "../model/result";
 import {PullRequestRepository} from "../repository/pull_request_repository";
 import {getRandomElement} from "../utils/list_utils";
+import * as core from '@actions/core';
 
 /**
  * Publish the resume of actions
@@ -14,6 +15,8 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
     private pullRequestRepository = new PullRequestRepository();
 
     async invoke(param: Execution): Promise<void> {
+        core.info(`Executing ${this.taskId}.`)
+
         try {
             /**
              * Comment resume of actions

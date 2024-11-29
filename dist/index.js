@@ -31324,6 +31324,7 @@ class CommitCheckUseCase {
         this.separator = '------------------------------------------------------';
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const results = [];
         try {
             if (param.commit.commits.length === 0) {
@@ -31400,10 +31401,33 @@ exports.CommitCheckUseCase = CommitCheckUseCase;
 /***/ }),
 
 /***/ 5877:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueLinkUseCase = void 0;
 const link_issue_project_use_case_1 = __nccwpck_require__(1503);
@@ -31411,11 +31435,13 @@ const update_title_use_case_1 = __nccwpck_require__(8411);
 const prepare_branches_use_case_1 = __nccwpck_require__(9883);
 const remove_not_needed_branches_use_case_1 = __nccwpck_require__(9871);
 const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
+const core = __importStar(__nccwpck_require__(2186));
 class IssueLinkUseCase {
     constructor() {
         this.taskId = 'IssueLinkUseCase';
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const results = [];
         if (param.cleanManagement) {
             results.push(...await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(param));
@@ -31445,16 +31471,40 @@ exports.IssueLinkUseCase = IssueLinkUseCase;
 /***/ }),
 
 /***/ 5487:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PublishResultUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const result_1 = __nccwpck_require__(7305);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const list_utils_1 = __nccwpck_require__(834);
+const core = __importStar(__nccwpck_require__(2186));
 /**
  * Publish the resume of actions
  */
@@ -31465,6 +31515,7 @@ class PublishResultUseCase {
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         try {
             /**
              * Comment resume of actions
@@ -31559,20 +31610,45 @@ exports.PublishResultUseCase = PublishResultUseCase;
 /***/ }),
 
 /***/ 29:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestLinkUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const link_pull_request_project_use_case_1 = __nccwpck_require__(5154);
 const link_pull_request_issue_use_case_1 = __nccwpck_require__(768);
+const core = __importStar(__nccwpck_require__(2186));
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const results = [];
         try {
             /**
@@ -31646,7 +31722,7 @@ class RemoveIssueBranchesUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
-        core.info(`Running ${this.taskId}`);
+        core.info(`Executing ${this.taskId}.`);
         const results = [];
         try {
             const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
@@ -31744,6 +31820,7 @@ class ExecuteScriptUseCase {
         this.taskId = 'ExecuteScriptUseCase';
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             const scriptParams = param.commitPrefixBuilderParams;
@@ -31830,6 +31907,7 @@ class LinkIssueProjectUseCase {
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             const projects = await this.issueRepository.fetchIssueProjects(param.owner, param.repo, param.issue.number, param.tokens.tokenPat);
@@ -31916,12 +31994,14 @@ exports.LinkPullRequestIssueUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const github = __importStar(__nccwpck_require__(5438));
 const pull_request_repository_1 = __nccwpck_require__(634);
+const core = __importStar(__nccwpck_require__(2186));
 class LinkPullRequestIssueUseCase {
     constructor() {
         this.taskId = 'LinkPullRequestIssueUseCase';
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             const isLinked = await this.pullRequestRepository.isLinked(github.context.payload.pull_request?.html_url ?? '');
@@ -32006,21 +32086,46 @@ exports.LinkPullRequestIssueUseCase = LinkPullRequestIssueUseCase;
 /***/ }),
 
 /***/ 5154:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.LinkPullRequestProjectUseCase = void 0;
 const project_repository_1 = __nccwpck_require__(7917);
 const core_1 = __nccwpck_require__(2186);
 const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
 class LinkPullRequestProjectUseCase {
     constructor() {
         this.taskId = 'LinkPullRequestProjectUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             for (const project of param.projects) {
@@ -32097,6 +32202,7 @@ class PrepareBranchesUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             const issueTitle = param.issue.title;
@@ -32289,6 +32395,7 @@ class RemoveNotNeededBranchesUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             const issueTitle = param.issue.title;
@@ -32390,20 +32497,45 @@ exports.RemoveNotNeededBranchesUseCase = RemoveNotNeededBranchesUseCase;
 /***/ }),
 
 /***/ 8411:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.UpdateTitleUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
 class UpdateTitleUseCase {
     constructor() {
         this.taskId = 'UpdateTitleUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             if (param.emojiLabeledTitle) {
@@ -32454,14 +32586,38 @@ exports.UpdateTitleUseCase = UpdateTitleUseCase;
 /***/ }),
 
 /***/ 4879:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.StoreConfigurationUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const core = __importStar(__nccwpck_require__(2186));
 /**
  * Store las configuration in the description
  */
@@ -32472,6 +32628,7 @@ class StoreConfigurationUseCase {
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
         try {
             if (param.issueAction) {
                 await this.issueRepository.updateConfig(param.owner, param.repo, param.issue.number, param.currentConfiguration, param.tokens.token);

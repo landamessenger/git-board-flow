@@ -8,6 +8,8 @@ export class ExecuteScriptUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ExecuteScriptUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
+        core.info(`Executing ${this.taskId}.`)
+
         const result: Result[] = []
 
         try {

@@ -6,11 +6,14 @@ import {PrepareBranchesUseCase} from "./steps/prepare_branches_use_case";
 import {RemoveNotNeededBranchesUseCase} from "./steps/remove_not_needed_branches_use_case";
 import {Result} from "../model/result";
 import {RemoveIssueBranchesUseCase} from "./remove_issue_branches_use_case";
+import * as core from '@actions/core';
 
 export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'IssueLinkUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
+        core.info(`Executing ${this.taskId}.`)
+
         const results: Result[] = []
 
         if (param.cleanManagement) {

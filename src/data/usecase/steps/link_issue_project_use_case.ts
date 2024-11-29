@@ -11,6 +11,8 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
+        core.info(`Executing ${this.taskId}.`)
+
         const result: Result[] = []
 
         try {

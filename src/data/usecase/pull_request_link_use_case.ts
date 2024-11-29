@@ -3,11 +3,14 @@ import {Execution} from "../model/execution";
 import {Result} from "../model/result";
 import {LinkPullRequestProjectUseCase} from "./steps/link_pull_request_project_use_case";
 import {LinkPullRequestIssueUseCase} from "./steps/link_pull_request_issue_use_case";
+import * as core from '@actions/core';
 
 export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestLinkUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
+        core.info(`Executing ${this.taskId}.`)
+
         const results: Result[] = []
         try {
             /**

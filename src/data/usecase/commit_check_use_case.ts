@@ -12,6 +12,8 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     private separator = '------------------------------------------------------'
 
     async invoke(param: Execution): Promise<Result[]> {
+        core.info(`Executing ${this.taskId}.`)
+
         const results: Result[] = []
         try {
             if (param.commit.commits.length === 0) {
