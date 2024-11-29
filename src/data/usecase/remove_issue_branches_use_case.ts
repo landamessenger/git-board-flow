@@ -58,7 +58,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                                 success: true,
                                 executed: true,
                                 reminders: [
-                                    `Ensure if \`${param.branches.featureTree}\` should be removed.`,
+                                    `Determine if the \`${param.hotfix.branch}\` branch is no longer required and can be removed.`,
                                 ],
                             })
                         )
