@@ -31984,7 +31984,7 @@ class ExecuteScriptUseCase {
                 await jail.set(key, p, { copy: true });
             }
             core.info('Executing script in isolated VM...');
-            const scriptResult = await context.eval(`(${param.commitPrefixBuilder})()`, {
+            const scriptResult = await context.eval(param.commitPrefixBuilder, {
                 timeout: 1000,
             });
             core.info(`Script result: ${scriptResult}`);
