@@ -14,6 +14,7 @@ import {PublishResultUseCase} from "./data/usecase/publish_resume_use_case";
 import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_case";
 import {Images} from "./data/model/images";
 import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
+import {UpdateTitleUseCase} from "./data/usecase/steps/update_title_use_case";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -155,7 +156,8 @@ async function run(): Promise<void> {
 
     const results: Result[] = []
 
-    if (execution.mustCleanAll) {
+    if (execution.mustCleanIssue) {
+        results.push(...await new UpdateTitleUseCase().invoke(execution));
         results.push(...await new RemoveIssueBranchesUseCase().invoke(execution));
         await finishWithResults(execution, results)
         return;

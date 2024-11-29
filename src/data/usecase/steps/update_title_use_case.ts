@@ -13,46 +13,81 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
 
         const result: Result[] = []
         try {
-            if (param.emojiLabeledTitle) {
-                const title = await this.issueRepository.updateTitle(
-                    param.owner,
-                    param.repo,
-                    param.issue.title,
-                    param.issue.number,
-                    param.issueType,
-                    param.hotfix.active,
-                    param.labels.isQuestion,
-                    param.labels.isHelp,
-                    param.tokens.token,
-                );
-                if (title) {
-                    result.push(
-                        new Result({
-                            id: this.taskId,
-                            success: true,
-                            executed: true,
-                            steps: [
-                                `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
-                            ]
-                        })
-                    )
+            if (param.issueAction) {
+                if (param.mustRun) {
+                    if (param.emojiLabeledTitle) {
+                        const title = await this.issueRepository.updateTitle(
+                            param.owner,
+                            param.repo,
+                            param.issue.title,
+                            param.issue.number,
+                            param.issueType,
+                            param.hotfix.active,
+                            param.labels.isQuestion,
+                            param.labels.isHelp,
+                            param.labels.feature,
+                            param.labels.bugfix,
+                            param.labels.release,
+                            param.tokens.token,
+                        );
+                        if (title) {
+                            result.push(
+                                new Result({
+                                    id: this.taskId,
+                                    success: true,
+                                    executed: true,
+                                    steps: [
+                                        `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
+                                    ]
+                                })
+                            )
+                        } else {
+                            result.push(
+                                new Result({
+                                    id: this.taskId,
+                                    success: true,
+                                    executed: false,
+                                })
+                            )
+                        }
+                    } else {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: false,
+                            })
+                        )
+                    }
                 } else {
-                    result.push(
-                        new Result({
-                            id: this.taskId,
-                            success: true,
-                            executed: false,
-                        })
-                    )
+                    const title = await this.issueRepository.cleanTitle(
+                        param.owner,
+                        param.repo,
+                        param.issue.title,
+                        param.issue.number,
+                        param.tokens.token,
+                    );
+                    if (title) {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
+                                ]
+                            })
+                        )
+                    } else {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: false,
+                            })
+                        )
+                    }
                 }
-            } else {
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    })
-                )
             }
         } catch (error) {
             result.push(

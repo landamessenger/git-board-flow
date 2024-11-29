@@ -52,7 +52,7 @@ export class Execution {
         return this.commitAction || (this.runAlways || this.labels.runnerLabels);
     }
 
-    get mustCleanAll(): boolean {
+    get mustCleanIssue(): boolean {
         return this.issueAction && !this.mustRun;
     }
 
@@ -62,6 +62,7 @@ export class Execution {
             this.labels.currentLabels,
             this.labels.bugfix,
             this.labels.hotfix,
+            this.labels.release,
         );
     }
 
@@ -71,6 +72,7 @@ export class Execution {
             this.labels.currentLabels,
             this.labels.bugfix,
             this.labels.hotfix,
+            this.labels.release,
         );
     }
 

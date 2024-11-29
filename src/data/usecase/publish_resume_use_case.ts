@@ -27,7 +27,7 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
             let image: string | undefined
             let footer = ''
             if (param.issueAction) {
-                if (param.mustCleanAll) {
+                if (param.mustCleanIssue) {
                     title = '🗑️ Cleanup Actions'
                     image = getRandomElement(param.giphy.cleanUpGifs)
                 } else if (param.hotfix.active) {

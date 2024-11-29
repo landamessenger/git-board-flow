@@ -16,6 +16,9 @@ export class IssueRepository {
         isHotfix: boolean,
         isQuestion: boolean,
         isHelp: boolean,
+        featureLabel: string,
+        bugfixLabel: string,
+        releaseLabel: string,
         token: string,
     ): Promise<string | undefined> => {
         try {
@@ -29,20 +32,22 @@ export class IssueRepository {
                 emoji = '❓';
             } else if (isHotfix) {
                 emoji = '🔥';
-            } else if (branchType === 'bugfix') {
+            } else if (branchType === bugfixLabel) {
                 emoji = '🐛';
-            } else if (branchType === 'feature') {
+            } else if (branchType === featureLabel) {
                 emoji = '🛠️';
+            } else if (branchType === releaseLabel) {
+                emoji = '🚀';
             }
 
             let sanitizedTitle = issueTitle
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
-                .replace(/\u200D/g, '')   // Elimina "Zero Width Joiner"
-                .replace(/[^\S\r\n]+/g, ' ') // Colapsa espacios repetidos
+                .replace(/\u200D/g, '')
+                .replace(/[^\S\r\n]+/g, ' ')
                 .replace(/[^a-zA-Z0-9 ]/g, '')
-                .replace(/^-+|-+$/g, '') // Elimina guiones al inicio y al final
-                .replace(/- -/g, '-').trim() // Elimina guiones al inicio y al final
-                .replace(/-+/g, '-')     // Reemplaza guiones repetidos
+                .replace(/^-+|-+$/g, '')
+                .replace(/- -/g, '-').trim()
+                .replace(/-+/g, '-')
                 .trim();
 
             const formattedTitle = `${emoji} - ${sanitizedTitle}`;
@@ -57,6 +62,45 @@ export class IssueRepository {
 
                 core.info(`Issue title updated to: ${formattedTitle}`);
                 return formattedTitle;
+            }
+
+            return undefined;
+        } catch (error) {
+            core.setFailed(`Failed to check or update issue title: ${error}`);
+            return undefined;
+        }
+    };
+
+    cleanTitle = async (
+        owner: string,
+        repository: string,
+        issueTitle: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<string | undefined> => {
+        try {
+            const octokit = github.getOctokit(token);
+
+            let sanitizedTitle = issueTitle
+                .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                .replace(/\u200D/g, '')
+                .replace(/[^\S\r\n]+/g, ' ')
+                .replace(/[^a-zA-Z0-9 ]/g, '')
+                .replace(/^-+|-+$/g, '')
+                .replace(/- -/g, '-').trim()
+                .replace(/-+/g, '-')
+                .trim();
+
+            if (sanitizedTitle !== issueTitle) {
+                await octokit.rest.issues.update({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                    title: sanitizedTitle,
+                });
+
+                core.info(`Issue title updated to: ${sanitizedTitle}`);
+                return sanitizedTitle;
             }
 
             return undefined;
