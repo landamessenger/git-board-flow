@@ -32920,7 +32920,7 @@ run();
 /***/ 5794:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-module.exports = require(__nccwpck_require__.ab + "out/isolated_vm.node")
+module.exports = require(__dirname + "out/isolated_vm.node")
 
 /***/ }),
 
