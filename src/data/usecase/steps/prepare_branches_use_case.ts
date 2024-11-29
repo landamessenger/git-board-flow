@@ -95,7 +95,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             success: true,
                             executed: true,
                             steps: [
-                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and won't be created from the tag [**${tagBranch}**](${tagUrl}).`,
+                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${lastTag}**](${tagUrl}).`,
                             ],
                         })
                     )
@@ -161,7 +161,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     reminder = `Open a Pull Request from [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}) to [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${lastAction.payload.baseBranchName}...${lastAction.payload.newBranchName}?expand=1)`
                 }
 
-                let firstReminder = `Commit the necessary changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`
+                let firstReminder = `Commit the required changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`
                 if (commitPrefix.length > 0) {
                     firstReminder += `
 > Consider commiting with the prefix \`${commitPrefix}\`.`
@@ -188,8 +188,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             success: true,
                             executed: true,
                             reminders: [
-                                `Open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}) after merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`,
-                                `Create the tag \`${param.hotfix.version}\` after merging into [\`${param.branches.main}\`](${mainBranchUrl}).`,
+                                `After merging into [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}), open a Pull Request from [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}) to [\`${param.branches.main}\`](${mainBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${lastAction.payload.baseBranchName}?expand=1)`,
+                                `After merging into [\`${param.branches.main}\`](${mainBranchUrl}), create the tag \`${param.hotfix.version}\`.`,
                             ]
                         })
                     )
