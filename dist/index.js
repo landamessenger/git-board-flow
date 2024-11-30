@@ -30187,6 +30187,7 @@ class Execution {
                 console.log(`this.pullRequest.head: ${this.pullRequest.head}`);
                 console.log(`issue number (PR): ${this.number}`);
                 this.labels.currentLabels = await pullRequestRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
+                console.log(`currentLabels: ${this.labels.currentLabels}`);
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
                 this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
             }
@@ -31341,6 +31342,7 @@ class PullRequestRepository {
         };
         this.getLabels = async (owner, repository, pullRequestNumber, token) => {
             const octokit = github.getOctokit(token);
+            console.log(`getLabels on pullRequestNumber: ${pullRequestNumber}`);
             const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
                 owner: owner,
                 repo: repository,
