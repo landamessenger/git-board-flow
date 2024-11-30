@@ -31228,7 +31228,36 @@ class ProjectRepository {
                 number: parseInt(projectNumber, 10),
             });
         };
+        this.isContentLinked = async (project, contentId, token) => {
+            const octokit = github.getOctokit(token);
+            const query = `
+    query($projectId: ID!, $contentId: ID!) {
+      node(id: $projectId) {
+        ... on ProjectV2 {
+          items(first: 100) {
+            nodes {
+              content {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+            const result = await octokit.graphql(query, {
+                projectId: project.id,
+                contentId: contentId,
+            });
+            const items = result.node.items.nodes;
+            return items.some((item) => item.content.id === contentId);
+        };
         this.linkContentId = async (project, contentId, token) => {
+            const alreadyLinked = await this.isContentLinked(project, contentId, token);
+            if (alreadyLinked) {
+                core.info(`Content ${contentId} is already linked to project ${project.id}.`);
+                return false;
+            }
             const octokit = github.getOctokit(token);
             const linkMutation = `
           mutation($projectId: ID!, $contentId: ID!) {
@@ -31244,6 +31273,7 @@ class ProjectRepository {
                 contentId: contentId,
             });
             core.info(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
+            return true;
         };
     }
 }
@@ -31300,12 +31330,8 @@ class PullRequestRepository {
         this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
         this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
         this.isLinked = async (pullRequestUrl) => {
-            core.info(`Fetching PR URL: ${pullRequestUrl}`);
             const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
-            const isLinked = !htmlContent.includes('has_github_issues=false');
-            core.exportVariable('is_linked', isLinked.toString());
-            core.info(`Is PR linked to an issue? ${isLinked}`);
-            return isLinked;
+            return !htmlContent.includes('has_github_issues=false');
         };
         this.updateBaseBranch = async (owner, repository, pullRequestNumber, branch, token) => {
             const octokit = github.getOctokit(token);
@@ -32119,15 +32145,17 @@ class LinkIssueProjectUseCase {
                     continue;
                 }
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
-                await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
-                    ]
-                }));
+                const actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
+                if (actionDone) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
+                        ]
+                    }));
+                }
             }
             return result;
         }
@@ -32339,16 +32367,18 @@ class LinkPullRequestProjectUseCase {
         const result = [];
         try {
             for (const project of param.projects) {
-                await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `The pull request was linked to \`${project.url}\`.`,
-                    ],
-                    error: core_1.error,
-                }));
+                const actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
+                if (actionDone) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `The pull request was linked to \`${project.url}\`.`,
+                        ],
+                        error: core_1.error,
+                    }));
+                }
             }
             return result;
         }
