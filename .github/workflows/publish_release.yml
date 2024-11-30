@@ -81,12 +81,15 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const octokit = github.getOctokit('${{ secrets.GITHUB_TOKEN }}');
+            const superOctokit = github.getOctokit('${{ secrets.REPO_PAT }}');
+
             const sourceTag = 'v${{ env.VERSION }}';
             const targetTag = sourceTag.split('.')[0];
 
             async function findTag(tag) {
               try {
-                const { data: foundTag } = await github.rest.git.getRef({
+                const { data: foundTag } = await octokit.rest.git.getRef({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   ref: `tags/${tag}`,
@@ -115,7 +118,7 @@ jobs:
 
               if (foundTargetTag) {
                 console.log(`Updating the '${targetTag}' tag to point to the '${sourceTag}' tag`);
-                await github.rest.git.updateRef({
+                await octokit.rest.git.updateRef({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   ref: refName,
@@ -124,7 +127,7 @@ jobs:
                 });
               } else {
                 console.log(`Creating the '${targetTag}' tag from the '${sourceTag}' tag`);
-                await github.rest.git.createRef({
+                await octokit.rest.git.createRef({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   ref: `refs/${refName}`,
@@ -135,7 +138,7 @@ jobs:
 
             async function transferAssets(sourceReleaseId, targetReleaseId) {
               // List assets from the source release
-              const { data: sourceAssets } = await github.rest.repos.listReleaseAssets({
+              const { data: sourceAssets } = await superOctokit.rest.repos.listReleaseAssets({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 release_id: sourceReleaseId,
@@ -146,14 +149,15 @@ jobs:
               // Download and re-upload each asset
               for (const asset of sourceAssets) {
                 console.log(`Transferring asset: ${asset.name}`);
-                const assetResponse = await github.request(`GET ${asset.url}`, {
+                const assetResponse = await superOctokit.request(`GET ${asset.url}`, {
                   headers: {
                     Accept: 'application/octet-stream',
+                    Authorization: `token ${token}`, // Autenticación explícita para descargar assets
                   },
                 });
 
                 // Upload asset to the target release
-                await github.rest.repos.uploadReleaseAsset({
+                await superOctokit.rest.repos.uploadReleaseAsset({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   release_id: targetReleaseId,
@@ -167,7 +171,7 @@ jobs:
 
             async function updateRelease(sourceTag, targetTag) {
               // Get the release associated with sourceTag
-              const { data: sourceRelease } = await github.rest.repos.getReleaseByTag({
+              const { data: sourceRelease } = await octokit.rest.repos.getReleaseByTag({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 tag: sourceTag,
@@ -176,7 +180,7 @@ jobs:
               console.log(`Found release for sourceTag '${sourceTag}': ${sourceRelease.name}`);
 
               // Check if there is a release for targetTag
-              const { data: releases } = await github.rest.repos.listReleases({
+              const { data: releases } = await octokit.rest.repos.listReleases({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
               });
@@ -187,7 +191,7 @@ jobs:
               if (targetRelease) {
                 console.log(`Updating release for targetTag '${targetTag}'`);
                 // Update the target release with the content from the source release
-                await github.rest.repos.updateRelease({
+                await octokit.rest.repos.updateRelease({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   release_id: targetRelease.id,
@@ -200,7 +204,7 @@ jobs:
               } else {
                 console.log(`Creating new release for targetTag '${targetTag}'`);
                 // Create a new release for targetTag if it doesn't exist
-                const { data: newRelease } = await github.rest.repos.createRelease({
+                const { data: newRelease } = await octokit.rest.repos.createRelease({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   tag_name: targetTag,
