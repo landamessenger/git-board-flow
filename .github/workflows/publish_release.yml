@@ -76,9 +76,3 @@ jobs:
             });
       
             console.log(`Release created: ${release.html_url}`);
-
-      - name: Publish to GitHub Marketplace
-        uses: actions/publish-action@main
-        with:
-          source-tag: v${{ env.VERSION }}
-          token: ${{ secrets.GITHUB_TOKEN }}
