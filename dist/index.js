@@ -30140,14 +30140,14 @@ class Execution {
     get mustRun() {
         return this.commitAction || (this.runAlways || this.labels.runnerLabels);
     }
-    get mustCleanAll() {
+    get mustCleanIssue() {
         return this.issueAction && !this.mustRun;
     }
     get managementBranch() {
-        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
+        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
     }
     get issueType() {
-        return (0, label_utils_1.typesForIssue)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix);
+        return (0, label_utils_1.typesForIssue)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
     }
     get cleanManagement() {
         console.log(`issueAction: ${this.issueAction}`);
@@ -30914,7 +30914,7 @@ class IssueRepository {
     constructor() {
         this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
         this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
-        this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchType, isHotfix, isQuestion, isHelp, token) => {
+        this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchType, isHotfix, isQuestion, isHelp, featureLabel, bugfixLabel, releaseLabel, token) => {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
@@ -30927,20 +30927,23 @@ class IssueRepository {
                 else if (isHotfix) {
                     emoji = '🔥';
                 }
-                else if (branchType === 'bugfix') {
+                else if (branchType === bugfixLabel) {
                     emoji = '🐛';
                 }
-                else if (branchType === 'feature') {
+                else if (branchType === featureLabel) {
                     emoji = '🛠️';
+                }
+                else if (branchType === releaseLabel) {
+                    emoji = '🚀';
                 }
                 let sanitizedTitle = issueTitle
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
-                    .replace(/\u200D/g, '') // Elimina "Zero Width Joiner"
-                    .replace(/[^\S\r\n]+/g, ' ') // Colapsa espacios repetidos
+                    .replace(/\u200D/g, '')
+                    .replace(/[^\S\r\n]+/g, ' ')
                     .replace(/[^a-zA-Z0-9 ]/g, '')
-                    .replace(/^-+|-+$/g, '') // Elimina guiones al inicio y al final
-                    .replace(/- -/g, '-').trim() // Elimina guiones al inicio y al final
-                    .replace(/-+/g, '-') // Reemplaza guiones repetidos
+                    .replace(/^-+|-+$/g, '')
+                    .replace(/- -/g, '-').trim()
+                    .replace(/-+/g, '-')
                     .trim();
                 const formattedTitle = `${emoji} - ${sanitizedTitle}`;
                 if (formattedTitle !== issueTitle) {
@@ -30952,6 +30955,35 @@ class IssueRepository {
                     });
                     core.info(`Issue title updated to: ${formattedTitle}`);
                     return formattedTitle;
+                }
+                return undefined;
+            }
+            catch (error) {
+                core.setFailed(`Failed to check or update issue title: ${error}`);
+                return undefined;
+            }
+        };
+        this.cleanTitle = async (owner, repository, issueTitle, issueNumber, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                let sanitizedTitle = issueTitle
+                    .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                    .replace(/\u200D/g, '')
+                    .replace(/[^\S\r\n]+/g, ' ')
+                    .replace(/[^a-zA-Z0-9 ]/g, '')
+                    .replace(/^-+|-+$/g, '')
+                    .replace(/- -/g, '-').trim()
+                    .replace(/-+/g, '-')
+                    .trim();
+                if (sanitizedTitle !== issueTitle) {
+                    await octokit.rest.issues.update({
+                        owner: owner,
+                        repo: repository,
+                        issue_number: issueNumber,
+                        title: sanitizedTitle,
+                    });
+                    core.info(`Issue title updated to: ${sanitizedTitle}`);
+                    return sanitizedTitle;
                 }
                 return undefined;
             }
@@ -31646,7 +31678,7 @@ class PublishResultUseCase {
             let image;
             let footer = '';
             if (param.issueAction) {
-                if (param.mustCleanAll) {
+                if (param.mustCleanIssue) {
                     title = '🗑️ Cleanup Actions';
                     image = (0, list_utils_1.getRandomElement)(param.giphy.cleanUpGifs);
                 }
@@ -32748,32 +32780,56 @@ class UpdateTitleUseCase {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            if (param.emojiLabeledTitle) {
-                const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.issueType, param.hotfix.active, param.labels.isQuestion, param.labels.isHelp, param.tokens.token);
-                if (title) {
-                    result.push(new result_1.Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
-                        ]
-                    }));
+            if (param.issueAction) {
+                if (param.mustRun) {
+                    if (param.emojiLabeledTitle) {
+                        const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.issueType, param.hotfix.active, param.labels.isQuestion, param.labels.isHelp, param.labels.feature, param.labels.bugfix, param.labels.release, param.tokens.token);
+                        if (title) {
+                            result.push(new result_1.Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
+                                ]
+                            }));
+                        }
+                        else {
+                            result.push(new result_1.Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: false,
+                            }));
+                        }
+                    }
+                    else {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        }));
+                    }
                 }
                 else {
-                    result.push(new result_1.Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    }));
+                    const title = await this.issueRepository.cleanTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.tokens.token);
+                    if (title) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
+                            ]
+                        }));
+                    }
+                    else {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        }));
+                    }
                 }
-            }
-            else {
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: false,
-                }));
             }
         }
         catch (error) {
@@ -32874,19 +32930,23 @@ exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.typesForIssue = exports.branchesForManagement = void 0;
-const branchesForManagement = (params, labels, bugfixLabel, hotfixLabel) => {
+const branchesForManagement = (params, labels, bugfixLabel, hotfixLabel, releaseLabel) => {
     if (labels.includes(hotfixLabel))
         return params.branches.bugfixTree;
     if (labels.includes(bugfixLabel))
         return params.branches.bugfixTree;
+    if (labels.includes(releaseLabel))
+        return params.branches.releaseTree;
     return params.branches.featureTree;
 };
 exports.branchesForManagement = branchesForManagement;
-const typesForIssue = (params, labels, bugfixLabel, hotfixLabel) => {
+const typesForIssue = (params, labels, bugfixLabel, hotfixLabel, releaseLabel) => {
     if (labels.includes(hotfixLabel))
         return params.branches.hotfixTree;
     if (labels.includes(bugfixLabel))
         return params.branches.bugfixTree;
+    if (labels.includes(releaseLabel))
+        return params.branches.releaseTree;
     return params.branches.featureTree;
 };
 exports.typesForIssue = typesForIssue;
@@ -33035,6 +33095,7 @@ const publish_resume_use_case_1 = __nccwpck_require__(5487);
 const store_configuration_use_case_1 = __nccwpck_require__(4879);
 const images_1 = __nccwpck_require__(1721);
 const commit_check_use_case_1 = __nccwpck_require__(3316);
+const update_title_use_case_1 = __nccwpck_require__(8411);
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     const action = core.getInput('action', { required: true });
@@ -33119,7 +33180,8 @@ async function run() {
         return;
     }
     const results = [];
-    if (execution.mustCleanAll) {
+    if (execution.mustCleanIssue) {
+        results.push(...await new update_title_use_case_1.UpdateTitleUseCase().invoke(execution));
         results.push(...await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(execution));
         await finishWithResults(execution, results);
         return;
