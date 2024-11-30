@@ -76,3 +76,146 @@ jobs:
             });
       
             console.log(`Release created: ${release.html_url}`);
+
+      - name: Publish to GitHub Marketplace
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sourceTag = 'v${{ env.VERSION }}';
+            const targetTag = 'v' + sourceTag.split('.')[0];
+
+            async function findTag(tag) {
+              try {
+                const { data: foundTag } = await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${tag}`,
+                });
+                return foundTag;
+              } catch (err) {
+                if (err.status === 404) {
+                  return null;
+                }
+                throw new Error(`Retrieving refs failed with the following error: ${err.message}`);
+              }
+            }
+
+            async function getTagSHA(tag) {
+              const foundTag = await findTag(tag);
+              if (!foundTag) {
+                throw new Error(`The '${tag}' tag does not exist in the remote repository`);
+              }
+              return foundTag.object.sha;
+            }
+
+            async function updateTag(sourceTag, targetTag) {
+              const sourceTagSHA = await getTagSHA(sourceTag);
+              const foundTargetTag = await findTag(targetTag);
+              const refName = `tags/${targetTag}`;
+
+              if (foundTargetTag) {
+                console.log(`Updating the '${targetTag}' tag to point to the '${sourceTag}' tag`);
+                await github.rest.git.updateRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: refName,
+                  sha: sourceTagSHA,
+                  force: true,
+                });
+              } else {
+                console.log(`Creating the '${targetTag}' tag from the '${sourceTag}' tag`);
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/${refName}`,
+                  sha: sourceTagSHA,
+                });
+              }
+            }
+
+            async function transferAssets(sourceReleaseId, targetReleaseId) {
+              // List assets from the source release
+              const { data: sourceAssets } = await github.rest.repos.listReleaseAssets({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: sourceReleaseId,
+              });
+
+              console.log(`Found ${sourceAssets.length} assets in source release.`);
+
+              // Download and re-upload each asset
+              for (const asset of sourceAssets) {
+                console.log(`Transferring asset: ${asset.name}`);
+                const assetResponse = await github.request(`GET ${asset.url}`, {
+                  headers: {
+                    Accept: 'application/octet-stream',
+                  },
+                });
+
+                // Upload asset to the target release
+                await github.rest.repos.uploadReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: targetReleaseId,
+                  name: asset.name,
+                  data: assetResponse.data,
+                });
+
+                console.log(`Asset ${asset.name} transferred.`);
+              }
+            }
+
+            async function updateRelease(sourceTag, targetTag) {
+              // Get the release associated with sourceTag
+              const { data: sourceRelease } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: sourceTag,
+              });
+
+              console.log(`Found release for sourceTag '${sourceTag}': ${sourceRelease.name}`);
+
+              // Check if there is a release for targetTag
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+
+              const targetRelease = releases.find(r => r.tag_name === targetTag);
+
+              let targetReleaseId;
+              if (targetRelease) {
+                console.log(`Updating release for targetTag '${targetTag}'`);
+                // Update the target release with the content from the source release
+                await github.rest.repos.updateRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: targetRelease.id,
+                  name: sourceRelease.name,
+                  body: sourceRelease.body,
+                  draft: sourceRelease.draft,
+                  prerelease: sourceRelease.prerelease,
+                });
+                targetReleaseId = targetRelease.id;
+              } else {
+                console.log(`Creating new release for targetTag '${targetTag}'`);
+                // Create a new release for targetTag if it doesn't exist
+                const { data: newRelease } = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: targetTag,
+                  name: sourceRelease.name,
+                  body: sourceRelease.body,
+                  draft: sourceRelease.draft,
+                  prerelease: sourceRelease.prerelease,
+                });
+                targetReleaseId = newRelease.id;
+              }
+
+              // Transfer assets from sourceRelease to targetRelease
+              await transferAssets(sourceRelease.id, targetReleaseId);
+            }
+
+            await updateTag(sourceTag, targetTag);
+            await updateRelease(sourceTag, targetTag);
+      
