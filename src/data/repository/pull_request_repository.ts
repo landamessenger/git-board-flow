@@ -148,6 +148,10 @@ ${this.endConfigPattern}`;
         issueNumber: number,
         token: string
     ): Promise<Config | undefined> => {
+        if (issueNumber === -1) {
+            return undefined;
+        }
+
         const octokit = github.getOctokit(token);
 
         try {
