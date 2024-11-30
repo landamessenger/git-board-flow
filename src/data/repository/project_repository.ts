@@ -11,7 +11,7 @@ export class ProjectRepository {
             throw new Error(`Invalid project URL: ${projectUrl}`);
         }
 
-        const { ownerType, ownerName, projectNumber } = projectMatch.groups;
+        const {ownerType, ownerName, projectNumber} = projectMatch.groups;
         const ownerQueryField = ownerType === 'orgs' ? 'organization' : 'user';
 
         const queryProject = `
@@ -59,13 +59,18 @@ export class ProjectRepository {
         const octokit = github.getOctokit(token);
 
         const query = `
-    query($projectId: ID!, $contentId: ID!) {
+    query($projectId: ID!) {
       node(id: $projectId) {
         ... on ProjectV2 {
           items(first: 100) {
             nodes {
               content {
-                id
+                ... on PullRequest {
+                  id
+                }
+                ... on Issue {
+                  id
+                }
               }
             }
           }
@@ -76,11 +81,12 @@ export class ProjectRepository {
 
         const result: any = await octokit.graphql(query, {
             projectId: project.id,
-            contentId: contentId,
         });
 
         const items = result.node.items.nodes;
-        return items.some((item: any) => item.content.id === contentId);
+        return items.some(
+            (item: any) => item.content && item.content.id === contentId
+        );
     };
 
     linkContentId = async (project: ProjectDetail, contentId: string, token: string) => {
