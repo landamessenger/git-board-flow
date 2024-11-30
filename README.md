@@ -1,6 +1,6 @@
-# Git-Board: Automated Branch and Project Management GitHub Action
+# Git Board Flow: Automated Branch and Project Management GitHub Action
 
-**Git-Board** is a powerful GitHub Action designed to streamline issue, branch, and project management while adhering to the Git-Flow methodology. This action simplifies your workflow by automating the creation and management of branches, linking them to issues, and ensuring smooth integration with GitHub Projects.
+**Git Board Flow** is a powerful GitHub Action designed to streamline issue, branch, and project management while adhering to the Git-Flow methodology. This action simplifies your workflow by automating the creation and management of branches, linking them to issues, and ensuring smooth integration with GitHub Projects.
 
 ---
 
@@ -47,7 +47,7 @@
 
 
 ```yaml
-name: Git Board - Issue
+name: Git Board Flow - Issue
 
 on:
   issues:
@@ -59,14 +59,14 @@ concurrency:
 
 jobs:
   git-board-issues:
-    name: Git Board - Issues
+    name: Git Board Flow - Issues
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Issues
+      - name: Git Board Flow - Issues
         uses: landamessenger/git-board@master
         with:
           action: issue
@@ -82,7 +82,7 @@ jobs:
 <p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/pull_request_linking.png"></p>
 
 ```yaml
-name: Git Board - Pull Requests
+name: Git Board Flow - Pull Requests
 
 on:
   pull_request:
@@ -94,14 +94,14 @@ concurrency:
 
 jobs:
   git-board-pull-requests:
-    name: Git Board - Pull Requests
+    name: Git Board Flow - Pull Requests
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Pull Requests
+      - name: Git Board Flow - Pull Requests
         uses: landamessenger/git-board@master
         with:
           action: pull-request
@@ -117,7 +117,7 @@ jobs:
 <p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_commit.png"></p>
 
 ```yaml
-name: Git Board - Commits
+name: Git Board Flow - Commits
 
 on:
   push:
@@ -126,14 +126,14 @@ on:
 
 jobs:
   git-board-commits:
-    name: Git Board - Commits
+    name: Git Board Flow - Commits
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Commits
+      - name: Git Board Flow - Commits
         uses: landamessenger/git-board@master
         with:
           action: commit
@@ -149,7 +149,7 @@ jobs:
 
 ---
 
-## Why Git-Board?
+## Why Git Board Flow?
 - **Consistent Git-Flow Management**: Adheres strictly to Git-Flow methodology for clear branching strategies.
 - **Project Visibility**: Ensures all relevant branches, issues, and PRs are properly tracked and communicated.
 - **Time-Saving**: Automates repetitive tasks, freeing up time for development and review.
@@ -157,4 +157,4 @@ jobs:
 
 ---
 
-Get started with **Git-Board** and simplify your GitHub project workflows today! 🚀
+Get started with **Git Board Flow** and simplify your GitHub project workflows today! 🚀

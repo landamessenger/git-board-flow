@@ -35,3 +35,26 @@ jobs:
             git tag "v${{ env.VERSION }}"
             git push origin "v${{ env.VERSION }}"
           fi
+          
+      - name: Create a release
+        id: create_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = "${{ env.VERSION }}";
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${version}`,
+              name: `Release v${version}`,
+              body: `Release notes for v${version}`,
+              draft: false,
+              prerelease: false,
+            });
+            console.log(`Release created: ${release.html_url}`);
+
+      - name: Publish to GitHub Marketplace
+        uses: actions/publish-action@master
+        with:
+          tag: v${{ env.VERSION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
