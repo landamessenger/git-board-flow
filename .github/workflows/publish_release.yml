@@ -83,6 +83,8 @@ jobs:
 
             async function transferAssets(sourceReleaseId, targetReleaseId) {
               // List assets from the source release
+              console.log(`sourceReleaseId ${sourceReleaseId}`)
+              console.log(`targetReleaseId ${targetReleaseId}`)
               const { data: sourceAssets } = await github.rest.repos.listReleaseAssets({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
