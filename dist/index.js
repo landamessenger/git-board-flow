@@ -32811,23 +32811,25 @@ class UpdateTitleUseCase {
                     }
                 }
                 else {
-                    const title = await this.issueRepository.cleanTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.tokens.token);
-                    if (title) {
-                        result.push(new result_1.Result({
-                            id: this.taskId,
-                            success: true,
-                            executed: true,
-                            steps: [
-                                `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
-                            ]
-                        }));
-                    }
-                    else {
-                        result.push(new result_1.Result({
-                            id: this.taskId,
-                            success: true,
-                            executed: false,
-                        }));
+                    if (param.emojiLabeledTitle) {
+                        const title = await this.issueRepository.cleanTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.tokens.token);
+                        if (title) {
+                            result.push(new result_1.Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
+                                ]
+                            }));
+                        }
+                        else {
+                            result.push(new result_1.Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: false,
+                            }));
+                        }
                     }
                 }
             }
