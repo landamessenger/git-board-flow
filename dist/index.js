@@ -31438,6 +31438,9 @@ ${this.endConfigPattern}`;
             }
         };
         this.readConfig = async (owner, repo, issueNumber, token) => {
+            if (issueNumber === -1) {
+                return undefined;
+            }
             const octokit = github.getOctokit(token);
             try {
                 const { data: issue } = await octokit.rest.issues.get({
@@ -33242,7 +33245,7 @@ async function run() {
     const execution = new execution_1.Execution(runAlways, titleEmoji, action === 'issue', action === 'pull-request', action === 'commit', commitPrefixBuilder, new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(actionLauncherLabel, bugfixLabel, hotfixLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
-        core.setFailed(`Issue number not found. Skipping.`);
+        core.info(`Issue number not found. Skipping.`);
         return;
     }
     const results = [];
