@@ -134,41 +134,6 @@ jobs:
                 });
               }
             }
-
-            async function transferAssets(sourceReleaseId, targetReleaseId) {
-              // List assets from the source release
-              console.log(`sourceReleaseId ${sourceReleaseId}`)
-              console.log(`targetReleaseId ${targetReleaseId}`)
-              const { data: sourceAssets } = await github.rest.repos.listReleaseAssets({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: sourceReleaseId,
-              });
-
-              console.log(`Found ${sourceAssets.length} assets in source release.`);
-
-              // Download and re-upload each asset
-              for (const asset of sourceAssets) {
-                console.log(`Transferring asset: ${asset.name}`);
-                const assetResponse = await github.request(`GET ${asset.url}`, {
-                  headers: {
-                    Accept: 'application/octet-stream',
-                  },
-                });
-
-                // Upload asset to the target release
-                await github.rest.repos.uploadReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: targetReleaseId,
-                  name: asset.name,
-                  data: assetResponse.data,
-                });
-
-                console.log(`Asset ${asset.name} transferred.`);
-              }
-            }
-
             async function updateRelease(sourceTag, targetTag) {
               // Get the release associated with sourceTag
               const { data: sourceRelease } = await github.rest.repos.getReleaseByTag({
@@ -215,9 +180,6 @@ jobs:
                 });
                 targetReleaseId = newRelease.id;
               }
-
-              // Transfer assets from sourceRelease to targetRelease
-              await transferAssets(sourceRelease.id, targetReleaseId);
             }
 
             await updateTag(sourceTag, targetTag);

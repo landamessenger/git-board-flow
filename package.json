@@ -1,7 +1,7 @@
 {
   "name": "git-board-flow",
-  "version": "1.0.11",
-  "description": "",
+  "version": "1.0.0",
+  "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "dist/index.js",
   "scripts": {
     "build": "ncc build src/index.ts -o dist",

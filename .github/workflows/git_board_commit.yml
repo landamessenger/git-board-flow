@@ -1,0 +1,26 @@
+name: Git Board - Commit
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  git-board-commits:
+    name: Git Board - Commits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Commits
+        uses: landamessenger/git-board@v1
+        with:
+          action: commit
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token-personal: ${{ secrets.REPO_PAT }}
+          commit-prefix-builder: |
+            branchName.replace("/", "-");
+
+
