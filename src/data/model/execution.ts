@@ -161,6 +161,7 @@ export class Execution {
                 this.pullRequest.number,
                 this.tokens.token
             );
+            console.log(`currentLabels: ${this.labels.currentLabels}`)
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
             this.previousConfiguration = await pullRequestRepository.readConfig(
                 this.owner,
