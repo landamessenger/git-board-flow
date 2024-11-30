@@ -10,7 +10,7 @@ inputs:
     default: "false"
   action-launcher-label:
     description: "Label to trigger branch management actions."
-    default: "git-board"
+    default: "git-board-flow"
   hotfix-label:
     description: "Label to manage hotfix branches."
     default: "hotfix"

@@ -43,7 +43,7 @@
 
 ## Issues Management
 
-<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_feature.png"></p>
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board-flow/raw/master/images/issue_feature.png"></p>
 
 
 ```yaml
@@ -58,7 +58,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  git-board-issues:
+  git-board-flow-issues:
     name: Git Board Flow - Issues
     runs-on: ubuntu-latest
 
@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board Flow - Issues
-        uses: landamessenger/git-board@master
+        uses: landamessenger/git-board-flow@master
         with:
           action: issue
           project-urls: https://github.com/orgs/landamessenger/projects/2, https://github.com/orgs/landamessenger/projects/3
@@ -79,7 +79,7 @@ jobs:
 
 ## Pull Request Management
 
-<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/pull_request_linking.png"></p>
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board-flow/raw/master/images/pull_request_linking.png"></p>
 
 ```yaml
 name: Git Board Flow - Pull Requests
@@ -93,7 +93,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  git-board-pull-requests:
+  git-board-flow-pull-requests:
     name: Git Board Flow - Pull Requests
     runs-on: ubuntu-latest
 
@@ -102,7 +102,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board Flow - Pull Requests
-        uses: landamessenger/git-board@master
+        uses: landamessenger/git-board-flow@master
         with:
           action: pull-request
           project-urls: https://github.com/orgs/landamessenger/projects/2, https://github.com/orgs/landamessenger/projects/3
@@ -114,7 +114,7 @@ jobs:
 
 ## Commits Check
 
-<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_commit.png"></p>
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board-flow/raw/master/images/issue_commit.png"></p>
 
 ```yaml
 name: Git Board Flow - Commits
@@ -125,7 +125,7 @@ on:
       - '**'
 
 jobs:
-  git-board-commits:
+  git-board-flow-commits:
     name: Git Board Flow - Commits
     runs-on: ubuntu-latest
 
@@ -134,7 +134,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board Flow - Commits
-        uses: landamessenger/git-board@master
+        uses: landamessenger/git-board-flow@master
         with:
           action: commit
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -145,7 +145,7 @@ jobs:
 
 - Warning received if the prefix of the commit does not match the one defined from `commit-prefix-builder`.
 
-<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_commit_warning.png"></p>
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board-flow/raw/master/images/issue_commit_warning.png"></p>
 
 ---
 

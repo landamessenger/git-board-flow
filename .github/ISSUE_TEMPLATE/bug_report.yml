@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Report a bug on git-board
+description: Report a bug on git-board-flow
 title: "<YOUR TITLE HERE>"
 labels: ["bug"]
 body:
@@ -68,8 +68,8 @@ body:
 
   - type: input
     attributes:
-      label: git-board Version
-      description: What version of git-board is being used?
+      label: git-board-flow Version
+      description: What version of git-board-flow is being used?
       placeholder: "master"
     validations:
       required: true

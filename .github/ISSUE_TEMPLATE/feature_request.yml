@@ -1,5 +1,5 @@
 name: ✨ Feature Request
-description: Propose an idea or improvement for git-board
+description: Propose an idea or improvement for git-board-flow
 title: "<YOUR TITLE HERE>"
 labels: ["enhancement"]
 body:
@@ -92,9 +92,9 @@ body:
 
   - type: input
     attributes:
-      label: Version of git-board
+      label: Version of git-board-flow
       description: |
-        What version of git-board are you using, or does this proposal apply to all versions?
+        What version of git-board-flow are you using, or does this proposal apply to all versions?
       placeholder: "master"
     validations:
       required: false
