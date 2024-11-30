@@ -31003,8 +31003,19 @@ class IssueRepository {
 ${JSON.stringify(config, null, 4)}
 ${this.endConfigPattern}`;
                 if (currentDescription.indexOf(this.startConfigPattern) === -1
+                    && currentDescription.indexOf(this.endConfigPattern) === -1) {
+                    const finalDescription = `${currentDescription}\n\n${configBlock}`;
+                    await octokit.rest.issues.update({
+                        owner,
+                        repo,
+                        issue_number: issueNumber,
+                        body: finalDescription,
+                    });
+                    return;
+                }
+                if (currentDescription.indexOf(this.startConfigPattern) === -1
                     || currentDescription.indexOf(this.endConfigPattern) === -1) {
-                    console.log(`Issue #${issueNumber} has no branch configuration.`);
+                    console.error(`Issue #${issueNumber} has a problem with open-close tags: ${this.startConfigPattern} / ${this.endConfigPattern}`);
                     return;
                 }
                 const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
@@ -31394,8 +31405,19 @@ class PullRequestRepository {
 ${JSON.stringify(config, null, 4)}
 ${this.endConfigPattern}`;
                 if (currentDescription.indexOf(this.startConfigPattern) === -1
+                    && currentDescription.indexOf(this.endConfigPattern) === -1) {
+                    const finalDescription = `${currentDescription}\n\n${configBlock}`;
+                    await octokit.rest.issues.update({
+                        owner,
+                        repo,
+                        issue_number: issueNumber,
+                        body: finalDescription,
+                    });
+                    return;
+                }
+                if (currentDescription.indexOf(this.startConfigPattern) === -1
                     || currentDescription.indexOf(this.endConfigPattern) === -1) {
-                    console.log(`Pull request #${issueNumber} has no branch configuration.`);
+                    console.error(`Pull request #${issueNumber} has a problem with open-close tags: ${this.startConfigPattern} / ${this.endConfigPattern}`);
                     return;
                 }
                 const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
