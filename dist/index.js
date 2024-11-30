@@ -30138,7 +30138,7 @@ class Execution {
         return this.issueType === 'bugfix';
     }
     get mustRun() {
-        return this.commitAction || (this.runAlways || this.labels.runnerLabels);
+        return this.commitAction || this.runAlways || this.labels.runnerLabels;
     }
     get mustCleanIssue() {
         return this.issueAction && !this.mustRun;
@@ -33187,7 +33187,7 @@ async function run() {
         return;
     }
     if (!execution.mustRun) {
-        core.setFailed(`Issue ${execution.number}. Skipping.`);
+        core.info(`Skipping action. Nothing to do here.`);
         return;
     }
     try {
