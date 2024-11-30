@@ -43,7 +43,7 @@
 
 ## Issues Management
 
-<p align="center"><img width="50%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_feature.png"></p>
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_feature.png"></p>
 
 
 ```yaml
@@ -112,7 +112,7 @@ jobs:
 
 ## Commits Check
 
-<p align="center"><img width="50%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_commit.png"></p>
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_commit.png"></p>
 
 ```yaml
 name: Git Board - Commits
@@ -143,7 +143,7 @@ jobs:
 
 - Warning received if the prefix of the commit does not match the one defined from `commit-prefix-builder`.
 
-<p align="center"><img width="50%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_commit_warning.png"></p>
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/issue_commit_warning.png"></p>
 
 ---
 
