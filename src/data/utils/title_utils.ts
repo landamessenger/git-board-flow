@@ -6,7 +6,8 @@ export const extractIssueNumberFromBranch = (branchName: string): number => {
     if (match) {
         return parseInt(match[1])
     } else {
-        throw new Error(`No issue number found in branch name: ${branchName}`);
+        core.info('No issue number found in the branch name.');
+        return -1;
     }
 }
 
