@@ -50,7 +50,7 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
                 commentBody += `
 ${this.separator}
 
-- ${commit.id} 
+- ${commit.id} by **${commit.author.name}** (@${commit.author.username})
 \`\`\`
 ${commit.message}
 \`\`\`
