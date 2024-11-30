@@ -3,7 +3,7 @@ name: Prepare Release
 on:
   push:
     branches:
-      - master
+      - develop
 
 jobs:
   update-dist-version:
@@ -23,7 +23,7 @@ jobs:
       - name: Build Project
         run: npm run build
 
-      - name: Read and increment version with TypeScript
+      - name: Read and increment version
         id: increment_version
         uses: actions/github-script@v7
         with:
@@ -42,18 +42,6 @@ jobs:
             fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2));
             
             core.exportVariable('VERSION', newVersion)
-
-      - name: Create tag
-        id: create_tag
-        run: |
-          # Check if the tag already exists in the remote repository
-          if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
-            echo "Tag v${{ env.VERSION }} already exists."
-          else
-            # Create and push the new tag
-            git tag "v${{ env.VERSION }}"
-            git push origin "v${{ env.VERSION }}"
-          fi
 
       - name: Commit updated package.json and dist directory
         uses: EndBug/add-and-commit@v9
