@@ -31231,13 +31231,18 @@ class ProjectRepository {
         this.isContentLinked = async (project, contentId, token) => {
             const octokit = github.getOctokit(token);
             const query = `
-    query($projectId: ID!, $contentId: ID!) {
+    query($projectId: ID!) {
       node(id: $projectId) {
         ... on ProjectV2 {
           items(first: 100) {
             nodes {
               content {
-                id
+                ... on PullRequest {
+                  id
+                }
+                ... on Issue {
+                  id
+                }
               }
             }
           }
@@ -31247,10 +31252,9 @@ class ProjectRepository {
   `;
             const result = await octokit.graphql(query, {
                 projectId: project.id,
-                contentId: contentId,
             });
             const items = result.node.items.nodes;
-            return items.some((item) => item.content.id === contentId);
+            return items.some((item) => item.content && item.content.id === contentId);
         };
         this.linkContentId = async (project, contentId, token) => {
             const alreadyLinked = await this.isContentLinked(project, contentId, token);
