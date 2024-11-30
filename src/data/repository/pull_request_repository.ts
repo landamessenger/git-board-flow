@@ -8,13 +8,8 @@ export class PullRequestRepository {
     private endConfigPattern = 'GIT-BOARD-CONFIG-END -->'
 
     isLinked = async (pullRequestUrl: string) => {
-        core.info(`Fetching PR URL: ${pullRequestUrl}`);
         const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
-        const isLinked = !htmlContent.includes('has_github_issues=false');
-        core.exportVariable('is_linked', isLinked.toString());
-
-        core.info(`Is PR linked to an issue? ${isLinked}`);
-        return isLinked;
+        return !htmlContent.includes('has_github_issues=false');
     }
 
     updateBaseBranch = async (

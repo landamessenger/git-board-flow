@@ -51,7 +51,45 @@ export class ProjectRepository {
         });
     };
 
+    isContentLinked = async (
+        project: ProjectDetail,
+        contentId: string,
+        token: string
+    ): Promise<boolean> => {
+        const octokit = github.getOctokit(token);
+
+        const query = `
+    query($projectId: ID!, $contentId: ID!) {
+      node(id: $projectId) {
+        ... on ProjectV2 {
+          items(first: 100) {
+            nodes {
+              content {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+        const result: any = await octokit.graphql(query, {
+            projectId: project.id,
+            contentId: contentId,
+        });
+
+        const items = result.node.items.nodes;
+        return items.some((item: any) => item.content.id === contentId);
+    };
+
     linkContentId = async (project: ProjectDetail, contentId: string, token: string) => {
+        const alreadyLinked = await this.isContentLinked(project, contentId, token);
+        if (alreadyLinked) {
+            core.info(`Content ${contentId} is already linked to project ${project.id}.`);
+            return false;
+        }
+
         const octokit = github.getOctokit(token);
 
         const linkMutation = `
@@ -69,5 +107,7 @@ export class ProjectRepository {
         });
 
         core.info(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
+
+        return true;
     }
 }

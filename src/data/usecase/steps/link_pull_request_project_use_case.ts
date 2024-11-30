@@ -16,18 +16,24 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
 
         try {
             for (const project of param.projects) {
-                await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat)
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The pull request was linked to \`${project.url}\`.`,
-                        ],
-                        error: error,
-                    })
+                const actionDone = await this.projectRepository.linkContentId(
+                    project,
+                    param.pullRequest.id,
+                    param.tokens.tokenPat
                 )
+                if (actionDone) {
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The pull request was linked to \`${project.url}\`.`,
+                            ],
+                            error: error,
+                        })
+                    )
+                }
             }
             return result;
         } catch (error) {

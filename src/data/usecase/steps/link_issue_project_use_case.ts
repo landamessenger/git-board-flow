@@ -56,18 +56,19 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                     param.tokens.token,
                 )
 
-                await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
-
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
-                        ]
-                    })
-                )
+                const actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
+                if (actionDone) {
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
+                            ]
+                        })
+                    )
+                }
             }
 
             return result;
