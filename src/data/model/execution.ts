@@ -153,20 +153,17 @@ export class Execution {
         } else if (this.pullRequestAction) {
             const pullRequestRepository = new PullRequestRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
-            console.log(`this.pullRequest.head: ${this.pullRequest.head}`)
-            console.log(`issue number (PR): ${this.number}`)
             this.labels.currentLabels = await pullRequestRepository.getLabels(
                 this.owner,
                 this.repo,
                 this.pullRequest.number,
                 this.tokens.token
             );
-            console.log(`currentLabels: ${this.labels.currentLabels}`)
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
             this.previousConfiguration = await pullRequestRepository.readConfig(
                 this.owner,
                 this.repo,
-                this.issue.number,
+                this.pullRequest.number,
                 this.tokens.token,
             )
         } else if (this.commitAction) {

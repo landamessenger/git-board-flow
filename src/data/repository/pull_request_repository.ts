@@ -78,7 +78,6 @@ export class PullRequestRepository {
         token: string,
     ): Promise<string[]> => {
         const octokit = github.getOctokit(token);
-        console.log(`getLabels on pullRequestNumber: ${pullRequestNumber}`)
         const {data: labels} = await octokit.rest.issues.listLabelsOnIssue({
             owner: owner,
             repo: repository,
