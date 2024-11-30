@@ -49,7 +49,7 @@ export class Execution {
     }
 
     get mustRun(): boolean {
-        return this.commitAction || (this.runAlways || this.labels.runnerLabels);
+        return this.commitAction || this.runAlways || this.labels.runnerLabels;
     }
 
     get mustCleanIssue(): boolean {

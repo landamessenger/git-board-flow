@@ -164,7 +164,7 @@ async function run(): Promise<void> {
     }
 
     if (!execution.mustRun) {
-        core.setFailed(`Issue ${execution.number}. Skipping.`);
+        core.info(`Skipping action. Nothing to do here.`);
         return;
     }
 
