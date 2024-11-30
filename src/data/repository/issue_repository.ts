@@ -133,6 +133,12 @@ export class IssueRepository {
 ${JSON.stringify(config, null, 4)}
 ${this.endConfigPattern}`;
 
+            if (currentDescription.indexOf(this.startConfigPattern) === -1
+                || currentDescription.indexOf(this.endConfigPattern) === -1) {
+                console.log(`Issue #${issueNumber} has no branch configuration.`);
+                return;
+            }
+
             const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0]
             const oldContent = `${this.startConfigPattern}${storedConfig}${this.endConfigPattern}`
             const updatedDescription = currentDescription.replace(oldContent, '')

@@ -103,6 +103,12 @@ export class PullRequestRepository {
 ${JSON.stringify(config, null, 4)}
 ${this.endConfigPattern}`;
 
+            if (currentDescription.indexOf(this.startConfigPattern) === -1
+                || currentDescription.indexOf(this.endConfigPattern) === -1) {
+                console.log(`Pull request #${issueNumber} has no branch configuration.`);
+                return;
+            }
+
             const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0]
             const oldContent = `${this.startConfigPattern}${storedConfig}${this.endConfigPattern}`
             const updatedDescription = currentDescription.replace(oldContent, '')
@@ -116,7 +122,7 @@ ${this.endConfigPattern}`;
                 body: finalDescription,
             });
 
-            console.log(`Issue #${issueNumber} updated with branch configuration.`);
+            console.log(`Pull request #${issueNumber} updated with branch configuration.`);
         } catch (error) {
             console.error(`Error updating issue description: ${error}`);
             throw error;
