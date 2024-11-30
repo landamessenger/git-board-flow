@@ -82,7 +82,7 @@ jobs:
         with:
           script: |
             const sourceTag = 'v${{ env.VERSION }}';
-            const targetTag = 'v' + sourceTag.split('.')[0];
+            const targetTag = sourceTag.split('.')[0];
 
             async function findTag(tag) {
               try {
@@ -218,4 +218,3 @@ jobs:
 
             await updateTag(sourceTag, targetTag);
             await updateRelease(sourceTag, targetTag);
-      
