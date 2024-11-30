@@ -10,14 +10,14 @@ concurrency:
 
 jobs:
   git-board-issues:
-    name: Git Board - Issues
+    name: Git Board - Issue
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Issues
+      - name: Git Board - Issue
         uses: landamessenger/git-board@v1
         with:
           action: issue

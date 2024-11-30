@@ -10,14 +10,14 @@ concurrency:
 
 jobs:
   git-board-pull-requests:
-    name: Git Board - Pull Requests
+    name: Git Board - Pull Request
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Pull Requests
+      - name: Git Board - Pull Request
         uses: landamessenger/git-board@v1
         with:
           action: pull-request

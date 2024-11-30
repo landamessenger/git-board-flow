@@ -7,14 +7,14 @@ on:
 
 jobs:
   git-board-commits:
-    name: Git Board - Commits
+    name: Git Board - Commit
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Commits
+      - name: Git Board - Commit
         uses: landamessenger/git-board@v1
         with:
           action: commit
