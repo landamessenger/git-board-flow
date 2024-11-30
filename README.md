@@ -79,6 +79,8 @@ jobs:
 
 ## Pull Request Management
 
+<p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board/raw/master/images/pull_request_linking.png"></p>
+
 ```yaml
 name: Git Board - Pull Requests
 
