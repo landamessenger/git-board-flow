@@ -58,21 +58,21 @@ jobs:
               throw new Error('No pull requests merged into master were found.');
             }
         
-              const lastPr = pulls[0];
-              console.log(`Last PR found: ${lastPr.title} (#${lastPr.number})`);
-        
-              // Use the PR description for the release notes
-              const releaseBody = lastPr.body || 'No description provided for the last merged PR.';
-        
-              // Create the release
-              const { data: release } = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: `v${version}`,
-                name: `v${version} - ${lastPr.title}`,
-                body: releaseBody,
-                draft: false,
-                prerelease: false,
+            const lastPr = pulls[0];
+            console.log(`Last PR found: ${lastPr.title} (#${lastPr.number})`);
+      
+            // Use the PR description for the release notes
+            const releaseBody = lastPr.body || 'No description provided for the last merged PR.';
+      
+            // Create the release
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${version}`,
+              name: `v${version} - ${lastPr.title}`,
+              body: releaseBody,
+              draft: false,
+              prerelease: false,
             });
       
             console.log(`Release created: ${release.html_url}`);
