@@ -18,12 +18,6 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Build Project
-        run: npm run build
-
       - name: Read and increment version
         id: increment_version
         uses: actions/github-script@v7
@@ -43,6 +37,12 @@ jobs:
             fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2));
             
             core.exportVariable('VERSION', newVersion)
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Project
+        run: npm run build
 
       - name: Commit updated package.json and dist directory
         uses: EndBug/add-and-commit@v9
