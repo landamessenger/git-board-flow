@@ -42,19 +42,43 @@ jobs:
         with:
           script: |
             const version = "${{ env.VERSION }}";
-            const { data: release } = await github.rest.repos.createRelease({
+            
+            // Fetch the pull requests merged into the base branch (master)
+            const { data: pulls } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: `v${version}`,
-              name: `Release v${version}`,
-              body: `Release notes for v${version}`,
-              draft: false,
-              prerelease: false,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 1,
+              base: 'master',
             });
+        
+            if (pulls.length === 0) {
+              throw new Error('No pull requests merged into master were found.');
+            }
+        
+              const lastPr = pulls[0];
+              console.log(`Last PR found: ${lastPr.title} (#${lastPr.number})`);
+        
+              // Use the PR description for the release notes
+              const releaseBody = lastPr.body || 'No description provided for the last merged PR.';
+        
+              // Create the release
+              const { data: release } = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: `v${version}`,
+                name: `v${version} - ${lastPr.title}`,
+                body: releaseBody,
+                draft: false,
+                prerelease: false,
+            });
+      
             console.log(`Release created: ${release.html_url}`);
 
       - name: Publish to GitHub Marketplace
-        uses: actions/publish-action@master
+        uses: actions/publish-action@main
         with:
           source-tag: v${{ env.VERSION }}
           token: ${{ secrets.GITHUB_TOKEN }}

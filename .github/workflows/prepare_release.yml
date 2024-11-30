@@ -1,12 +1,13 @@
 name: Prepare Release
 
 on:
-  push:
-    branches:
-      - master
+  pull_request:
+    types:
+      - closed
 
 jobs:
-  update-dist-version:
+  prepare-release:
+    if: ${{ github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'master' }}
     name: Update version and compile files
     runs-on: ubuntu-latest
     steps:
