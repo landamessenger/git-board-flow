@@ -56,5 +56,5 @@ jobs:
       - name: Publish to GitHub Marketplace
         uses: actions/publish-action@master
         with:
-          tag: v${{ env.VERSION }}
+          source-tag: v${{ env.VERSION }}
           token: ${{ secrets.GITHUB_TOKEN }}
