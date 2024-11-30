@@ -81,8 +81,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const octokit = github.getOctokit('${{ secrets.GITHUB_TOKEN }}');
-            const superOctokit = github.getOctokit('${{ secrets.REPO_PAT }}');
+            const { Octokit } = require('@octokit/rest');
+            const octokit = new Octokit({ auth: '${{ secrets.GITHUB_TOKEN }}' });
+            const superOctokit = new Octokit({ auth: '${{ secrets.REPO_PAT }}' });
 
             const sourceTag = 'v${{ env.VERSION }}';
             const targetTag = sourceTag.split('.')[0];
