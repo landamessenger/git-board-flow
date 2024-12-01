@@ -33,7 +33,7 @@ export class CloseIssueUseCase implements ParamUseCase<Execution, Result[]> {
                         success: true,
                         executed: true,
                         steps: [
-                            `#${param.number} was automatically merged after merging this pull request.`
+                            `#${param.number} was automatically closed after merging this pull request.`
                         ]
                     })
                 )
