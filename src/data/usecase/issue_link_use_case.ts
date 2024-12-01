@@ -16,7 +16,7 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
 
         const results: Result[] = []
 
-        if (param.cleanManagement) {
+        if (param.cleanIssueBranches) {
             results.push(...await new RemoveIssueBranchesUseCase().invoke(param));
         }
 
@@ -31,9 +31,13 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
         results.push(...await new UpdateTitleUseCase().invoke(param));
 
         /**
-         * When hotfix, prepare it first
+         * Prepare branches
          */
-        results.push(...await new PrepareBranchesUseCase().invoke(param));
+        if (param.isBranched) {
+            results.push(...await new PrepareBranchesUseCase().invoke(param));
+        } else {
+            results.push(...await new RemoveIssueBranchesUseCase().invoke(param));
+        }
 
         /**
          * Remove unnecessary branches

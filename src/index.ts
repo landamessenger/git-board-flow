@@ -15,6 +15,7 @@ import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_
 import {Images} from "./data/model/images";
 import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
 import {UpdateTitleUseCase} from "./data/usecase/steps/update_title_use_case";
+import {Emoji} from "./data/model/emoji";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -81,19 +82,22 @@ async function run(): Promise<void> {
     /**
      * Runs always
      */
-    const runAlways = core.getInput('run-always') === 'true';
+    const branchManagementAlways = core.getInput('branch-management-always') === 'true';
 
     /**
      * Emoji-title
      */
     const titleEmoji = core.getInput('emoji-labeled-title') === 'true';
+    const branchManagementEmoji = core.getInput('branch-management-emoji');
 
     /**
      * Labels
      */
-    const actionLauncherLabel = core.getInput('action-launcher-label');
+    const branchManagementLauncherLabel = core.getInput('branch-management-launcher-label');
     const bugfixLabel = core.getInput('bugfix-label');
+    const bugLabel = core.getInput('bug-label');
     const hotfixLabel = core.getInput('hotfix-label');
+    const enhancementLabel = core.getInput('enhancement-label');
     const featureLabel = core.getInput('feature-label');
     const releaseLabel = core.getInput('release-label');
     const questionLabel = core.getInput('question-label');
@@ -112,12 +116,15 @@ async function run(): Promise<void> {
     const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
 
     const execution = new Execution(
-        runAlways,
-        titleEmoji,
+        branchManagementAlways,
         action === 'issue',
         action === 'pull-request',
         action === 'commit',
         commitPrefixBuilder,
+        new Emoji(
+            titleEmoji,
+            branchManagementEmoji,
+        ),
         new Images(
             imagesUrlsCleanUp,
             imagesUrlsFeature,
@@ -127,9 +134,11 @@ async function run(): Promise<void> {
         ),
         new Tokens(token, tokenPat),
         new Labels(
-            actionLauncherLabel,
+            branchManagementLauncherLabel,
+            bugLabel,
             bugfixLabel,
             hotfixLabel,
+            enhancementLabel,
             featureLabel,
             releaseLabel,
             questionLabel,
@@ -155,18 +164,6 @@ async function run(): Promise<void> {
     }
 
     const results: Result[] = []
-
-    if (execution.mustCleanIssue) {
-        results.push(...await new UpdateTitleUseCase().invoke(execution));
-        results.push(...await new RemoveIssueBranchesUseCase().invoke(execution));
-        await finishWithResults(execution, results)
-        return;
-    }
-
-    if (!execution.mustRun) {
-        core.info(`Skipping action. Nothing to do here.`);
-        return;
-    }
 
     try {
         if (execution.issueAction) {
