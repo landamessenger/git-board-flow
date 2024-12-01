@@ -15,9 +15,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board - Commit
-        uses: landamessenger/git-board@v1
+        uses: ./
         with:
-          action: commit
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
           commit-prefix-builder: |

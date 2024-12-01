@@ -2,9 +2,6 @@ name: "Git Board Flow"
 description: "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology."
 author: "Landa Messenger"
 inputs:
-  action:
-    description: "Specifies the action to perform (e.g., manage branches, link projects)."
-    required: true
   emoji-labeled-title:
     description: "Enable titles with emojis based on issue labels."
     default: "false"

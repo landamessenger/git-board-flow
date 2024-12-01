@@ -15,7 +15,7 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
     async invoke(param: Execution): Promise<void> {
         core.info(`Executing ${this.taskId}.`)
         try {
-            if (param.issueAction) {
+            if (param.isIssue) {
                 await this.issueRepository.updateConfig(
                     param.owner,
                     param.repo,
@@ -23,7 +23,7 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
                     param.currentConfiguration,
                     param.tokens.token,
                 )
-            } else if (param.pullRequestAction) {
+            } else if (param.isPullRequest) {
                 await this.pullRequestRepository.updateConfig(
                     param.owner,
                     param.repo,

@@ -8,18 +8,15 @@ import {Tokens} from "./data/model/tokens";
 import {Labels} from "./data/model/labels";
 import {Branches} from "./data/model/branches";
 import {Hotfix} from "./data/model/hotfix";
-import {RemoveIssueBranchesUseCase} from "./data/usecase/remove_issue_branches_use_case";
 import {Result} from "./data/model/result";
 import {PublishResultUseCase} from "./data/usecase/publish_resume_use_case";
 import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_case";
 import {Images} from "./data/model/images";
 import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
-import {UpdateTitleUseCase} from "./data/usecase/steps/update_title_use_case";
 import {Emoji} from "./data/model/emoji";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
-    const action = core.getInput('action', {required: true});
 
     /**
      * Tokens
@@ -117,9 +114,6 @@ async function run(): Promise<void> {
 
     const execution = new Execution(
         branchManagementAlways,
-        action === 'issue',
-        action === 'pull-request',
-        action === 'commit',
         commitPrefixBuilder,
         new Emoji(
             titleEmoji,
@@ -166,14 +160,14 @@ async function run(): Promise<void> {
     const results: Result[] = []
 
     try {
-        if (execution.issueAction) {
+        if (execution.isIssue) {
             results.push(...await new IssueLinkUseCase().invoke(execution));
-        } else if (execution.pullRequestAction) {
+        } else if (execution.isPullRequest) {
             results.push(...await new PullRequestLinkUseCase().invoke(execution));
-        } else if (execution.commitAction) {
+        } else if (execution.isPush) {
             results.push(...await new CommitCheckUseCase().invoke(execution));
         } else {
-            core.setFailed(`Action not handled: ${action}`);
+            core.setFailed(`Action not handled.`);
         }
 
         await finishWithResults(execution, results)
