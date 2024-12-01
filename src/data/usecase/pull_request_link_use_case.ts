@@ -18,7 +18,7 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
             console.log(`PR isOpened ${param.pullRequest.isOpened}`)
             console.log(`PR isMerged ${param.pullRequest.isMerged}`)
             console.log(`PR isClosed ${param.pullRequest.isClosed}`)
-            if (!param.pullRequest.isOpened) {
+            if (param.pullRequest.isOpened) {
                 /**
                  * Link Pull Request to projects
                  */
@@ -27,7 +27,6 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                 /**
                  * Link Pull Request to issue
                  */
-                results.push(...await new LinkPullRequestIssueUseCase().invoke(param));
                 results.push(...await new LinkPullRequestIssueUseCase().invoke(param));
             } else if (param.pullRequest.isClosed && param.pullRequest.isMerged) {
                 /**
