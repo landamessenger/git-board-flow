@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board - Pull Request
-        uses: landamessenger/git-board-flow@v1
+        uses: ./
         with:
           project-urls: https://github.com/orgs/landamessenger/projects/2
           images-pr-link: https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExb2l4d25hNjEyNHRpN3NldzhsOGI2d2liZDdjYzcxdGFqb3E5N2FmOSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2UHbv8WT6TKBeeP9Mt/giphy.webp, https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3FzdHFnMmRtMzNqZzRtc3M5ZzJpcTEwMzcxc3E2b2M2em9yOXdlMyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MOGOpGFr52Rm5wZjJx/giphy.webp, https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGE5cHZsbjlybXBleXEwdDJ2N2N5enR6OGtoZjJqcjVncHZpNWJmciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/d2Z9QYzA2aidiWn6/giphy.webp
