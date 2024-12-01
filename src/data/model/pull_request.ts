@@ -38,10 +38,12 @@ export class PullRequest {
     }
 
     get isOpened(): boolean {
-        return github.context.payload.pull_request?.state === 'open';
+        return github.context.payload.pull_request?.state === 'open'
+            && this.action !== 'closed';
     }
 
     get isClosed(): boolean {
-        return github.context.payload.pull_request?.state === 'closed';
+        return github.context.payload.pull_request?.state === 'closed'
+            || this.action === 'closed';
     }
 }

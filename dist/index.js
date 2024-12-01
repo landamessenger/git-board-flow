@@ -30497,10 +30497,12 @@ class PullRequest {
         return github.context.payload.pull_request?.merged ?? false;
     }
     get isOpened() {
-        return github.context.payload.pull_request?.state === 'open';
+        return github.context.payload.pull_request?.state === 'open'
+            && this.action !== 'closed';
     }
     get isClosed() {
-        return github.context.payload.pull_request?.state === 'closed';
+        return github.context.payload.pull_request?.state === 'closed'
+            || this.action === 'closed';
     }
 }
 exports.PullRequest = PullRequest;
@@ -31951,7 +31953,11 @@ class PullRequestLinkUseCase {
         core.info(`Executing ${this.taskId}.`);
         const results = [];
         try {
-            if (!param.pullRequest.isOpened) {
+            console.log(`PR action ${param.pullRequest.action}`);
+            console.log(`PR isOpened ${param.pullRequest.isOpened}`);
+            console.log(`PR isMerged ${param.pullRequest.isMerged}`);
+            console.log(`PR isClosed ${param.pullRequest.isClosed}`);
+            if (param.pullRequest.isOpened) {
                 /**
                  * Link Pull Request to projects
                  */
@@ -31959,7 +31965,6 @@ class PullRequestLinkUseCase {
                 /**
                  * Link Pull Request to issue
                  */
-                results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
                 results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
             }
             else if (param.pullRequest.isClosed && param.pullRequest.isMerged) {
