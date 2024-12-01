@@ -32,4 +32,4 @@ jobs:
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
-          message: 'gh-action: updated compiled files and bumped version to ${{ env.VERSION }}'
+          message: 'gh-action: updated compiled files'
