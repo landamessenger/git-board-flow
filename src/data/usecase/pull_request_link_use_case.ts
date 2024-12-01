@@ -14,6 +14,10 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
 
         const results: Result[] = []
         try {
+            console.log(`PR action ${param.pullRequest.action}`)
+            console.log(`PR isOpened ${param.pullRequest.isOpened}`)
+            console.log(`PR isMerged ${param.pullRequest.isMerged}`)
+            console.log(`PR isClosed ${param.pullRequest.isClosed}`)
             if (!param.pullRequest.isOpened) {
                 /**
                  * Link Pull Request to projects
