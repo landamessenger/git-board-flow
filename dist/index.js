@@ -31957,7 +31957,7 @@ class PullRequestLinkUseCase {
             console.log(`PR isOpened ${param.pullRequest.isOpened}`);
             console.log(`PR isMerged ${param.pullRequest.isMerged}`);
             console.log(`PR isClosed ${param.pullRequest.isClosed}`);
-            if (!param.pullRequest.isOpened) {
+            if (param.pullRequest.isOpened) {
                 /**
                  * Link Pull Request to projects
                  */
@@ -31965,7 +31965,6 @@ class PullRequestLinkUseCase {
                 /**
                  * Link Pull Request to issue
                  */
-                results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
                 results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
             }
             else if (param.pullRequest.isClosed && param.pullRequest.isMerged) {
