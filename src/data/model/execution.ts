@@ -13,16 +13,17 @@ import {extractIssueNumberFromBranch, extractIssueNumberFromBranchB} from "../ut
 import {Config} from "./config";
 import {Images} from "./images";
 import {Commit} from "./commit";
+import {Emoji} from "./emoji";
 
 export class Execution {
-    runAlways: boolean;
-    emojiLabeledTitle: boolean;
+    branchManagementAlways: boolean;
     number: number = -1
     issueAction: boolean = false;
     commitAction: boolean = false;
     pullRequestAction: boolean = false;
     commitPrefixBuilder: string;
     commitPrefixBuilderParams: any = {};
+    emoji: Emoji;
     giphy: Images;
     tokens: Tokens;
     labels: Labels;
@@ -48,12 +49,12 @@ export class Execution {
         return this.issueType === 'bugfix';
     }
 
-    get mustRun(): boolean {
-        return this.commitAction || this.runAlways || this.labels.runnerLabels;
+    get isBranched(): boolean {
+        return this.branchManagementAlways || this.labels.containsBranchedLabel;
     }
 
     get mustCleanIssue(): boolean {
-        return this.issueAction && !this.mustRun;
+        return this.issueAction && !this.isBranched;
     }
 
     get managementBranch(): string {
@@ -76,11 +77,7 @@ export class Execution {
         );
     }
 
-    get cleanManagement(): boolean {
-        console.log(`issueAction: ${this.issueAction}`)
-        console.log(`previousConfiguration: ${JSON.stringify(this.previousConfiguration)}`)
-        console.log(`previousConfiguration.branchType: ${this.previousConfiguration?.branchType}`)
-        console.log(`currentConfiguration.branchType: ${this.currentConfiguration?.branchType}`)
+    get cleanIssueBranches(): boolean {
         return this.issueAction
             && this.previousConfiguration !== undefined
             && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
@@ -99,12 +96,12 @@ export class Execution {
     }
 
     constructor(
-        runAlways: boolean,
-        emojiLabeledTitle: boolean,
+        branchManagementAlways: boolean,
         issueAction: boolean,
         pullRequestAction: boolean,
         commitAction: boolean,
         commitPrefixBuilder: string,
+        emoji: Emoji,
         giphy: Images,
         tokens: Tokens,
         labels: Labels,
@@ -115,11 +112,11 @@ export class Execution {
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.giphy = giphy;
         this.tokens = tokens;
-        this.emojiLabeledTitle = emojiLabeledTitle;
+        this.emoji = emoji;
         this.labels = labels;
         this.branches = branches;
         this.hotfix = hotfix;
-        this.runAlways = runAlways;
+        this.branchManagementAlways = branchManagementAlways;
         this.issueAction = issueAction;
         this.pullRequestAction = pullRequestAction;
         this.commitAction = commitAction;

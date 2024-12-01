@@ -2,6 +2,7 @@ import * as github from "@actions/github";
 import * as core from "@actions/core";
 import {Milestone} from "../model/milestone";
 import {Config} from "../model/config";
+import {Labels} from "../model/labels";
 
 export class IssueRepository {
     private startConfigPattern = '<!-- GIT-BOARD-CONFIG-START'
@@ -12,13 +13,8 @@ export class IssueRepository {
         repository: string,
         issueTitle: string,
         issueNumber: number,
-        branchType: string,
-        isHotfix: boolean,
-        isQuestion: boolean,
-        isHelp: boolean,
-        featureLabel: string,
-        bugfixLabel: string,
-        releaseLabel: string,
+        branchManagementEmoji: string,
+        labels: Labels,
         token: string,
     ): Promise<string | undefined> => {
         try {
@@ -26,18 +22,22 @@ export class IssueRepository {
 
             let emoji = '🤖';
 
-            if (isHelp) {
-                emoji = '🆘';
-            } else if (isQuestion) {
-                emoji = '❓';
-            } else if (isHotfix) {
-                emoji = '🔥';
-            } else if (branchType === bugfixLabel) {
+            if (labels.isHotfix) {
+                emoji = `🔥${branchManagementEmoji}`;
+            } else if (labels.isRelease) {
+                emoji = `🚀${branchManagementEmoji}`;
+            } else if (labels.isBugfix) {
+                emoji = `🐛${branchManagementEmoji}`;
+            } else if (labels.isFeature) {
+                emoji = `✨${branchManagementEmoji}`;
+            } else if (labels.isBug) {
                 emoji = '🐛';
-            } else if (branchType === featureLabel) {
-                emoji = '🛠️';
-            } else if (branchType === releaseLabel) {
-                emoji = '🚀';
+            } else if (labels.isEnhancement) {
+                emoji = '✨';
+            } else if (labels.isHelp) {
+                emoji = '🆘';
+            } else if (labels.isQuestion) {
+                emoji = '❓';
             }
 
             let sanitizedTitle = issueTitle

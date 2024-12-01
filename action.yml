@@ -8,21 +8,33 @@ inputs:
   emoji-labeled-title:
     description: "Enable titles with emojis based on issue labels."
     default: "false"
-  action-launcher-label:
+  branch-management-launcher-label:
     description: "Label to trigger branch management actions."
-    default: "git-board-flow"
+    default: "branched"
+  branch-management-always:
+    description: "If true, ignores the branch-management-launcher-label requirement for running Git Board."
+    default: "false"
+  branch-management-emoji:
+    description: "Emoji to indicate branched issues. It will be ignored if emoji-labeled-title is false."
+    default: "🧑‍💻"
   hotfix-label:
     description: "Label to manage hotfix branches."
     default: "hotfix"
   release-label:
     description: "Label to manage release branches."
     default: "release"
+  bug-label:
+    description: "Label to indicate a bug type."
+    default: "bug"
   bugfix-label:
     description: "Label to manage bugfix branches."
     default: "bugfix"
   feature-label:
     description: "Label to manage feature branches."
     default: "feature"
+  enhancement-label:
+    description: "Label to indicate a enhancement type."
+    default: "enhancement"
   question-label:
     description: "Label to detect issues marked as questions."
     default: "question"
@@ -68,9 +80,6 @@ inputs:
   images-pr-link:
     description: "Image URLs to display in PR linking action comments."
     default: ""
-  run-always:
-    description: "If true, ignores the action-launcher-label requirement for running Git Board."
-    default: "false"
   commit-prefix-builder:
     description: "Enable commit prefix generation."
     default: "false"
