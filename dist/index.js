@@ -30497,10 +30497,12 @@ class PullRequest {
         return github.context.payload.pull_request?.merged ?? false;
     }
     get isOpened() {
-        return github.context.payload.pull_request?.state === 'open';
+        return github.context.payload.pull_request?.state === 'open'
+            && github.context.payload.action !== 'closed';
     }
     get isClosed() {
-        return github.context.payload.pull_request?.state === 'closed';
+        return github.context.payload.pull_request?.state === 'closed'
+            || github.context.payload.action === 'closed';
     }
 }
 exports.PullRequest = PullRequest;
