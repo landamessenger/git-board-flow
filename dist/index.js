@@ -31835,7 +31835,7 @@ class PublishResultUseCase {
                 }
             }
             else if (param.isPullRequest) {
-                title = '🪄 Pull Request Actions';
+                title = '🪄 Automatic Actions';
                 image = (0, list_utils_1.getRandomElement)(param.giphy.cleanUpGifs);
             }
             if (image) {
@@ -32163,7 +32163,7 @@ class CloseIssueUseCase {
                     success: true,
                     executed: true,
                     steps: [
-                        `#${param.number} was automatically merged after merging this pull request.`
+                        `#${param.number} was automatically closed after merging this pull request.`
                     ]
                 }));
             }
