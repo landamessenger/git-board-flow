@@ -59,17 +59,16 @@ concurrency:
 
 jobs:
   git-board-flow-issues:
-    name: Git Board Flow - Issues
+    name: Git Board Flow - Issue
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board Flow - Issues
+      - name: Git Board Flow - Issue
         uses: landamessenger/git-board-flow@master
         with:
-          action: issue
           project-urls: https://github.com/orgs/landamessenger/projects/2, https://github.com/orgs/landamessenger/projects/3
           commit-prefix-builder: |
             branchName.replace("/", "-");
@@ -82,7 +81,7 @@ jobs:
 <p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board-flow/raw/master/images/pull_request_linking.png"></p>
 
 ```yaml
-name: Git Board Flow - Pull Requests
+name: Git Board Flow - Pull Request
 
 on:
   pull_request:
@@ -94,17 +93,16 @@ concurrency:
 
 jobs:
   git-board-flow-pull-requests:
-    name: Git Board Flow - Pull Requests
+    name: Git Board Flow - Pull Request
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board Flow - Pull Requests
+      - name: Git Board Flow - Pull Request
         uses: landamessenger/git-board-flow@master
         with:
-          action: pull-request
           project-urls: https://github.com/orgs/landamessenger/projects/2, https://github.com/orgs/landamessenger/projects/3
           commit-prefix-builder: |
             branchName.replace("/", "-");
@@ -117,7 +115,7 @@ jobs:
 <p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board-flow/raw/master/images/issue_commit.png"></p>
 
 ```yaml
-name: Git Board Flow - Commits
+name: Git Board Flow - Commit
 
 on:
   push:
@@ -126,17 +124,16 @@ on:
 
 jobs:
   git-board-flow-commits:
-    name: Git Board Flow - Commits
+    name: Git Board Flow - Commit
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board Flow - Commits
+      - name: Git Board Flow - Commit
         uses: landamessenger/git-board-flow@master
         with:
-          action: commit
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
           commit-prefix-builder: |

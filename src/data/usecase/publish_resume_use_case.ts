@@ -26,9 +26,9 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
             let stupidGif = ''
             let image: string | undefined
             let footer = ''
-            if (param.issueAction) {
-                if (param.mustCleanIssue) {
-                    title = '🗑️ Cleanup Actions'
+            if (param.isIssue) {
+                if (param.issueNotBranched) {
+                    title = '🪄 Automatic Actions'
                     image = getRandomElement(param.giphy.cleanUpGifs)
                 } else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions'
@@ -37,12 +37,12 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
                     title = '🐛 Bugfix Actions'
                     image = getRandomElement(param.giphy.bugfixGifs)
                 } else if (param.isFeature) {
-                    title = '🛠️ Feature Actions'
+                    title = '✨ Feature Actions'
                     image = getRandomElement(param.giphy.featureGifs)
                 }
-            } else if (param.pullRequestAction) {
-                title = '🛠️ Pull Request Linking Summary'
-                image = getRandomElement(param.giphy.prLinkGifs)
+            } else if (param.isPullRequest) {
+                title = '🪄 Pull Request Actions'
+                image = getRandomElement(param.giphy.cleanUpGifs)
             }
 
             if (image) {
@@ -87,7 +87,7 @@ Thank you for contributing! 🙌
                 return;
             }
 
-            if (param.issueAction) {
+            if (param.isIssue) {
                 await this.issueRepository.addComment(
                     param.owner,
                     param.repo,
@@ -95,7 +95,7 @@ Thank you for contributing! 🙌
                     commentBody,
                     param.tokens.token,
                 )
-            } else if (param.pullRequestAction) {
+            } else if (param.isPullRequest) {
                 await this.pullRequestRepository.addComment(
                     param.owner,
                     param.repo,

@@ -1,6 +1,10 @@
 import * as github from "@actions/github";
 
 export class PullRequest {
+    get action(): string {
+        return github.context.payload.action ?? '';
+    }
+
     get id(): string {
         return github.context.payload.pull_request?.node_id ?? '';
     }
@@ -27,5 +31,17 @@ export class PullRequest {
 
     get base(): string {
         return github.context.payload.pull_request?.base.ref ?? '';
+    }
+
+    get isMerged(): boolean {
+        return github.context.payload.pull_request?.merged ?? false;
+    }
+
+    get isOpened(): boolean {
+        return github.context.payload.pull_request?.state === 'open';
+    }
+
+    get isClosed(): boolean {
+        return github.context.payload.pull_request?.state === 'closed';
     }
 }
