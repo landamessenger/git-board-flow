@@ -350,4 +350,34 @@ ${this.endConfigPattern}`;
 
         core.info(`Comment added to Issue ${issueNumber}.`);
     }
+
+    closeIssue = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ) => {
+        const octokit = github.getOctokit(token);
+        const { data: issue } = await octokit.rest.issues.get({
+            owner: owner,
+            repo: repository,
+            issue_number: issueNumber,
+        });
+
+        core.info(`Issue #${issueNumber} state: ${issue.state}`);
+
+        if (issue.state === 'open') {
+            await octokit.rest.issues.update({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+                state: 'closed',
+            });
+            core.info(`Issue #${issueNumber} has been closed.`);
+            return true;
+        } else {
+            core.info(`Issue #${issueNumber} is already closed.`);
+            return false;
+        }
+    }
 }

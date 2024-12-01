@@ -18,9 +18,6 @@ import {Emoji} from "./emoji";
 export class Execution {
     branchManagementAlways: boolean;
     number: number = -1
-    issueAction: boolean = false;
-    commitAction: boolean = false;
-    pullRequestAction: boolean = false;
     commitPrefixBuilder: string;
     commitPrefixBuilderParams: any = {};
     emoji: Emoji;
@@ -32,6 +29,22 @@ export class Execution {
     projects: ProjectDetail[];
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
+
+    get eventName(): string {
+        return github.context.eventName;
+    }
+
+    get isIssue(): boolean {
+        return this.eventName === 'issues';
+    }
+
+    get isPullRequest(): boolean {
+        return this.eventName === 'pull_request';
+    }
+
+    get isPush(): boolean {
+        return this.eventName === 'push';
+    }
 
     get repo(): string {
         return github.context.repo.repo;
@@ -53,8 +66,8 @@ export class Execution {
         return this.branchManagementAlways || this.labels.containsBranchedLabel;
     }
 
-    get mustCleanIssue(): boolean {
-        return this.issueAction && !this.isBranched;
+    get issueNotBranched(): boolean {
+        return this.isIssue && !this.isBranched;
     }
 
     get managementBranch(): string {
@@ -78,7 +91,7 @@ export class Execution {
     }
 
     get cleanIssueBranches(): boolean {
-        return this.issueAction
+        return this.isIssue
             && this.previousConfiguration !== undefined
             && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
     }
@@ -97,9 +110,6 @@ export class Execution {
 
     constructor(
         branchManagementAlways: boolean,
-        issueAction: boolean,
-        pullRequestAction: boolean,
-        commitAction: boolean,
         commitPrefixBuilder: string,
         emoji: Emoji,
         giphy: Images,
@@ -117,15 +127,12 @@ export class Execution {
         this.branches = branches;
         this.hotfix = hotfix;
         this.branchManagementAlways = branchManagementAlways;
-        this.issueAction = issueAction;
-        this.pullRequestAction = pullRequestAction;
-        this.commitAction = commitAction;
         this.projects = projects;
         this.currentConfiguration = new Config({});
     }
 
     setup = async () => {
-        if (this.issueAction) {
+        if (this.isIssue) {
             this.number = this.issue.number;
             const issueRepository = new IssueRepository();
             this.labels.currentLabels = await issueRepository.getLabels(
@@ -147,7 +154,7 @@ export class Execution {
                 this.issue.number,
                 this.tokens.token,
             )
-        } else if (this.pullRequestAction) {
+        } else if (this.isPullRequest) {
             const pullRequestRepository = new PullRequestRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
             this.labels.currentLabels = await pullRequestRepository.getLabels(
@@ -163,7 +170,7 @@ export class Execution {
                 this.pullRequest.number,
                 this.tokens.token,
             )
-        } else if (this.commitAction) {
+        } else if (this.isPush) {
             this.number = extractIssueNumberFromBranchB(this.commit.branch)
             const pullRequestRepository = new PullRequestRepository();
             this.previousConfiguration = await pullRequestRepository.readConfig(
