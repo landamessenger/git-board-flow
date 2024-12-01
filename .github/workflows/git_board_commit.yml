@@ -1,4 +1,4 @@
-name: Git Board - Commit
+name: Git Board Flow - Commit
 
 on:
   push:

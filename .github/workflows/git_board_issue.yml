@@ -1,4 +1,4 @@
-name: Git Board - Issue
+name: Git Board Flow - Issue
 
 on:
   issues:
