@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - '**'
-    branches-ignore:
-      - master
-      - develop
+      - '!master'
+      - '!develop'
 
 jobs:
   prepare-files:
