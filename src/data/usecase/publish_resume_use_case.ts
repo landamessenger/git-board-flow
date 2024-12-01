@@ -41,7 +41,7 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
                     image = getRandomElement(param.giphy.featureGifs)
                 }
             } else if (param.isPullRequest) {
-                title = '🪄 Pull Request Actions'
+                title = '🪄 Automatic Actions'
                 image = getRandomElement(param.giphy.cleanUpGifs)
             }
 
