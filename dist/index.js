@@ -31632,7 +31632,7 @@ ${this.separator}
 
 - ${commit.id} by **${commit.author.name}** (@${commit.author.username})
 \`\`\`
-${commit.message}
+${commit.message.replaceAll(`${commitPrefix}: `, '')}
 \`\`\`
 
 `;
