@@ -30954,26 +30954,33 @@ class IssueRepository {
     constructor() {
         this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
         this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
-        this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchManagementEmoji, labels, token) => {
+        this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
-                if (labels.isHotfix) {
+                const branched = branchManagementAlways || labels.containsBranchedLabel;
+                if (labels.isHotfix && branched) {
                     emoji = `🔥${branchManagementEmoji}`;
                 }
-                else if (labels.isRelease) {
+                else if (labels.isRelease && branched) {
                     emoji = `🚀${branchManagementEmoji}`;
                 }
-                else if (labels.isBugfix) {
+                else if ((labels.isBugfix || labels.isBug) && branched) {
                     emoji = `🐛${branchManagementEmoji}`;
                 }
-                else if (labels.isFeature) {
+                else if ((labels.isFeature || labels.isEnhancement) && branched) {
                     emoji = `✨${branchManagementEmoji}`;
                 }
-                else if (labels.isBug) {
+                else if (labels.isHotfix) {
+                    emoji = '🔥';
+                }
+                else if (labels.isRelease) {
+                    emoji = '🚀';
+                }
+                else if (labels.isBugfix || labels.isBug) {
                     emoji = '🐛';
                 }
-                else if (labels.isEnhancement) {
+                else if (labels.isFeature || labels.isEnhancement) {
                     emoji = '✨';
                 }
                 else if (labels.isHelp) {
@@ -33029,7 +33036,7 @@ class UpdateTitleUseCase {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
