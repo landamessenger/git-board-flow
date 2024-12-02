@@ -12,6 +12,8 @@ jobs:
     runs-on: [ self-hosted, Linux ]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Switch to SSH
         run: git remote set-url origin git@gitboardflow.github.com:landamessenger/git-board-flow.git
@@ -59,8 +61,14 @@ jobs:
       - name: Fetch all branches
         run: git fetch --all
 
+      - name: Pull master
+        run: git pull origin master
+
       - name: Checkout develop branch
         run: git checkout develop
+
+      - name: Pull develop
+        run: git pull origin develop
 
       - name: Merge master into develop
         run: git pull origin master --no-ff
