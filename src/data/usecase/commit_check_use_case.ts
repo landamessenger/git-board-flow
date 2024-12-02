@@ -9,6 +9,7 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitCheckUseCase';
     private issueRepository = new IssueRepository();
     private mergeBranchPattern = 'Merge branch '
+    private ghAction = 'gh-action: '
     private separator = '------------------------------------------------------'
 
     async invoke(param: Execution): Promise<Result[]> {
@@ -59,6 +60,7 @@ ${commit.message.replaceAll(`${commitPrefix}: `, '')}
                 if (
                     (commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0)
                     && commit.message.indexOf(this.mergeBranchPattern) !== 0
+                    && commit.message.indexOf(this.ghAction) !== 0
                 ) {
                     shouldWarn = true;
                 }
