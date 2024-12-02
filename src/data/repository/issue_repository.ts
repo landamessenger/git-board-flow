@@ -13,6 +13,7 @@ export class IssueRepository {
         repository: string,
         issueTitle: string,
         issueNumber: number,
+        branchManagementAlways: boolean,
         branchManagementEmoji: string,
         labels: Labels,
         token: string,
@@ -22,17 +23,23 @@ export class IssueRepository {
 
             let emoji = '🤖';
 
-            if (labels.isHotfix) {
+            const branched = branchManagementAlways || labels.containsBranchedLabel
+
+            if (labels.isHotfix && branched) {
                 emoji = `🔥${branchManagementEmoji}`;
-            } else if (labels.isRelease) {
+            } else if (labels.isRelease && branched) {
                 emoji = `🚀${branchManagementEmoji}`;
-            } else if (labels.isBugfix) {
+            } else if ((labels.isBugfix || labels.isBug) && branched) {
                 emoji = `🐛${branchManagementEmoji}`;
-            } else if (labels.isFeature) {
+            } else if ((labels.isFeature || labels.isEnhancement) && branched) {
                 emoji = `✨${branchManagementEmoji}`;
-            } else if (labels.isBug) {
+            } else if (labels.isHotfix) {
+                emoji = '🔥';
+            } else if (labels.isRelease) {
+                emoji = '🚀';
+            } else if (labels.isBugfix || labels.isBug) {
                 emoji = '🐛';
-            } else if (labels.isEnhancement) {
+            } else if (labels.isFeature || labels.isEnhancement) {
                 emoji = '✨';
             } else if (labels.isHelp) {
                 emoji = '🆘';
@@ -358,7 +365,7 @@ ${this.endConfigPattern}`;
         token: string,
     ) => {
         const octokit = github.getOctokit(token);
-        const { data: issue } = await octokit.rest.issues.get({
+        const {data: issue} = await octokit.rest.issues.get({
             owner: owner,
             repo: repository,
             issue_number: issueNumber,
