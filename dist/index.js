@@ -31595,6 +31595,7 @@ class CommitCheckUseCase {
         this.taskId = 'CommitCheckUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
         this.mergeBranchPattern = 'Merge branch ';
+        this.ghAction = 'gh-action: ';
         this.separator = '------------------------------------------------------';
     }
     async invoke(param) {
@@ -31637,7 +31638,8 @@ ${commit.message.replaceAll(`${commitPrefix}: `, '')}
 
 `;
                 if ((commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0)
-                    && commit.message.indexOf(this.mergeBranchPattern) !== 0) {
+                    && commit.message.indexOf(this.mergeBranchPattern) !== 0
+                    && commit.message.indexOf(this.ghAction) !== 0) {
                     shouldWarn = true;
                 }
             }
