@@ -8,7 +8,7 @@ import {ExecuteScriptUseCase} from "./steps/execute_script_use_case";
 export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitCheckUseCase';
     private issueRepository = new IssueRepository();
-
+    private mergeBranchPattern = 'Merge branch '
     private separator = '------------------------------------------------------'
 
     async invoke(param: Execution): Promise<Result[]> {
@@ -56,7 +56,10 @@ ${commit.message}
 \`\`\`
 
 `;
-                if (commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0) {
+                if (
+                    (commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0)
+                    && commit.message.indexOf(this.mergeBranchPattern) !== 0
+                ) {
                     shouldWarn = true;
                 }
             }
