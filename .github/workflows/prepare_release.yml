@@ -55,3 +55,15 @@ jobs:
           committer_email: actions@github.com
           default_author: user_info
           message: 'gh-action: updated compiled files and bumped version to ${{ env.VERSION }}'
+
+      - name: Fetch all branches
+        run: git fetch --all
+
+      - name: Checkout develop branch
+        run: git checkout develop
+
+      - name: Merge master into develop
+        run: git pull origin master --no-ff
+
+      - name: Push changes to develop
+        run: git push origin develop
