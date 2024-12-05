@@ -30193,7 +30193,7 @@ class Execution {
     get commit() {
         return new commit_1.Commit();
     }
-    constructor(branchManagementAlways, commitPrefixBuilder, emoji, giphy, tokens, labels, branches, hotfix, projects) {
+    constructor(branchManagementAlways, reopenIssueOnPush, commitPrefixBuilder, emoji, giphy, tokens, labels, branches, hotfix, projects) {
         this.number = -1;
         this.commitPrefixBuilderParams = {};
         this.setup = async () => {
@@ -30219,6 +30219,7 @@ class Execution {
             this.currentConfiguration.branchType = this.issueType;
         };
         this.commitPrefixBuilder = commitPrefixBuilder;
+        this.reopenIssueOnPush = reopenIssueOnPush;
         this.giphy = giphy;
         this.tokens = tokens;
         this.emoji = emoji;
@@ -31231,6 +31232,29 @@ ${this.endConfigPattern}`;
                 return false;
             }
         };
+        this.openIssue = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const { data: issue } = await octokit.rest.issues.get({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+            core.info(`Issue #${issueNumber} state: ${issue.state}`);
+            if (issue.state === 'closed') {
+                await octokit.rest.issues.update({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                    state: 'open',
+                });
+                core.info(`Issue #${issueNumber} has been re-opened.`);
+                return true;
+            }
+            else {
+                core.info(`Issue #${issueNumber} is already opened.`);
+                return false;
+            }
+        };
     }
 }
 exports.IssueRepository = IssueRepository;
@@ -31654,6 +31678,12 @@ One or more commits didn't start with the prefix **${commitPrefix}**.
 ${commitPrefix}: created hello-world app
 \`\`\`
 `;
+            }
+            if (param.reopenIssueOnPush) {
+                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.number, param.tokens.token);
+                if (opened) {
+                    await this.issueRepository.addComment(param.owner, param.repo, param.number, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
+                }
             }
             await this.issueRepository.addComment(param.owner, param.repo, param.number, commentBody, param.tokens.token);
         }
@@ -33410,8 +33440,15 @@ async function run() {
     const bugfixTree = core.getInput('bugfix-tree');
     const hotfixTree = core.getInput('hotfix-tree');
     const releaseTree = core.getInput('release-tree');
+    /**
+     * Prefix builder
+     */
     const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
-    const execution = new execution_1.Execution(branchManagementAlways, commitPrefixBuilder, new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
+    /**
+     * Issue
+     */
+    const reopenIssueOnPush = core.getInput('reopen-issue-on-push') === 'true';
+    const execution = new execution_1.Execution(branchManagementAlways, reopenIssueOnPush, commitPrefixBuilder, new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.info(`Issue number not found. Skipping.`);

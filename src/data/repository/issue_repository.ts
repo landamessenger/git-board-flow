@@ -387,4 +387,34 @@ ${this.endConfigPattern}`;
             return false;
         }
     }
+
+    openIssue = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ) => {
+        const octokit = github.getOctokit(token);
+        const {data: issue} = await octokit.rest.issues.get({
+            owner: owner,
+            repo: repository,
+            issue_number: issueNumber,
+        });
+
+        core.info(`Issue #${issueNumber} state: ${issue.state}`);
+
+        if (issue.state === 'closed') {
+            await octokit.rest.issues.update({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+                state: 'open',
+            });
+            core.info(`Issue #${issueNumber} has been re-opened.`);
+            return true;
+        } else {
+            core.info(`Issue #${issueNumber} is already opened.`);
+            return false;
+        }
+    }
 }

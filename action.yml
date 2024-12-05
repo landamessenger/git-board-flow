@@ -79,7 +79,10 @@ inputs:
     default: ""
   commit-prefix-builder:
     description: "Enable commit prefix generation."
-    default: "false"
+    default: ""
+  reopen-issue-on-push:
+    description: "Reopens a closed issue when changes are pushed to the branch associated with the issue."
+    default: "true"
   github-token:
     description: "GitHub token for branch and project operations within the repository scope."
     required: true
