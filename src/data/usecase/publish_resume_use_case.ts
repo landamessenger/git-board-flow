@@ -29,20 +29,20 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
             if (param.isIssue) {
                 if (param.issueNotBranched) {
                     title = '🪄 Automatic Actions'
-                    image = getRandomElement(param.giphy.cleanUpGifs)
+                    image = getRandomElement(param.giphy.issueAutomaticActions)
                 } else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions'
-                    image = getRandomElement(param.giphy.hotfixGifs)
+                    image = getRandomElement(param.giphy.issueHotfixGifs)
                 } else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions'
-                    image = getRandomElement(param.giphy.bugfixGifs)
+                    image = getRandomElement(param.giphy.issueBugfixGifs)
                 } else if (param.isFeature) {
                     title = '✨ Feature Actions'
-                    image = getRandomElement(param.giphy.featureGifs)
+                    image = getRandomElement(param.giphy.issueFeatureGifs)
                 }
             } else if (param.isPullRequest) {
                 title = '🪄 Automatic Actions'
-                image = getRandomElement(param.giphy.cleanUpGifs)
+                image = getRandomElement(param.giphy.pullRequestAutomaticActions)
             }
 
             if (image) {

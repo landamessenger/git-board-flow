@@ -387,4 +387,93 @@ ${this.endConfigPattern}`;
             return false;
         }
     }
+
+    openIssue = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ) => {
+        const octokit = github.getOctokit(token);
+        const {data: issue} = await octokit.rest.issues.get({
+            owner: owner,
+            repo: repository,
+            issue_number: issueNumber,
+        });
+
+        core.info(`Issue #${issueNumber} state: ${issue.state}`);
+
+        if (issue.state === 'closed') {
+            await octokit.rest.issues.update({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+                state: 'open',
+            });
+            core.info(`Issue #${issueNumber} has been re-opened.`);
+            return true;
+        } else {
+            core.info(`Issue #${issueNumber} is already opened.`);
+            return false;
+        }
+    }
+
+    getCurrentAssignees = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string
+    ): Promise<string[]> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const {data: issue} = await octokit.rest.issues.get({
+                owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+
+            const assignees = issue.assignees
+            if (assignees === undefined || assignees === null) {
+                return [];
+            }
+            return assignees.map((assignee) => assignee.login);
+        } catch (error) {
+            core.error(`Error getting members of issue: ${error}.`);
+            return [];
+        }
+    };
+
+    assignMembersToIssue = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        members: string[],
+        token: string
+    ): Promise<string[]> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            if (members.length === 0) {
+                core.info(`No members provided for assignment. Skipping operation.`);
+                return [];
+            }
+
+            const { data: updatedIssue } = await octokit.rest.issues.addAssignees({
+                owner,
+                repo: repository,
+                issue_number: issueNumber,
+                assignees: members,
+            });
+
+            const updatedAssignees = updatedIssue.assignees || [];
+            return updatedAssignees.map((assignee) => assignee.login);
+        } catch (error) {
+            core.error(`Error assigning members to issue: ${error}.`);
+            return [];
+        }
+    };
+
+
+
 }

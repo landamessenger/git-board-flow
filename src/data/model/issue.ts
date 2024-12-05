@@ -1,6 +1,10 @@
 import * as github from "@actions/github";
 
 export class Issue {
+    reopenOnPush: boolean;
+    branchManagementAlways: boolean;
+    desiredAssigneesCount: number;
+
     get title(): string {
         return github.context.payload.issue?.title ?? '';
     }
@@ -15,5 +19,15 @@ export class Issue {
 
     get body(): string {
         return github.context.payload.issue?.body ?? '';
+    }
+
+    constructor(
+        branchManagementAlways: boolean,
+        reopenOnPush: boolean,
+        desiredAssigneesCount: number,
+    ) {
+        this.branchManagementAlways = branchManagementAlways;
+        this.reopenOnPush = reopenOnPush;
+        this.desiredAssigneesCount = desiredAssigneesCount;
     }
 }

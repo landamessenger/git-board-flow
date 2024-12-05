@@ -116,4 +116,60 @@ export class ProjectRepository {
 
         return true;
     }
+
+    getRandomMembers = async (
+        organization: string,
+        membersToAdd: number,
+        currentMembers: string[],
+        token: string
+    ): Promise<string[]> => {
+        if (membersToAdd === 0) {
+            return [];
+        }
+
+        const octokit = github.getOctokit(token);
+
+        try {
+            const {data: teams} = await octokit.rest.teams.list({
+                org: organization,
+            });
+
+            if (teams.length === 0) {
+                core.info(`${organization} doesn't have any team.`);
+                return [];
+            }
+
+            const membersSet = new Set<string>();
+
+            for (const team of teams) {
+                const {data: members} = await octokit.rest.teams.listMembersInOrg({
+                    org: organization,
+                    team_slug: team.slug,
+                });
+                members.forEach((member) => membersSet.add(member.login));
+            }
+
+            const allMembers = Array.from(membersSet);
+            const availableMembers = allMembers.filter((member) => !currentMembers.includes(member));
+
+            if (availableMembers.length === 0) {
+                core.info(`No available members to assign for organization ${organization}.`);
+                return [];
+            }
+
+            if (membersToAdd >= availableMembers.length) {
+                core.info(
+                    `Requested size (${membersToAdd}) exceeds available members (${availableMembers.length}). Returning all available members.`
+                );
+                return availableMembers;
+            }
+
+            const shuffled = availableMembers.sort(() => Math.random() - 0.5);
+            return shuffled.slice(0, membersToAdd);
+        } catch (error) {
+            core.error(`Error getting random members: ${error}.`);
+        }
+        return [];
+    };
+
 }

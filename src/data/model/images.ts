@@ -1,9 +1,9 @@
 export class Images {
-    cleanUpGifs: string[];
-    featureGifs: string[];
-    bugfixGifs: string[];
-    hotfixGifs: string[];
-    prLinkGifs: string[];
+    issueAutomaticActions: string[];
+    issueFeatureGifs: string[];
+    issueBugfixGifs: string[];
+    issueHotfixGifs: string[];
+    pullRequestAutomaticActions: string[];
 
     constructor(
         cleanUpGifs: string[],
@@ -12,10 +12,10 @@ export class Images {
         hotfixGifs: string[],
         prLinkGifs: string[],
     ) {
-        this.cleanUpGifs = cleanUpGifs;
-        this.featureGifs = featureGifs;
-        this.bugfixGifs = bugfixGifs;
-        this.hotfixGifs = hotfixGifs;
-        this.prLinkGifs = prLinkGifs;
+        this.issueAutomaticActions = cleanUpGifs;
+        this.issueFeatureGifs = featureGifs;
+        this.issueBugfixGifs = bugfixGifs;
+        this.issueHotfixGifs = hotfixGifs;
+        this.pullRequestAutomaticActions = prLinkGifs;
     }
 }

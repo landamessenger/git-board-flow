@@ -20,7 +20,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                         param.repo,
                         param.issue.title,
                         param.issue.number,
-                        param.branchManagementAlways,
+                        param.issue.branchManagementAlways,
                         param.emoji.branchManagementEmoji,
                         param.labels,
                         param.tokens.token,

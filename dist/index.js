@@ -30137,8 +30137,6 @@ const pull_request_repository_1 = __nccwpck_require__(634);
 const issue_repository_1 = __nccwpck_require__(57);
 const github = __importStar(__nccwpck_require__(5438));
 const label_utils_1 = __nccwpck_require__(6093);
-const issue_1 = __nccwpck_require__(2632);
-const pull_request_1 = __nccwpck_require__(4179);
 const title_utils_1 = __nccwpck_require__(6212);
 const config_1 = __nccwpck_require__(1106);
 const commit_1 = __nccwpck_require__(3993);
@@ -30168,7 +30166,7 @@ class Execution {
         return this.issueType === 'bugfix';
     }
     get isBranched() {
-        return this.branchManagementAlways || this.labels.containsBranchedLabel;
+        return this.issue.branchManagementAlways || this.labels.containsBranchedLabel;
     }
     get issueNotBranched() {
         return this.isIssue && !this.isBranched;
@@ -30184,16 +30182,10 @@ class Execution {
             && this.previousConfiguration !== undefined
             && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
     }
-    get issue() {
-        return new issue_1.Issue();
-    }
-    get pullRequest() {
-        return new pull_request_1.PullRequest();
-    }
     get commit() {
         return new commit_1.Commit();
     }
-    constructor(branchManagementAlways, commitPrefixBuilder, emoji, giphy, tokens, labels, branches, hotfix, projects) {
+    constructor(commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, labels, branches, hotfix, projects) {
         this.number = -1;
         this.commitPrefixBuilderParams = {};
         this.setup = async () => {
@@ -30219,13 +30211,14 @@ class Execution {
             this.currentConfiguration.branchType = this.issueType;
         };
         this.commitPrefixBuilder = commitPrefixBuilder;
+        this.issue = issue;
+        this.pullRequest = pullRequest;
         this.giphy = giphy;
         this.tokens = tokens;
         this.emoji = emoji;
         this.labels = labels;
         this.branches = branches;
         this.hotfix = hotfix;
-        this.branchManagementAlways = branchManagementAlways;
         this.projects = projects;
         this.currentConfiguration = new config_1.Config({});
     }
@@ -30261,11 +30254,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Images = void 0;
 class Images {
     constructor(cleanUpGifs, featureGifs, bugfixGifs, hotfixGifs, prLinkGifs) {
-        this.cleanUpGifs = cleanUpGifs;
-        this.featureGifs = featureGifs;
-        this.bugfixGifs = bugfixGifs;
-        this.hotfixGifs = hotfixGifs;
-        this.prLinkGifs = prLinkGifs;
+        this.issueAutomaticActions = cleanUpGifs;
+        this.issueFeatureGifs = featureGifs;
+        this.issueBugfixGifs = bugfixGifs;
+        this.issueHotfixGifs = hotfixGifs;
+        this.pullRequestAutomaticActions = prLinkGifs;
     }
 }
 exports.Images = Images;
@@ -30326,6 +30319,11 @@ class Issue {
     }
     get body() {
         return github.context.payload.issue?.body ?? '';
+    }
+    constructor(branchManagementAlways, reopenOnPush, desiredAssigneesCount) {
+        this.branchManagementAlways = branchManagementAlways;
+        this.reopenOnPush = reopenOnPush;
+        this.desiredAssigneesCount = desiredAssigneesCount;
     }
 }
 exports.Issue = Issue;
@@ -30503,6 +30501,10 @@ class PullRequest {
     get isClosed() {
         return github.context.payload.pull_request?.state === 'closed'
             || this.action === 'closed';
+    }
+    constructor(desiredAssigneesCount, desiredReviewersCount) {
+        this.desiredAssigneesCount = desiredAssigneesCount;
+        this.desiredReviewersCount = desiredReviewersCount;
     }
 }
 exports.PullRequest = PullRequest;
@@ -31231,6 +31233,69 @@ ${this.endConfigPattern}`;
                 return false;
             }
         };
+        this.openIssue = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const { data: issue } = await octokit.rest.issues.get({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+            core.info(`Issue #${issueNumber} state: ${issue.state}`);
+            if (issue.state === 'closed') {
+                await octokit.rest.issues.update({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                    state: 'open',
+                });
+                core.info(`Issue #${issueNumber} has been re-opened.`);
+                return true;
+            }
+            else {
+                core.info(`Issue #${issueNumber} is already opened.`);
+                return false;
+            }
+        };
+        this.getCurrentAssignees = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: issue } = await octokit.rest.issues.get({
+                    owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                });
+                const assignees = issue.assignees;
+                if (assignees === undefined || assignees === null) {
+                    return [];
+                }
+                return assignees.map((assignee) => assignee.login);
+            }
+            catch (error) {
+                core.error(`Error getting members of issue: ${error}.`);
+                return [];
+            }
+        };
+        this.assignMembersToIssue = async (owner, repository, issueNumber, members, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                if (members.length === 0) {
+                    core.info(`No members provided for assignment. Skipping operation.`);
+                    return [];
+                }
+                const { data: updatedIssue } = await octokit.rest.issues.addAssignees({
+                    owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                    assignees: members,
+                });
+                const updatedAssignees = updatedIssue.assignees || [];
+                return updatedAssignees.map((assignee) => assignee.login);
+            }
+            catch (error) {
+                core.error(`Error assigning members to issue: ${error}.`);
+                return [];
+            }
+        };
     }
 }
 exports.IssueRepository = IssueRepository;
@@ -31372,6 +31437,45 @@ class ProjectRepository {
             });
             core.info(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
             return true;
+        };
+        this.getRandomMembers = async (organization, membersToAdd, currentMembers, token) => {
+            if (membersToAdd === 0) {
+                return [];
+            }
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: teams } = await octokit.rest.teams.list({
+                    org: organization,
+                });
+                if (teams.length === 0) {
+                    core.info(`${organization} doesn't have any team.`);
+                    return [];
+                }
+                const membersSet = new Set();
+                for (const team of teams) {
+                    const { data: members } = await octokit.rest.teams.listMembersInOrg({
+                        org: organization,
+                        team_slug: team.slug,
+                    });
+                    members.forEach((member) => membersSet.add(member.login));
+                }
+                const allMembers = Array.from(membersSet);
+                const availableMembers = allMembers.filter((member) => !currentMembers.includes(member));
+                if (availableMembers.length === 0) {
+                    core.info(`No available members to assign for organization ${organization}.`);
+                    return [];
+                }
+                if (membersToAdd >= availableMembers.length) {
+                    core.info(`Requested size (${membersToAdd}) exceeds available members (${availableMembers.length}). Returning all available members.`);
+                    return availableMembers;
+                }
+                const shuffled = availableMembers.sort(() => Math.random() - 0.5);
+                return shuffled.slice(0, membersToAdd);
+            }
+            catch (error) {
+                core.error(`Error getting random members: ${error}.`);
+            }
+            return [];
         };
     }
 }
@@ -31539,6 +31643,42 @@ ${this.endConfigPattern}`;
                 throw error;
             }
         };
+        this.getCurrentReviewers = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.listRequestedReviewers({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                });
+                return data.users.map((user) => user.login);
+            }
+            catch (error) {
+                core.error(`Error getting reviewers of PR: ${error}.`);
+                return [];
+            }
+        };
+        this.addReviewersToPullRequest = async (owner, repository, pullNumber, reviewers, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                if (reviewers.length === 0) {
+                    core.info(`No reviewers provided for addition. Skipping operation.`);
+                    return [];
+                }
+                const { data } = await octokit.rest.pulls.requestReviewers({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                    reviewers: reviewers,
+                });
+                const addedReviewers = data.requested_reviewers || [];
+                return addedReviewers.map((reviewer) => reviewer.login);
+            }
+            catch (error) {
+                core.error(`Error adding reviewers to pull request: ${error}.`);
+                return [];
+            }
+        };
     }
 }
 exports.PullRequestRepository = PullRequestRepository;
@@ -31655,6 +31795,12 @@ ${commitPrefix}: created hello-world app
 \`\`\`
 `;
             }
+            if (param.issue.reopenOnPush) {
+                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.number, param.tokens.token);
+                if (opened) {
+                    await this.issueRepository.addComment(param.owner, param.repo, param.number, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
+                }
+            }
             await this.issueRepository.addComment(param.owner, param.repo, param.number, commentBody, param.tokens.token);
         }
         catch (error) {
@@ -31723,6 +31869,7 @@ const prepare_branches_use_case_1 = __nccwpck_require__(9883);
 const remove_not_needed_branches_use_case_1 = __nccwpck_require__(9871);
 const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
 const core = __importStar(__nccwpck_require__(2186));
+const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 class IssueLinkUseCase {
     constructor() {
         this.taskId = 'IssueLinkUseCase';
@@ -31733,6 +31880,10 @@ class IssueLinkUseCase {
         if (param.cleanIssueBranches) {
             results.push(...await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(param));
         }
+        /**
+         * Assignees
+         */
+        results.push(...await new assign_members_to_issue_use_case_1.AssignMemberToIssueUseCase().invoke(param));
         /**
          * Link issue to project
          */
@@ -31830,24 +31981,24 @@ class PublishResultUseCase {
             if (param.isIssue) {
                 if (param.issueNotBranched) {
                     title = '🪄 Automatic Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.cleanUpGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueAutomaticActions);
                 }
                 else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.hotfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueHotfixGifs);
                 }
                 else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.bugfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueBugfixGifs);
                 }
                 else if (param.isFeature) {
                     title = '✨ Feature Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.featureGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueFeatureGifs);
                 }
             }
             else if (param.isPullRequest) {
                 title = '🪄 Automatic Actions';
-                image = (0, list_utils_1.getRandomElement)(param.giphy.cleanUpGifs);
+                image = (0, list_utils_1.getRandomElement)(param.giphy.pullRequestAutomaticActions);
             }
             if (image) {
                 stupidGif = `![image](${image})`;
@@ -31956,6 +32107,8 @@ const link_pull_request_project_use_case_1 = __nccwpck_require__(5154);
 const link_pull_request_issue_use_case_1 = __nccwpck_require__(768);
 const core = __importStar(__nccwpck_require__(2186));
 const close_issue_use_case_1 = __nccwpck_require__(5130);
+const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
+const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
@@ -31969,6 +32122,14 @@ class PullRequestLinkUseCase {
             console.log(`PR isMerged ${param.pullRequest.isMerged}`);
             console.log(`PR isClosed ${param.pullRequest.isClosed}`);
             if (param.pullRequest.isOpened) {
+                /**
+                 * Assignees
+                 */
+                results.push(...await new assign_members_to_issue_use_case_1.AssignMemberToIssueUseCase().invoke(param));
+                /**
+                 * Reviewers
+                 */
+                results.push(...await new assign_reviewers_to_issue_use_case_1.AssignReviewersToIssueUseCase().invoke(param));
                 /**
                  * Link Pull Request to projects
                  */
@@ -32110,6 +32271,247 @@ class RemoveIssueBranchesUseCase {
     }
 }
 exports.RemoveIssueBranchesUseCase = RemoveIssueBranchesUseCase;
+
+
+/***/ }),
+
+/***/ 3526:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AssignMemberToIssueUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
+const core = __importStar(__nccwpck_require__(2186));
+const result_1 = __nccwpck_require__(7305);
+class AssignMemberToIssueUseCase {
+    constructor() {
+        this.taskId = 'AssignMemberToIssueUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const desiredAssigneesCount = param.isIssue ?
+            param.issue.desiredAssigneesCount : param.pullRequest.desiredAssigneesCount;
+        const number = param.isIssue ? param.issue.number : param.pullRequest.number;
+        const result = [];
+        try {
+            core.info(`#${number} needs ${desiredAssigneesCount} assignees.`);
+            const currentMembers = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.token);
+            if (currentMembers.length >= desiredAssigneesCount) {
+                /**
+                 * No more assignees needed
+                 */
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                }));
+                return result;
+            }
+            const missingAssignees = desiredAssigneesCount - currentMembers.length;
+            core.info(`#${number} needs ${missingAssignees} more assignees.`);
+            const members = await this.projectRepository.getRandomMembers(param.owner, missingAssignees, currentMembers, param.tokens.tokenPat);
+            if (members.length === 0) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Tried to assign members to issue, but no one was found.`,
+                    ],
+                }));
+                return result;
+            }
+            const membersAdded = await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, members, param.tokens.token);
+            for (const member of membersAdded) {
+                if (members.indexOf(member) > -1)
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            param.isIssue ? `The issue was assigned to @${member}.` : `The pull request was assigned to @${member}.`,
+                        ],
+                    }));
+            }
+            return result;
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to assign members to issue.`,
+                ],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.AssignMemberToIssueUseCase = AssignMemberToIssueUseCase;
+
+
+/***/ }),
+
+/***/ 3208:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AssignReviewersToIssueUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
+const core = __importStar(__nccwpck_require__(2186));
+const result_1 = __nccwpck_require__(7305);
+const pull_request_repository_1 = __nccwpck_require__(634);
+class AssignReviewersToIssueUseCase {
+    constructor() {
+        this.taskId = 'AssignReviewersToIssueUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const desiredReviewersCount = param.pullRequest.desiredReviewersCount;
+        const number = param.pullRequest.number;
+        const result = [];
+        try {
+            core.info(`#${number} needs ${desiredReviewersCount} reviewers.`);
+            const currentReviewers = await this.pullRequestRepository.getCurrentReviewers(param.owner, param.repo, number, param.tokens.token);
+            const currentAssignees = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.token);
+            if (currentReviewers.length >= desiredReviewersCount) {
+                /**
+                 * No more assignees needed
+                 */
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                }));
+                return result;
+            }
+            const missingReviewers = desiredReviewersCount - currentReviewers.length;
+            core.info(`#${number} needs ${missingReviewers} more reviewers.`);
+            const excludeForReview = [];
+            excludeForReview.push(...currentReviewers);
+            excludeForReview.push(...currentAssignees);
+            const members = await this.projectRepository.getRandomMembers(param.owner, missingReviewers, excludeForReview, param.tokens.tokenPat);
+            if (members.length === 0) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Tried to assign members as reviewers to pull request, but no one was found.`,
+                    ],
+                }));
+                return result;
+            }
+            const membersAdded = await this.pullRequestRepository.addReviewersToPullRequest(param.owner, param.repo, number, members, param.tokens.token);
+            for (const member of membersAdded) {
+                if (members.indexOf(member) > -1)
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `@${member} was requested to review the pull request.`,
+                        ],
+                    }));
+            }
+            return result;
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to assign members to issue.`,
+                ],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.AssignReviewersToIssueUseCase = AssignReviewersToIssueUseCase;
 
 
 /***/ }),
@@ -32599,12 +33001,24 @@ class LinkPullRequestProjectUseCase {
             for (const project of param.projects) {
                 const actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
                 if (actionDone) {
+                    let currentProject = await this.projectRepository.getProjectDetail(project.url, param.tokens.tokenPat);
+                    if (currentProject === undefined) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
+                            ]
+                        }));
+                        continue;
+                    }
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
                         executed: true,
                         steps: [
-                            `The pull request was linked to \`${project.url}\`.`,
+                            `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
                         ],
                         error: core_1.error,
                     }));
@@ -33040,7 +33454,7 @@ class UpdateTitleUseCase {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -33332,6 +33746,8 @@ const store_configuration_use_case_1 = __nccwpck_require__(4879);
 const images_1 = __nccwpck_require__(1721);
 const commit_check_use_case_1 = __nccwpck_require__(3316);
 const emoji_1 = __nccwpck_require__(9463);
+const issue_1 = __nccwpck_require__(2632);
+const pull_request_1 = __nccwpck_require__(4179);
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     /**
@@ -33355,35 +33771,31 @@ async function run() {
     /**
      * Images
      */
-    const imagesUrlsCleanUpInput = core.getInput('images-clean-up');
-    const imagesUrlsCleanUp = imagesUrlsCleanUpInput
+    const imagesIssueAutomaticInput = core.getInput('images-issue-automatic');
+    const imagesIssueAutomatic = imagesIssueAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsFeatureInput = core.getInput('images-feature');
-    const imagesUrlsFeature = imagesUrlsFeatureInput
+    const imagesIssueFeatureInput = core.getInput('images-issue-feature');
+    const imagesIssueFeature = imagesIssueFeatureInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsBugfixInput = core.getInput('images-bugfix');
-    const imagesUrlsBugfix = imagesUrlsBugfixInput
+    const imagesIssueBugfixInput = core.getInput('images-issue-bugfix');
+    const imagesIssueBugfix = imagesIssueBugfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsHotfixInput = core.getInput('images-hotfix');
-    const imagesUrlsHotfix = imagesUrlsHotfixInput
+    const imagesIssueHotfixInput = core.getInput('images-issue-hotfix');
+    const imagesIssueHotfix = imagesIssueHotfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsPrLinkInput = core.getInput('images-pr-link');
-    const imagesUrlsPrLink = imagesUrlsPrLinkInput
+    const imagesPullRequestAutomaticInput = core.getInput('images-pull-request-automatic');
+    const imagesPullRequestAutomatic = imagesPullRequestAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    /**
-     * Runs always
-     */
-    const branchManagementAlways = core.getInput('branch-management-always') === 'true';
     /**
      * Emoji-title
      */
@@ -33410,8 +33822,22 @@ async function run() {
     const bugfixTree = core.getInput('bugfix-tree');
     const hotfixTree = core.getInput('hotfix-tree');
     const releaseTree = core.getInput('release-tree');
+    /**
+     * Prefix builder
+     */
     const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
-    const execution = new execution_1.Execution(branchManagementAlways, commitPrefixBuilder, new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
+    /**
+     * Issue
+     */
+    const branchManagementAlways = core.getInput('branch-management-always') === 'true';
+    const reopenIssueOnPush = core.getInput('reopen-issue-on-push') === 'true';
+    const issueDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
+    /**
+     * Pull Request
+     */
+    const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
+    const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
+    const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.info(`Issue number not found. Skipping.`);
