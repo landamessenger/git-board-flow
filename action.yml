@@ -84,7 +84,7 @@ inputs:
     description: "Reopens a closed issue when changes are pushed to the branch associated with the issue."
     default: "true"
   desired-assignees-count:
-    description: "The number of assignees desired for the issue or pull request. If set to 0, no assignees will be added. If the number exceeds the available members, all members will be assigned."
+    description: "The number of assignees desired for the issue or pull request. If set to 0, no assignees will be added. If the number exceeds the available members, all members will be assigned. Max 10."
     default: "1"
   desired-reviewers-count:
     description: "The number of reviewers desired for the pull request. If set to 0, no reviewers will be added. If the number exceeds the available members, all members will be reviewers. Max 15."
