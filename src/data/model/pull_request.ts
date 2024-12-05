@@ -2,6 +2,7 @@ import * as github from "@actions/github";
 
 export class PullRequest {
     desiredAssigneesCount: number;
+    desiredReviewersCount: number;
 
     get action(): string {
         return github.context.payload.action ?? '';
@@ -51,7 +52,9 @@ export class PullRequest {
 
     constructor(
         desiredAssigneesCount: number,
+        desiredReviewersCount: number,
     ) {
         this.desiredAssigneesCount = desiredAssigneesCount;
+        this.desiredReviewersCount = desiredReviewersCount;
     }
 }

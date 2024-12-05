@@ -22,13 +22,33 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                     param.tokens.tokenPat
                 )
                 if (actionDone) {
+
+                    let currentProject = await this.projectRepository.getProjectDetail(
+                        project.url,
+                        param.tokens.tokenPat,
+                    )
+
+                    if (currentProject === undefined) {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: false,
+                                executed: true,
+                                steps: [
+                                    `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
+                                ]
+                            })
+                        )
+                        continue;
+                    }
+
                     result.push(
                         new Result({
                             id: this.taskId,
                             success: true,
                             executed: true,
                             steps: [
-                                `The pull request was linked to \`${project.url}\`.`,
+                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
                             ],
                             error: error,
                         })

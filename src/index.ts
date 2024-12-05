@@ -123,6 +123,7 @@ async function run(): Promise<void> {
      * Pull Request
      */
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
+    const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
 
 
     const execution = new Execution(
@@ -134,6 +135,7 @@ async function run(): Promise<void> {
         ),
         new PullRequest(
             pullRequestDesiredAssigneesCount,
+            pullRequestDesiredReviewersCount
         ),
         new Emoji(
             titleEmoji,

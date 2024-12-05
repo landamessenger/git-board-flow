@@ -30502,8 +30502,9 @@ class PullRequest {
         return github.context.payload.pull_request?.state === 'closed'
             || this.action === 'closed';
     }
-    constructor(desiredAssigneesCount) {
+    constructor(desiredAssigneesCount, desiredReviewersCount) {
         this.desiredAssigneesCount = desiredAssigneesCount;
+        this.desiredReviewersCount = desiredReviewersCount;
     }
 }
 exports.PullRequest = PullRequest;
@@ -31642,6 +31643,42 @@ ${this.endConfigPattern}`;
                 throw error;
             }
         };
+        this.getCurrentReviewers = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.listRequestedReviewers({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                });
+                return data.users.map((user) => user.login);
+            }
+            catch (error) {
+                core.error(`Error getting reviewers of PR: ${error}.`);
+                return [];
+            }
+        };
+        this.addReviewersToPullRequest = async (owner, repository, pullNumber, reviewers, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                if (reviewers.length === 0) {
+                    core.info(`No reviewers provided for addition. Skipping operation.`);
+                    return [];
+                }
+                const { data } = await octokit.rest.pulls.requestReviewers({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                    reviewers: reviewers,
+                });
+                const addedReviewers = data.requested_reviewers || [];
+                return addedReviewers.map((reviewer) => reviewer.login);
+            }
+            catch (error) {
+                core.error(`Error adding reviewers to pull request: ${error}.`);
+                return [];
+            }
+        };
     }
 }
 exports.PullRequestRepository = PullRequestRepository;
@@ -32071,6 +32108,7 @@ const link_pull_request_issue_use_case_1 = __nccwpck_require__(768);
 const core = __importStar(__nccwpck_require__(2186));
 const close_issue_use_case_1 = __nccwpck_require__(5130);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
+const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
@@ -32088,6 +32126,10 @@ class PullRequestLinkUseCase {
                  * Assignees
                  */
                 results.push(...await new assign_members_to_issue_use_case_1.AssignMemberToIssueUseCase().invoke(param));
+                /**
+                 * Reviewers
+                 */
+                results.push(...await new assign_reviewers_to_issue_use_case_1.AssignReviewersToIssueUseCase().invoke(param));
                 /**
                  * Link Pull Request to projects
                  */
@@ -32347,6 +32389,129 @@ class AssignMemberToIssueUseCase {
     }
 }
 exports.AssignMemberToIssueUseCase = AssignMemberToIssueUseCase;
+
+
+/***/ }),
+
+/***/ 3208:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AssignReviewersToIssueUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
+const core = __importStar(__nccwpck_require__(2186));
+const result_1 = __nccwpck_require__(7305);
+const pull_request_repository_1 = __nccwpck_require__(634);
+class AssignReviewersToIssueUseCase {
+    constructor() {
+        this.taskId = 'AssignReviewersToIssueUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const desiredReviewersCount = param.pullRequest.desiredReviewersCount;
+        const number = param.pullRequest.number;
+        const result = [];
+        try {
+            core.info(`#${number} needs ${desiredReviewersCount} reviewers.`);
+            const currentReviewers = await this.pullRequestRepository.getCurrentReviewers(param.owner, param.repo, number, param.tokens.token);
+            const currentAssignees = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.token);
+            if (currentReviewers.length >= desiredReviewersCount) {
+                /**
+                 * No more assignees needed
+                 */
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                }));
+                return result;
+            }
+            const missingReviewers = desiredReviewersCount - currentReviewers.length;
+            core.info(`#${number} needs ${missingReviewers} more reviewers.`);
+            const excludeForReview = [];
+            excludeForReview.push(...currentReviewers);
+            excludeForReview.push(...currentAssignees);
+            const members = await this.projectRepository.getRandomMembers(param.owner, missingReviewers, excludeForReview, param.tokens.tokenPat);
+            if (members.length === 0) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Tried to assign members as reviewers to pull request, but no one was found.`,
+                    ],
+                }));
+                return result;
+            }
+            const membersAdded = await this.pullRequestRepository.addReviewersToPullRequest(param.owner, param.repo, number, members, param.tokens.token);
+            for (const member of membersAdded) {
+                if (members.indexOf(member) > -1)
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `@${member} was requested to review the pull request.`,
+                        ],
+                    }));
+            }
+            return result;
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to assign members to issue.`,
+                ],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.AssignReviewersToIssueUseCase = AssignReviewersToIssueUseCase;
 
 
 /***/ }),
@@ -32836,12 +33001,24 @@ class LinkPullRequestProjectUseCase {
             for (const project of param.projects) {
                 const actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
                 if (actionDone) {
+                    let currentProject = await this.projectRepository.getProjectDetail(project.url, param.tokens.tokenPat);
+                    if (currentProject === undefined) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
+                            ]
+                        }));
+                        continue;
+                    }
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
                         executed: true,
                         steps: [
-                            `The pull request was linked to \`${project.url}\`.`,
+                            `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
                         ],
                         error: core_1.error,
                     }));
@@ -33659,7 +33836,8 @@ async function run() {
      * Pull Request
      */
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
-    const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
+    const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
+    const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.info(`Issue number not found. Skipping.`);

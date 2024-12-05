@@ -177,4 +177,57 @@ ${this.endConfigPattern}`;
             throw error;
         }
     }
+
+    getCurrentReviewers = async (
+        owner: string,
+        repository: string,
+        pullNumber: number,
+        token: string
+    ): Promise<string[]> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const { data } = await octokit.rest.pulls.listRequestedReviewers({
+                owner,
+                repo: repository,
+                pull_number: pullNumber,
+            });
+
+            return data.users.map((user) => user.login);
+        } catch (error) {
+            core.error(`Error getting reviewers of PR: ${error}.`);
+            return [];
+        }
+    };
+
+    addReviewersToPullRequest = async (
+        owner: string,
+        repository: string,
+        pullNumber: number,
+        reviewers: string[],
+        token: string
+    ): Promise<string[]> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            if (reviewers.length === 0) {
+                core.info(`No reviewers provided for addition. Skipping operation.`);
+                return [];
+            }
+
+            const { data } = await octokit.rest.pulls.requestReviewers({
+                owner,
+                repo: repository,
+                pull_number: pullNumber,
+                reviewers: reviewers,
+            });
+
+            const addedReviewers = data.requested_reviewers || [];
+            return addedReviewers.map((reviewer) => reviewer.login);
+        } catch (error) {
+            core.error(`Error adding reviewers to pull request: ${error}.`);
+            return [];
+        }
+    };
+
 }
