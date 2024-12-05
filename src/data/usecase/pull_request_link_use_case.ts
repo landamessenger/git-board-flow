@@ -5,6 +5,7 @@ import {LinkPullRequestProjectUseCase} from "./steps/link_pull_request_project_u
 import {LinkPullRequestIssueUseCase} from "./steps/link_pull_request_issue_use_case";
 import * as core from '@actions/core';
 import {CloseIssueUseCase} from "./steps/close_issue_use_case";
+import {AssignMemberToIssueUseCase} from "./steps/assign_members_to_issue_use_case";
 
 export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestLinkUseCase';
@@ -19,6 +20,11 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
             console.log(`PR isMerged ${param.pullRequest.isMerged}`)
             console.log(`PR isClosed ${param.pullRequest.isClosed}`)
             if (param.pullRequest.isOpened) {
+                /**
+                 * Assignees
+                 */
+                results.push(...await new AssignMemberToIssueUseCase().invoke(param));
+
                 /**
                  * Link Pull Request to projects
                  */
