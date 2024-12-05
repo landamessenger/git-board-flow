@@ -85,7 +85,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                             success: true,
                             executed: true,
                             steps: [
-                                `Assigned @${member}`,
+                                param.isIssue ? `The issue was assigned to @${member}.` : `The pull request was assigned to @${member}.`,
                             ],
                         })
                     )
