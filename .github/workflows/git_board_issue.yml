@@ -2,7 +2,7 @@ name: Git Board Flow - Issue
 
 on:
   issues:
-    types: [opened, edited, labeled, unlabeled]
+    types: [opened, edited, labeled, unlabeled, assigned, unassigned]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
