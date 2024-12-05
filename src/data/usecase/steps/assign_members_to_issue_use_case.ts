@@ -52,7 +52,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                 param.owner,
                 missingAssignees,
                 currentMembers,
-                param.tokens.token,
+                param.tokens.tokenPat,
             )
 
             if (members.length === 0) {
