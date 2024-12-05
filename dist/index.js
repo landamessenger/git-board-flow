@@ -30254,11 +30254,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Images = void 0;
 class Images {
     constructor(cleanUpGifs, featureGifs, bugfixGifs, hotfixGifs, prLinkGifs) {
-        this.cleanUpGifs = cleanUpGifs;
-        this.featureGifs = featureGifs;
-        this.bugfixGifs = bugfixGifs;
-        this.hotfixGifs = hotfixGifs;
-        this.prLinkGifs = prLinkGifs;
+        this.issueAutomaticActions = cleanUpGifs;
+        this.issueFeatureGifs = featureGifs;
+        this.issueBugfixGifs = bugfixGifs;
+        this.issueHotfixGifs = hotfixGifs;
+        this.pullRequestAutomaticActions = prLinkGifs;
     }
 }
 exports.Images = Images;
@@ -31944,24 +31944,24 @@ class PublishResultUseCase {
             if (param.isIssue) {
                 if (param.issueNotBranched) {
                     title = '🪄 Automatic Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.cleanUpGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueAutomaticActions);
                 }
                 else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.hotfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueHotfixGifs);
                 }
                 else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.bugfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueBugfixGifs);
                 }
                 else if (param.isFeature) {
                     title = '✨ Feature Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.featureGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueFeatureGifs);
                 }
             }
             else if (param.isPullRequest) {
                 title = '🪄 Automatic Actions';
-                image = (0, list_utils_1.getRandomElement)(param.giphy.cleanUpGifs);
+                image = (0, list_utils_1.getRandomElement)(param.giphy.pullRequestAutomaticActions);
             }
             if (image) {
                 stupidGif = `![image](${image})`;
@@ -33594,28 +33594,28 @@ async function run() {
     /**
      * Images
      */
-    const imagesUrlsCleanUpInput = core.getInput('images-clean-up');
-    const imagesUrlsCleanUp = imagesUrlsCleanUpInput
+    const imagesIssueAutomaticInput = core.getInput('images-issue-automatic');
+    const imagesIssueAutomatic = imagesIssueAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsFeatureInput = core.getInput('images-feature');
-    const imagesUrlsFeature = imagesUrlsFeatureInput
+    const imagesIssueFeatureInput = core.getInput('images-issue-feature');
+    const imagesIssueFeature = imagesIssueFeatureInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsBugfixInput = core.getInput('images-bugfix');
-    const imagesUrlsBugfix = imagesUrlsBugfixInput
+    const imagesIssueBugfixInput = core.getInput('images-issue-bugfix');
+    const imagesIssueBugfix = imagesIssueBugfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsHotfixInput = core.getInput('images-hotfix');
-    const imagesUrlsHotfix = imagesUrlsHotfixInput
+    const imagesIssueHotfixInput = core.getInput('images-issue-hotfix');
+    const imagesIssueHotfix = imagesIssueHotfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-    const imagesUrlsPrLinkInput = core.getInput('images-pr-link');
-    const imagesUrlsPrLink = imagesUrlsPrLinkInput
+    const imagesPullRequestAutomaticInput = core.getInput('images-pull-request-automatic');
+    const imagesPullRequestAutomatic = imagesPullRequestAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
@@ -33659,7 +33659,7 @@ async function run() {
      * Pull Request
      */
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
-    const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesUrlsCleanUp, imagesUrlsFeature, imagesUrlsBugfix, imagesUrlsHotfix, imagesUrlsPrLink), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
+    const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.info(`Issue number not found. Skipping.`);
