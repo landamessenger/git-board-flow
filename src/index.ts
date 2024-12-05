@@ -14,6 +14,8 @@ import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_
 import {Images} from "./data/model/images";
 import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
 import {Emoji} from "./data/model/emoji";
+import {Issue} from "./data/model/issue";
+import {PullRequest} from "./data/model/pull_request";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -42,44 +44,39 @@ async function run(): Promise<void> {
     /**
      * Images
      */
-    const imagesUrlsCleanUpInput = core.getInput('images-clean-up');
-    const imagesUrlsCleanUp: string[] = imagesUrlsCleanUpInput
+    const imagesIssueAutomaticInput = core.getInput('images-issue-automatic');
+    const imagesIssueAutomatic: string[] = imagesIssueAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
 
-    const imagesUrlsFeatureInput = core.getInput('images-feature');
-    const imagesUrlsFeature: string[] = imagesUrlsFeatureInput
+    const imagesIssueFeatureInput = core.getInput('images-issue-feature');
+    const imagesIssueFeature: string[] = imagesIssueFeatureInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
 
-    const imagesUrlsBugfixInput = core.getInput('images-bugfix');
-    const imagesUrlsBugfix: string[] = imagesUrlsBugfixInput
+    const imagesIssueBugfixInput = core.getInput('images-issue-bugfix');
+    const imagesIssueBugfix: string[] = imagesIssueBugfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
 
-    const imagesUrlsHotfixInput = core.getInput('images-hotfix');
-    const imagesUrlsHotfix: string[] = imagesUrlsHotfixInput
+    const imagesIssueHotfixInput = core.getInput('images-issue-hotfix');
+    const imagesIssueHotfix: string[] = imagesIssueHotfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
-    const imagesUrlsPrLinkInput = core.getInput('images-pr-link');
-    const imagesUrlsPrLink: string[] = imagesUrlsPrLinkInput
+    const imagesPullRequestAutomaticInput = core.getInput('images-pull-request-automatic');
+    const imagesPullRequestAutomatic: string[] = imagesPullRequestAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
-
-    /**
-     * Runs always
-     */
-    const branchManagementAlways = core.getInput('branch-management-always') === 'true';
 
     /**
      * Emoji-title
@@ -118,23 +115,36 @@ async function run(): Promise<void> {
     /**
      * Issue
      */
+    const branchManagementAlways = core.getInput('branch-management-always') === 'true';
     const reopenIssueOnPush = core.getInput('reopen-issue-on-push') === 'true';
+    const issueDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
+
+    /**
+     * Pull Request
+     */
+    const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
 
 
     const execution = new Execution(
-        branchManagementAlways,
-        reopenIssueOnPush,
         commitPrefixBuilder,
+        new Issue(
+            branchManagementAlways,
+            reopenIssueOnPush,
+            issueDesiredAssigneesCount
+        ),
+        new PullRequest(
+            pullRequestDesiredAssigneesCount,
+        ),
         new Emoji(
             titleEmoji,
             branchManagementEmoji,
         ),
         new Images(
-            imagesUrlsCleanUp,
-            imagesUrlsFeature,
-            imagesUrlsBugfix,
-            imagesUrlsHotfix,
-            imagesUrlsPrLink,
+            imagesIssueAutomatic,
+            imagesIssueFeature,
+            imagesIssueBugfix,
+            imagesIssueHotfix,
+            imagesPullRequestAutomatic,
         ),
         new Tokens(token, tokenPat),
         new Labels(

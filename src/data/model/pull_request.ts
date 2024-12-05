@@ -1,6 +1,8 @@
 import * as github from "@actions/github";
 
 export class PullRequest {
+    desiredAssigneesCount: number;
+
     get action(): string {
         return github.context.payload.action ?? '';
     }
@@ -45,5 +47,11 @@ export class PullRequest {
     get isClosed(): boolean {
         return github.context.payload.pull_request?.state === 'closed'
             || this.action === 'closed';
+    }
+
+    constructor(
+        desiredAssigneesCount: number,
+    ) {
+        this.desiredAssigneesCount = desiredAssigneesCount;
     }
 }

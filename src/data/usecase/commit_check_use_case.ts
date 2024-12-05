@@ -79,7 +79,7 @@ ${commitPrefix}: created hello-world app
 `
             }
 
-            if (param.reopenIssueOnPush) {
+            if (param.issue.reopenOnPush) {
                 const opened = await this.issueRepository.openIssue(
                     param.owner,
                     param.repo,

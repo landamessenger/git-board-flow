@@ -7,6 +7,7 @@ import {RemoveNotNeededBranchesUseCase} from "./steps/remove_not_needed_branches
 import {Result} from "../model/result";
 import {RemoveIssueBranchesUseCase} from "./remove_issue_branches_use_case";
 import * as core from '@actions/core';
+import {AssignMemberToIssueUseCase} from "./steps/assign_members_to_issue_use_case";
 
 export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'IssueLinkUseCase';
@@ -19,6 +20,11 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
         if (param.cleanIssueBranches) {
             results.push(...await new RemoveIssueBranchesUseCase().invoke(param));
         }
+
+        /**
+         * Assignees
+         */
+        results.push(...await new AssignMemberToIssueUseCase().invoke(param));
 
         /**
          * Link issue to project

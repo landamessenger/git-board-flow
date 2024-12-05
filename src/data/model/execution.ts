@@ -17,8 +17,6 @@ import {Emoji} from "./emoji";
 
 export class Execution {
     number: number = -1
-    branchManagementAlways: boolean;
-    reopenIssueOnPush: boolean;
     commitPrefixBuilder: string;
     commitPrefixBuilderParams: any = {};
     emoji: Emoji;
@@ -27,6 +25,8 @@ export class Execution {
     labels: Labels;
     branches: Branches;
     hotfix: Hotfix;
+    issue: Issue;
+    pullRequest: PullRequest;
     projects: ProjectDetail[];
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
@@ -64,7 +64,7 @@ export class Execution {
     }
 
     get isBranched(): boolean {
-        return this.branchManagementAlways || this.labels.containsBranchedLabel;
+        return this.issue.branchManagementAlways || this.labels.containsBranchedLabel;
     }
 
     get issueNotBranched(): boolean {
@@ -97,22 +97,14 @@ export class Execution {
             && this.previousConfiguration?.branchType != this.currentConfiguration.branchType;
     }
 
-    get issue(): Issue {
-        return new Issue();
-    }
-
-    get pullRequest(): PullRequest {
-        return new PullRequest();
-    }
-
     get commit(): Commit {
         return new Commit();
     }
 
     constructor(
-        branchManagementAlways: boolean,
-        reopenIssueOnPush: boolean,
         commitPrefixBuilder: string,
+        issue: Issue,
+        pullRequest: PullRequest,
         emoji: Emoji,
         giphy: Images,
         tokens: Tokens,
@@ -122,14 +114,14 @@ export class Execution {
         projects: ProjectDetail[],
     ) {
         this.commitPrefixBuilder = commitPrefixBuilder;
-        this.reopenIssueOnPush = reopenIssueOnPush;
+        this.issue = issue;
+        this.pullRequest = pullRequest;
         this.giphy = giphy;
         this.tokens = tokens;
         this.emoji = emoji;
         this.labels = labels;
         this.branches = branches;
         this.hotfix = hotfix;
-        this.branchManagementAlways = branchManagementAlways;
         this.projects = projects;
         this.currentConfiguration = new Config({});
     }
