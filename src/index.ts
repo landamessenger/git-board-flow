@@ -14,6 +14,8 @@ import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_
 import {Images} from "./data/model/images";
 import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
 import {Emoji} from "./data/model/emoji";
+import {Issue} from "./data/model/issue";
+import {PullRequest} from "./data/model/pull_request";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -77,11 +79,6 @@ async function run(): Promise<void> {
 
 
     /**
-     * Runs always
-     */
-    const branchManagementAlways = core.getInput('branch-management-always') === 'true';
-
-    /**
      * Emoji-title
      */
     const titleEmoji = core.getInput('emoji-labeled-title') === 'true';
@@ -118,13 +115,26 @@ async function run(): Promise<void> {
     /**
      * Issue
      */
+    const branchManagementAlways = core.getInput('branch-management-always') === 'true';
     const reopenIssueOnPush = core.getInput('reopen-issue-on-push') === 'true';
+    const issueDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
+
+    /**
+     * Pull Request
+     */
+    const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
 
 
     const execution = new Execution(
-        branchManagementAlways,
-        reopenIssueOnPush,
         commitPrefixBuilder,
+        new Issue(
+            branchManagementAlways,
+            reopenIssueOnPush,
+            issueDesiredAssigneesCount
+        ),
+        new PullRequest(
+            pullRequestDesiredAssigneesCount,
+        ),
         new Emoji(
             titleEmoji,
             branchManagementEmoji,
