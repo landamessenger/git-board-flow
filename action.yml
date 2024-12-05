@@ -86,6 +86,9 @@ inputs:
   desired-assignees-count:
     description: "The number of assignees desired for the issue or pull request. If set to 0, no assignees will be added. If the number exceeds the available members, all members will be assigned."
     default: "1"
+  desired-reviewers-count:
+    description: "The number of reviewers desired for the pull request. If set to 0, no reviewers will be added. If the number exceeds the available members, all members will be reviewers. Max 15."
+    default: "1"
   github-token:
     description: "GitHub token for branch and project operations within the repository scope."
     required: true
