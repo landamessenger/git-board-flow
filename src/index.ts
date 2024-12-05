@@ -110,10 +110,20 @@ async function run(): Promise<void> {
     const hotfixTree = core.getInput('hotfix-tree');
     const releaseTree = core.getInput('release-tree');
 
+    /**
+     * Prefix builder
+     */
     const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
+
+    /**
+     * Issue
+     */
+    const reopenIssueOnPush = core.getInput('reopen-issue-on-push') === 'true';
+
 
     const execution = new Execution(
         branchManagementAlways,
+        reopenIssueOnPush,
         commitPrefixBuilder,
         new Emoji(
             titleEmoji,

@@ -79,6 +79,25 @@ ${commitPrefix}: created hello-world app
 `
             }
 
+            if (param.reopenIssueOnPush) {
+                const opened = await this.issueRepository.openIssue(
+                    param.owner,
+                    param.repo,
+                    param.number,
+                    param.tokens.token,
+                )
+
+                if (opened) {
+                    await this.issueRepository.addComment(
+                        param.owner,
+                        param.repo,
+                        param.number,
+                        `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`,
+                        param.tokens.token,
+                    )
+                }
+            }
+
             await this.issueRepository.addComment(
                 param.owner,
                 param.repo,

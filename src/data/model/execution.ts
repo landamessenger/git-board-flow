@@ -16,8 +16,9 @@ import {Commit} from "./commit";
 import {Emoji} from "./emoji";
 
 export class Execution {
-    branchManagementAlways: boolean;
     number: number = -1
+    branchManagementAlways: boolean;
+    reopenIssueOnPush: boolean;
     commitPrefixBuilder: string;
     commitPrefixBuilderParams: any = {};
     emoji: Emoji;
@@ -110,6 +111,7 @@ export class Execution {
 
     constructor(
         branchManagementAlways: boolean,
+        reopenIssueOnPush: boolean,
         commitPrefixBuilder: string,
         emoji: Emoji,
         giphy: Images,
@@ -120,6 +122,7 @@ export class Execution {
         projects: ProjectDetail[],
     ) {
         this.commitPrefixBuilder = commitPrefixBuilder;
+        this.reopenIssueOnPush = reopenIssueOnPush;
         this.giphy = giphy;
         this.tokens = tokens;
         this.emoji = emoji;
