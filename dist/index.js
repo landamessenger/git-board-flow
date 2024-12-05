@@ -32305,7 +32305,7 @@ class AssignMemberToIssueUseCase {
             }
             const missingAssignees = desiredAssigneesCount - currentMembers.length;
             core.info(`#${number} needs ${missingAssignees} more assignees.`);
-            const members = await this.projectRepository.getRandomMembers(param.owner, missingAssignees, currentMembers, param.tokens.token);
+            const members = await this.projectRepository.getRandomMembers(param.owner, missingAssignees, currentMembers, param.tokens.tokenPat);
             if (members.length === 0) {
                 result.push(new result_1.Result({
                     id: this.taskId,
