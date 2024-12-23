@@ -6,7 +6,7 @@ import {Hotfix} from "./hotfix";
 import {PullRequestRepository} from "../repository/pull_request_repository";
 import {IssueRepository} from "../repository/issue_repository";
 import * as github from "@actions/github";
-import {typesForIssue, branchesForManagement} from "../utils/label_utils";
+import {branchesForManagement, typesForIssue} from "../utils/label_utils";
 import {Issue} from "./issue";
 import {PullRequest} from "./pull_request";
 import {extractIssueNumberFromBranch, extractIssueNumberFromBranchB} from "../utils/title_utils";
@@ -14,6 +14,7 @@ import {Config} from "./config";
 import {Images} from "./images";
 import {Commit} from "./commit";
 import {Emoji} from "./emoji";
+import {ConfigurationHandler} from "../manager/description/configuration_handler";
 
 export class Execution {
     number: number = -1
@@ -143,38 +144,20 @@ export class Execution {
                 this.labels.hotfix,
                 this.tokens.token,
             );
-            this.previousConfiguration = await issueRepository.readConfig(
-                this.owner,
-                this.repo,
-                this.issue.number,
-                this.tokens.token,
-            )
         } else if (this.isPullRequest) {
-            const pullRequestRepository = new PullRequestRepository();
+            const issueRepository = new IssueRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
-            this.labels.currentLabels = await pullRequestRepository.getLabels(
+            this.labels.currentLabels = await issueRepository.getLabels(
                 this.owner,
                 this.repo,
                 this.pullRequest.number,
                 this.tokens.token
             );
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
-            this.previousConfiguration = await pullRequestRepository.readConfig(
-                this.owner,
-                this.repo,
-                this.pullRequest.number,
-                this.tokens.token,
-            )
         } else if (this.isPush) {
             this.number = extractIssueNumberFromBranchB(this.commit.branch)
-            const pullRequestRepository = new PullRequestRepository();
-            this.previousConfiguration = await pullRequestRepository.readConfig(
-                this.owner,
-                this.repo,
-                this.number,
-                this.tokens.token,
-            )
         }
+        this.previousConfiguration = await new ConfigurationHandler().readConfig(this)
         this.currentConfiguration.branchType = this.issueType
     }
 }
