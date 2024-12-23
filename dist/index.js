@@ -29915,6 +29915,302 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 8787:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ContentInterface = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+class ContentInterface {
+    constructor() {
+        this.getContent = (description) => {
+            try {
+                if (description === undefined) {
+                    return undefined;
+                }
+                if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+                    return undefined;
+                }
+                return description.split(this.startPattern)[1].split(this.endPattern)[0];
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+        this._addContent = (description, content) => {
+            if (description.indexOf(this.startPattern) === -1 && description.indexOf(this.endPattern) === -1) {
+                const newContent = `${this.startPattern}\n${content}\n${this.endPattern}`;
+                return `${description}\n\n${newContent}`;
+            }
+            else {
+                return undefined;
+            }
+        };
+        this._updateContent = (description, content) => {
+            if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+                core.error(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
+                return undefined;
+            }
+            const start = description.split(this.startPattern)[0];
+            const mid = `${this.startPattern}\n${content}\n${this.endPattern}`;
+            const end = description.split(this.endPattern)[1];
+            return `${start}${mid}${end}`;
+        };
+        this.updateContent = (description, content) => {
+            try {
+                if (description === undefined || content === undefined) {
+                    return undefined;
+                }
+                const addedContent = this._addContent(description, content);
+                if (addedContent !== undefined) {
+                    return addedContent;
+                }
+                return this._updateContent(description, content);
+            }
+            catch (error) {
+                console.error(`Error updating issue description: ${error}`);
+                return undefined;
+            }
+        };
+    }
+    get _id() {
+        return `git-board-flow-${this._id}`;
+    }
+    get startPattern() {
+        if (this.visibleContent) {
+            return `<!-- ${this._id}-start -->`;
+        }
+        return `<!-- ${this._id}-start`;
+    }
+    get endPattern() {
+        if (this.visibleContent) {
+            return `<!-- ${this._id}-end -->`;
+        }
+        return `${this._id}-end -->`;
+    }
+}
+exports.ContentInterface = ContentInterface;
+
+
+/***/ }),
+
+/***/ 5058:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueContentInterface = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const content_interface_1 = __nccwpck_require__(8787);
+const issue_repository_1 = __nccwpck_require__(57);
+class IssueContentInterface extends content_interface_1.ContentInterface {
+    constructor() {
+        super(...arguments);
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.content = async (execution) => {
+            try {
+                let number = -1;
+                if (execution.isIssue) {
+                    number = execution.issue.number;
+                }
+                else if (execution.isPullRequest) {
+                    number = execution.pullRequest.number;
+                }
+                else {
+                    return undefined;
+                }
+                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.token);
+                return this.getContent(description);
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+        this.update = async (execution, content) => {
+            try {
+                let number = -1;
+                if (execution.isIssue) {
+                    number = execution.issue.number;
+                }
+                else if (execution.isPullRequest) {
+                    number = execution.pullRequest.number;
+                }
+                else {
+                    return undefined;
+                }
+                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.token);
+                const updated = this.updateContent(description, content);
+                if (updated === undefined) {
+                    return undefined;
+                }
+                await this.issueRepository.updateDescription(execution.owner, execution.repo, execution.number, updated, execution.tokens.token);
+                return updated;
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+    }
+}
+exports.IssueContentInterface = IssueContentInterface;
+
+
+/***/ }),
+
+/***/ 3264:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ConfigurationHandler = void 0;
+const config_1 = __nccwpck_require__(1106);
+const core = __importStar(__nccwpck_require__(2186));
+const issue_content_interface_1 = __nccwpck_require__(5058);
+class ConfigurationHandler extends issue_content_interface_1.IssueContentInterface {
+    constructor() {
+        super(...arguments);
+        this.updateConfig = async (execution) => {
+            try {
+                return await this.update(execution, JSON.stringify(execution.currentConfiguration, null, 4));
+            }
+            catch (error) {
+                core.error(`Error updating issue description: ${error}`);
+                return undefined;
+            }
+        };
+        this.readConfig = async (execution) => {
+            try {
+                const config = await this.content(execution);
+                if (config === undefined) {
+                    return undefined;
+                }
+                const branchConfig = JSON.parse(config);
+                return new config_1.Config(branchConfig);
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+    }
+    get id() {
+        return 'configuration';
+    }
+    get visibleContent() {
+        return false;
+    }
+}
+exports.ConfigurationHandler = ConfigurationHandler;
+
+
+/***/ }),
+
 /***/ 2141:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -30139,7 +30435,7 @@ const label_utils_1 = __nccwpck_require__(6093);
 const title_utils_1 = __nccwpck_require__(6212);
 const config_1 = __nccwpck_require__(1106);
 const commit_1 = __nccwpck_require__(3993);
-const description_utils_1 = __nccwpck_require__(5574);
+const configuration_handler_1 = __nccwpck_require__(3264);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -30194,21 +30490,17 @@ class Execution {
                 const issueRepository = new issue_repository_1.IssueRepository();
                 this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
-                this.previousConfiguration = new description_utils_1.DescriptionUtils().readConfig(this.issue.body);
             }
             else if (this.isPullRequest) {
                 const issueRepository = new issue_repository_1.IssueRepository();
                 this.number = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
                 this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
-                this.previousConfiguration = new description_utils_1.DescriptionUtils().readConfig(this.pullRequest.body);
             }
             else if (this.isPush) {
                 this.number = (0, title_utils_1.extractIssueNumberFromBranchB)(this.commit.branch);
-                const issueRepository = new issue_repository_1.IssueRepository();
-                const issueDescription = await issueRepository.getDescription(this.owner, this.repo, this.number, this.tokens.token);
-                this.previousConfiguration = new description_utils_1.DescriptionUtils().readConfig(issueDescription);
             }
+            this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().readConfig(this);
             this.currentConfiguration.branchType = this.issueType;
         };
         this.commitPrefixBuilder = commitPrefixBuilder;
@@ -30960,8 +31252,6 @@ const core = __importStar(__nccwpck_require__(2186));
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
-        this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
-        this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
         this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
@@ -33484,34 +33774,20 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.StoreConfigurationUseCase = void 0;
-const issue_repository_1 = __nccwpck_require__(57);
 const core = __importStar(__nccwpck_require__(2186));
-const description_utils_1 = __nccwpck_require__(5574);
+const configuration_handler_1 = __nccwpck_require__(3264);
 /**
  * Store las configuration in the description
  */
 class StoreConfigurationUseCase {
     constructor() {
         this.taskId = 'StoreConfigurationUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.handler = new configuration_handler_1.ConfigurationHandler();
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
         try {
-            if (param.isIssue) {
-                const description = new description_utils_1.DescriptionUtils().updateConfig(param.issue.body, param.currentConfiguration);
-                if (description === undefined) {
-                    return;
-                }
-                await this.issueRepository.updateDescription(param.owner, param.repo, param.issue.number, description, param.tokens.token);
-            }
-            else if (param.isPullRequest) {
-                const description = new description_utils_1.DescriptionUtils().updateConfig(param.pullRequest.body, param.currentConfiguration);
-                if (description === undefined) {
-                    return;
-                }
-                await this.issueRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, description, param.tokens.token);
-            }
+            await this.handler.updateConfig(param);
         }
         catch (error) {
             console.error(error);
@@ -33519,107 +33795,6 @@ class StoreConfigurationUseCase {
     }
 }
 exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
-
-
-/***/ }),
-
-/***/ 5574:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DescriptionUtils = void 0;
-const config_1 = __nccwpck_require__(1106);
-const core = __importStar(__nccwpck_require__(2186));
-class DescriptionUtils {
-    constructor() {
-        this.updateConfig = (content, config) => {
-            try {
-                const configBlock = `${this.startJsonConfigPattern} 
-${JSON.stringify(config, null, 4)}
-${this.endJsonConfigPattern}`;
-                if (content.indexOf(this.startJsonConfigPattern) === -1
-                    && content.indexOf(this.endJsonConfigPattern) === -1) {
-                    return `${content}\n\n${configBlock}`;
-                }
-                if (content.indexOf(this.startJsonConfigPattern) === -1
-                    || content.indexOf(this.endJsonConfigPattern) === -1) {
-                    console.error(`The content has a problem with open-close tags: ${this.startJsonConfigPattern} / ${this.endJsonConfigPattern}`);
-                    return undefined;
-                }
-                const storedConfig = content.split(this.startJsonConfigPattern)[1].split(this.endJsonConfigPattern)[0];
-                const oldContent = `${this.startJsonConfigPattern}${storedConfig}${this.endJsonConfigPattern}`;
-                const updatedDescription = content.replace(oldContent, '');
-                return `${updatedDescription}\n\n${configBlock}`;
-            }
-            catch (error) {
-                console.error(`Error updating issue description: ${error}`);
-                return undefined;
-            }
-        };
-        this.readConfig = (content) => {
-            try {
-                if (content === undefined) {
-                    return undefined;
-                }
-                if (content.indexOf(this.startJsonConfigPattern) === -1 || content.indexOf(this.endJsonConfigPattern) === -1) {
-                    return undefined;
-                }
-                const config = content.split(this.startJsonConfigPattern)[1].split(this.endJsonConfigPattern)[0];
-                const branchConfig = JSON.parse(config);
-                return new config_1.Config(branchConfig);
-            }
-            catch (error) {
-                core.error(`Error reading issue configuration: ${error}`);
-                throw error;
-            }
-        };
-    }
-    get id() {
-        return 'git-board-flow';
-    }
-    get startJsonConfigPattern() {
-        return `<!-- ${this.id}-json-start`;
-    }
-    get endJsonConfigPattern() {
-        return `${this.id}-json-end -->`;
-    }
-}
-exports.DescriptionUtils = DescriptionUtils;
 
 
 /***/ }),

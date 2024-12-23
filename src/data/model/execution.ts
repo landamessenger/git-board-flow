@@ -14,7 +14,7 @@ import {Config} from "./config";
 import {Images} from "./images";
 import {Commit} from "./commit";
 import {Emoji} from "./emoji";
-import {DescriptionUtils} from "../utils/description_utils";
+import {ConfigurationHandler} from "../manager/description/configuration_handler";
 
 export class Execution {
     number: number = -1
@@ -144,7 +144,6 @@ export class Execution {
                 this.labels.hotfix,
                 this.tokens.token,
             );
-            this.previousConfiguration = new DescriptionUtils().readConfig(this.issue.body)
         } else if (this.isPullRequest) {
             const issueRepository = new IssueRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
@@ -155,18 +154,10 @@ export class Execution {
                 this.tokens.token
             );
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
-            this.previousConfiguration = new DescriptionUtils().readConfig(this.pullRequest.body)
         } else if (this.isPush) {
             this.number = extractIssueNumberFromBranchB(this.commit.branch)
-            const issueRepository = new IssueRepository();
-            const issueDescription = await issueRepository.getDescription(
-                this.owner,
-                this.repo,
-                this.number,
-                this.tokens.token,
-            )
-            this.previousConfiguration = new DescriptionUtils().readConfig(issueDescription)
         }
+        this.previousConfiguration = await new ConfigurationHandler().readConfig(this)
         this.currentConfiguration.branchType = this.issueType
     }
 }

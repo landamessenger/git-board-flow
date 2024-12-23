@@ -1,14 +1,10 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
 import {Milestone} from "../model/milestone";
-import {Config} from "../model/config";
 import {Labels} from "../model/labels";
-import {DescriptionUtils} from "../utils/description_utils";
 
 export class IssueRepository {
-    private startConfigPattern = '<!-- GIT-BOARD-CONFIG-START'
-    private endConfigPattern = 'GIT-BOARD-CONFIG-END -->'
-
+    
     updateTitle = async (
         owner: string,
         repository: string,
