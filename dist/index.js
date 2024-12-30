@@ -30468,10 +30468,10 @@ class Execution {
         return this.isIssue && !this.isBranched;
     }
     get managementBranch() {
-        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
+        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
     }
     get issueType() {
-        return (0, label_utils_1.typesForIssue)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
+        return (0, label_utils_1.typesForIssue)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
     }
     get cleanIssueBranches() {
         return this.isIssue
@@ -30488,13 +30488,14 @@ class Execution {
             if (this.isIssue) {
                 this.number = this.issue.number;
                 const issueRepository = new issue_repository_1.IssueRepository();
-                this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
             }
             else if (this.isPullRequest) {
                 const issueRepository = new issue_repository_1.IssueRepository();
                 this.number = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
-                this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             else if (this.isPush) {
@@ -30636,34 +30637,35 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Labels = void 0;
 class Labels {
     get containsBranchedLabel() {
-        return this.currentLabels.includes(this.branchManagementLauncherLabel);
+        return this.currentIssueLabels.includes(this.branchManagementLauncherLabel);
     }
     get isHelp() {
-        return this.currentLabels.includes(this.help);
+        return this.currentIssueLabels.includes(this.help);
     }
     get isQuestion() {
-        return this.currentLabels.includes(this.question);
+        return this.currentIssueLabels.includes(this.question);
     }
     get isFeature() {
-        return this.currentLabels.includes(this.feature);
+        return this.currentIssueLabels.includes(this.feature);
     }
     get isEnhancement() {
-        return this.currentLabels.includes(this.enhancement);
+        return this.currentIssueLabels.includes(this.enhancement);
     }
     get isBugfix() {
-        return this.currentLabels.includes(this.bugfix);
+        return this.currentIssueLabels.includes(this.bugfix);
     }
     get isBug() {
-        return this.currentLabels.includes(this.bug);
+        return this.currentIssueLabels.includes(this.bug);
     }
     get isHotfix() {
-        return this.currentLabels.includes(this.hotfix);
+        return this.currentIssueLabels.includes(this.hotfix);
     }
     get isRelease() {
-        return this.currentLabels.includes(this.release);
+        return this.currentIssueLabels.includes(this.release);
     }
     constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help) {
-        this.currentLabels = [];
+        this.currentIssueLabels = [];
+        this.currentPullRequestLabels = [];
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
         this.bugfix = bugfix;
@@ -32306,6 +32308,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const close_issue_use_case_1 = __nccwpck_require__(5130);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
+const update_title_use_case_1 = __nccwpck_require__(8411);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
@@ -32319,6 +32322,10 @@ class PullRequestLinkUseCase {
             console.log(`PR isMerged ${param.pullRequest.isMerged}`);
             console.log(`PR isClosed ${param.pullRequest.isClosed}`);
             if (param.pullRequest.isOpened) {
+                /**
+                 * Update title
+                 */
+                results.push(...await new update_title_use_case_1.UpdateTitleUseCase().invoke(param));
                 /**
                  * Assignees
                  */
@@ -33714,6 +33721,35 @@ class UpdateTitleUseCase {
                     }));
                 }
             }
+            else if (param.isPullRequest) {
+                if (param.emoji.emojiLabeledTitle) {
+                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.pullRequest.title, param.pullRequest.number, false, '', param.labels, param.tokens.token);
+                    if (title) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The pull request's title was updated from \`${param.pullRequest.title}\` to \`${title}\`.`,
+                            ]
+                        }));
+                    }
+                    else {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        }));
+                    }
+                }
+                else {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    }));
+                }
+            }
         }
         catch (error) {
             result.push(new result_1.Result({
@@ -33721,7 +33757,7 @@ class UpdateTitleUseCase {
                 success: false,
                 executed: true,
                 steps: [
-                    `Tried to update issue's title, but there was a problem.`,
+                    `Tried to update title, but there was a problem.`,
                 ],
                 error: error,
             }));
