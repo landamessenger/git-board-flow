@@ -310,8 +310,8 @@ export class IssueRepository {
     getMilestone = async (
         owner: string,
         repository: string,
-        token: string,
         issueNumber: number,
+        token: string,
     ): Promise<Milestone | undefined> => {
         const octokit = github.getOctokit(token);
 
@@ -331,6 +331,28 @@ export class IssueRepository {
             return undefined
         }
     }
+
+    getTitle = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<string | undefined> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const { data: issue } = await octokit.rest.issues.get({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+
+            return issue.title;
+        } catch (error) {
+            console.error(`Failed to fetch the issue title: ${error}`);
+            return undefined;
+        }
+    };
 
     getLabels = async (
         owner: string,
