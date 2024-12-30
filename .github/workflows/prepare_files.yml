@@ -28,9 +28,6 @@ jobs:
       - name: Switch to SSH
         run: git remote set-url origin git@github.com:landamessenger/git-board-flow.git
 
-      - name: Fetch repo manually
-        run: git fetch origin
-
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
