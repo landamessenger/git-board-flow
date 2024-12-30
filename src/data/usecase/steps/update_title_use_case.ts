@@ -15,7 +15,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitle(
+                    const title = await this.issueRepository.updateTitleIssueFormat(
                         param.owner,
                         param.repo,
                         param.issue.title,
@@ -56,10 +56,11 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             } else if (param.isPullRequest) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitle(
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(
                         param.owner,
                         param.repo,
                         param.pullRequest.title,
+                        param.number,
                         param.pullRequest.number,
                         false,
                         '',
