@@ -30010,7 +30010,7 @@ class ContentInterface {
         };
     }
     get _id() {
-        return `git-board-flow-${this._id}`;
+        return `git-board-flow-${this.id}`;
     }
     get startPattern() {
         if (this.visibleContent) {
