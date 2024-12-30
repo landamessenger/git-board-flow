@@ -32537,7 +32537,7 @@ class AssignMemberToIssueUseCase {
         const result = [];
         try {
             core.info(`#${number} needs ${desiredAssigneesCount} assignees.`);
-            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.token);
+            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
             const currentMembers = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.token);
             let remainingAssignees = desiredAssigneesCount - currentMembers.length;
             const pullRequestCreatorIsTeamMember = param.isPullRequest
