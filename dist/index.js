@@ -30077,7 +30077,7 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
     constructor() {
         super(...arguments);
         this.issueRepository = new issue_repository_1.IssueRepository();
-        this.content = async (execution) => {
+        this.internalGetter = async (execution) => {
             try {
                 let number = -1;
                 if (execution.isIssue) {
@@ -30097,7 +30097,7 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 throw error;
             }
         };
-        this.update = async (execution, content) => {
+        this.internalUpdate = async (execution, content) => {
             try {
                 let number = -1;
                 if (execution.isIssue) {
@@ -30175,18 +30175,18 @@ const issue_content_interface_1 = __nccwpck_require__(5058);
 class ConfigurationHandler extends issue_content_interface_1.IssueContentInterface {
     constructor() {
         super(...arguments);
-        this.updateConfig = async (execution) => {
+        this.update = async (execution) => {
             try {
-                return await this.update(execution, JSON.stringify(execution.currentConfiguration, null, 4));
+                return await this.internalUpdate(execution, JSON.stringify(execution.currentConfiguration, null, 4));
             }
             catch (error) {
                 core.error(`Error updating issue description: ${error}`);
                 return undefined;
             }
         };
-        this.readConfig = async (execution) => {
+        this.get = async (execution) => {
             try {
-                const config = await this.content(execution);
+                const config = await this.internalGetter(execution);
                 if (config === undefined) {
                     return undefined;
                 }
@@ -30500,7 +30500,7 @@ class Execution {
             else if (this.isPush) {
                 this.number = (0, title_utils_1.extractIssueNumberFromBranchB)(this.commit.branch);
             }
-            this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().readConfig(this);
+            this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
             this.currentConfiguration.branchType = this.issueType;
         };
         this.commitPrefixBuilder = commitPrefixBuilder;
@@ -33787,7 +33787,7 @@ class StoreConfigurationUseCase {
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
         try {
-            await this.handler.updateConfig(param);
+            await this.handler.update(param);
         }
         catch (error) {
             console.error(error);
