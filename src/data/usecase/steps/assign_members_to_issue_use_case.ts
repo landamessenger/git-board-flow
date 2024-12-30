@@ -24,7 +24,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
 
             const currentProjectMembers = await this.projectRepository.getAllMembers(
                 param.owner,
-                param.tokens.token,
+                param.tokens.tokenPat,
             )
 
             const currentMembers = await this.issueRepository.getCurrentAssignees(
