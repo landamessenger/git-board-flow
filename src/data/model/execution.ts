@@ -157,7 +157,7 @@ export class Execution {
         } else if (this.isPush) {
             this.number = extractIssueNumberFromBranchB(this.commit.branch)
         }
-        this.previousConfiguration = await new ConfigurationHandler().readConfig(this)
+        this.previousConfiguration = await new ConfigurationHandler().get(this)
         this.currentConfiguration.branchType = this.issueType
     }
 }

@@ -13,7 +13,7 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
     async invoke(param: Execution): Promise<void> {
         core.info(`Executing ${this.taskId}.`)
         try {
-            await this.handler.updateConfig(
+            await this.handler.update(
                 param
             )
         } catch (error) {

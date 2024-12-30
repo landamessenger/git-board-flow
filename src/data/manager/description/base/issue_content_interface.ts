@@ -6,7 +6,7 @@ import {Execution} from "../../../model/execution";
 export abstract class IssueContentInterface extends ContentInterface {
     private issueRepository = new IssueRepository();
 
-    content = async (execution: Execution): Promise<string | undefined> => {
+    internalGetter = async (execution: Execution): Promise<string | undefined> => {
         try {
             let number = -1
             if (execution.isIssue) {
@@ -31,7 +31,7 @@ export abstract class IssueContentInterface extends ContentInterface {
         }
     }
 
-    update = async (execution: Execution, content: string): Promise<string | undefined> => {
+    internalUpdate = async (execution: Execution, content: string): Promise<string | undefined> => {
         try {
             let number = -1
             if (execution.isIssue) {

@@ -12,18 +12,18 @@ export class ConfigurationHandler extends IssueContentInterface {
         return false;
     }
 
-    updateConfig = async (execution: Execution) => {
+    update = async (execution: Execution) => {
         try {
-            return await this.update(execution, JSON.stringify(execution.currentConfiguration, null, 4))
+            return await this.internalUpdate(execution, JSON.stringify(execution.currentConfiguration, null, 4))
         } catch (error) {
             core.error(`Error updating issue description: ${error}`);
             return undefined;
         }
     }
 
-    readConfig = async (execution: Execution): Promise<Config | undefined> => {
+    get = async (execution: Execution): Promise<Config | undefined> => {
         try {
-            const config = await this.content(execution)
+            const config = await this.internalGetter(execution)
             if (config === undefined) {
                 return undefined;
             }
