@@ -4,7 +4,7 @@ author: "Landa Messenger"
 inputs:
   emoji-labeled-title:
     description: "Enable titles with emojis based on issue labels."
-    default: "false"
+    default: "true"
   branch-management-launcher-label:
     description: "Label to trigger branch management actions."
     default: "branched"
