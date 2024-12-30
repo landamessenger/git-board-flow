@@ -31254,7 +31254,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
-        this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
+        this.updateTitleIssueFormat = async (owner, repository, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
@@ -31304,6 +31304,68 @@ class IssueRepository {
                         owner: owner,
                         repo: repository,
                         issue_number: issueNumber,
+                        title: formattedTitle,
+                    });
+                    core.info(`Issue title updated to: ${formattedTitle}`);
+                    return formattedTitle;
+                }
+                return undefined;
+            }
+            catch (error) {
+                core.setFailed(`Failed to check or update issue title: ${error}`);
+                return undefined;
+            }
+        };
+        this.updateTitlePullRequestFormat = async (owner, repository, issueTitle, issueNumber, pullRequestNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                let emoji = '🤖';
+                const branched = branchManagementAlways || labels.containsBranchedLabel;
+                if (labels.isHotfix && branched) {
+                    emoji = `🔥${branchManagementEmoji}`;
+                }
+                else if (labels.isRelease && branched) {
+                    emoji = `🚀${branchManagementEmoji}`;
+                }
+                else if ((labels.isBugfix || labels.isBug) && branched) {
+                    emoji = `🐛${branchManagementEmoji}`;
+                }
+                else if ((labels.isFeature || labels.isEnhancement) && branched) {
+                    emoji = `✨${branchManagementEmoji}`;
+                }
+                else if (labels.isHotfix) {
+                    emoji = '🔥';
+                }
+                else if (labels.isRelease) {
+                    emoji = '🚀';
+                }
+                else if (labels.isBugfix || labels.isBug) {
+                    emoji = '🐛';
+                }
+                else if (labels.isFeature || labels.isEnhancement) {
+                    emoji = '✨';
+                }
+                else if (labels.isHelp) {
+                    emoji = '🆘';
+                }
+                else if (labels.isQuestion) {
+                    emoji = '❓';
+                }
+                let sanitizedTitle = issueTitle
+                    .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                    .replace(/\u200D/g, '')
+                    .replace(/[^\S\r\n]+/g, ' ')
+                    .replace(/[^a-zA-Z0-9 ]/g, '')
+                    .replace(/^-+|-+$/g, '')
+                    .replace(/- -/g, '-').trim()
+                    .replace(/-+/g, '-')
+                    .trim();
+                const formattedTitle = `[#${issueNumber}] ${emoji} - ${sanitizedTitle}`;
+                if (formattedTitle !== issueTitle) {
+                    await octokit.rest.issues.update({
+                        owner: owner,
+                        repo: repository,
+                        issue_number: pullRequestNumber,
                         title: formattedTitle,
                     });
                     core.info(`Issue title updated to: ${formattedTitle}`);
@@ -33694,7 +33756,7 @@ class UpdateTitleUseCase {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, param.issue.title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -33723,7 +33785,7 @@ class UpdateTitleUseCase {
             }
             else if (param.isPullRequest) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.pullRequest.title, param.pullRequest.number, false, '', param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, param.pullRequest.title, param.number, param.pullRequest.number, false, '', param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
