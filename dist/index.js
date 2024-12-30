@@ -31895,8 +31895,6 @@ const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
 class PullRequestRepository {
     constructor() {
-        this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
-        this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
         this.isLinked = async (pullRequestUrl) => {
             const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
             return !htmlContent.includes('has_github_issues=false');
