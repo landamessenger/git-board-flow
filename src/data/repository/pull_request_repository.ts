@@ -1,11 +1,7 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
-import {Config} from "../model/config";
 
 export class PullRequestRepository {
-
-    private startConfigPattern = '<!-- GIT-BOARD-CONFIG-START'
-    private endConfigPattern = 'GIT-BOARD-CONFIG-END -->'
 
     isLinked = async (pullRequestUrl: string) => {
         const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
@@ -57,7 +53,7 @@ export class PullRequestRepository {
         const octokit = github.getOctokit(token);
 
         try {
-            const { data } = await octokit.rest.pulls.listRequestedReviewers({
+            const {data} = await octokit.rest.pulls.listRequestedReviewers({
                 owner,
                 repo: repository,
                 pull_number: pullNumber,
@@ -85,7 +81,7 @@ export class PullRequestRepository {
                 return [];
             }
 
-            const { data } = await octokit.rest.pulls.requestReviewers({
+            const {data} = await octokit.rest.pulls.requestReviewers({
                 owner,
                 repo: repository,
                 pull_number: pullNumber,

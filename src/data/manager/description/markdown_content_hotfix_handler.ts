@@ -8,7 +8,7 @@ export class MarkdownContentHotfixHandler extends IssueContentInterface {
     }
 
     get visibleContent(): boolean {
-        return false;
+        return true;
     }
 
     update = async (execution: Execution, content: string) => {
