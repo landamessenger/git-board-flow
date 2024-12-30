@@ -7,6 +7,10 @@ on:
       - '!master'
       - '!develop'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   prepare-files:
     name: Update compiled files
