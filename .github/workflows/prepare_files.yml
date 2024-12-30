@@ -10,9 +10,16 @@ on:
 jobs:
   prepare-files:
     name: Update compiled files
-    runs-on: [ self-hosted, Linux ]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Switch to SSH
         run: git remote set-url origin git@gitboardflow.github.com:landamessenger/git-board-flow.git
