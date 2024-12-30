@@ -31500,7 +31500,7 @@ class IssueRepository {
                 throw error;
             }
         };
-        this.getMilestone = async (owner, repository, token, issueNumber) => {
+        this.getMilestone = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
                 owner: owner,
@@ -31511,6 +31511,21 @@ class IssueRepository {
                 return new milestone_1.Milestone(issue.milestone.id, issue.milestone.title, issue.milestone.description ?? '');
             }
             else {
+                return undefined;
+            }
+        };
+        this.getTitle = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: issue } = await octokit.rest.issues.get({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                });
+                return issue.title;
+            }
+            catch (error) {
+                console.error(`Failed to fetch the issue title: ${error}`);
                 return undefined;
             }
         };
@@ -33785,7 +33800,19 @@ class UpdateTitleUseCase {
             }
             else if (param.isPullRequest) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, param.pullRequest.title, param.number, param.pullRequest.number, false, '', param.labels, param.tokens.token);
+                    const issueTitle = await this.issueRepository.getTitle(param.owner, param.repo, param.number, param.tokens.tokenPat);
+                    if (issueTitle === undefined) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Tried to update title, but there was a problem.`,
+                            ],
+                        }));
+                        return result;
+                    }
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, issueTitle, param.number, param.pullRequest.number, false, '', param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
