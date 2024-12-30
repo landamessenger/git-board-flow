@@ -75,7 +75,7 @@ export class Execution {
     get managementBranch(): string {
         return branchesForManagement(
             this,
-            this.labels.currentLabels,
+            this.labels.currentIssueLabels,
             this.labels.bugfix,
             this.labels.hotfix,
             this.labels.release,
@@ -85,7 +85,7 @@ export class Execution {
     get issueType(): string {
         return typesForIssue(
             this,
-            this.labels.currentLabels,
+            this.labels.currentIssueLabels,
             this.labels.bugfix,
             this.labels.hotfix,
             this.labels.release,
@@ -131,7 +131,7 @@ export class Execution {
         if (this.isIssue) {
             this.number = this.issue.number;
             const issueRepository = new IssueRepository();
-            this.labels.currentLabels = await issueRepository.getLabels(
+            this.labels.currentIssueLabels = await issueRepository.getLabels(
                 this.owner,
                 this.repo,
                 this.number,
@@ -147,7 +147,13 @@ export class Execution {
         } else if (this.isPullRequest) {
             const issueRepository = new IssueRepository();
             this.number = extractIssueNumberFromBranch(this.pullRequest.head);
-            this.labels.currentLabels = await issueRepository.getLabels(
+            this.labels.currentIssueLabels = await issueRepository.getLabels(
+                this.owner,
+                this.repo,
+                this.number,
+                this.tokens.token
+            );
+            this.labels.currentPullRequestLabels = await issueRepository.getLabels(
                 this.owner,
                 this.repo,
                 this.pullRequest.number,

@@ -54,6 +54,47 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                         })
                     )
                 }
+            } else if (param.isPullRequest) {
+                if (param.emoji.emojiLabeledTitle) {
+                    const title = await this.issueRepository.updateTitle(
+                        param.owner,
+                        param.repo,
+                        param.pullRequest.title,
+                        param.pullRequest.number,
+                        false,
+                        '',
+                        param.labels,
+                        param.tokens.token,
+                    );
+                    if (title) {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The pull request's title was updated from \`${param.pullRequest.title}\` to \`${title}\`.`,
+                                ]
+                            })
+                        )
+                    } else {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: false,
+                            })
+                        )
+                    }
+                } else {
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        })
+                    )
+                }
             }
         } catch (error) {
             result.push(
@@ -62,7 +103,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to update issue's title, but there was a problem.`,
+                        `Tried to update title, but there was a problem.`,
                     ],
                     error: error,
                 })
