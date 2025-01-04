@@ -8,11 +8,20 @@ export class Labels {
     release: string;
     question: string;
     help: string;
+    deploy: string;
     currentIssueLabels: string[] = [];
     currentPullRequestLabels: string[] = [];
 
+    get isMandatoryBranchedLabel(): boolean {
+        return this.isHotfix || this.isRelease;
+    }
+
     get containsBranchedLabel(): boolean {
         return this.currentIssueLabels.includes(this.branchManagementLauncherLabel);
+    }
+
+    get isDeploy(): boolean {
+        return this.currentIssueLabels.includes(this.deploy);
     }
 
     get isHelp(): boolean {
@@ -57,6 +66,7 @@ export class Labels {
         release: string,
         question: string,
         help: string,
+        deploy: string,
     ) {
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
@@ -67,5 +77,6 @@ export class Labels {
         this.release = release;
         this.question = question;
         this.help = help;
+        this.deploy = deploy;
     }
 }

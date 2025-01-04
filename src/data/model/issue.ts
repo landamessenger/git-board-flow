@@ -25,6 +25,18 @@ export class Issue {
         return github.context.payload.issue?.body ?? '';
     }
 
+    get opened(): boolean {
+        return github.context.payload.action === 'opened';
+    }
+
+    get labeled(): boolean {
+        return github.context.payload.action === 'labeled';
+    }
+
+    get labelAdded(): string {
+        return github.context.payload.label?.name;
+    }
+
     constructor(
         branchManagementAlways: boolean,
         reopenOnPush: boolean,

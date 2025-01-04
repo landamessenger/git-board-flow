@@ -22,11 +22,11 @@ export class MarkdownContentHotfixHandler extends IssueContentInterface {
 
     get = async (execution: Execution): Promise<string | undefined> => {
         try {
-            const config = await this.internalGetter(execution)
-            if (config === undefined) {
+            const content = await this.internalGetter(execution)
+            if (content === undefined) {
                 return undefined;
             }
-            return config;
+            return content;
         } catch (error) {
             core.error(`Error reading issue content: ${error}`);
             throw error;

@@ -2,7 +2,7 @@ name: 🔥 Hotfix Issue
 
 description: Request a new hotfix for git-board-flow (only team members)
 title: "<YOUR TITLE HERE>"
-labels: ["hotfix"]
+labels: ["hotfix", "branched"]
 body:
   - type: markdown
     attributes:
@@ -14,12 +14,22 @@ body:
         ---
 
   - type: input
+    id: base_version
+    attributes:
+      label: Base Version
+      description: |
+        Specify the tagged version number for creating the hotfix branch (usually latest tag).
+      placeholder: "e.g., 1.2.3"
+    validations:
+      required: true
+
+  - type: input
     id: hotfix_version
     attributes:
       label: Hotfix Version
       description: |
-        Specify the version number for the hotfix (e.g., 1.2.3-hotfix1).
-      placeholder: "e.g., 1.2.3-hotfix1"
+        Specify the version number for the hotfix.
+      placeholder: "e.g., 1.2.4"
     validations:
       required: true
 

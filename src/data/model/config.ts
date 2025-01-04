@@ -3,6 +3,7 @@ import {Result} from "./result";
 
 export class Config {
     branchType: string;
+    releaseBranch: string | undefined;
     hotfixBranch: string | undefined;
     results: Result[] = [];
     branchConfiguration: BranchConfiguration | undefined;
@@ -10,6 +11,7 @@ export class Config {
     constructor(data: any) {
         this.branchType = data['branchType'] ?? '';
         this.hotfixBranch = data['hotfixBranch'];
+        this.releaseBranch = data['releaseBranch'];
         if (data['branchConfiguration'] !== undefined) {
             this.branchConfiguration = new BranchConfiguration(data['branchConfiguration']);
         }

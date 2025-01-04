@@ -369,6 +369,17 @@ export class IssueRepository {
         return labels.map(label => label.name);
     }
 
+    isRelease = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        releaseLabel: string,
+        token: string,
+    ): Promise<boolean> => {
+        const labels = await this.getLabels(owner, repository, issueNumber, token)
+        return labels.includes(releaseLabel)
+    }
+
     isHotfix = async (
         owner: string,
         repository: string,
