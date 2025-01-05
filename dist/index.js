@@ -29915,6 +29915,302 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 8787:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ContentInterface = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+class ContentInterface {
+    constructor() {
+        this.getContent = (description) => {
+            try {
+                if (description === undefined) {
+                    return undefined;
+                }
+                if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+                    return undefined;
+                }
+                return description.split(this.startPattern)[1].split(this.endPattern)[0];
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+        this._addContent = (description, content) => {
+            if (description.indexOf(this.startPattern) === -1 && description.indexOf(this.endPattern) === -1) {
+                const newContent = `${this.startPattern}\n${content}\n${this.endPattern}`;
+                return `${description}\n\n${newContent}`;
+            }
+            else {
+                return undefined;
+            }
+        };
+        this._updateContent = (description, content) => {
+            if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+                core.error(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
+                return undefined;
+            }
+            const start = description.split(this.startPattern)[0];
+            const mid = `${this.startPattern}\n${content}\n${this.endPattern}`;
+            const end = description.split(this.endPattern)[1];
+            return `${start}${mid}${end}`;
+        };
+        this.updateContent = (description, content) => {
+            try {
+                if (description === undefined || content === undefined) {
+                    return undefined;
+                }
+                const addedContent = this._addContent(description, content);
+                if (addedContent !== undefined) {
+                    return addedContent;
+                }
+                return this._updateContent(description, content);
+            }
+            catch (error) {
+                console.error(`Error updating issue description: ${error}`);
+                return undefined;
+            }
+        };
+    }
+    get _id() {
+        return `git-board-flow-${this.id}`;
+    }
+    get startPattern() {
+        if (this.visibleContent) {
+            return `<!-- ${this._id}-start -->`;
+        }
+        return `<!-- ${this._id}-start`;
+    }
+    get endPattern() {
+        if (this.visibleContent) {
+            return `<!-- ${this._id}-end -->`;
+        }
+        return `${this._id}-end -->`;
+    }
+}
+exports.ContentInterface = ContentInterface;
+
+
+/***/ }),
+
+/***/ 5058:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueContentInterface = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const content_interface_1 = __nccwpck_require__(8787);
+const issue_repository_1 = __nccwpck_require__(57);
+class IssueContentInterface extends content_interface_1.ContentInterface {
+    constructor() {
+        super(...arguments);
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.internalGetter = async (execution) => {
+            try {
+                let number = -1;
+                if (execution.isIssue) {
+                    number = execution.issue.number;
+                }
+                else if (execution.isPullRequest) {
+                    number = execution.pullRequest.number;
+                }
+                else {
+                    return undefined;
+                }
+                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.token);
+                return this.getContent(description);
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+        this.internalUpdate = async (execution, content) => {
+            try {
+                let number = -1;
+                if (execution.isIssue) {
+                    number = execution.issue.number;
+                }
+                else if (execution.isPullRequest) {
+                    number = execution.pullRequest.number;
+                }
+                else {
+                    return undefined;
+                }
+                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.token);
+                const updated = this.updateContent(description, content);
+                if (updated === undefined) {
+                    return undefined;
+                }
+                await this.issueRepository.updateDescription(execution.owner, execution.repo, execution.number, updated, execution.tokens.token);
+                return updated;
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+    }
+}
+exports.IssueContentInterface = IssueContentInterface;
+
+
+/***/ }),
+
+/***/ 3264:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ConfigurationHandler = void 0;
+const config_1 = __nccwpck_require__(1106);
+const core = __importStar(__nccwpck_require__(2186));
+const issue_content_interface_1 = __nccwpck_require__(5058);
+class ConfigurationHandler extends issue_content_interface_1.IssueContentInterface {
+    constructor() {
+        super(...arguments);
+        this.update = async (execution) => {
+            try {
+                return await this.internalUpdate(execution, JSON.stringify(execution.currentConfiguration, null, 4));
+            }
+            catch (error) {
+                core.error(`Error updating issue description: ${error}`);
+                return undefined;
+            }
+        };
+        this.get = async (execution) => {
+            try {
+                const config = await this.internalGetter(execution);
+                if (config === undefined) {
+                    return undefined;
+                }
+                const branchConfig = JSON.parse(config);
+                return new config_1.Config(branchConfig);
+            }
+            catch (error) {
+                core.error(`Error reading issue configuration: ${error}`);
+                throw error;
+            }
+        };
+    }
+    get id() {
+        return 'configuration';
+    }
+    get visibleContent() {
+        return false;
+    }
+}
+exports.ConfigurationHandler = ConfigurationHandler;
+
+
+/***/ }),
+
 /***/ 2141:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -30065,6 +30361,7 @@ class Config {
         this.results = [];
         this.branchType = data['branchType'] ?? '';
         this.hotfixBranch = data['hotfixBranch'];
+        this.releaseBranch = data['releaseBranch'];
         if (data['branchConfiguration'] !== undefined) {
             this.branchConfiguration = new branch_configuration_1.BranchConfiguration(data['branchConfiguration']);
         }
@@ -30133,13 +30430,13 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Execution = void 0;
-const pull_request_repository_1 = __nccwpck_require__(634);
 const issue_repository_1 = __nccwpck_require__(57);
 const github = __importStar(__nccwpck_require__(5438));
 const label_utils_1 = __nccwpck_require__(6093);
 const title_utils_1 = __nccwpck_require__(6212);
 const config_1 = __nccwpck_require__(1106);
 const commit_1 = __nccwpck_require__(3993);
+const configuration_handler_1 = __nccwpck_require__(3264);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -30166,16 +30463,18 @@ class Execution {
         return this.issueType === 'bugfix';
     }
     get isBranched() {
-        return this.issue.branchManagementAlways || this.labels.containsBranchedLabel;
+        return this.issue.branchManagementAlways ||
+            this.labels.containsBranchedLabel ||
+            this.labels.isMandatoryBranchedLabel;
     }
     get issueNotBranched() {
         return this.isIssue && !this.isBranched;
     }
     get managementBranch() {
-        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
+        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
     }
     get issueType() {
-        return (0, label_utils_1.typesForIssue)(this, this.labels.currentLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
+        return (0, label_utils_1.typesForIssue)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
     }
     get cleanIssueBranches() {
         return this.isIssue
@@ -30185,29 +30484,29 @@ class Execution {
     get commit() {
         return new commit_1.Commit();
     }
-    constructor(commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, labels, branches, hotfix, projects) {
+    constructor(commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, labels, branches, release, hotfix, workflows, projects) {
         this.number = -1;
         this.commitPrefixBuilderParams = {};
         this.setup = async () => {
             if (this.isIssue) {
                 this.number = this.issue.number;
                 const issueRepository = new issue_repository_1.IssueRepository();
-                this.labels.currentLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.release.active = await issueRepository.isRelease(this.owner, this.repo, this.issue.number, this.labels.release, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
-                this.previousConfiguration = await issueRepository.readConfig(this.owner, this.repo, this.issue.number, this.tokens.token);
             }
             else if (this.isPullRequest) {
-                const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+                const issueRepository = new issue_repository_1.IssueRepository();
                 this.number = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
-                this.labels.currentLabels = await pullRequestRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
+                this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1;
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
-                this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
             }
             else if (this.isPush) {
                 this.number = (0, title_utils_1.extractIssueNumberFromBranchB)(this.commit.branch);
-                const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
-                this.previousConfiguration = await pullRequestRepository.readConfig(this.owner, this.repo, this.number, this.tokens.token);
             }
+            this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
             this.currentConfiguration.branchType = this.issueType;
         };
         this.commitPrefixBuilder = commitPrefixBuilder;
@@ -30218,8 +30517,10 @@ class Execution {
         this.emoji = emoji;
         this.labels = labels;
         this.branches = branches;
+        this.release = release;
         this.hotfix = hotfix;
         this.projects = projects;
+        this.workflows = workflows;
         this.currentConfiguration = new config_1.Config({});
     }
 }
@@ -30314,11 +30615,23 @@ class Issue {
     get number() {
         return github.context.payload.issue?.number ?? -1;
     }
+    get creator() {
+        return github.context.payload.issue?.user.login ?? '';
+    }
     get url() {
         return github.context.payload.issue?.html_url ?? '';
     }
     get body() {
         return github.context.payload.issue?.body ?? '';
+    }
+    get opened() {
+        return github.context.payload.action === 'opened';
+    }
+    get labeled() {
+        return github.context.payload.action === 'labeled';
+    }
+    get labelAdded() {
+        return github.context.payload.label?.name;
     }
     constructor(branchManagementAlways, reopenOnPush, desiredAssigneesCount) {
         this.branchManagementAlways = branchManagementAlways;
@@ -30339,35 +30652,42 @@ exports.Issue = Issue;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Labels = void 0;
 class Labels {
+    get isMandatoryBranchedLabel() {
+        return this.isHotfix || this.isRelease;
+    }
     get containsBranchedLabel() {
-        return this.currentLabels.includes(this.branchManagementLauncherLabel);
+        return this.currentIssueLabels.includes(this.branchManagementLauncherLabel);
+    }
+    get isDeploy() {
+        return this.currentIssueLabels.includes(this.deploy);
     }
     get isHelp() {
-        return this.currentLabels.includes(this.help);
+        return this.currentIssueLabels.includes(this.help);
     }
     get isQuestion() {
-        return this.currentLabels.includes(this.question);
+        return this.currentIssueLabels.includes(this.question);
     }
     get isFeature() {
-        return this.currentLabels.includes(this.feature);
+        return this.currentIssueLabels.includes(this.feature);
     }
     get isEnhancement() {
-        return this.currentLabels.includes(this.enhancement);
+        return this.currentIssueLabels.includes(this.enhancement);
     }
     get isBugfix() {
-        return this.currentLabels.includes(this.bugfix);
+        return this.currentIssueLabels.includes(this.bugfix);
     }
     get isBug() {
-        return this.currentLabels.includes(this.bug);
+        return this.currentIssueLabels.includes(this.bug);
     }
     get isHotfix() {
-        return this.currentLabels.includes(this.hotfix);
+        return this.currentIssueLabels.includes(this.hotfix);
     }
     get isRelease() {
-        return this.currentLabels.includes(this.release);
+        return this.currentIssueLabels.includes(this.release);
     }
-    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help) {
-        this.currentLabels = [];
+    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy) {
+        this.currentIssueLabels = [];
+        this.currentPullRequestLabels = [];
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
         this.bugfix = bugfix;
@@ -30377,6 +30697,7 @@ class Labels {
         this.release = release;
         this.question = question;
         this.help = help;
+        this.deploy = deploy;
     }
 }
 exports.Labels = Labels;
@@ -30476,6 +30797,9 @@ class PullRequest {
     get title() {
         return github.context.payload.pull_request?.title ?? '';
     }
+    get creator() {
+        return github.context.payload.pull_request?.user.login ?? '';
+    }
     get number() {
         return github.context.payload.pull_request?.number ?? -1;
     }
@@ -30508,6 +30832,23 @@ class PullRequest {
     }
 }
 exports.PullRequest = PullRequest;
+
+
+/***/ }),
+
+/***/ 2551:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Release = void 0;
+class Release {
+    constructor() {
+        this.active = false;
+    }
+}
+exports.Release = Release;
 
 
 /***/ }),
@@ -30549,6 +30890,24 @@ class Tokens {
     }
 }
 exports.Tokens = Tokens;
+
+
+/***/ }),
+
+/***/ 8553:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Workflows = void 0;
+class Workflows {
+    constructor(release, hotfix) {
+        this.release = release;
+        this.hotfix = hotfix;
+    }
+}
+exports.Workflows = Workflows;
 
 
 /***/ }),
@@ -30901,6 +31260,16 @@ class BranchRepository {
             });
             return data.map(branch => branch.name);
         };
+        this.executeWorkflow = async (owner, repository, branch, workflow, inputs, token) => {
+            const octokit = github.getOctokit(token);
+            return octokit.rest.actions.createWorkflowDispatch({
+                owner: owner,
+                repo: repository,
+                workflow_id: workflow,
+                ref: branch,
+                inputs: inputs
+            });
+        };
     }
 }
 exports.BranchRepository = BranchRepository;
@@ -30951,12 +31320,9 @@ exports.IssueRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
 const milestone_1 = __nccwpck_require__(2298);
-const config_1 = __nccwpck_require__(1106);
 class IssueRepository {
     constructor() {
-        this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
-        this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
-        this.updateTitle = async (owner, repository, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
+        this.updateTitleIssueFormat = async (owner, repository, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
@@ -31018,6 +31384,68 @@ class IssueRepository {
                 return undefined;
             }
         };
+        this.updateTitlePullRequestFormat = async (owner, repository, issueTitle, issueNumber, pullRequestNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                let emoji = '🤖';
+                const branched = branchManagementAlways || labels.containsBranchedLabel;
+                if (labels.isHotfix && branched) {
+                    emoji = `🔥${branchManagementEmoji}`;
+                }
+                else if (labels.isRelease && branched) {
+                    emoji = `🚀${branchManagementEmoji}`;
+                }
+                else if ((labels.isBugfix || labels.isBug) && branched) {
+                    emoji = `🐛${branchManagementEmoji}`;
+                }
+                else if ((labels.isFeature || labels.isEnhancement) && branched) {
+                    emoji = `✨${branchManagementEmoji}`;
+                }
+                else if (labels.isHotfix) {
+                    emoji = '🔥';
+                }
+                else if (labels.isRelease) {
+                    emoji = '🚀';
+                }
+                else if (labels.isBugfix || labels.isBug) {
+                    emoji = '🐛';
+                }
+                else if (labels.isFeature || labels.isEnhancement) {
+                    emoji = '✨';
+                }
+                else if (labels.isHelp) {
+                    emoji = '🆘';
+                }
+                else if (labels.isQuestion) {
+                    emoji = '❓';
+                }
+                let sanitizedTitle = issueTitle
+                    .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                    .replace(/\u200D/g, '')
+                    .replace(/[^\S\r\n]+/g, ' ')
+                    .replace(/[^a-zA-Z0-9 ]/g, '')
+                    .replace(/^-+|-+$/g, '')
+                    .replace(/- -/g, '-').trim()
+                    .replace(/-+/g, '-')
+                    .trim();
+                const formattedTitle = `[#${issueNumber}] ${emoji} - ${sanitizedTitle}`;
+                if (formattedTitle !== issueTitle) {
+                    await octokit.rest.issues.update({
+                        owner: owner,
+                        repo: repository,
+                        issue_number: pullRequestNumber,
+                        title: formattedTitle,
+                    });
+                    core.info(`Issue title updated to: ${formattedTitle}`);
+                    return formattedTitle;
+                }
+                return undefined;
+            }
+            catch (error) {
+                core.setFailed(`Failed to check or update issue title: ${error}`);
+                return undefined;
+            }
+        };
         this.cleanTitle = async (owner, repository, issueTitle, issueNumber, token) => {
             try {
                 const octokit = github.getOctokit(token);
@@ -31047,52 +31475,25 @@ class IssueRepository {
                 return undefined;
             }
         };
-        this.updateConfig = async (owner, repo, issueNumber, config, token) => {
+        this.updateDescription = async (owner, repo, issueNumber, description, token) => {
             const octokit = github.getOctokit(token);
             try {
-                const { data: issue } = await octokit.rest.issues.get({
-                    owner,
-                    repo,
-                    issue_number: issueNumber,
-                });
-                const currentDescription = issue.body || '';
-                const configBlock = `${this.startConfigPattern} 
-${JSON.stringify(config, null, 4)}
-${this.endConfigPattern}`;
-                if (currentDescription.indexOf(this.startConfigPattern) === -1
-                    && currentDescription.indexOf(this.endConfigPattern) === -1) {
-                    const finalDescription = `${currentDescription}\n\n${configBlock}`;
-                    await octokit.rest.issues.update({
-                        owner,
-                        repo,
-                        issue_number: issueNumber,
-                        body: finalDescription,
-                    });
-                    return;
-                }
-                if (currentDescription.indexOf(this.startConfigPattern) === -1
-                    || currentDescription.indexOf(this.endConfigPattern) === -1) {
-                    console.error(`Issue #${issueNumber} has a problem with open-close tags: ${this.startConfigPattern} / ${this.endConfigPattern}`);
-                    return;
-                }
-                const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
-                const oldContent = `${this.startConfigPattern}${storedConfig}${this.endConfigPattern}`;
-                const updatedDescription = currentDescription.replace(oldContent, '');
-                const finalDescription = `${updatedDescription}\n\n${configBlock}`;
                 await octokit.rest.issues.update({
                     owner,
                     repo,
                     issue_number: issueNumber,
-                    body: finalDescription,
+                    body: description,
                 });
-                console.log(`Issue #${issueNumber} updated with branch configuration.`);
             }
             catch (error) {
                 console.error(`Error updating issue description: ${error}`);
                 throw error;
             }
         };
-        this.readConfig = async (owner, repo, issueNumber, token) => {
+        this.getDescription = async (owner, repo, issueNumber, token) => {
+            if (issueNumber === -1) {
+                return undefined;
+            }
             const octokit = github.getOctokit(token);
             try {
                 const { data: issue } = await octokit.rest.issues.get({
@@ -31100,17 +31501,11 @@ ${this.endConfigPattern}`;
                     repo,
                     issue_number: issueNumber,
                 });
-                const currentDescription = issue.body || '';
-                if (currentDescription.indexOf(this.startConfigPattern) === -1) {
-                    return undefined;
-                }
-                const config = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
-                const branchConfig = JSON.parse(config);
-                return new config_1.Config(branchConfig);
+                return issue.body ?? '';
             }
             catch (error) {
-                core.error(`Error reading issue configuration: ${error}`);
-                throw error;
+                core.error(`Error reading pull request configuration: ${error}`);
+                return undefined;
             }
         };
         this.getId = async (owner, repository, issueNumber, token) => {
@@ -31173,7 +31568,7 @@ ${this.endConfigPattern}`;
                 throw error;
             }
         };
-        this.getMilestone = async (owner, repository, token, issueNumber) => {
+        this.getMilestone = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
                 owner: owner,
@@ -31187,6 +31582,21 @@ ${this.endConfigPattern}`;
                 return undefined;
             }
         };
+        this.getTitle = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: issue } = await octokit.rest.issues.get({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                });
+                return issue.title;
+            }
+            catch (error) {
+                console.error(`Failed to fetch the issue title: ${error}`);
+                return undefined;
+            }
+        };
         this.getLabels = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
@@ -31195,6 +31605,10 @@ ${this.endConfigPattern}`;
                 issue_number: issueNumber,
             });
             return labels.map(label => label.name);
+        };
+        this.isRelease = async (owner, repository, issueNumber, releaseLabel, token) => {
+            const labels = await this.getLabels(owner, repository, issueNumber, token);
+            return labels.includes(releaseLabel);
         };
         this.isHotfix = async (owner, repository, issueNumber, hotfixLabel, token) => {
             const labels = await this.getLabels(owner, repository, issueNumber, token);
@@ -31477,6 +31891,31 @@ class ProjectRepository {
             }
             return [];
         };
+        this.getAllMembers = async (organization, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data: teams } = await octokit.rest.teams.list({
+                    org: organization,
+                });
+                if (teams.length === 0) {
+                    core.info(`${organization} doesn't have any team.`);
+                    return [];
+                }
+                const membersSet = new Set();
+                for (const team of teams) {
+                    const { data: members } = await octokit.rest.teams.listMembersInOrg({
+                        org: organization,
+                        team_slug: team.slug,
+                    });
+                    members.forEach((member) => membersSet.add(member.login));
+                }
+                return Array.from(membersSet);
+            }
+            catch (error) {
+                core.error(`Error getting all members: ${error}.`);
+            }
+            return [];
+        };
     }
 }
 exports.ProjectRepository = ProjectRepository;
@@ -31526,11 +31965,8 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
-const config_1 = __nccwpck_require__(1106);
 class PullRequestRepository {
     constructor() {
-        this.startConfigPattern = '<!-- GIT-BOARD-CONFIG-START';
-        this.endConfigPattern = 'GIT-BOARD-CONFIG-END -->';
         this.isLinked = async (pullRequestUrl) => {
             const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
             return !htmlContent.includes('has_github_issues=false');
@@ -31554,94 +31990,6 @@ class PullRequestRepository {
                 body: description,
             });
             core.info(`Updated PR #${pullRequestNumber} description with: ${description}`);
-        };
-        this.addComment = async (owner, repository, pullRequestNumber, comment, token) => {
-            const octokit = github.getOctokit(token);
-            await octokit.rest.issues.createComment({
-                owner: owner,
-                repo: repository,
-                issue_number: pullRequestNumber,
-                body: comment,
-            });
-            core.info(`Comment added to PR #${pullRequestNumber}: ${comment}`);
-        };
-        this.getLabels = async (owner, repository, pullRequestNumber, token) => {
-            const octokit = github.getOctokit(token);
-            const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
-                owner: owner,
-                repo: repository,
-                issue_number: pullRequestNumber,
-            });
-            return labels.map(label => label.name);
-        };
-        this.updateConfig = async (owner, repo, issueNumber, config, token) => {
-            const octokit = github.getOctokit(token);
-            try {
-                const { data: issue } = await octokit.rest.issues.get({
-                    owner,
-                    repo,
-                    issue_number: issueNumber,
-                });
-                const currentDescription = issue.body || '';
-                const configBlock = `${this.startConfigPattern} 
-${JSON.stringify(config, null, 4)}
-${this.endConfigPattern}`;
-                if (currentDescription.indexOf(this.startConfigPattern) === -1
-                    && currentDescription.indexOf(this.endConfigPattern) === -1) {
-                    const finalDescription = `${currentDescription}\n\n${configBlock}`;
-                    await octokit.rest.issues.update({
-                        owner,
-                        repo,
-                        issue_number: issueNumber,
-                        body: finalDescription,
-                    });
-                    return;
-                }
-                if (currentDescription.indexOf(this.startConfigPattern) === -1
-                    || currentDescription.indexOf(this.endConfigPattern) === -1) {
-                    console.error(`Pull request #${issueNumber} has a problem with open-close tags: ${this.startConfigPattern} / ${this.endConfigPattern}`);
-                    return;
-                }
-                const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
-                const oldContent = `${this.startConfigPattern}${storedConfig}${this.endConfigPattern}`;
-                const updatedDescription = currentDescription.replace(oldContent, '');
-                const finalDescription = `${updatedDescription}\n\n${configBlock}`;
-                await octokit.rest.issues.update({
-                    owner,
-                    repo,
-                    issue_number: issueNumber,
-                    body: finalDescription,
-                });
-                console.log(`Pull request #${issueNumber} updated with branch configuration.`);
-            }
-            catch (error) {
-                console.error(`Error updating issue description: ${error}`);
-                throw error;
-            }
-        };
-        this.readConfig = async (owner, repo, issueNumber, token) => {
-            if (issueNumber === -1) {
-                return undefined;
-            }
-            const octokit = github.getOctokit(token);
-            try {
-                const { data: issue } = await octokit.rest.issues.get({
-                    owner,
-                    repo,
-                    issue_number: issueNumber,
-                });
-                const currentDescription = issue.body || '';
-                if (currentDescription.indexOf(this.startConfigPattern) === -1) {
-                    return undefined;
-                }
-                const config = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0];
-                const branchConfig = JSON.parse(config);
-                return new config_1.Config(branchConfig);
-            }
-            catch (error) {
-                core.error(`Error reading pull request configuration: ${error}`);
-                throw error;
-            }
         };
         this.getCurrentReviewers = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
@@ -31870,6 +32218,8 @@ const remove_not_needed_branches_use_case_1 = __nccwpck_require__(9871);
 const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
 const core = __importStar(__nccwpck_require__(2186));
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
+const check_permissions_use_case_1 = __nccwpck_require__(9901);
+const close_not_allowed_issue_use_case_1 = __nccwpck_require__(5717);
 class IssueLinkUseCase {
     constructor() {
         this.taskId = 'IssueLinkUseCase';
@@ -31877,6 +32227,13 @@ class IssueLinkUseCase {
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
         const results = [];
+        const permissionResult = await new check_permissions_use_case_1.CheckPermissionsUseCase().invoke(param);
+        const lastAction = permissionResult[permissionResult.length - 1];
+        if (!lastAction.success && lastAction.executed) {
+            results.push(...permissionResult);
+            results.push(...await new close_not_allowed_issue_use_case_1.CloseNotAllowedIssueUseCase().invoke(param));
+            return results;
+        }
         if (param.cleanIssueBranches) {
             results.push(...await new remove_issue_branches_use_case_1.RemoveIssueBranchesUseCase().invoke(param));
         }
@@ -31955,7 +32312,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PublishResultUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const result_1 = __nccwpck_require__(7305);
-const pull_request_repository_1 = __nccwpck_require__(634);
 const list_utils_1 = __nccwpck_require__(834);
 const core = __importStar(__nccwpck_require__(2186));
 /**
@@ -31965,7 +32321,6 @@ class PublishResultUseCase {
     constructor() {
         this.taskId = 'PublishResultUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
-        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
@@ -32040,7 +32395,7 @@ Thank you for contributing! 🙌
                 await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
             }
             else if (param.isPullRequest) {
-                await this.pullRequestRepository.addComment(param.owner, param.repo, param.pullRequest.number, commentBody, param.tokens.token);
+                await this.issueRepository.addComment(param.owner, param.repo, param.pullRequest.number, commentBody, param.tokens.token);
             }
         }
         catch (error) {
@@ -32106,9 +32461,10 @@ const result_1 = __nccwpck_require__(7305);
 const link_pull_request_project_use_case_1 = __nccwpck_require__(5154);
 const link_pull_request_issue_use_case_1 = __nccwpck_require__(768);
 const core = __importStar(__nccwpck_require__(2186));
-const close_issue_use_case_1 = __nccwpck_require__(5130);
+const close_issue_after_merging_use_case_1 = __nccwpck_require__(1672);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
+const update_title_use_case_1 = __nccwpck_require__(8411);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
@@ -32122,6 +32478,10 @@ class PullRequestLinkUseCase {
             console.log(`PR isMerged ${param.pullRequest.isMerged}`);
             console.log(`PR isClosed ${param.pullRequest.isClosed}`);
             if (param.pullRequest.isOpened) {
+                /**
+                 * Update title
+                 */
+                results.push(...await new update_title_use_case_1.UpdateTitleUseCase().invoke(param));
                 /**
                  * Assignees
                  */
@@ -32143,7 +32503,7 @@ class PullRequestLinkUseCase {
                 /**
                  * Close issue if needed
                  */
-                results.push(...await new close_issue_use_case_1.CloseIssueUseCase().invoke(param));
+                results.push(...await new close_issue_after_merging_use_case_1.CloseIssueAfterMergingUseCase().invoke(param));
             }
         }
         catch (error) {
@@ -32333,11 +32693,48 @@ class AssignMemberToIssueUseCase {
         const result = [];
         try {
             core.info(`#${number} needs ${desiredAssigneesCount} assignees.`);
+            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
             const currentMembers = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.token);
-            if (currentMembers.length >= desiredAssigneesCount) {
-                /**
-                 * No more assignees needed
-                 */
+            let remainingAssignees = desiredAssigneesCount - currentMembers.length;
+            const pullRequestCreatorIsTeamMember = param.isPullRequest
+                && param.pullRequest.creator.length > 0
+                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1
+                && !currentMembers.includes(param.pullRequest.creator);
+            const issueCreatorIsTeamMember = param.isIssue
+                && param.issue.creator.length > 0
+                && currentProjectMembers.indexOf(param.issue.creator) > -1
+                && !currentMembers.includes(param.issue.creator);
+            /**
+             * Assign PR creator if applicable
+             */
+            if (pullRequestCreatorIsTeamMember) {
+                const creator = param.pullRequest.creator;
+                await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, [creator], param.tokens.token);
+                core.info(`Assigned PR creator @${creator} to #${number}.`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [`The pull request was assigned to @${creator} (creator).`],
+                }));
+                remainingAssignees--; // Reduce the count of required assignees
+            }
+            else if (issueCreatorIsTeamMember) {
+                const creator = param.issue.creator;
+                await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, [creator], param.tokens.token);
+                core.info(`Assigned Issue creator @${creator} to #${number}.`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [`The issue was assigned to @${creator} (creator).`],
+                }));
+                remainingAssignees--; // Reduce the count of required assignees
+            }
+            /**
+             * Exit if no more assignees are needed
+             */
+            if (remainingAssignees <= 0) {
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -32345,23 +32742,22 @@ class AssignMemberToIssueUseCase {
                 }));
                 return result;
             }
-            const missingAssignees = desiredAssigneesCount - currentMembers.length;
-            core.info(`#${number} needs ${missingAssignees} more assignees.`);
-            const members = await this.projectRepository.getRandomMembers(param.owner, missingAssignees, currentMembers, param.tokens.tokenPat);
+            /**
+             * Assign remaining members randomly
+             */
+            const members = await this.projectRepository.getRandomMembers(param.owner, remainingAssignees, currentMembers, param.tokens.tokenPat);
             if (members.length === 0) {
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
-                    steps: [
-                        `Tried to assign members to issue, but no one was found.`,
-                    ],
+                    steps: [`Tried to assign members to issue, but no one was found.`],
                 }));
                 return result;
             }
             const membersAdded = await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, members, param.tokens.token);
             for (const member of membersAdded) {
-                if (members.indexOf(member) > -1)
+                if (members.includes(member)) {
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
@@ -32370,6 +32766,7 @@ class AssignMemberToIssueUseCase {
                             param.isIssue ? `The issue was assigned to @${member}.` : `The pull request was assigned to @${member}.`,
                         ],
                     }));
+                }
             }
             return result;
         }
@@ -32379,9 +32776,7 @@ class AssignMemberToIssueUseCase {
                 id: this.taskId,
                 success: false,
                 executed: true,
-                steps: [
-                    `Tried to assign members to issue.`,
-                ],
+                steps: [`Tried to assign members to issue.`],
                 error: error,
             }));
         }
@@ -32468,6 +32863,7 @@ class AssignReviewersToIssueUseCase {
             const missingReviewers = desiredReviewersCount - currentReviewers.length;
             core.info(`#${number} needs ${missingReviewers} more reviewers.`);
             const excludeForReview = [];
+            excludeForReview.push(param.pullRequest.creator);
             excludeForReview.push(...currentReviewers);
             excludeForReview.push(...currentAssignees);
             const members = await this.projectRepository.getRandomMembers(param.owner, missingReviewers, excludeForReview, param.tokens.tokenPat);
@@ -32482,8 +32878,8 @@ class AssignReviewersToIssueUseCase {
                 }));
                 return result;
             }
-            const membersAdded = await this.pullRequestRepository.addReviewersToPullRequest(param.owner, param.repo, number, members, param.tokens.token);
-            for (const member of membersAdded) {
+            const reviewersAdded = await this.pullRequestRepository.addReviewersToPullRequest(param.owner, param.repo, number, members, param.tokens.token);
+            for (const member of reviewersAdded) {
                 if (members.indexOf(member) > -1)
                     result.push(new result_1.Result({
                         id: this.taskId,
@@ -32516,7 +32912,7 @@ exports.AssignReviewersToIssueUseCase = AssignReviewersToIssueUseCase;
 
 /***/ }),
 
-/***/ 5130:
+/***/ 9901:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -32555,13 +32951,128 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CloseIssueUseCase = void 0;
+exports.CheckPermissionsUseCase = void 0;
+const project_repository_1 = __nccwpck_require__(7917);
+const core = __importStar(__nccwpck_require__(2186));
+const result_1 = __nccwpck_require__(7305);
+class CheckPermissionsUseCase {
+    constructor() {
+        this.taskId = 'CheckPermissionsUseCase';
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const number = param.isIssue ? param.issue.number : param.pullRequest.number;
+        const result = [];
+        /**
+         * If a release/hotfix issue was opened, check if author is a member of the project.
+         */
+        if (!param.issue.opened) {
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: false,
+            }));
+            return result;
+        }
+        try {
+            core.info(`Checking #${number} action authorization.`);
+            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
+            const pullRequestCreatorIsTeamMember = param.isPullRequest
+                && param.pullRequest.creator.length > 0
+                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
+            const issueCreatorIsMember = param.isIssue
+                && param.issue.creator.length > 0
+                && currentProjectMembers.indexOf(param.issue.creator) === -1;
+            if (param.labels.isMandatoryBranchedLabel) {
+                if (issueCreatorIsMember || pullRequestCreatorIsTeamMember) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                    }));
+                }
+                else {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [`@${param.issue.creator} was not authorized to create **[${param.labels.currentIssueLabels.join(',')}]** issues.`],
+                    }));
+                }
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                }));
+            }
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [`Tried to check action permissions.`],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.CheckPermissionsUseCase = CheckPermissionsUseCase;
+
+
+/***/ }),
+
+/***/ 1672:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CloseIssueAfterMergingUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
-class CloseIssueUseCase {
+class CloseIssueAfterMergingUseCase {
     constructor() {
-        this.taskId = 'CloseIssueUseCase';
+        this.taskId = 'CloseIssueAfterMergingUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
@@ -32602,7 +33113,98 @@ class CloseIssueUseCase {
         return result;
     }
 }
-exports.CloseIssueUseCase = CloseIssueUseCase;
+exports.CloseIssueAfterMergingUseCase = CloseIssueAfterMergingUseCase;
+
+
+/***/ }),
+
+/***/ 5717:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CloseNotAllowedIssueUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+class CloseNotAllowedIssueUseCase {
+    constructor() {
+        this.taskId = 'CloseNotAllowedIssueUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.number, param.tokens.token);
+            if (closed) {
+                await this.issueRepository.addComment(param.owner, param.repo, param.number, `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`, param.tokens.token);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `#${param.number} was automatically closed because the author is not a member of the project.`
+                    ]
+                }));
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+            }
+        }
+        catch (error) {
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to close issue #${param.number}, but there was a problem.`,
+                ],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.CloseNotAllowedIssueUseCase = CloseNotAllowedIssueUseCase;
 
 
 /***/ }),
@@ -32700,6 +33302,249 @@ class ExecuteScriptUseCase {
     }
 }
 exports.ExecuteScriptUseCase = ExecuteScriptUseCase;
+
+
+/***/ }),
+
+/***/ 6933:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GetHotfixVersionUseCase = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const result_1 = __nccwpck_require__(7305);
+const issue_repository_1 = __nccwpck_require__(57);
+const content_utils_1 = __nccwpck_require__(4799);
+class GetHotfixVersionUseCase {
+    constructor() {
+        this.taskId = 'GetHotfixVersionUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            let number = -1;
+            if (param.isIssue) {
+                number = param.issue.number;
+            }
+            else if (param.isPullRequest) {
+                number = param.pullRequest.number;
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the version but there was a problem identifying the issue.`],
+                }));
+                return result;
+            }
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.token);
+            if (description === undefined) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the version but there was a problem getting the description.`],
+                }));
+                return result;
+            }
+            const baseVersion = (0, content_utils_1.extractVersion)('Base Version', description);
+            const hotfixVersion = (0, content_utils_1.extractVersion)('Hotfix Version', description);
+            if (baseVersion === undefined) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the base version but there was a problem identifying the version.`],
+                }));
+                return result;
+            }
+            else if (hotfixVersion === undefined) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the hotfix version but there was a problem identifying the version.`],
+                }));
+                return result;
+            }
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                payload: {
+                    baseVersion: baseVersion,
+                    hotfixVersion: hotfixVersion,
+                }
+            }));
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [`Tried to check action permissions.`],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.GetHotfixVersionUseCase = GetHotfixVersionUseCase;
+
+
+/***/ }),
+
+/***/ 9816:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GetReleaseVersionUseCase = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const result_1 = __nccwpck_require__(7305);
+const issue_repository_1 = __nccwpck_require__(57);
+const content_utils_1 = __nccwpck_require__(4799);
+class GetReleaseVersionUseCase {
+    constructor() {
+        this.taskId = 'GetReleaseVersionUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            let number = -1;
+            if (param.isIssue) {
+                number = param.issue.number;
+            }
+            else if (param.isPullRequest) {
+                number = param.pullRequest.number;
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the version but there was a problem identifying the issue.`],
+                }));
+                return result;
+            }
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.token);
+            if (description === undefined) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the version but there was a problem getting the description.`],
+                }));
+                return result;
+            }
+            const releaseVersion = (0, content_utils_1.extractVersion)('Release Version', description);
+            if (releaseVersion === undefined) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the release version but there was a problem identifying the version.`],
+                }));
+                return result;
+            }
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                payload: {
+                    releaseVersion: releaseVersion,
+                }
+            }));
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [`Tried to check action permissions.`],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.GetReleaseVersionUseCase = GetReleaseVersionUseCase;
 
 
 /***/ }),
@@ -32881,7 +33726,7 @@ class LinkPullRequestIssueUseCase {
                 /**
                  *  Update PR's description.
                  */
-                let prBody = github.context.payload.pull_request?.body || '';
+                let prBody = param.pullRequest.body;
                 let updatedBody = `${prBody}\n\nResolves #${param.number}`;
                 await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
                 result.push(new result_1.Result({
@@ -32911,7 +33756,7 @@ class LinkPullRequestIssueUseCase {
                 /**
                  * Restore comment on description
                  */
-                prBody = github.context.payload.pull_request?.body ?? "";
+                prBody = param.pullRequest.body;
                 updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
                 await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
                 result.push(new result_1.Result({
@@ -33090,18 +33935,30 @@ const core = __importStar(__nccwpck_require__(2186));
 const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
 const execute_script_use_case_1 = __nccwpck_require__(8057);
+const issue_repository_1 = __nccwpck_require__(57);
+const get_hotfix_version_use_case_1 = __nccwpck_require__(6933);
+const get_release_version_use_case_1 = __nccwpck_require__(9816);
 class PrepareBranchesUseCase {
     constructor() {
         this.taskId = 'PrepareBranchesUseCase';
         this.branchRepository = new branch_repository_1.BranchRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             const issueTitle = param.issue.title;
-            if (issueTitle.length === 0) {
+            if (!param.labels.isMandatoryBranchedLabel && issueTitle.length === 0) {
                 core.setFailed('Issue title not available.');
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: false,
+                    reminders: [
+                        `Tried to check the title but no one was found.`
+                    ]
+                }));
                 return result;
             }
             /**
@@ -33117,57 +33974,132 @@ class PrepareBranchesUseCase {
                 ]
             }));
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-            const lastTag = await this.branchRepository.getLatestTag();
-            if (param.hotfix.active && lastTag !== undefined) {
-                const branchOid = await this.branchRepository.getCommitTag(lastTag);
-                const incrementHotfixVersion = (version) => {
-                    const parts = version.split('.').map(Number);
-                    parts[parts.length - 1] += 1;
-                    return parts.join('.');
-                };
-                param.hotfix.version = incrementHotfixVersion(lastTag);
-                const baseBranchName = `tags/${lastTag}`;
-                param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
-                param.currentConfiguration.hotfixBranch = param.hotfix.branch;
-                core.info(`Tag branch: ${baseBranchName}`);
-                core.info(`Hotfix branch: ${param.hotfix.branch}`);
-                const tagBranch = `tags/${lastTag}`;
-                const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
-                const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
-                if (branches.indexOf(param.hotfix.branch) === -1) {
-                    const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.number, branchOid, param.tokens.tokenPat);
-                    if (linkResult[linkResult.length - 1].success) {
+            if (param.hotfix.active) {
+                const versionResult = await new get_hotfix_version_use_case_1.GetHotfixVersionUseCase().invoke(param);
+                const versionInfo = versionResult[versionResult.length - 1];
+                if (!(versionInfo.executed && versionInfo.success)) {
+                    result.push(...versionResult);
+                    return result;
+                }
+                const lastTag = versionInfo.payload['baseVersion'];
+                const hotfixVersion = versionInfo.payload['hotfixVersion'];
+                if (lastTag !== undefined && hotfixVersion !== undefined) {
+                    const branchOid = await this.branchRepository.getCommitTag(lastTag);
+                    param.hotfix.version = hotfixVersion;
+                    const baseBranchName = `tags/${lastTag}`;
+                    param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
+                    param.currentConfiguration.hotfixBranch = param.hotfix.branch;
+                    core.info(`Tag branch: ${baseBranchName}`);
+                    core.info(`Hotfix branch: ${param.hotfix.branch}`);
+                    const tagBranch = `tags/${lastTag}`;
+                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
+                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+                    if (branches.indexOf(param.hotfix.branch) === -1) {
+                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.number, branchOid, param.tokens.tokenPat);
+                        if (linkResult[linkResult.length - 1].success) {
+                            result.push(new result_1.Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                ],
+                            }));
+                            core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
+                        }
+                    }
+                    else {
                         result.push(new result_1.Result({
                             id: this.taskId,
                             success: true,
                             executed: true,
                             steps: [
-                                `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${lastTag}**](${tagUrl}).`,
                             ],
                         }));
-                        core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
                     }
                 }
                 else {
                     result.push(new result_1.Result({
                         id: this.taskId,
-                        success: true,
+                        success: false,
                         executed: true,
                         steps: [
-                            `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${lastTag}**](${tagUrl}).`,
-                        ],
+                            `Tried to create a hotfix but no tag was found.`,
+                        ]
                     }));
+                    return result;
                 }
             }
-            else if (param.hotfix.active && lastTag === undefined) {
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `Tried to create a hotfix but no tag was found.`,
-                    ]
-                }));
+            else if (param.release.active) {
+                const versionResult = await new get_release_version_use_case_1.GetReleaseVersionUseCase().invoke(param);
+                const versionInfo = versionResult[versionResult.length - 1];
+                if (!(versionInfo.executed && versionInfo.success)) {
+                    result.push(...versionResult);
+                    return result;
+                }
+                const releaseVersion = versionInfo.payload['releaseVersion'];
+                if (releaseVersion !== undefined) {
+                    param.release.version = releaseVersion;
+                    param.release.branch = `${param.branches.releaseTree}/${param.release.version}`;
+                    param.currentConfiguration.releaseBranch = param.release.branch;
+                    core.info(`Release branch: ${param.release.branch}`);
+                    const developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.development}`;
+                    const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
+                    const mainUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.defaultBranch}`;
+                    if (branches.indexOf(param.release.branch) === -1) {
+                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, param.branches.development, param.release.branch, param.number, undefined, param.tokens.tokenPat);
+                        if (linkResult[linkResult.length - 1].success) {
+                            result.push(new result_1.Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The branch [**${param.branches.development}**](${developmentUrl}) was used to create the branch [**${param.release.branch}**](${releaseUrl})`,
+                                ],
+                                reminders: [
+                                    `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
+> Version files, changelogs, last minute changes.`,
+                                    `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
+> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
+                                    `Add the **${param.labels.deploy}** label to run the \`release\` workflow.`,
+                                    `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1)`,
+                                    `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1)`,
+                                ],
+                            }));
+                            core.info(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
+                        }
+                    }
+                    else {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The branch [**${param.release.branch}**](${releaseUrl}) already exists and will not be created from the branch [**${param.branches.development}**](${developmentUrl}).`,
+                            ],
+                            reminders: [
+                                `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
+> Version files, changelogs, last minute changes.`,
+                                `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
+> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
+                                `Add the **${param.labels.deploy}** label to run the \`release\` workflow.`,
+                                `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1)`,
+                                `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1)`,
+                            ],
+                        }));
+                    }
+                }
+                else {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Tried to create a release but no release version was found.`,
+                        ]
+                    }));
+                }
                 return result;
             }
             core.info(`Branch type: ${param.managementBranch}`);
@@ -33454,7 +34386,7 @@ class UpdateTitleUseCase {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitle(param.owner, param.repo, param.issue.title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, param.issue.title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -33481,6 +34413,47 @@ class UpdateTitleUseCase {
                     }));
                 }
             }
+            else if (param.isPullRequest) {
+                if (param.emoji.emojiLabeledTitle) {
+                    const issueTitle = await this.issueRepository.getTitle(param.owner, param.repo, param.number, param.tokens.tokenPat);
+                    if (issueTitle === undefined) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Tried to update title, but there was a problem.`,
+                            ],
+                        }));
+                        return result;
+                    }
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, issueTitle, param.number, param.pullRequest.number, false, '', param.labels, param.tokens.token);
+                    if (title) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The pull request's title was updated from \`${param.pullRequest.title}\` to \`${title}\`.`,
+                            ]
+                        }));
+                    }
+                    else {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        }));
+                    }
+                }
+                else {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    }));
+                }
+            }
         }
         catch (error) {
             result.push(new result_1.Result({
@@ -33488,7 +34461,7 @@ class UpdateTitleUseCase {
                 success: false,
                 executed: true,
                 steps: [
-                    `Tried to update issue's title, but there was a problem.`,
+                    `Tried to update title, but there was a problem.`,
                 ],
                 error: error,
             }));
@@ -33541,27 +34514,20 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.StoreConfigurationUseCase = void 0;
-const issue_repository_1 = __nccwpck_require__(57);
-const pull_request_repository_1 = __nccwpck_require__(634);
 const core = __importStar(__nccwpck_require__(2186));
+const configuration_handler_1 = __nccwpck_require__(3264);
 /**
  * Store las configuration in the description
  */
 class StoreConfigurationUseCase {
     constructor() {
         this.taskId = 'StoreConfigurationUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.handler = new configuration_handler_1.ConfigurationHandler();
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
         try {
-            if (param.isIssue) {
-                await this.issueRepository.updateConfig(param.owner, param.repo, param.issue.number, param.currentConfiguration, param.tokens.token);
-            }
-            else if (param.isPullRequest) {
-                await this.pullRequestRepository.updateConfig(param.owner, param.repo, param.pullRequest.number, param.currentConfiguration, param.tokens.token);
-            }
+            await this.handler.update(param);
         }
         catch (error) {
             console.error(error);
@@ -33569,6 +34535,23 @@ class StoreConfigurationUseCase {
     }
 }
 exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
+
+
+/***/ }),
+
+/***/ 4799:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.extractVersion = void 0;
+const extractVersion = (pattern, text) => {
+    const versionPattern = new RegExp(`###\\s*${pattern}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
+    const match = text.match(versionPattern);
+    return match ? match[1] : undefined;
+};
+exports.extractVersion = extractVersion;
 
 
 /***/ }),
@@ -33748,6 +34731,8 @@ const commit_check_use_case_1 = __nccwpck_require__(3316);
 const emoji_1 = __nccwpck_require__(9463);
 const issue_1 = __nccwpck_require__(2632);
 const pull_request_1 = __nccwpck_require__(4179);
+const workflows_1 = __nccwpck_require__(8553);
+const release_1 = __nccwpck_require__(2551);
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     /**
@@ -33797,6 +34782,11 @@ async function run() {
         .map(url => url.trim())
         .filter(url => url.length > 0);
     /**
+     * Workflows
+     */
+    const releaseWorkflow = core.getInput('release-workflow');
+    const hotfixWorkflow = core.getInput('hotfix-workflow');
+    /**
      * Emoji-title
      */
     const titleEmoji = core.getInput('emoji-labeled-title') === 'true';
@@ -33813,6 +34803,7 @@ async function run() {
     const releaseLabel = core.getInput('release-label');
     const questionLabel = core.getInput('question-label');
     const helpLabel = core.getInput('help-label');
+    const deployLabel = core.getInput('deploy-label');
     /**
      * Branches
      */
@@ -33837,7 +34828,7 @@ async function run() {
      */
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
-    const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new hotfix_1.Hotfix(), projects);
+    const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.number === -1) {
         core.info(`Issue number not found. Skipping.`);
@@ -33846,6 +34837,7 @@ async function run() {
     const results = [];
     try {
         if (execution.isIssue) {
+            // if (execution.issue.labeled && execution.issue.labelAdded === execution.labels.deploy && execution.labels.isDeploy) {
             results.push(...await new issue_link_use_case_1.IssueLinkUseCase().invoke(execution));
         }
         else if (execution.isPullRequest) {

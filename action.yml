@@ -4,7 +4,7 @@ author: "Landa Messenger"
 inputs:
   emoji-labeled-title:
     description: "Enable titles with emojis based on issue labels."
-    default: "false"
+    default: "true"
   branch-management-launcher-label:
     description: "Label to trigger branch management actions."
     default: "branched"
@@ -38,6 +38,9 @@ inputs:
   help-label:
     description: "Label to detect help request issues."
     default: "help"
+  deploy-label:
+    description: "Label to detect deploy actions."
+    default: "deploy"
   project-urls:
     description: "Comma-separated list of project URLs to link issues and pull requests."
     default: ""
@@ -83,6 +86,12 @@ inputs:
   reopen-issue-on-push:
     description: "Reopens a closed issue when changes are pushed to the branch associated with the issue."
     default: "true"
+  release-workflow:
+    description: "Release workflow for running release deploys."
+    default: "release"
+  hotfix-workflow:
+    description: "Hotfix workflow for running hotfix deploys."
+    default: "release"
   desired-assignees-count:
     description: "The number of assignees desired for the issue or pull request. If set to 0, no assignees will be added. If the number exceeds the available members, all members will be assigned. Max 10."
     default: "1"

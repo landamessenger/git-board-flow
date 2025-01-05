@@ -4,10 +4,14 @@ import {Execution} from "../../model/execution";
 import {BranchRepository} from "../../repository/branch_repository";
 import {Result} from "../../model/result";
 import {ExecuteScriptUseCase} from "./execute_script_use_case";
+import {IssueRepository} from "../../repository/issue_repository";
+import {GetHotfixVersionUseCase} from "./get_hotfix_version_use_case";
+import {GetReleaseVersionUseCase} from "./get_release_version_use_case";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
     private branchRepository = new BranchRepository();
+    private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
         core.info(`Executing ${this.taskId}.`)
@@ -15,8 +19,18 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
         const result: Result[] = []
         try {
             const issueTitle: string = param.issue.title;
-            if (issueTitle.length === 0) {
+            if (!param.labels.isMandatoryBranchedLabel && issueTitle.length === 0) {
                 core.setFailed('Issue title not available.');
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: false,
+                        reminders: [
+                            `Tried to check the title but no one was found.`
+                        ]
+                    })
+                )
                 return result;
             }
 
@@ -42,75 +56,170 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 param.tokens.token,
             )
 
-            const lastTag = await this.branchRepository.getLatestTag();
-            if (param.hotfix.active && lastTag !== undefined) {
-                const branchOid = await this.branchRepository.getCommitTag(lastTag)
-                const incrementHotfixVersion = (version: string) => {
-                    const parts = version.split('.').map(Number);
-                    parts[parts.length - 1] += 1;
-                    return parts.join('.');
-                };
+            if (param.hotfix.active) {
+                const versionResult = await new GetHotfixVersionUseCase().invoke(param);
+                const versionInfo = versionResult[versionResult.length - 1];
+                if (!(versionInfo.executed && versionInfo.success)) {
+                    result.push(...versionResult)
+                    return result;
+                }
 
-                param.hotfix.version = incrementHotfixVersion(lastTag);
+                const lastTag: string | undefined = versionInfo.payload['baseVersion']
+                const hotfixVersion: string | undefined = versionInfo.payload['hotfixVersion']
 
-                const baseBranchName = `tags/${lastTag}`;
-                param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
-                param.currentConfiguration.hotfixBranch = param.hotfix.branch;
+                if (lastTag !== undefined && hotfixVersion !== undefined) {
+                    const branchOid = await this.branchRepository.getCommitTag(lastTag)
 
-                core.info(`Tag branch: ${baseBranchName}`);
-                core.info(`Hotfix branch: ${param.hotfix.branch}`);
+                    param.hotfix.version = hotfixVersion;
 
-                const tagBranch = `tags/${lastTag}`;
-                const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
-                const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+                    const baseBranchName = `tags/${lastTag}`;
+                    param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
+                    param.currentConfiguration.hotfixBranch = param.hotfix.branch;
 
-                if (branches.indexOf(param.hotfix.branch) === -1) {
-                    const linkResult = await this.branchRepository.createLinkedBranch(
-                        param.owner,
-                        param.repo,
-                        baseBranchName,
-                        param.hotfix.branch,
-                        param.number,
-                        branchOid,
-                        param.tokens.tokenPat,
-                    )
+                    core.info(`Tag branch: ${baseBranchName}`);
+                    core.info(`Hotfix branch: ${param.hotfix.branch}`);
 
-                    if (linkResult[linkResult.length - 1].success) {
+                    const tagBranch = `tags/${lastTag}`;
+                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
+                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+
+                    if (branches.indexOf(param.hotfix.branch) === -1) {
+                        const linkResult = await this.branchRepository.createLinkedBranch(
+                            param.owner,
+                            param.repo,
+                            baseBranchName,
+                            param.hotfix.branch,
+                            param.number,
+                            branchOid,
+                            param.tokens.tokenPat,
+                        )
+
+                        if (linkResult[linkResult.length - 1].success) {
+                            result.push(
+                                new Result({
+                                    id: this.taskId,
+                                    success: true,
+                                    executed: true,
+                                    steps: [
+                                        `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                    ],
+                                })
+                            )
+                            core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
+                        }
+                    } else {
                         result.push(
                             new Result({
                                 id: this.taskId,
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                    `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${lastTag}**](${tagUrl}).`,
                                 ],
                             })
                         )
-                        core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
                     }
                 } else {
                     result.push(
                         new Result({
                             id: this.taskId,
-                            success: true,
+                            success: false,
                             executed: true,
                             steps: [
-                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${lastTag}**](${tagUrl}).`,
-                            ],
+                                `Tried to create a hotfix but no tag was found.`,
+                            ]
+                        })
+                    )
+                    return result
+                }
+            } else if (param.release.active) {
+                const versionResult = await new GetReleaseVersionUseCase().invoke(param);
+                const versionInfo = versionResult[versionResult.length - 1];
+                if (!(versionInfo.executed && versionInfo.success)) {
+                    result.push(...versionResult)
+                    return result;
+                }
+
+                const releaseVersion: string | undefined = versionInfo.payload['releaseVersion']
+
+                if (releaseVersion !== undefined) {
+                    param.release.version = releaseVersion;
+
+                    param.release.branch = `${param.branches.releaseTree}/${param.release.version}`;
+                    param.currentConfiguration.releaseBranch = param.release.branch;
+
+                    core.info(`Release branch: ${param.release.branch}`);
+
+                    const developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.development}`;
+                    const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
+                    const mainUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.defaultBranch}`;
+
+                    if (branches.indexOf(param.release.branch) === -1) {
+                        const linkResult = await this.branchRepository.createLinkedBranch(
+                            param.owner,
+                            param.repo,
+                            param.branches.development,
+                            param.release.branch,
+                            param.number,
+                            undefined,
+                            param.tokens.tokenPat,
+                        )
+
+                        if (linkResult[linkResult.length - 1].success) {
+                            result.push(
+                                new Result({
+                                    id: this.taskId,
+                                    success: true,
+                                    executed: true,
+                                    steps: [
+                                        `The branch [**${param.branches.development}**](${developmentUrl}) was used to create the branch [**${param.release.branch}**](${releaseUrl})`,
+                                    ],
+                                    reminders: [
+                                        `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
+> Version files, changelogs, last minute changes.`,
+                                        `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
+> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
+                                        `Add the **${param.labels.deploy}** label to run the \`release\` workflow.`,
+                                        `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1)`,
+                                        `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1)`,
+                                    ],
+                                })
+                            )
+                            core.info(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
+                        }
+                    } else {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The branch [**${param.release.branch}**](${releaseUrl}) already exists and will not be created from the branch [**${param.branches.development}**](${developmentUrl}).`,
+                                ],
+                                reminders: [
+                                    `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
+> Version files, changelogs, last minute changes.`,
+                                    `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
+> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
+                                    `Add the **${param.labels.deploy}** label to run the \`release\` workflow.`,
+                                    `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1)`,
+                                    `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1)`,
+                                ],
+                            })
+                        )
+                    }
+                } else {
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Tried to create a release but no release version was found.`,
+                            ]
                         })
                     )
                 }
-            } else if (param.hotfix.active && lastTag === undefined) {
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Tried to create a hotfix but no tag was found.`,
-                        ]
-                    })
-                )
                 return result
             }
 

@@ -4,9 +4,10 @@ import {Result} from "../model/result";
 import {LinkPullRequestProjectUseCase} from "./steps/link_pull_request_project_use_case";
 import {LinkPullRequestIssueUseCase} from "./steps/link_pull_request_issue_use_case";
 import * as core from '@actions/core';
-import {CloseIssueUseCase} from "./steps/close_issue_use_case";
+import {CloseIssueAfterMergingUseCase} from "./steps/close_issue_after_merging_use_case";
 import {AssignMemberToIssueUseCase} from "./steps/assign_members_to_issue_use_case";
 import {AssignReviewersToIssueUseCase} from "./steps/assign_reviewers_to_issue_use_case";
+import {UpdateTitleUseCase} from "./steps/update_title_use_case";
 
 export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestLinkUseCase';
@@ -21,6 +22,11 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
             console.log(`PR isMerged ${param.pullRequest.isMerged}`)
             console.log(`PR isClosed ${param.pullRequest.isClosed}`)
             if (param.pullRequest.isOpened) {
+                /**
+                 * Update title
+                 */
+                results.push(...await new UpdateTitleUseCase().invoke(param));
+
                 /**
                  * Assignees
                  */
@@ -44,7 +50,7 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                 /**
                  * Close issue if needed
                  */
-                results.push(...await new CloseIssueUseCase().invoke(param));
+                results.push(...await new CloseIssueAfterMergingUseCase().invoke(param));
             }
         } catch (error) {
             console.error(error);
