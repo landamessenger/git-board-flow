@@ -60,7 +60,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                     const issueTitle = await this.issueRepository.getTitle(
                         param.owner,
                         param.repo,
-                        param.number,
+                        param.issueNumber,
                         param.tokens.tokenPat,
                     )
                     if (issueTitle === undefined) {
@@ -80,7 +80,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                         param.owner,
                         param.repo,
                         issueTitle,
-                        param.number,
+                        param.issueNumber,
                         param.pullRequest.number,
                         false,
                         '',

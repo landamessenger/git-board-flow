@@ -30,7 +30,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
 
                 return result;
             }
-            const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.number)
+            const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.issueNumber)
 
             const branches = await this.branchRepository.getListOfBranches(
                 param.owner,
@@ -38,12 +38,12 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                 param.tokens.token,
             );
 
-            const finalBranch = `${param.managementBranch}/${param.number}-${sanitizedTitle}`;
+            const finalBranch = `${param.managementBranch}/${param.issueNumber}-${sanitizedTitle}`;
 
             const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
             for (const type of branchTypes) {
-                let branchName = `${type}/${param.number}-${sanitizedTitle}`;
-                const prefix = `${type}/${param.number}-`;
+                let branchName = `${type}/${param.issueNumber}-${sanitizedTitle}`;
+                const prefix = `${type}/${param.issueNumber}-`;
 
                 if (type !== param.managementBranch) {
                     const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);

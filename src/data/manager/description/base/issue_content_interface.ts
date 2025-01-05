@@ -57,7 +57,7 @@ export abstract class IssueContentInterface extends ContentInterface {
             await this.issueRepository.updateDescription(
                 execution.owner,
                 execution.repo,
-                execution.number,
+                execution.issueNumber,
                 updated,
                 execution.tokens.token,
             )

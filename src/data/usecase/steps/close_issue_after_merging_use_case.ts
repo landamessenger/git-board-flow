@@ -16,14 +16,14 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
             const closed = await this.issueRepository.closeIssue(
                 param.owner,
                 param.repo,
-                param.number,
+                param.issueNumber,
                 param.tokens.token,
             );
             if (closed) {
                 await this.issueRepository.addComment(
                     param.owner,
                     param.repo,
-                    param.number,
+                    param.issueNumber,
                     `This issue was closed after merging #${param.pullRequest.number}.`,
                     param.tokens.token,
                 )
@@ -33,7 +33,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                         success: true,
                         executed: true,
                         steps: [
-                            `#${param.number} was automatically closed after merging this pull request.`
+                            `#${param.issueNumber} was automatically closed after merging this pull request.`
                         ]
                     })
                 )
@@ -54,7 +54,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to close issue #${param.number}, but there was a problem.`,
+                        `Tried to close issue #${param.issueNumber}, but there was a problem.`,
                     ],
                     error: error,
                 })
