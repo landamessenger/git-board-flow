@@ -31007,6 +31007,7 @@ const exec = __importStar(__nccwpck_require__(1514));
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const result_1 = __nccwpck_require__(7305);
+const version_utils_1 = __nccwpck_require__(8202);
 class BranchRepository {
     constructor() {
         this.fetchRemoteBranches = async () => {
@@ -31025,16 +31026,26 @@ class BranchRepository {
             try {
                 core.info('Fetching the latest tag...');
                 await exec.exec('git', ['fetch', '--tags']);
-                let latestTag = '';
+                const tags = [];
                 await exec.exec('git', ['tag', '--sort=-creatordate'], {
                     listeners: {
                         stdout: (data) => {
-                            latestTag = data.toString().split('\n')[0];
+                            tags.push(...data.toString().split('\n').map((v, i, a) => {
+                                return v.replace('v', '');
+                            }));
                         },
                     },
                 });
-                core.info(`Latest tag: ${latestTag}`);
-                return latestTag;
+                const validTags = tags.filter(tag => /\d+\.\d+\.\d+$/.test(tag));
+                if (validTags.length > 0) {
+                    const latestTag = (0, version_utils_1.getLatestVersion)(validTags);
+                    core.info(`Latest tag: ${latestTag}`);
+                    return latestTag;
+                }
+                else {
+                    core.info('No valid tags found.');
+                    return undefined;
+                }
             }
             catch (error) {
                 core.setFailed(`Error fetching the latest tag: ${error}`);
@@ -34892,7 +34903,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.incrementVersion = void 0;
+exports.getLatestVersion = exports.incrementVersion = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const incrementVersion = (version, releaseType) => {
     core.info(`Incrementing version ${version}.`);
@@ -34916,6 +34927,22 @@ const incrementVersion = (version, releaseType) => {
     }
 };
 exports.incrementVersion = incrementVersion;
+const getLatestVersion = (versions) => {
+    return versions
+        .map(version => version.split('.').map(num => parseInt(num, 10)))
+        .sort((a, b) => {
+        for (let i = 0; i < 3; i++) {
+            if (a[i] > b[i])
+                return 1;
+            if (a[i] < b[i])
+                return -1;
+        }
+        return 0;
+    })
+        .map(version => version.join('.'))
+        .pop();
+};
+exports.getLatestVersion = getLatestVersion;
 
 
 /***/ }),
