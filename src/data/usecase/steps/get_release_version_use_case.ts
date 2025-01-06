@@ -1,9 +1,7 @@
 import {ParamUseCase} from "../base/param_usecase";
 import {Execution} from "../../model/execution";
-import {ProjectRepository} from "../../repository/project_repository";
 import * as core from "@actions/core";
 import {Result} from "../../model/result";
-import {MarkdownContentHotfixHandler} from "../../manager/description/markdown_content_hotfix_handler";
 import {IssueRepository} from "../../repository/issue_repository";
 import {extractVersion} from "../../utils/content_utils";
 
