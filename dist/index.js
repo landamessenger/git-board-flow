@@ -33865,7 +33865,7 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                     `Tried to work with workflows, but there was a problem.`,
                 ],
                 errors: [
-                    error
+                    error?.toString() ?? 'Unknown error',
                 ],
             }));
         }
