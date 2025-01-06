@@ -30633,7 +30633,7 @@ class Issue {
         return github.context.payload.issue?.body ?? '';
     }
     get opened() {
-        return github.context.payload.action === 'opened';
+        return ['opened', 'reopened'].includes(github.context.payload.action || '');
     }
     get labeled() {
         return github.context.payload.action === 'labeled';
