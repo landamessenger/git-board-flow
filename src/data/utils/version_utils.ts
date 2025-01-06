@@ -1,4 +1,7 @@
+import * as core from "@actions/core";
+
 export const incrementVersion = (version: string, releaseType: string): string => {
+    core.info(`Incrementing version ${version}.`)
     const versionParts = version.split('.').map(Number);
 
     if (versionParts.length !== 3) {
