@@ -1,8 +1,7 @@
 name: 🚀 Release Issue
-
 description: Request a new release for git-board-flow (only team members)
 title: "<YOUR TITLE HERE>"
-labels: [ "release", "branched" ]
+labels: ["release", "branched"]
 body:
   - type: markdown
     attributes:
@@ -17,8 +16,7 @@ body:
     id: version
     attributes:
       label: Release Version
-      description: |
-        Specify the version number for the release (e.g., 1.2.3).
+      description: Specify the version number for the release (e.g., 1.2.3).
       placeholder: "e.g., 1.2.3"
     validations:
       required: true
@@ -27,8 +25,7 @@ body:
     id: changelog
     attributes:
       label: Changelog
-      description: |
-        Provide a summary of the changes to be included in this release. Highlight any major features, fixes, or updates.
+      description: Provide a summary of the changes to be included in this release.
       placeholder: "Add a concise changelog here."
     validations:
       required: true
@@ -37,20 +34,19 @@ body:
     id: release_type
     attributes:
       label: Release Type
-      description: |
-        Indicate the type of release.
+      description: Indicate the type of release.
       options:
         - Major
         - Minor
         - Patch
+    validations:
       required: true
 
   - type: textarea
     id: checklist
     attributes:
       label: Pre-Release Checklist
-      description: |
-        List any pre-release tasks or checks that need to be completed before the release can be finalized.
+      description: List any pre-release tasks or checks to complete.
       placeholder: |
         Example:
         - [ ] Update documentation
@@ -64,6 +60,5 @@ body:
     id: additional_context
     attributes:
       label: Additional Context
-      description: |
-        Add any additional details or context about this release request.
+      description: Add any additional details or context about this release request.
       placeholder: "Anything else to note?"
