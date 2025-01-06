@@ -3,6 +3,7 @@ import * as core from '@actions/core';
 import * as github from "@actions/github";
 import {Result} from "../model/result";
 import {Execution} from "../model/execution";
+import {getLatestVersion} from "../utils/version_utils";
 
 export class BranchRepository {
 
@@ -25,18 +26,27 @@ export class BranchRepository {
             core.info('Fetching the latest tag...');
             await exec.exec('git', ['fetch', '--tags']);
 
-            let latestTag = '';
+            const tags: string[] = [];
             await exec.exec('git', ['tag', '--sort=-creatordate'], {
                 listeners: {
                     stdout: (data: Buffer) => {
-                        latestTag = data.toString().split('\n')[0];
+                        tags.push(...data.toString().split('\n').map((v, i, a) => {
+                            return v.replace('v', '')
+                        }));
                     },
                 },
             });
 
-            core.info(`Latest tag: ${latestTag}`);
+            const validTags = tags.filter(tag => /\d+\.\d+\.\d+$/.test(tag));
 
-            return latestTag;
+            if (validTags.length > 0) {
+                const latestTag = getLatestVersion(validTags);
+                core.info(`Latest tag: ${latestTag}`);
+                return latestTag;
+            } else {
+                core.info('No valid tags found.');
+                return undefined;
+            }
         } catch (error) {
             core.setFailed(`Error fetching the latest tag: ${error}`);
             return undefined

@@ -24,3 +24,17 @@ export const incrementVersion = (version: string, releaseType: string): string =
             throw new Error('Unknown release type');
     }
 };
+
+export const getLatestVersion = (versions: string[]): string | undefined => {
+    return versions
+        .map(version => version.split('.').map(num => parseInt(num, 10)))
+        .sort((a, b) => {
+            for (let i = 0; i < 3; i++) {
+                if (a[i] > b[i]) return 1;
+                if (a[i] < b[i]) return -1;
+            }
+            return 0;
+        })
+        .map(version => version.join('.'))
+        .pop();
+};
