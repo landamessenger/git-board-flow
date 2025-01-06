@@ -16,6 +16,8 @@ import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
 import {Emoji} from "./data/model/emoji";
 import {Issue} from "./data/model/issue";
 import {PullRequest} from "./data/model/pull_request";
+import {Workflows} from "./data/model/workflows";
+import {Release} from "./data/model/release";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -79,6 +81,12 @@ async function run(): Promise<void> {
 
 
     /**
+     * Workflows
+     */
+    const releaseWorkflow = core.getInput('release-workflow');
+    const hotfixWorkflow = core.getInput('hotfix-workflow');
+
+    /**
      * Emoji-title
      */
     const titleEmoji = core.getInput('emoji-labeled-title') === 'true';
@@ -96,6 +104,7 @@ async function run(): Promise<void> {
     const releaseLabel = core.getInput('release-label');
     const questionLabel = core.getInput('question-label');
     const helpLabel = core.getInput('help-label');
+    const deployLabel = core.getInput('deploy-label');
 
     /**
      * Branches
@@ -159,6 +168,7 @@ async function run(): Promise<void> {
             releaseLabel,
             questionLabel,
             helpLabel,
+            deployLabel,
         ),
         new Branches(
             mainBranch,
@@ -168,13 +178,18 @@ async function run(): Promise<void> {
             hotfixTree,
             releaseTree,
         ),
+        new Release(),
         new Hotfix(),
+        new Workflows(
+            releaseWorkflow,
+            hotfixWorkflow,
+        ),
         projects
     )
 
     await execution.setup();
 
-    if (execution.number === -1) {
+    if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
         return;
     }
@@ -183,6 +198,7 @@ async function run(): Promise<void> {
 
     try {
         if (execution.isIssue) {
+            // if (execution.issue.labeled && execution.issue.labelAdded === execution.labels.deploy && execution.labels.isDeploy) {
             results.push(...await new IssueLinkUseCase().invoke(execution));
         } else if (execution.isPullRequest) {
             results.push(...await new PullRequestLinkUseCase().invoke(execution));

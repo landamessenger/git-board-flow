@@ -45,9 +45,9 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                 /**
                  *  Update PR's description.
                  */
-                let prBody = github.context.payload.pull_request?.body || '';
+                let prBody = param.pullRequest.body;
 
-                let updatedBody = `${prBody}\n\nResolves #${param.number}`;
+                let updatedBody = `${prBody}\n\nResolves #${param.issueNumber}`;
                 await this.pullRequestRepository.updateDescription(
                     param.owner,
                     param.repo,
@@ -62,7 +62,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                         success: true,
                         executed: true,
                         steps: [
-                            `The description was temporarily modified to include a reference to issue **#${param.number}**.`,
+                            `The description was temporarily modified to include a reference to issue **#${param.issueNumber}**.`,
                         ],
                     })
                 )
@@ -97,8 +97,8 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                 /**
                  * Restore comment on description
                  */
-                prBody = github.context.payload.pull_request?.body ?? "";
-                updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
+                prBody = param.pullRequest.body;
+                updatedBody = prBody.replace(`\n\nResolves #${param.issueNumber}`, "");
                 await this.pullRequestRepository.updateDescription(
                     param.owner,
                     param.repo,
@@ -113,7 +113,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                         success: true,
                         executed: true,
                         steps: [
-                            `The temporary issue reference **#${param.number}** was removed from the description.`,
+                            `The temporary issue reference **#${param.issueNumber}** was removed from the description.`,
                         ],
                     })
                 )

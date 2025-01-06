@@ -4,8 +4,8 @@ import {IssueRepository} from "../../repository/issue_repository";
 import {Result} from "../../model/result";
 import * as core from '@actions/core';
 
-export class CloseIssueUseCase implements ParamUseCase<Execution, Result[]> {
-    taskId: string = 'CloseIssueUseCase';
+export class CloseNotAllowedIssueUseCase implements ParamUseCase<Execution, Result[]> {
+    taskId: string = 'CloseNotAllowedIssueUseCase';
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
@@ -16,15 +16,15 @@ export class CloseIssueUseCase implements ParamUseCase<Execution, Result[]> {
             const closed = await this.issueRepository.closeIssue(
                 param.owner,
                 param.repo,
-                param.number,
+                param.issueNumber,
                 param.tokens.token,
             );
             if (closed) {
                 await this.issueRepository.addComment(
                     param.owner,
                     param.repo,
-                    param.number,
-                    `This issue was closed after merging #${param.pullRequest.number}.`,
+                    param.issueNumber,
+                    `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`,
                     param.tokens.token,
                 )
                 result.push(
@@ -33,7 +33,7 @@ export class CloseIssueUseCase implements ParamUseCase<Execution, Result[]> {
                         success: true,
                         executed: true,
                         steps: [
-                            `#${param.number} was automatically closed after merging this pull request.`
+                            `#${param.issueNumber} was automatically closed because the author is not a member of the project.`
                         ]
                     })
                 )
@@ -54,7 +54,7 @@ export class CloseIssueUseCase implements ParamUseCase<Execution, Result[]> {
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to close issue #${param.number}, but there was a problem.`,
+                        `Tried to close issue #${param.issueNumber}, but there was a problem.`,
                     ],
                     error: error,
                 })

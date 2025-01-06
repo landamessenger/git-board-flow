@@ -8,42 +8,52 @@ export class Labels {
     release: string;
     question: string;
     help: string;
-    currentLabels: string[] = [];
+    deploy: string;
+    currentIssueLabels: string[] = [];
+    currentPullRequestLabels: string[] = [];
+
+    get isMandatoryBranchedLabel(): boolean {
+        return this.isHotfix || this.isRelease;
+    }
 
     get containsBranchedLabel(): boolean {
-        return this.currentLabels.includes(this.branchManagementLauncherLabel);
+        return this.currentIssueLabels.includes(this.branchManagementLauncherLabel);
+    }
+
+    get isDeploy(): boolean {
+        return this.currentIssueLabels.includes(this.deploy);
     }
 
     get isHelp(): boolean {
-        return this.currentLabels.includes(this.help);
+        return this.currentIssueLabels.includes(this.help);
     }
 
     get isQuestion(): boolean {
-        return this.currentLabels.includes(this.question);
+        return this.currentIssueLabels.includes(this.question);
     }
 
     get isFeature(): boolean {
-        return this.currentLabels.includes(this.feature);
+        return this.currentIssueLabels.includes(this.feature);
     }
 
     get isEnhancement(): boolean {
-        return this.currentLabels.includes(this.enhancement);
+        return this.currentIssueLabels.includes(this.enhancement);
     }
 
     get isBugfix(): boolean {
-        return this.currentLabels.includes(this.bugfix);
+        return this.currentIssueLabels.includes(this.bugfix);
     }
 
     get isBug(): boolean {
-        return this.currentLabels.includes(this.bug);
+        return this.currentIssueLabels.includes(this.bug);
     }
 
     get isHotfix(): boolean {
-        return this.currentLabels.includes(this.hotfix);
+        return this.currentIssueLabels.includes(this.hotfix);
     }
 
     get isRelease(): boolean {
-        return this.currentLabels.includes(this.release);
+        return this.currentIssueLabels.includes(this.release);
     }
 
     constructor(
@@ -56,6 +66,7 @@ export class Labels {
         release: string,
         question: string,
         help: string,
+        deploy: string,
     ) {
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
@@ -66,5 +77,6 @@ export class Labels {
         this.release = release;
         this.question = question;
         this.help = help;
+        this.deploy = deploy;
     }
 }

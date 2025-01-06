@@ -399,4 +399,22 @@ export class BranchRepository {
         return data.map(branch => branch.name);
     }
 
+    executeWorkflow = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        workflow: string,
+        inputs: any,
+        token: string,
+    ) => {
+        const octokit = github.getOctokit(token);
+        return octokit.rest.actions.createWorkflowDispatch({
+            owner: owner,
+            repo: repository,
+            workflow_id: workflow,
+            ref: branch,
+            inputs: inputs
+        });
+    }
+
 }

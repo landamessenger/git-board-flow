@@ -1,14 +1,11 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
 import {Milestone} from "../model/milestone";
-import {Config} from "../model/config";
 import {Labels} from "../model/labels";
 
 export class IssueRepository {
-    private startConfigPattern = '<!-- GIT-BOARD-CONFIG-START'
-    private endConfigPattern = 'GIT-BOARD-CONFIG-END -->'
 
-    updateTitle = async (
+    updateTitleIssueFormat = async (
         owner: string,
         repository: string,
         issueTitle: string,
@@ -78,6 +75,77 @@ export class IssueRepository {
         }
     };
 
+    updateTitlePullRequestFormat = async (
+        owner: string,
+        repository: string,
+        issueTitle: string,
+        issueNumber: number,
+        pullRequestNumber: number,
+        branchManagementAlways: boolean,
+        branchManagementEmoji: string,
+        labels: Labels,
+        token: string,
+    ): Promise<string | undefined> => {
+        try {
+            const octokit = github.getOctokit(token);
+
+            let emoji = '🤖';
+
+            const branched = branchManagementAlways || labels.containsBranchedLabel
+
+            if (labels.isHotfix && branched) {
+                emoji = `🔥${branchManagementEmoji}`;
+            } else if (labels.isRelease && branched) {
+                emoji = `🚀${branchManagementEmoji}`;
+            } else if ((labels.isBugfix || labels.isBug) && branched) {
+                emoji = `🐛${branchManagementEmoji}`;
+            } else if ((labels.isFeature || labels.isEnhancement) && branched) {
+                emoji = `✨${branchManagementEmoji}`;
+            } else if (labels.isHotfix) {
+                emoji = '🔥';
+            } else if (labels.isRelease) {
+                emoji = '🚀';
+            } else if (labels.isBugfix || labels.isBug) {
+                emoji = '🐛';
+            } else if (labels.isFeature || labels.isEnhancement) {
+                emoji = '✨';
+            } else if (labels.isHelp) {
+                emoji = '🆘';
+            } else if (labels.isQuestion) {
+                emoji = '❓';
+            }
+
+            let sanitizedTitle = issueTitle
+                .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                .replace(/\u200D/g, '')
+                .replace(/[^\S\r\n]+/g, ' ')
+                .replace(/[^a-zA-Z0-9 ]/g, '')
+                .replace(/^-+|-+$/g, '')
+                .replace(/- -/g, '-').trim()
+                .replace(/-+/g, '-')
+                .trim();
+
+            const formattedTitle = `[#${issueNumber}] ${emoji} - ${sanitizedTitle}`;
+
+            if (formattedTitle !== issueTitle) {
+                await octokit.rest.issues.update({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: pullRequestNumber,
+                    title: formattedTitle,
+                });
+
+                core.info(`Issue title updated to: ${formattedTitle}`);
+                return formattedTitle;
+            }
+
+            return undefined;
+        } catch (error) {
+            core.setFailed(`Failed to check or update issue title: ${error}`);
+            return undefined;
+        }
+    };
+
     cleanTitle = async (
         owner: string,
         repository: string,
@@ -118,99 +186,49 @@ export class IssueRepository {
     };
 
 
-    updateConfig = async (
+    updateDescription = async (
         owner: string,
         repo: string,
         issueNumber: number,
-        config: Config,
+        description: string,
         token: string
     ) => {
         const octokit = github.getOctokit(token);
-
         try {
-            const {data: issue} = await octokit.rest.issues.get({
-                owner,
-                repo,
-                issue_number: issueNumber,
-            });
-
-            const currentDescription = issue.body || '';
-
-            const configBlock = `${this.startConfigPattern} 
-${JSON.stringify(config, null, 4)}
-${this.endConfigPattern}`;
-
-            if (currentDescription.indexOf(this.startConfigPattern) === -1
-                && currentDescription.indexOf(this.endConfigPattern) === -1) {
-                const finalDescription = `${currentDescription}\n\n${configBlock}`;
-
-                await octokit.rest.issues.update({
-                    owner,
-                    repo,
-                    issue_number: issueNumber,
-                    body: finalDescription,
-                });
-                return;
-            }
-
-            if (currentDescription.indexOf(this.startConfigPattern) === -1
-                || currentDescription.indexOf(this.endConfigPattern) === -1) {
-                console.error(`Issue #${issueNumber} has a problem with open-close tags: ${this.startConfigPattern} / ${this.endConfigPattern}`);
-                return;
-            }
-
-            const storedConfig = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0]
-            const oldContent = `${this.startConfigPattern}${storedConfig}${this.endConfigPattern}`
-            const updatedDescription = currentDescription.replace(oldContent, '')
-
-            const finalDescription = `${updatedDescription}\n\n${configBlock}`;
-
             await octokit.rest.issues.update({
                 owner,
                 repo,
                 issue_number: issueNumber,
-                body: finalDescription,
+                body: description,
             });
-
-            console.log(`Issue #${issueNumber} updated with branch configuration.`);
         } catch (error) {
             console.error(`Error updating issue description: ${error}`);
             throw error;
         }
     }
 
-    readConfig = async (
+    getDescription = async (
         owner: string,
         repo: string,
         issueNumber: number,
         token: string
-    ): Promise<Config | undefined> => {
+    ): Promise<string | undefined> => {
+        if (issueNumber === -1) {
+            return undefined;
+        }
         const octokit = github.getOctokit(token);
-
         try {
             const {data: issue} = await octokit.rest.issues.get({
                 owner,
                 repo,
                 issue_number: issueNumber,
             });
-
-            const currentDescription = issue.body || '';
-
-            if (currentDescription.indexOf(this.startConfigPattern) === -1) {
-                return undefined;
-            }
-
-            const config = currentDescription.split(this.startConfigPattern)[1].split(this.endConfigPattern)[0]
-
-            const branchConfig = JSON.parse(config);
-
-            return new Config(branchConfig);
+            return issue.body ?? '';
         } catch (error) {
-            core.error(`Error reading issue configuration: ${error}`);
-            throw error;
+            core.error(`Error reading pull request configuration: ${error}`);
+            return undefined
         }
     }
-
 
     getId = async (
         owner: string,
@@ -292,8 +310,8 @@ ${this.endConfigPattern}`;
     getMilestone = async (
         owner: string,
         repository: string,
-        token: string,
         issueNumber: number,
+        token: string,
     ): Promise<Milestone | undefined> => {
         const octokit = github.getOctokit(token);
 
@@ -314,6 +332,28 @@ ${this.endConfigPattern}`;
         }
     }
 
+    getTitle = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<string | undefined> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const { data: issue } = await octokit.rest.issues.get({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+
+            return issue.title;
+        } catch (error) {
+            console.error(`Failed to fetch the issue title: ${error}`);
+            return undefined;
+        }
+    };
+
     getLabels = async (
         owner: string,
         repository: string,
@@ -327,6 +367,17 @@ ${this.endConfigPattern}`;
             issue_number: issueNumber,
         });
         return labels.map(label => label.name);
+    }
+
+    isRelease = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        releaseLabel: string,
+        token: string,
+    ): Promise<boolean> => {
+        const labels = await this.getLabels(owner, repository, issueNumber, token)
+        return labels.includes(releaseLabel)
     }
 
     isHotfix = async (
@@ -459,7 +510,7 @@ ${this.endConfigPattern}`;
                 return [];
             }
 
-            const { data: updatedIssue } = await octokit.rest.issues.addAssignees({
+            const {data: updatedIssue} = await octokit.rest.issues.addAssignees({
                 owner,
                 repo: repository,
                 issue_number: issueNumber,
@@ -473,7 +524,6 @@ ${this.endConfigPattern}`;
             return [];
         }
     };
-
 
 
 }

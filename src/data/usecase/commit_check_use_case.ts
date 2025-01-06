@@ -37,7 +37,7 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
 
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
-            core.info(`Commits detected: ${param.number}`);
+            core.info(`Commits detected: ${param.issueNumber}`);
 
             let commentBody = `
 # 🎉  News
@@ -83,7 +83,7 @@ ${commitPrefix}: created hello-world app
                 const opened = await this.issueRepository.openIssue(
                     param.owner,
                     param.repo,
-                    param.number,
+                    param.issueNumber,
                     param.tokens.token,
                 )
 
@@ -91,7 +91,7 @@ ${commitPrefix}: created hello-world app
                     await this.issueRepository.addComment(
                         param.owner,
                         param.repo,
-                        param.number,
+                        param.issueNumber,
                         `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`,
                         param.tokens.token,
                     )
@@ -101,7 +101,7 @@ ${commitPrefix}: created hello-world app
             await this.issueRepository.addComment(
                 param.owner,
                 param.repo,
-                param.number,
+                param.issueNumber,
                 commentBody,
                 param.tokens.token,
             )
