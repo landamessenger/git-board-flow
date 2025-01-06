@@ -17,6 +17,7 @@ import {ConfigurationHandler} from "../manager/description/configuration_handler
 import {Workflows} from "./workflows";
 import {Release} from "./release";
 import {GetHotfixVersionUseCase} from "../usecase/steps/get_hotfix_version_use_case";
+import {GetReleaseVersionUseCase} from "../usecase/steps/get_release_version_use_case";
 
 export class Execution {
     /**
@@ -167,6 +168,21 @@ export class Execution {
                 this.labels.hotfix,
                 this.tokens.token,
             );
+
+            if (this.release.active) {
+                const versionResult = await new GetReleaseVersionUseCase().invoke(this);
+                const versionInfo = versionResult[versionResult.length - 1];
+                if (versionInfo.executed && versionInfo.success) {
+                    this.release.version = versionInfo.payload['releaseVersion']
+                }
+            } else if (this.hotfix.active) {
+                const versionResult = await new GetHotfixVersionUseCase().invoke(this);
+                const versionInfo = versionResult[versionResult.length - 1];
+                if (versionInfo.executed && versionInfo.success) {
+                    this.hotfix.baseVersion = versionInfo.payload['baseVersion']
+                    this.hotfix.version = versionInfo.payload['hotfixVersion']
+                }
+            }
         } else if (this.isPullRequest) {
             const issueRepository = new IssueRepository();
             this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
