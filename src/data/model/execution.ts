@@ -8,7 +8,7 @@ import * as github from "@actions/github";
 import {branchesForManagement, typesForIssue} from "../utils/label_utils";
 import {Issue} from "./issue";
 import {PullRequest} from "./pull_request";
-import {extractIssueNumberFromBranch, extractIssueNumberFromBranchB} from "../utils/title_utils";
+import {extractIssueNumberFromBranch, extractIssueNumberFromPush} from "../utils/title_utils";
 import {Config} from "./config";
 import {Images} from "./images";
 import {Commit} from "./commit";
@@ -16,6 +16,7 @@ import {Emoji} from "./emoji";
 import {ConfigurationHandler} from "../manager/description/configuration_handler";
 import {Workflows} from "./workflows";
 import {Release} from "./release";
+import {GetHotfixVersionUseCase} from "../usecase/steps/get_hotfix_version_use_case";
 
 export class Execution {
     /**
@@ -186,7 +187,7 @@ export class Execution {
             this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
         } else if (this.isPush) {
-            this.issueNumber = extractIssueNumberFromBranchB(this.commit.branch)
+            this.issueNumber = extractIssueNumberFromPush(this.commit.branch)
         }
         this.previousConfiguration = await new ConfigurationHandler().get(this)
         this.currentConfiguration.branchType = this.issueType
