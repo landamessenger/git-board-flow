@@ -30512,7 +30512,7 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             else if (this.isPush) {
-                this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranchB)(this.commit.branch);
+                this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
             }
             this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
             this.currentConfiguration.branchType = this.issueType;
@@ -34656,7 +34656,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractIssueNumberFromBranchB = exports.extractIssueNumberFromBranch = void 0;
+exports.extractVersionFromBranch = exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const extractIssueNumberFromBranch = (branchName) => {
     const match = branchName?.match(/[a-zA-Z]+\/([0-9]+)-.*/);
@@ -34669,7 +34669,7 @@ const extractIssueNumberFromBranch = (branchName) => {
     }
 };
 exports.extractIssueNumberFromBranch = extractIssueNumberFromBranch;
-const extractIssueNumberFromBranchB = (branchName) => {
+const extractIssueNumberFromPush = (branchName) => {
     const issueNumberMatch = branchName.match(/^[^/]+\/(\d+)-/);
     if (!issueNumberMatch) {
         core.info('No issue number found in the branch name.');
@@ -34679,7 +34679,18 @@ const extractIssueNumberFromBranchB = (branchName) => {
     core.info(`Linked Issue: #${issueNumber}`);
     return issueNumber;
 };
-exports.extractIssueNumberFromBranchB = extractIssueNumberFromBranchB;
+exports.extractIssueNumberFromPush = extractIssueNumberFromPush;
+const extractVersionFromBranch = (branchName) => {
+    const match = branchName?.match(/^[^\/]+\/(\d+\.\d+\.\d+)$/);
+    if (match) {
+        return match[1];
+    }
+    else {
+        core.info('No version found in the branch name.');
+        return undefined;
+    }
+};
+exports.extractVersionFromBranch = extractVersionFromBranch;
 
 
 /***/ }),
