@@ -32336,7 +32336,7 @@ class PublishResultUseCase {
             /**
              * Comment resume of actions
              */
-            let title = '';
+            let title = '🪄 Automatic Actions';
             let content = '';
             let stupidGif = '';
             let image;
@@ -32387,7 +32387,7 @@ class PublishResultUseCase {
 ${footer}
 `;
             }
-            const commentBody = `# ${title}:
+            const commentBody = `# ${title}
 ${content}
 
 ${stupidGif}
@@ -32976,6 +32976,7 @@ class CheckPermissionsUseCase {
          * If a release/hotfix issue was opened, check if author is a member of the project.
          */
         if (!param.issue.opened) {
+            core.info(`Ignoring permission checking. Issue state is not 'opened'.`);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -32984,16 +32985,13 @@ class CheckPermissionsUseCase {
             return result;
         }
         try {
-            core.info(`Checking #${number} action authorization.`);
             const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
-            const pullRequestCreatorIsTeamMember = param.isPullRequest
-                && param.pullRequest.creator.length > 0
-                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
-            const issueCreatorIsMember = param.isIssue
-                && param.issue.creator.length > 0
-                && currentProjectMembers.indexOf(param.issue.creator) === -1;
+            const creator = param.isIssue ? param.issue.creator : param.pullRequest.creator;
+            const creatorIsTeamMember = creator.length > 0
+                && currentProjectMembers.indexOf(creator) > -1;
             if (param.labels.isMandatoryBranchedLabel) {
-                if (issueCreatorIsMember || pullRequestCreatorIsTeamMember) {
+                core.info(`Ignoring permission checking. Issue doesn't require mandatory branch.`);
+                if (creatorIsTeamMember) {
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
@@ -33010,6 +33008,7 @@ class CheckPermissionsUseCase {
                 }
             }
             else {
+                core.info(`Ignoring permission checking. Issue doesn't require mandatory branch.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
