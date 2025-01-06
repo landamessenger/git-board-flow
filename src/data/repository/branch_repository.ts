@@ -23,6 +23,8 @@ export class BranchRepository {
     getLatestTag = async () => {
         try {
             core.info('Fetching the latest tag...');
+            await exec.exec('git', ['fetch', '--tags']);
+
             let latestTag = '';
             await exec.exec('git', ['tag', '--sort=-creatordate'], {
                 listeners: {
