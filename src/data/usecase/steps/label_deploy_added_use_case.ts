@@ -88,7 +88,9 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}\``
                     steps: [
                         `Tried to work with workflows, but there was a problem.`,
                     ],
-                    error: error,
+                    errors: [
+                        error?.toString() ?? 'Unknown error',
+                    ],
                 })
             )
         }
