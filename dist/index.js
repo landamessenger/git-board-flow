@@ -30439,6 +30439,9 @@ const commit_1 = __nccwpck_require__(3993);
 const configuration_handler_1 = __nccwpck_require__(3264);
 const get_hotfix_version_use_case_1 = __nccwpck_require__(6933);
 const get_release_version_use_case_1 = __nccwpck_require__(9816);
+const get_release_type_use_case_1 = __nccwpck_require__(6790);
+const branch_repository_1 = __nccwpck_require__(7701);
+const version_utils_1 = __nccwpck_require__(8202);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -30499,6 +30502,7 @@ class Execution {
             if (this.isIssue) {
                 this.issueNumber = this.issue.number;
                 const issueRepository = new issue_repository_1.IssueRepository();
+                const branchRepository = new branch_repository_1.BranchRepository();
                 this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
                 this.release.active = await issueRepository.isRelease(this.owner, this.repo, this.issue.number, this.labels.release, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
@@ -30508,6 +30512,21 @@ class Execution {
                     if (versionInfo.executed && versionInfo.success) {
                         this.release.version = versionInfo.payload['releaseVersion'];
                     }
+                    else {
+                        const typeResult = await new get_release_type_use_case_1.GetReleaseTypeUseCase().invoke(this);
+                        const typeInfo = typeResult[typeResult.length - 1];
+                        if (typeInfo.executed && typeInfo.success) {
+                            this.release.type = versionInfo.payload['releaseType'];
+                            if (this.release.type === undefined) {
+                                return;
+                            }
+                            const lastTag = await branchRepository.getLatestTag();
+                            if (lastTag === undefined) {
+                                return;
+                            }
+                            this.release.version = (0, version_utils_1.incrementVersion)(lastTag, this.release.type);
+                        }
+                    }
                 }
                 else if (this.hotfix.active) {
                     const versionResult = await new get_hotfix_version_use_case_1.GetHotfixVersionUseCase().invoke(this);
@@ -30515,6 +30534,13 @@ class Execution {
                     if (versionInfo.executed && versionInfo.success) {
                         this.hotfix.baseVersion = versionInfo.payload['baseVersion'];
                         this.hotfix.version = versionInfo.payload['hotfixVersion'];
+                    }
+                    else {
+                        this.hotfix.baseVersion = await branchRepository.getLatestTag();
+                        if (this.hotfix.baseVersion === undefined) {
+                            return;
+                        }
+                        this.hotfix.version = (0, version_utils_1.incrementVersion)(this.hotfix.baseVersion, 'Patch');
                     }
                 }
             }
@@ -33457,6 +33483,122 @@ exports.GetHotfixVersionUseCase = GetHotfixVersionUseCase;
 
 /***/ }),
 
+/***/ 6790:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GetReleaseTypeUseCase = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const result_1 = __nccwpck_require__(7305);
+const issue_repository_1 = __nccwpck_require__(57);
+const content_utils_1 = __nccwpck_require__(4799);
+class GetReleaseTypeUseCase {
+    constructor() {
+        this.taskId = 'GetReleaseTypeUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            let number = -1;
+            if (param.isIssue) {
+                number = param.issue.number;
+            }
+            else if (param.isPullRequest) {
+                number = param.pullRequest.number;
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the release type but there was a problem identifying the issue.`],
+                }));
+                return result;
+            }
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.token);
+            if (description === undefined) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the release type but there was a problem getting the description.`],
+                }));
+                return result;
+            }
+            const releaseType = (0, content_utils_1.extractReleaseType)('Release Type', description);
+            if (releaseType === undefined) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Tried to get the release type but there was a problem identifying the type.`],
+                }));
+                return result;
+            }
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                payload: {
+                    releaseType: releaseType,
+                }
+            }));
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [`Tried to check action permissions.`],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.GetReleaseTypeUseCase = GetReleaseTypeUseCase;
+
+
+/***/ }),
+
 /***/ 9816:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -33542,7 +33684,6 @@ class GetReleaseVersionUseCase {
                     id: this.taskId,
                     success: false,
                     executed: true,
-                    steps: [`Tried to get the release version but there was a problem identifying the version.`],
                 }));
                 return result;
             }
@@ -34089,9 +34230,11 @@ class PrepareBranchesUseCase {
 > Version files, changelogs, last minute changes.`,
                                 `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
 > Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
-                                `Add the **${param.labels.deploy}** label to run the \`release\` workflow.`,
-                                `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1)`,
-                                `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1)`,
+                                `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
+                                `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).
+> **Quick actions:**
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}).
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}).`,
                             ],
                         }));
                     }
@@ -34561,13 +34704,19 @@ exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractVersion = void 0;
+exports.extractReleaseType = exports.extractVersion = void 0;
 const extractVersion = (pattern, text) => {
     const versionPattern = new RegExp(`###\\s*${pattern}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
     const match = text.match(versionPattern);
     return match ? match[1] : undefined;
 };
 exports.extractVersion = extractVersion;
+const extractReleaseType = (pattern, text) => {
+    const releaseTypePattern = new RegExp(`###\\s*${pattern}\\s+(Patch|Minor|Major)`, 'i');
+    const match = text.match(releaseTypePattern);
+    return match ? match[1] : undefined;
+};
+exports.extractReleaseType = extractReleaseType;
 
 
 /***/ }),
@@ -34699,6 +34848,38 @@ const extractVersionFromBranch = (branchName) => {
     }
 };
 exports.extractVersionFromBranch = extractVersionFromBranch;
+
+
+/***/ }),
+
+/***/ 8202:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.incrementVersion = void 0;
+const incrementVersion = (version, releaseType) => {
+    const versionParts = version.split('.').map(Number);
+    if (versionParts.length !== 3) {
+        throw new Error('Invalid version format');
+    }
+    const [major, minor, patch] = versionParts;
+    switch (releaseType) {
+        case 'Major':
+            // Increment the major version and reset minor and patch
+            return `${major + 1}.0.0`;
+        case 'Minor':
+            // Increment the minor version and reset patch
+            return `${major}.${minor + 1}.0`;
+        case 'Patch':
+            // Increment the patch version
+            return `${major}.${minor}.${patch + 1}`;
+        default:
+            throw new Error('Unknown release type');
+    }
+};
+exports.incrementVersion = incrementVersion;
 
 
 /***/ }),
