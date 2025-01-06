@@ -183,7 +183,7 @@ export class Execution {
                     const typeResult = await new GetReleaseTypeUseCase().invoke(this);
                     const typeInfo = typeResult[typeResult.length - 1];
                     if (typeInfo.executed && typeInfo.success) {
-                        this.release.type = versionInfo.payload['releaseType']
+                        this.release.type = typeInfo.payload['releaseType']
                         if (this.release.type === undefined) {
                             return
                         }
