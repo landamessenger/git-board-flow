@@ -196,6 +196,8 @@ export class Execution {
                         this.release.version = incrementVersion(lastTag, this.release.type)
                     }
                 }
+
+                this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
             } else if (this.hotfix.active) {
                 const versionResult = await new GetHotfixVersionUseCase().invoke(this);
                 const versionInfo = versionResult[versionResult.length - 1];
@@ -210,6 +212,7 @@ export class Execution {
 
                     this.hotfix.version = incrementVersion(this.hotfix.baseVersion, 'Patch')
                 }
+                this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
             }
         } else if (this.isPullRequest) {
             const issueRepository = new IssueRepository();

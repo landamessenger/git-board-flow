@@ -9,3 +9,12 @@ export const extractReleaseType = (pattern: string, text: string): string | unde
     const match = text.match(releaseTypePattern);
     return match ? match[1] : undefined;
 };
+
+export const injectJsonAsMarkdownBlock = (title: string, json: object): string => {
+    const formattedJson = JSON.stringify(json, null, 4) // Pretty-print the JSON with 4 spaces.
+        .split('\n')                                   // Split into lines.
+        .map(line => `> ${line}`)                     // Prefix each line with '> '.
+        .join('\n');                                  // Join lines back into a string.
+
+    return `> **${title}**\n>\n> \`\`\`json\n${formattedJson}\n> \`\`\``;
+}
