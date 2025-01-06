@@ -26,7 +26,7 @@ export class Issue {
     }
 
     get opened(): boolean {
-        return github.context.payload.action === 'opened';
+        return ['opened', 'reopened'].includes(github.context.payload.action || '');
     }
 
     get labeled(): boolean {
