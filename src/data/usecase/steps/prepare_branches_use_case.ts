@@ -89,7 +89,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             param.repo,
                             baseBranchName,
                             param.hotfix.branch,
-                            param.number,
+                            param.issueNumber,
                             branchOid,
                             param.tokens.tokenPat,
                         )
@@ -160,7 +160,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             param.repo,
                             param.branches.development,
                             param.release.branch,
-                            param.number,
+                            param.issueNumber,
                             undefined,
                             param.tokens.tokenPat,
                         )
@@ -229,7 +229,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 param,
                 param.owner,
                 param.repo,
-                param.number,
+                param.issueNumber,
                 issueTitle,
                 param.managementBranch,
                 param.branches.development,

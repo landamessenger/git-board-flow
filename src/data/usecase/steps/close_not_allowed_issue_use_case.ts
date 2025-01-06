@@ -16,14 +16,14 @@ export class CloseNotAllowedIssueUseCase implements ParamUseCase<Execution, Resu
             const closed = await this.issueRepository.closeIssue(
                 param.owner,
                 param.repo,
-                param.number,
+                param.issueNumber,
                 param.tokens.token,
             );
             if (closed) {
                 await this.issueRepository.addComment(
                     param.owner,
                     param.repo,
-                    param.number,
+                    param.issueNumber,
                     `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`,
                     param.tokens.token,
                 )
@@ -33,7 +33,7 @@ export class CloseNotAllowedIssueUseCase implements ParamUseCase<Execution, Resu
                         success: true,
                         executed: true,
                         steps: [
-                            `#${param.number} was automatically closed because the author is not a member of the project.`
+                            `#${param.issueNumber} was automatically closed because the author is not a member of the project.`
                         ]
                     })
                 )
@@ -54,7 +54,7 @@ export class CloseNotAllowedIssueUseCase implements ParamUseCase<Execution, Resu
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to close issue #${param.number}, but there was a problem.`,
+                        `Tried to close issue #${param.issueNumber}, but there was a problem.`,
                     ],
                     error: error,
                 })

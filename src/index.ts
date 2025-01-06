@@ -189,7 +189,7 @@ async function run(): Promise<void> {
 
     await execution.setup();
 
-    if (execution.number === -1) {
+    if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
         return;
     }

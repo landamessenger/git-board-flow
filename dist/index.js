@@ -30114,7 +30114,7 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 if (updated === undefined) {
                     return undefined;
                 }
-                await this.issueRepository.updateDescription(execution.owner, execution.repo, execution.number, updated, execution.tokens.token);
+                await this.issueRepository.updateDescription(execution.owner, execution.repo, execution.issueNumber, updated, execution.tokens.token);
                 return updated;
             }
             catch (error) {
@@ -30485,26 +30485,34 @@ class Execution {
         return new commit_1.Commit();
     }
     constructor(commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, labels, branches, release, hotfix, workflows, projects) {
-        this.number = -1;
+        /**
+         * Every usage of this field should be checked.
+         * PRs with no issue ID in the head branch won't have it.
+         *
+         * master <- develop
+         */
+        this.issueNumber = -1;
         this.commitPrefixBuilderParams = {};
         this.setup = async () => {
             if (this.isIssue) {
-                this.number = this.issue.number;
+                this.issueNumber = this.issue.number;
                 const issueRepository = new issue_repository_1.IssueRepository();
-                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
                 this.release.active = await issueRepository.isRelease(this.owner, this.repo, this.issue.number, this.labels.release, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
             }
             else if (this.isPullRequest) {
                 const issueRepository = new issue_repository_1.IssueRepository();
-                this.number = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
-                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.number, this.tokens.token);
+                this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
+                if (this.issueNumber > -1) {
+                    this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+                }
                 this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1;
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             else if (this.isPush) {
-                this.number = (0, title_utils_1.extractIssueNumberFromBranchB)(this.commit.branch);
+                this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
             }
             this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
             this.currentConfiguration.branchType = this.issueType;
@@ -32107,7 +32115,7 @@ class CommitCheckUseCase {
             }
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
-            core.info(`Commits detected: ${param.number}`);
+            core.info(`Commits detected: ${param.issueNumber}`);
             let commentBody = `
 # 🎉  News
 
@@ -32144,12 +32152,12 @@ ${commitPrefix}: created hello-world app
 `;
             }
             if (param.issue.reopenOnPush) {
-                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.number, param.tokens.token);
+                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
                 if (opened) {
-                    await this.issueRepository.addComment(param.owner, param.repo, param.number, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
+                    await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
                 }
             }
-            await this.issueRepository.addComment(param.owner, param.repo, param.number, commentBody, param.tokens.token);
+            await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
         }
         catch (error) {
             console.error(error);
@@ -32586,7 +32594,7 @@ class RemoveIssueBranchesUseCase {
             for (const type of branchTypes) {
                 core.info(`Checking branch type ${type}`);
                 let branchName = '';
-                const prefix = `${type}/${param.number}-`;
+                const prefix = `${type}/${param.issueNumber}-`;
                 core.info(`Checking prefix ${prefix}`);
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                 if (!matchingBranch)
@@ -33079,15 +33087,15 @@ class CloseIssueAfterMergingUseCase {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.number, param.tokens.token);
+            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
             if (closed) {
-                await this.issueRepository.addComment(param.owner, param.repo, param.number, `This issue was closed after merging #${param.pullRequest.number}.`, param.tokens.token);
+                await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was closed after merging #${param.pullRequest.number}.`, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `#${param.number} was automatically closed after merging this pull request.`
+                        `#${param.issueNumber} was automatically closed after merging this pull request.`
                     ]
                 }));
             }
@@ -33105,7 +33113,7 @@ class CloseIssueAfterMergingUseCase {
                 success: false,
                 executed: true,
                 steps: [
-                    `Tried to close issue #${param.number}, but there was a problem.`,
+                    `Tried to close issue #${param.issueNumber}, but there was a problem.`,
                 ],
                 error: error,
             }));
@@ -33170,15 +33178,15 @@ class CloseNotAllowedIssueUseCase {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.number, param.tokens.token);
+            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
             if (closed) {
-                await this.issueRepository.addComment(param.owner, param.repo, param.number, `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`, param.tokens.token);
+                await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `#${param.number} was automatically closed because the author is not a member of the project.`
+                        `#${param.issueNumber} was automatically closed because the author is not a member of the project.`
                     ]
                 }));
             }
@@ -33196,7 +33204,7 @@ class CloseNotAllowedIssueUseCase {
                 success: false,
                 executed: true,
                 steps: [
-                    `Tried to close issue #${param.number}, but there was a problem.`,
+                    `Tried to close issue #${param.issueNumber}, but there was a problem.`,
                 ],
                 error: error,
             }));
@@ -33727,14 +33735,14 @@ class LinkPullRequestIssueUseCase {
                  *  Update PR's description.
                  */
                 let prBody = param.pullRequest.body;
-                let updatedBody = `${prBody}\n\nResolves #${param.number}`;
+                let updatedBody = `${prBody}\n\nResolves #${param.issueNumber}`;
                 await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `The description was temporarily modified to include a reference to issue **#${param.number}**.`,
+                        `The description was temporarily modified to include a reference to issue **#${param.issueNumber}**.`,
                     ],
                 }));
                 /**
@@ -33757,14 +33765,14 @@ class LinkPullRequestIssueUseCase {
                  * Restore comment on description
                  */
                 prBody = param.pullRequest.body;
-                updatedBody = prBody.replace(`\n\nResolves #${param.number}`, "");
+                updatedBody = prBody.replace(`\n\nResolves #${param.issueNumber}`, "");
                 await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `The temporary issue reference **#${param.number}** was removed from the description.`,
+                        `The temporary issue reference **#${param.issueNumber}** was removed from the description.`,
                     ],
                 }));
                 return result;
@@ -33995,7 +34003,7 @@ class PrepareBranchesUseCase {
                     const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     if (branches.indexOf(param.hotfix.branch) === -1) {
-                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.number, branchOid, param.tokens.tokenPat);
+                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.issueNumber, branchOid, param.tokens.tokenPat);
                         if (linkResult[linkResult.length - 1].success) {
                             result.push(new result_1.Result({
                                 id: this.taskId,
@@ -34048,7 +34056,7 @@ class PrepareBranchesUseCase {
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const mainUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.defaultBranch}`;
                     if (branches.indexOf(param.release.branch) === -1) {
-                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, param.branches.development, param.release.branch, param.number, undefined, param.tokens.tokenPat);
+                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, param.branches.development, param.release.branch, param.issueNumber, undefined, param.tokens.tokenPat);
                         if (linkResult[linkResult.length - 1].success) {
                             result.push(new result_1.Result({
                                 id: this.taskId,
@@ -34103,7 +34111,7 @@ class PrepareBranchesUseCase {
                 return result;
             }
             core.info(`Branch type: ${param.managementBranch}`);
-            const branchesResult = await this.branchRepository.manageBranches(param, param.owner, param.repo, param.number, issueTitle, param.managementBranch, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
+            const branchesResult = await this.branchRepository.manageBranches(param, param.owner, param.repo, param.issueNumber, issueTitle, param.managementBranch, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
             result.push(...branchesResult);
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success && lastAction.executed) {
@@ -34247,13 +34255,13 @@ class RemoveNotNeededBranchesUseCase {
                 }));
                 return result;
             }
-            const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.number);
+            const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.issueNumber);
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-            const finalBranch = `${param.managementBranch}/${param.number}-${sanitizedTitle}`;
+            const finalBranch = `${param.managementBranch}/${param.issueNumber}-${sanitizedTitle}`;
             const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
             for (const type of branchTypes) {
-                let branchName = `${type}/${param.number}-${sanitizedTitle}`;
-                const prefix = `${type}/${param.number}-`;
+                let branchName = `${type}/${param.issueNumber}-${sanitizedTitle}`;
+                const prefix = `${type}/${param.issueNumber}-`;
                 if (type !== param.managementBranch) {
                     const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                     if (!matchingBranch) {
@@ -34415,7 +34423,7 @@ class UpdateTitleUseCase {
             }
             else if (param.isPullRequest) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const issueTitle = await this.issueRepository.getTitle(param.owner, param.repo, param.number, param.tokens.tokenPat);
+                    const issueTitle = await this.issueRepository.getTitle(param.owner, param.repo, param.issueNumber, param.tokens.tokenPat);
                     if (issueTitle === undefined) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -34427,7 +34435,7 @@ class UpdateTitleUseCase {
                         }));
                         return result;
                     }
-                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, issueTitle, param.number, param.pullRequest.number, false, '', param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, issueTitle, param.issueNumber, param.pullRequest.number, false, '', param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -34648,7 +34656,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractIssueNumberFromBranchB = exports.extractIssueNumberFromBranch = void 0;
+exports.extractVersionFromBranch = exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const extractIssueNumberFromBranch = (branchName) => {
     const match = branchName?.match(/[a-zA-Z]+\/([0-9]+)-.*/);
@@ -34661,7 +34669,7 @@ const extractIssueNumberFromBranch = (branchName) => {
     }
 };
 exports.extractIssueNumberFromBranch = extractIssueNumberFromBranch;
-const extractIssueNumberFromBranchB = (branchName) => {
+const extractIssueNumberFromPush = (branchName) => {
     const issueNumberMatch = branchName.match(/^[^/]+\/(\d+)-/);
     if (!issueNumberMatch) {
         core.info('No issue number found in the branch name.');
@@ -34671,7 +34679,18 @@ const extractIssueNumberFromBranchB = (branchName) => {
     core.info(`Linked Issue: #${issueNumber}`);
     return issueNumber;
 };
-exports.extractIssueNumberFromBranchB = extractIssueNumberFromBranchB;
+exports.extractIssueNumberFromPush = extractIssueNumberFromPush;
+const extractVersionFromBranch = (branchName) => {
+    const match = branchName?.match(/^[^\/]+\/(\d+\.\d+\.\d+)$/);
+    if (match) {
+        return match[1];
+    }
+    else {
+        core.info('No version found in the branch name.');
+        return undefined;
+    }
+};
+exports.extractVersionFromBranch = extractVersionFromBranch;
 
 
 /***/ }),
@@ -34830,7 +34849,7 @@ async function run() {
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const execution = new execution_1.Execution(commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
-    if (execution.number === -1) {
+    if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
         return;
     }

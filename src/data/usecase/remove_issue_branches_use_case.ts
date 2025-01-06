@@ -28,7 +28,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                 core.info(`Checking branch type ${type}`)
 
                 let branchName = '';
-                const prefix = `${type}/${param.number}-`;
+                const prefix = `${type}/${param.issueNumber}-`;
                 core.info(`Checking prefix ${prefix}`)
 
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);

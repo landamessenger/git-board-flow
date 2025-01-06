@@ -8,7 +8,7 @@ import * as github from "@actions/github";
 import {branchesForManagement, typesForIssue} from "../utils/label_utils";
 import {Issue} from "./issue";
 import {PullRequest} from "./pull_request";
-import {extractIssueNumberFromBranch, extractIssueNumberFromBranchB} from "../utils/title_utils";
+import {extractIssueNumberFromBranch, extractIssueNumberFromPush} from "../utils/title_utils";
 import {Config} from "./config";
 import {Images} from "./images";
 import {Commit} from "./commit";
@@ -16,9 +16,16 @@ import {Emoji} from "./emoji";
 import {ConfigurationHandler} from "../manager/description/configuration_handler";
 import {Workflows} from "./workflows";
 import {Release} from "./release";
+import {GetHotfixVersionUseCase} from "../usecase/steps/get_hotfix_version_use_case";
 
 export class Execution {
-    number: number = -1
+    /**
+     * Every usage of this field should be checked.
+     * PRs with no issue ID in the head branch won't have it.
+     *
+     * master <- develop
+     */
+    issueNumber: number = -1
     commitPrefixBuilder: string;
     commitPrefixBuilderParams: any = {};
     emoji: Emoji;
@@ -138,12 +145,12 @@ export class Execution {
 
     setup = async () => {
         if (this.isIssue) {
-            this.number = this.issue.number;
+            this.issueNumber = this.issue.number;
             const issueRepository = new IssueRepository();
             this.labels.currentIssueLabels = await issueRepository.getLabels(
                 this.owner,
                 this.repo,
-                this.number,
+                this.issueNumber,
                 this.tokens.token
             );
             this.release.active = await issueRepository.isRelease(
@@ -162,13 +169,15 @@ export class Execution {
             );
         } else if (this.isPullRequest) {
             const issueRepository = new IssueRepository();
-            this.number = extractIssueNumberFromBranch(this.pullRequest.head);
-            this.labels.currentIssueLabels = await issueRepository.getLabels(
-                this.owner,
-                this.repo,
-                this.number,
-                this.tokens.token
-            );
+            this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
+            if (this.issueNumber > -1) {
+                this.labels.currentIssueLabels = await issueRepository.getLabels(
+                    this.owner,
+                    this.repo,
+                    this.issueNumber,
+                    this.tokens.token
+                );
+            }
             this.labels.currentPullRequestLabels = await issueRepository.getLabels(
                 this.owner,
                 this.repo,
@@ -178,7 +187,7 @@ export class Execution {
             this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
         } else if (this.isPush) {
-            this.number = extractIssueNumberFromBranchB(this.commit.branch)
+            this.issueNumber = extractIssueNumberFromPush(this.commit.branch)
         }
         this.previousConfiguration = await new ConfigurationHandler().get(this)
         this.currentConfiguration.branchType = this.issueType
