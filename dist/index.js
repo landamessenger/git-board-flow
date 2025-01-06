@@ -30919,7 +30919,7 @@ class Result {
         this.success = data['success'] ?? false;
         this.executed = data['executed'] ?? false;
         this.steps = data['steps'] ?? [];
-        this.exception = data['exception'];
+        this.errors = data['errors'] ?? [];
         this.payload = data['payload'];
         this.reminders = data['reminders'] ?? [];
     }
@@ -32402,6 +32402,7 @@ class PublishResultUseCase {
             let content = '';
             let stupidGif = '';
             let image;
+            let errors = '';
             let footer = '';
             if (param.isIssue) {
                 if (param.issueNotBranched) {
@@ -32442,6 +32443,17 @@ class PublishResultUseCase {
                     indexReminder++;
                 }
             });
+            let indexError = 0;
+            param.currentConfiguration.results.forEach(r => {
+                for (const error of r.errors) {
+                    errors += `${indexError + 1}.
+\`\`\`
+${error}
+\`\`\`
+`;
+                    indexError++;
+                }
+            });
             if (footer.length > 0) {
                 footer = `
 ## Reminder
@@ -32449,8 +32461,18 @@ class PublishResultUseCase {
 ${footer}
 `;
             }
+            if (errors.length > 0) {
+                errors = `
+## Errors Found
+
+${errors}
+
+Check your project configuration, if everything is okay consider [opening an issue](https://github.com/landamessenger/git-board-flow/issues/new/choose).
+`;
+            }
             const commentBody = `# ${title}
 ${content}
+${errors.length > 0 ? errors : ''}
 
 ${stupidGif}
 
@@ -33787,6 +33809,7 @@ class DeployAddedUseCase {
         const result = [];
         try {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
+                core.info(`Deploying requested.`);
                 if (param.release.active && param.release.branch !== undefined) {
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
@@ -33833,6 +33856,7 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
             }
         }
         catch (error) {
+            console.error(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
