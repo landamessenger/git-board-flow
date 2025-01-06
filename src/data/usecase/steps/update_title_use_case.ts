@@ -16,10 +16,18 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
+                    let _title = ''
+                    if (param.release.active) {
+                        _title = param.release.version ?? 'Unknown release';
+                    } else if (param.hotfix.active) {
+                        _title = param.hotfix.version ?? 'Unknown hotfix';
+                    } else {
+                        _title = param.issue.title;
+                    }
                     const title = await this.issueRepository.updateTitleIssueFormat(
                         param.owner,
                         param.repo,
-                        param.issue.title,
+                        _title,
                         param.issue.number,
                         param.issue.branchManagementAlways,
                         param.emoji.branchManagementEmoji,

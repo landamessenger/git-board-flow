@@ -5,8 +5,6 @@ import {BranchRepository} from "../../repository/branch_repository";
 import {Result} from "../../model/result";
 import {ExecuteScriptUseCase} from "./execute_script_use_case";
 import {IssueRepository} from "../../repository/issue_repository";
-import {GetHotfixVersionUseCase} from "./get_hotfix_version_use_case";
-import {GetReleaseVersionUseCase} from "./get_release_version_use_case";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
@@ -57,31 +55,18 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             )
 
             if (param.hotfix.active) {
-                const versionResult = await new GetHotfixVersionUseCase().invoke(param);
-                const versionInfo = versionResult[versionResult.length - 1];
-                if (!(versionInfo.executed && versionInfo.success)) {
-                    result.push(...versionResult)
-                    return result;
-                }
+                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined) {
+                    const branchOid = await this.branchRepository.getCommitTag(param.hotfix.baseVersion)
 
-                const lastTag: string | undefined = versionInfo.payload['baseVersion']
-                const hotfixVersion: string | undefined = versionInfo.payload['hotfixVersion']
-
-                if (lastTag !== undefined && hotfixVersion !== undefined) {
-                    const branchOid = await this.branchRepository.getCommitTag(lastTag)
-
-                    param.hotfix.version = hotfixVersion;
-
-                    const baseBranchName = `tags/${lastTag}`;
+                    const baseBranchName = `tags/${param.hotfix.baseVersion}`;
                     param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
                     param.currentConfiguration.hotfixBranch = param.hotfix.branch;
 
+                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${baseBranchName}`;
+                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+
                     core.info(`Tag branch: ${baseBranchName}`);
                     core.info(`Hotfix branch: ${param.hotfix.branch}`);
-
-                    const tagBranch = `tags/${lastTag}`;
-                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
-                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
 
                     if (branches.indexOf(param.hotfix.branch) === -1) {
                         const linkResult = await this.branchRepository.createLinkedBranch(
@@ -101,7 +86,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                     success: true,
                                     executed: true,
                                     steps: [
-                                        `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                        `The tag [**${baseBranchName}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
                                     ],
                                 })
                             )
@@ -114,7 +99,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${lastTag}**](${tagUrl}).`,
+                                    `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${baseBranchName}**](${tagUrl}).`,
                                 ],
                             })
                         )
@@ -133,18 +118,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     return result
                 }
             } else if (param.release.active) {
-                const versionResult = await new GetReleaseVersionUseCase().invoke(param);
-                const versionInfo = versionResult[versionResult.length - 1];
-                if (!(versionInfo.executed && versionInfo.success)) {
-                    result.push(...versionResult)
-                    return result;
-                }
-
-                const releaseVersion: string | undefined = versionInfo.payload['releaseVersion']
-
-                if (releaseVersion !== undefined) {
-                    param.release.version = releaseVersion;
-
+                if (param.release.version !== undefined) {
                     param.release.branch = `${param.branches.releaseTree}/${param.release.version}`;
                     param.currentConfiguration.releaseBranch = param.release.branch;
 
@@ -179,9 +153,11 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 > Version files, changelogs, last minute changes.`,
                                         `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
 > Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
-                                        `Add the **${param.labels.deploy}** label to run the \`release\` workflow.`,
-                                        `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1)`,
-                                        `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1)`,
+                                        `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
+                                        `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).
+> **Quick actions:**
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}).
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}).`,
                                     ],
                                 })
                             )

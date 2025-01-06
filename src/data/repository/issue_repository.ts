@@ -48,7 +48,7 @@ export class IssueRepository {
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')
                 .replace(/[^\S\r\n]+/g, ' ')
-                .replace(/[^a-zA-Z0-9 ]/g, '')
+                .replace(/[^a-zA-Z0-9 .]/g, '')
                 .replace(/^-+|-+$/g, '')
                 .replace(/- -/g, '-').trim()
                 .replace(/-+/g, '-')
