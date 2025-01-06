@@ -30437,6 +30437,8 @@ const title_utils_1 = __nccwpck_require__(6212);
 const config_1 = __nccwpck_require__(1106);
 const commit_1 = __nccwpck_require__(3993);
 const configuration_handler_1 = __nccwpck_require__(3264);
+const get_hotfix_version_use_case_1 = __nccwpck_require__(6933);
+const get_release_version_use_case_1 = __nccwpck_require__(9816);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -30500,6 +30502,21 @@ class Execution {
                 this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
                 this.release.active = await issueRepository.isRelease(this.owner, this.repo, this.issue.number, this.labels.release, this.tokens.token);
                 this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
+                if (this.release.active) {
+                    const versionResult = await new get_release_version_use_case_1.GetReleaseVersionUseCase().invoke(this);
+                    const versionInfo = versionResult[versionResult.length - 1];
+                    if (versionInfo.executed && versionInfo.success) {
+                        this.release.version = versionInfo.payload['releaseVersion'];
+                    }
+                }
+                else if (this.hotfix.active) {
+                    const versionResult = await new get_hotfix_version_use_case_1.GetHotfixVersionUseCase().invoke(this);
+                    const versionInfo = versionResult[versionResult.length - 1];
+                    if (versionInfo.executed && versionInfo.success) {
+                        this.hotfix.baseVersion = versionInfo.payload['baseVersion'];
+                        this.hotfix.version = versionInfo.payload['hotfixVersion'];
+                    }
+                }
             }
             else if (this.isPullRequest) {
                 const issueRepository = new issue_repository_1.IssueRepository();
@@ -31369,7 +31386,7 @@ class IssueRepository {
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                     .replace(/\u200D/g, '')
                     .replace(/[^\S\r\n]+/g, ' ')
-                    .replace(/[^a-zA-Z0-9 ]/g, '')
+                    .replace(/[^a-zA-Z0-9 .]/g, '')
                     .replace(/^-+|-+$/g, '')
                     .replace(/- -/g, '-').trim()
                     .replace(/-+/g, '-')
@@ -33943,8 +33960,6 @@ const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
 const execute_script_use_case_1 = __nccwpck_require__(8057);
 const issue_repository_1 = __nccwpck_require__(57);
-const get_hotfix_version_use_case_1 = __nccwpck_require__(6933);
-const get_release_version_use_case_1 = __nccwpck_require__(9816);
 class PrepareBranchesUseCase {
     constructor() {
         this.taskId = 'PrepareBranchesUseCase';
@@ -33982,25 +33997,15 @@ class PrepareBranchesUseCase {
             }));
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             if (param.hotfix.active) {
-                const versionResult = await new get_hotfix_version_use_case_1.GetHotfixVersionUseCase().invoke(param);
-                const versionInfo = versionResult[versionResult.length - 1];
-                if (!(versionInfo.executed && versionInfo.success)) {
-                    result.push(...versionResult);
-                    return result;
-                }
-                const lastTag = versionInfo.payload['baseVersion'];
-                const hotfixVersion = versionInfo.payload['hotfixVersion'];
-                if (lastTag !== undefined && hotfixVersion !== undefined) {
-                    const branchOid = await this.branchRepository.getCommitTag(lastTag);
-                    param.hotfix.version = hotfixVersion;
-                    const baseBranchName = `tags/${lastTag}`;
+                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined) {
+                    const branchOid = await this.branchRepository.getCommitTag(param.hotfix.baseVersion);
+                    const baseBranchName = `tags/${param.hotfix.baseVersion}`;
                     param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
                     param.currentConfiguration.hotfixBranch = param.hotfix.branch;
+                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${baseBranchName}`;
+                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     core.info(`Tag branch: ${baseBranchName}`);
                     core.info(`Hotfix branch: ${param.hotfix.branch}`);
-                    const tagBranch = `tags/${lastTag}`;
-                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${tagBranch}`;
-                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     if (branches.indexOf(param.hotfix.branch) === -1) {
                         const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.issueNumber, branchOid, param.tokens.tokenPat);
                         if (linkResult[linkResult.length - 1].success) {
@@ -34009,7 +34014,7 @@ class PrepareBranchesUseCase {
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The tag [**${tagBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                    `The tag [**${baseBranchName}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
                                 ],
                             }));
                             core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
@@ -34021,7 +34026,7 @@ class PrepareBranchesUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${lastTag}**](${tagUrl}).`,
+                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${baseBranchName}**](${tagUrl}).`,
                             ],
                         }));
                     }
@@ -34039,15 +34044,7 @@ class PrepareBranchesUseCase {
                 }
             }
             else if (param.release.active) {
-                const versionResult = await new get_release_version_use_case_1.GetReleaseVersionUseCase().invoke(param);
-                const versionInfo = versionResult[versionResult.length - 1];
-                if (!(versionInfo.executed && versionInfo.success)) {
-                    result.push(...versionResult);
-                    return result;
-                }
-                const releaseVersion = versionInfo.payload['releaseVersion'];
-                if (releaseVersion !== undefined) {
-                    param.release.version = releaseVersion;
+                if (param.release.version !== undefined) {
                     param.release.branch = `${param.branches.releaseTree}/${param.release.version}`;
                     param.currentConfiguration.releaseBranch = param.release.branch;
                     core.info(`Release branch: ${param.release.branch}`);
@@ -34069,9 +34066,11 @@ class PrepareBranchesUseCase {
 > Version files, changelogs, last minute changes.`,
                                     `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
 > Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
-                                    `Add the **${param.labels.deploy}** label to run the \`release\` workflow.`,
-                                    `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1)`,
-                                    `After deploying, open a Pull Request from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1)`,
+                                    `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
+                                    `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).
+> **Quick actions:**
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}).
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}).`,
                                 ],
                             }));
                             core.info(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
@@ -34393,7 +34392,17 @@ class UpdateTitleUseCase {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, param.issue.title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
+                    let _title = '';
+                    if (param.release.active) {
+                        _title = param.release.version ?? 'Unknown release';
+                    }
+                    else if (param.hotfix.active) {
+                        _title = param.hotfix.version ?? 'Unknown hotfix';
+                    }
+                    else {
+                        _title = param.issue.title;
+                    }
+                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, _title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
