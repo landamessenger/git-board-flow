@@ -19,7 +19,7 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
             /**
              * Comment resume of actions
              */
-            let title = ''
+            let title = '🪄 Automatic Actions'
             let content = ''
             let stupidGif = ''
             let image: string | undefined
@@ -71,7 +71,7 @@ ${footer}
 `
             }
 
-            const commentBody = `# ${title}:
+            const commentBody = `# ${title}
 ${content}
 
 ${stupidGif}

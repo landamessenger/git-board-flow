@@ -18,6 +18,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
          * If a release/hotfix issue was opened, check if author is a member of the project.
          */
         if (!param.issue.opened) {
+            core.info(`Ignoring permission checking. Issue state is not 'opened'.`)
             result.push(
                 new Result({
                     id: this.taskId,
@@ -29,23 +30,19 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
         }
 
         try {
-            core.info(`Checking #${number} action authorization.`);
-
             const currentProjectMembers = await this.projectRepository.getAllMembers(
                 param.owner,
                 param.tokens.tokenPat,
             )
 
-            const pullRequestCreatorIsTeamMember = param.isPullRequest
-                && param.pullRequest.creator.length > 0
-                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
+            const creator = param.isIssue ? param.issue.creator : param.pullRequest.creator;
 
-            const issueCreatorIsMember = param.isIssue
-                && param.issue.creator.length > 0
-                && currentProjectMembers.indexOf(param.issue.creator) === -1;
+            const creatorIsTeamMember = creator.length > 0
+                && currentProjectMembers.indexOf(creator) > -1;
 
             if (param.labels.isMandatoryBranchedLabel) {
-                if (issueCreatorIsMember || pullRequestCreatorIsTeamMember) {
+                core.info(`Ignoring permission checking. Issue doesn't require mandatory branch.`)
+                if (creatorIsTeamMember) {
                     result.push(
                         new Result({
                             id: this.taskId,
@@ -64,6 +61,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
                     );
                 }
             } else {
+                core.info(`Ignoring permission checking. Issue doesn't require mandatory branch.`)
                 result.push(
                     new Result({
                         id: this.taskId,
