@@ -30516,7 +30516,7 @@ class Execution {
                         const typeResult = await new get_release_type_use_case_1.GetReleaseTypeUseCase().invoke(this);
                         const typeInfo = typeResult[typeResult.length - 1];
                         if (typeInfo.executed && typeInfo.success) {
-                            this.release.type = versionInfo.payload['releaseType'];
+                            this.release.type = typeInfo.payload['releaseType'];
                             if (this.release.type === undefined) {
                                 return;
                             }
