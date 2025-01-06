@@ -5,10 +5,10 @@ import * as core from "@actions/core";
 import {Result} from "../../model/result";
 import {MarkdownContentHotfixHandler} from "../../manager/description/markdown_content_hotfix_handler";
 import {IssueRepository} from "../../repository/issue_repository";
-import {extractVersion} from "../../utils/content_utils";
+import {extractReleaseType, extractVersion} from "../../utils/content_utils";
 
-export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[]> {
-    taskId: string = 'GetReleaseVersionUseCase';
+export class GetReleaseTypeUseCase implements ParamUseCase<Execution, Result[]> {
+    taskId: string = 'GetReleaseTypeUseCase';
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
@@ -28,7 +28,7 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
                         id: this.taskId,
                         success: false,
                         executed: true,
-                        steps: [`Tried to get the version but there was a problem identifying the issue.`],
+                        steps: [`Tried to get the release type but there was a problem identifying the issue.`],
                     })
                 );
                 return result;
@@ -47,20 +47,21 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
                         id: this.taskId,
                         success: false,
                         executed: true,
-                        steps: [`Tried to get the version but there was a problem getting the description.`],
+                        steps: [`Tried to get the release type but there was a problem getting the description.`],
                     })
                 );
                 return result;
             }
 
-            const releaseVersion = extractVersion('Release Version', description)
+            const releaseType = extractReleaseType('Release Type', description)
 
-            if (releaseVersion === undefined) {
+            if (releaseType === undefined) {
                 result.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
+                        steps: [`Tried to get the release type but there was a problem identifying the type.`],
                     })
                 );
                 return result;
@@ -72,7 +73,7 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
                     success: true,
                     executed: true,
                     payload: {
-                        releaseVersion: releaseVersion,
+                        releaseType: releaseType,
                     }
                 })
             );

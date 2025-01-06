@@ -18,6 +18,10 @@ import {Workflows} from "./workflows";
 import {Release} from "./release";
 import {GetHotfixVersionUseCase} from "../usecase/steps/get_hotfix_version_use_case";
 import {GetReleaseVersionUseCase} from "../usecase/steps/get_release_version_use_case";
+import {GetReleaseTypeUseCase} from "../usecase/steps/get_release_type_use_case";
+import {BranchConfiguration} from "./branch_configuration";
+import {BranchRepository} from "../repository/branch_repository";
+import {incrementVersion} from "../utils/version_utils";
 
 export class Execution {
     /**
@@ -148,6 +152,7 @@ export class Execution {
         if (this.isIssue) {
             this.issueNumber = this.issue.number;
             const issueRepository = new IssueRepository();
+            const branchRepository = new BranchRepository();
             this.labels.currentIssueLabels = await issueRepository.getLabels(
                 this.owner,
                 this.repo,
@@ -174,6 +179,22 @@ export class Execution {
                 const versionInfo = versionResult[versionResult.length - 1];
                 if (versionInfo.executed && versionInfo.success) {
                     this.release.version = versionInfo.payload['releaseVersion']
+                } else {
+                    const typeResult = await new GetReleaseTypeUseCase().invoke(this);
+                    const typeInfo = typeResult[typeResult.length - 1];
+                    if (typeInfo.executed && typeInfo.success) {
+                        this.release.type = versionInfo.payload['releaseType']
+                        if (this.release.type === undefined) {
+                            return
+                        }
+
+                        const lastTag = await branchRepository.getLatestTag();
+                        if (lastTag === undefined) {
+                            return
+                        }
+
+                        this.release.version = incrementVersion(lastTag, this.release.type)
+                    }
                 }
             } else if (this.hotfix.active) {
                 const versionResult = await new GetHotfixVersionUseCase().invoke(this);
@@ -181,6 +202,13 @@ export class Execution {
                 if (versionInfo.executed && versionInfo.success) {
                     this.hotfix.baseVersion = versionInfo.payload['baseVersion']
                     this.hotfix.version = versionInfo.payload['hotfixVersion']
+                } else {
+                    this.hotfix.baseVersion = await branchRepository.getLatestTag();
+                    if (this.hotfix.baseVersion === undefined) {
+                        return
+                    }
+
+                    this.hotfix.version = incrementVersion(this.hotfix.baseVersion, 'Patch')
                 }
             }
         } else if (this.isPullRequest) {
