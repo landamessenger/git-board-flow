@@ -15,6 +15,7 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
         const result: Result[] = []
         try {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
+                core.info(`Deploying requested.`)
                 if (param.release.active && param.release.branch !== undefined) {
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
@@ -78,6 +79,7 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}\``
                 )
             }
         } catch (error) {
+            console.error(error);
             result.push(
                 new Result({
                     id: this.taskId,
