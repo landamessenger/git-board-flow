@@ -37,7 +37,7 @@ jobs:
   prepare-files:
     name: Prepare files for release
     runs-on: ubuntu-latest
-    depends-on: [ check-tag ]
+    needs: [ check-tag ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,7 +93,7 @@ jobs:
   tag:
     name: Publish version
     runs-on: ubuntu-latest
-    depends-on: [ prepare-files ]
+    needs: [ prepare-files ]
     steps:
       - uses: actions/checkout@v4
 
