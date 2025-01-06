@@ -12,24 +12,6 @@ body:
 
         ---
 
-  - type: input
-    id: version
-    attributes:
-      label: Release Version
-      description: Specify the version number for the release (e.g., 1.2.3).
-      placeholder: "e.g., 1.2.3"
-    validations:
-      required: true
-
-  - type: textarea
-    id: changelog
-    attributes:
-      label: Changelog
-      description: Provide a summary of the changes to be included in this release.
-      placeholder: "Add a concise changelog here."
-    validations:
-      required: true
-
   - type: dropdown
     id: release_type
     attributes:
@@ -42,17 +24,22 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: checklist
+  - type: input
+    id: version
     attributes:
-      label: Pre-Release Checklist
-      description: List any pre-release tasks or checks to complete.
-      placeholder: |
-        Example:
-        - [ ] Update documentation
-        - [ ] Ensure tests pass
-        - [ ] Code review completed
-      render: task-list
+      label: Release Version
+      description: The new version is generated from the release type and the most recent tag version. You can specify a different version number for the release (e.g., 1.2.3).
+      placeholder: "e.g., 1.2.3"
+      value: "Automatic"
+    validations:
+      required: false
+
+  - type: textarea
+    id: changelog
+    attributes:
+      label: Changelog
+      description: Provide a summary of the changes to be included in this release.
+      placeholder: "Add a concise changelog here."
     validations:
       required: true
 
