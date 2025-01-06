@@ -33864,7 +33864,9 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                 steps: [
                     `Tried to work with workflows, but there was a problem.`,
                 ],
-                error: error,
+                errors: [
+                    error
+                ],
             }));
         }
         return result;
