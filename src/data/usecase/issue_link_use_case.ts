@@ -10,6 +10,7 @@ import * as core from '@actions/core';
 import {AssignMemberToIssueUseCase} from "./steps/assign_members_to_issue_use_case";
 import {CheckPermissionsUseCase} from "./steps/check_permissions_use_case";
 import {CloseNotAllowedIssueUseCase} from "./steps/close_not_allowed_issue_use_case";
+import {DeployAddedUseCase} from "./steps/label_deploy_added_use_case";
 
 export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'IssueLinkUseCase';
@@ -59,6 +60,11 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
          * Remove unnecessary branches
          */
         results.push(...await new RemoveNotNeededBranchesUseCase().invoke(param));
+
+        /**
+         * Check if deploy label was added
+         */
+        results.push(...await new DeployAddedUseCase().invoke(param));
 
         return results;
     }

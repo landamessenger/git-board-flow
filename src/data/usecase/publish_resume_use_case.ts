@@ -23,6 +23,7 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
             let content = ''
             let stupidGif = ''
             let image: string | undefined
+            let errors = ''
             let footer = ''
             if (param.isIssue) {
                 if (param.issueNotBranched) {
@@ -63,6 +64,18 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
                 }
             });
 
+            let indexError = 0
+            param.currentConfiguration.results.forEach(r => {
+                for (const error of r.errors) {
+                    errors += `${indexError + 1}.
+\`\`\`
+${error}
+\`\`\`
+`
+                    indexError++
+                }
+            });
+
             if (footer.length > 0) {
                 footer = `
 ## Reminder
@@ -71,8 +84,19 @@ ${footer}
 `
             }
 
+            if (errors.length > 0) {
+                errors = `
+## Errors Found
+
+${errors}
+
+Check your project configuration, if everything is okay consider [opening an issue](https://github.com/landamessenger/git-board-flow/issues/new/choose).
+`
+            }
+
             const commentBody = `# ${title}
 ${content}
+${errors.length > 0 ? errors : ''}
 
 ${stupidGif}
 

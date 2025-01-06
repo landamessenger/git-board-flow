@@ -30527,6 +30527,7 @@ class Execution {
                             this.release.version = (0, version_utils_1.incrementVersion)(lastTag, this.release.type);
                         }
                     }
+                    this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
                 }
                 else if (this.hotfix.active) {
                     const versionResult = await new get_hotfix_version_use_case_1.GetHotfixVersionUseCase().invoke(this);
@@ -30542,6 +30543,7 @@ class Execution {
                         }
                         this.hotfix.version = (0, version_utils_1.incrementVersion)(this.hotfix.baseVersion, 'Patch');
                     }
+                    this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
                 }
             }
             else if (this.isPullRequest) {
@@ -30917,7 +30919,7 @@ class Result {
         this.success = data['success'] ?? false;
         this.executed = data['executed'] ?? false;
         this.steps = data['steps'] ?? [];
-        this.exception = data['exception'];
+        this.errors = data['errors'] ?? [];
         this.payload = data['payload'];
         this.reminders = data['reminders'] ?? [];
     }
@@ -32283,6 +32285,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const check_permissions_use_case_1 = __nccwpck_require__(9901);
 const close_not_allowed_issue_use_case_1 = __nccwpck_require__(5717);
+const label_deploy_added_use_case_1 = __nccwpck_require__(6636);
 class IssueLinkUseCase {
     constructor() {
         this.taskId = 'IssueLinkUseCase';
@@ -32325,6 +32328,10 @@ class IssueLinkUseCase {
          * Remove unnecessary branches
          */
         results.push(...await new remove_not_needed_branches_use_case_1.RemoveNotNeededBranchesUseCase().invoke(param));
+        /**
+         * Check if deploy label was added
+         */
+        results.push(...await new label_deploy_added_use_case_1.DeployAddedUseCase().invoke(param));
         return results;
     }
 }
@@ -32395,6 +32402,7 @@ class PublishResultUseCase {
             let content = '';
             let stupidGif = '';
             let image;
+            let errors = '';
             let footer = '';
             if (param.isIssue) {
                 if (param.issueNotBranched) {
@@ -32435,6 +32443,17 @@ class PublishResultUseCase {
                     indexReminder++;
                 }
             });
+            let indexError = 0;
+            param.currentConfiguration.results.forEach(r => {
+                for (const error of r.errors) {
+                    errors += `${indexError + 1}.
+\`\`\`
+${error}
+\`\`\`
+`;
+                    indexError++;
+                }
+            });
             if (footer.length > 0) {
                 footer = `
 ## Reminder
@@ -32442,8 +32461,18 @@ class PublishResultUseCase {
 ${footer}
 `;
             }
+            if (errors.length > 0) {
+                errors = `
+## Errors Found
+
+${errors}
+
+Check your project configuration, if everything is okay consider [opening an issue](https://github.com/landamessenger/git-board-flow/issues/new/choose).
+`;
+            }
             const commentBody = `# ${title}
 ${content}
+${errors.length > 0 ? errors : ''}
 
 ${stupidGif}
 
@@ -33726,6 +33755,128 @@ exports.GetReleaseVersionUseCase = GetReleaseVersionUseCase;
 
 /***/ }),
 
+/***/ 6636:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DeployAddedUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+const branch_repository_1 = __nccwpck_require__(7701);
+const content_utils_1 = __nccwpck_require__(4799);
+class DeployAddedUseCase {
+    constructor() {
+        this.taskId = 'DeployAddedUseCase';
+        this.branchRepository = new branch_repository_1.BranchRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
+                core.info(`Deploying requested.`);
+                if (param.release.active && param.release.branch !== undefined) {
+                    const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
+                    const parameters = {
+                        version: param.release.version,
+                        changelog: 'Demo changelog',
+                    };
+                    await this.branchRepository.executeWorkflow(param.owner, param.repo, param.release.branch, param.workflows.release, parameters, param.tokens.tokenPat);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Executed release workflow [**${param.workflows.release}**](https://github.com/${param.owner}/${param.repo}/actions/workflows/${param.workflows.release}) on [**${param.release.branch}**](${releaseUrl}).
+
+${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', parameters)}`
+                        ]
+                    }));
+                }
+                else if (param.hotfix.active && param.hotfix.branch !== undefined) {
+                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+                    const parameters = {
+                        version: param.hotfix.version,
+                        changelog: 'Demo hotfix changelog',
+                    };
+                    await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.release, parameters, param.tokens.tokenPat);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Executed hotfix workflow [**${param.workflows.hotfix}**](https://github.com/${param.owner}/${param.repo}/actions/workflows/${param.workflows.hotfix}) on [**${param.hotfix.branch}**](${hotfixUrl}).
+
+${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', parameters)}\``
+                        ]
+                    }));
+                }
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+            }
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to work with workflows, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.DeployAddedUseCase = DeployAddedUseCase;
+
+
+/***/ }),
+
 /***/ 1503:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -34150,10 +34301,9 @@ class PrepareBranchesUseCase {
             }));
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             if (param.hotfix.active) {
-                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined) {
+                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined && param.hotfix.branch !== undefined) {
                     const branchOid = await this.branchRepository.getCommitTag(param.hotfix.baseVersion);
                     const baseBranchName = `tags/${param.hotfix.baseVersion}`;
-                    param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
                     param.currentConfiguration.hotfixBranch = param.hotfix.branch;
                     const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${baseBranchName}`;
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
@@ -34197,8 +34347,7 @@ class PrepareBranchesUseCase {
                 }
             }
             else if (param.release.active) {
-                if (param.release.version !== undefined) {
-                    param.release.branch = `${param.branches.releaseTree}/${param.release.version}`;
+                if (param.release.version !== undefined && param.release.branch !== undefined) {
                     param.currentConfiguration.releaseBranch = param.release.branch;
                     core.info(`Release branch: ${param.release.branch}`);
                     const developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.development}`;
@@ -34234,15 +34383,7 @@ class PrepareBranchesUseCase {
                             id: this.taskId,
                             success: true,
                             executed: true,
-                            steps: [
-                                `The branch [**${param.release.branch}**](${releaseUrl}) already exists and will not be created from the branch [**${param.branches.development}**](${developmentUrl}).`,
-                            ],
                             reminders: [
-                                `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
-> Version files, changelogs, last minute changes.`,
-                                `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
-> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
-                                `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
                                 `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).
 > **Quick actions:**
 > [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}).
@@ -34716,7 +34857,7 @@ exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractReleaseType = exports.extractVersion = void 0;
+exports.injectJsonAsMarkdownBlock = exports.extractReleaseType = exports.extractVersion = void 0;
 const extractVersion = (pattern, text) => {
     const versionPattern = new RegExp(`###\\s*${pattern}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
     const match = text.match(versionPattern);
@@ -34729,6 +34870,14 @@ const extractReleaseType = (pattern, text) => {
     return match ? match[1] : undefined;
 };
 exports.extractReleaseType = extractReleaseType;
+const injectJsonAsMarkdownBlock = (title, json) => {
+    const formattedJson = JSON.stringify(json, null, 4) // Pretty-print the JSON with 4 spaces.
+        .split('\n') // Split into lines.
+        .map(line => `> ${line}`) // Prefix each line with '> '.
+        .join('\n'); // Join lines back into a string.
+    return `> **${title}**\n>\n> \`\`\`json\n${formattedJson}\n> \`\`\``;
+};
+exports.injectJsonAsMarkdownBlock = injectJsonAsMarkdownBlock;
 
 
 /***/ }),

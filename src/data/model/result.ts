@@ -3,16 +3,16 @@ export class Result {
     success: boolean;
     executed: boolean;
     steps: string[];
-    exception: Error | undefined;
     payload: any;
     reminders: string[];
+    errors: Error[];
 
     constructor(data: any) {
         this.id = data['id'] ?? '';
         this.success = data['success'] ?? false;
         this.executed = data['executed'] ?? false;
         this.steps = data['steps'] ?? [];
-        this.exception = data['exception'];
+        this.errors = data['errors'] ?? [];
         this.payload = data['payload'];
         this.reminders = data['reminders'] ?? [];
     }

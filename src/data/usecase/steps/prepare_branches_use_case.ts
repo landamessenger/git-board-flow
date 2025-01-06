@@ -55,11 +55,10 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             )
 
             if (param.hotfix.active) {
-                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined) {
+                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined && param.hotfix.branch !== undefined) {
                     const branchOid = await this.branchRepository.getCommitTag(param.hotfix.baseVersion)
 
                     const baseBranchName = `tags/${param.hotfix.baseVersion}`;
-                    param.hotfix.branch = `${param.branches.hotfixTree}/${param.hotfix.version}`;
                     param.currentConfiguration.hotfixBranch = param.hotfix.branch;
 
                     const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${baseBranchName}`;
@@ -118,8 +117,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     return result
                 }
             } else if (param.release.active) {
-                if (param.release.version !== undefined) {
-                    param.release.branch = `${param.branches.releaseTree}/${param.release.version}`;
+                if (param.release.version !== undefined && param.release.branch !== undefined) {
                     param.currentConfiguration.releaseBranch = param.release.branch;
 
                     core.info(`Release branch: ${param.release.branch}`);
@@ -169,15 +167,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                 id: this.taskId,
                                 success: true,
                                 executed: true,
-                                steps: [
-                                    `The branch [**${param.release.branch}**](${releaseUrl}) already exists and will not be created from the branch [**${param.branches.development}**](${developmentUrl}).`,
-                                ],
                                 reminders: [
-                                    `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
-> Version files, changelogs, last minute changes.`,
-                                    `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
-> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
-                                    `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
                                     `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).
 > **Quick actions:**
 > [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}).
