@@ -7,6 +7,10 @@ on:
         description: 'Release version'
         required: true
         default: '1.0.0'
+      changelog:
+        description: 'Changelog'
+        required: true
+        default: '- Several improvements'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

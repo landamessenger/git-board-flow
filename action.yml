@@ -88,7 +88,7 @@ inputs:
     default: "true"
   release-workflow:
     description: "Release workflow for running release deploys."
-    default: "release"
+    default: "release_workflow.yml"
   hotfix-workflow:
     description: "Hotfix workflow for running hotfix deploys."
     default: "release"
