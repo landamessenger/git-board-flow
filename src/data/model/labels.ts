@@ -9,6 +9,7 @@ export class Labels {
     question: string;
     help: string;
     deploy: string;
+    deployed: string;
     currentIssueLabels: string[] = [];
     currentPullRequestLabels: string[] = [];
 
@@ -22,6 +23,10 @@ export class Labels {
 
     get isDeploy(): boolean {
         return this.currentIssueLabels.includes(this.deploy);
+    }
+
+    get isDeployed(): boolean {
+        return this.currentIssueLabels.includes(this.deployed);
     }
 
     get isHelp(): boolean {
@@ -67,6 +72,7 @@ export class Labels {
         question: string,
         help: string,
         deploy: string,
+        deployed: string,
     ) {
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
@@ -78,5 +84,6 @@ export class Labels {
         this.question = question;
         this.help = help;
         this.deploy = deploy;
+        this.deployed = deployed;
     }
 }

@@ -7,10 +7,18 @@ on:
         description: 'Release version'
         required: true
         default: '1.0.0'
+      title:
+        description: 'Title'
+        required: true
+        default: 'New Version'
       changelog:
         description: 'Changelog'
         required: true
         default: '- Several improvements'
+      issue:
+        description: 'Launcher issue'
+        required: true
+        default: -1
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -37,23 +45,13 @@ jobs:
   prepare-files:
     name: Prepare files for release
     runs-on: ubuntu-latest
-    depends-on: [ check-tag ]
+    needs: [ check-tag ]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-      - name: Switch to SSH
-        run: git remote set-url origin git@github.com:landamessenger/git-board-flow.git
-
-      - name: Check branch. Only release.
+      - name: Check branch and prepare SSH
         run: |
           if [[ "${{ github.ref_name }}" == release/* ]]; then
             echo "Release branch."
@@ -61,6 +59,11 @@ jobs:
             echo "Not valid branch type."
             exit 1
           fi
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git remote set-url origin git@github.com:landamessenger/git-board-flow.git
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -76,11 +79,10 @@ jobs:
             packageJson.version = '${{ github.event.inputs.version }}';
             fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2));
 
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Build Project
-        run: npm run build
+      - name: Compile files
+        run: |
+          npm install
+          npm run build
 
       - name: Commit updated package.json and dist directory
         uses: EndBug/add-and-commit@v9
@@ -93,23 +95,18 @@ jobs:
   tag:
     name: Publish version
     runs-on: ubuntu-latest
-    depends-on: [ prepare-files ]
+    needs: [ prepare-files ]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up SSH
+      - name: Prepare SSH and create tag
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-      - name: Switch to SSH
-        run: git remote set-url origin git@github.com:landamessenger/git-board-flow.git
-
-      - name: Create tag
-        id: create_tag
-        run: |
+          git remote set-url origin git@github.com:landamessenger/git-board-flow.git
+          
           git pull origin
           
           # Check if the tag already exists in the remote repository
@@ -127,35 +124,15 @@ jobs:
         with:
           script: |
             const version = "${{ github.event.inputs.version }}";
-            
-            // Fetch the pull requests merged into the base branch (master)
-            const { data: pulls } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'closed',
-              sort: 'updated',
-              direction: 'desc',
-              per_page: 1,
-              base: 'master',
-            });
-            
-            if (pulls.length === 0) {
-              throw new Error('No pull requests merged into master were found.');
-            }
-            
-            const lastPr = pulls[0];
-            console.log(`Last PR found: ${lastPr.title} (#${lastPr.number})`);
-            
-            // Use the PR description for the release notes
-            const releaseBody = lastPr.body || 'No description provided for the last merged PR.';
-            
-            // Create the release
+            const title = "${{ github.event.inputs.title }}";
+            const changelog = "${{ github.event.inputs.changelog }}";
+             
             const { data: release } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: `v${version}`,
-              name: `v${version} - ${lastPr.title}`,
-              body: releaseBody,
+              name: `v${version} - ${title}`,
+              body: changelog,
               draft: false,
               prerelease: false,
             });
@@ -269,3 +246,11 @@ jobs:
             await updateTag(sourceTag, targetTag);
             await updateRelease(sourceTag, targetTag);
 
+      - name: Git Board - Deploy success notification
+        uses: ./
+        if: ${{ success() }}
+        with:
+          single-action: 'deployed_action'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token-personal: ${{ secrets.REPO_PAT }}

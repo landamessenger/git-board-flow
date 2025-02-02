@@ -18,9 +18,17 @@ import {Issue} from "./data/model/issue";
 import {PullRequest} from "./data/model/pull_request";
 import {Workflows} from "./data/model/workflows";
 import {Release} from "./data/model/release";
+import {SingleAction} from "./data/model/single_action";
+import {SingleActionUseCase} from "./data/usecase/single_action_use_case";
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
+
+    /**
+     * Single action
+     */
+    const singleAction = core.getInput('single-action');
+    const singleActionIssue = core.getInput('single-action-issue');
 
     /**
      * Tokens
@@ -105,6 +113,7 @@ async function run(): Promise<void> {
     const questionLabel = core.getInput('question-label');
     const helpLabel = core.getInput('help-label');
     const deployLabel = core.getInput('deploy-label');
+    const deployedLabel = core.getInput('deployed-label');
 
     /**
      * Branches
@@ -136,6 +145,10 @@ async function run(): Promise<void> {
 
 
     const execution = new Execution(
+        new SingleAction(
+            singleAction,
+            singleActionIssue,
+        ),
         commitPrefixBuilder,
         new Issue(
             branchManagementAlways,
@@ -169,6 +182,7 @@ async function run(): Promise<void> {
             questionLabel,
             helpLabel,
             deployLabel,
+            deployedLabel,
         ),
         new Branches(
             mainBranch,
@@ -197,8 +211,9 @@ async function run(): Promise<void> {
     const results: Result[] = []
 
     try {
-        if (execution.isIssue) {
-            // if (execution.issue.labeled && execution.issue.labelAdded === execution.labels.deploy && execution.labels.isDeploy) {
+        if (execution.isSingleAction) {
+            results.push(...await new SingleActionUseCase().invoke(execution));
+        } else if (execution.isIssue) {
             results.push(...await new IssueLinkUseCase().invoke(execution));
         } else if (execution.isPullRequest) {
             results.push(...await new PullRequestLinkUseCase().invoke(execution));

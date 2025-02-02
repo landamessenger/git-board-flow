@@ -20,7 +20,9 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
                         version: param.release.version,
+                        title: 'Demo Release Title',
                         changelog: 'Demo changelog',
+                        issue: param.issue.number,
                     }
                     await this.branchRepository.executeWorkflow(
                         param.owner,
@@ -46,7 +48,9 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}`
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
+                        title: 'Demo Hotfix Title',
                         changelog: 'Demo hotfix changelog',
+                        issue: param.issue.number,
                     }
                     await this.branchRepository.executeWorkflow(
                         param.owner,
