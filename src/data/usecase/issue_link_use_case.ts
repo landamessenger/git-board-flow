@@ -11,6 +11,7 @@ import {AssignMemberToIssueUseCase} from "./steps/assign_members_to_issue_use_ca
 import {CheckPermissionsUseCase} from "./steps/check_permissions_use_case";
 import {CloseNotAllowedIssueUseCase} from "./steps/close_not_allowed_issue_use_case";
 import {DeployAddedUseCase} from "./steps/label_deploy_added_use_case";
+import {DeployedAddedUseCase} from "./steps/label_deployed_added_use_case";
 
 export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'IssueLinkUseCase';
@@ -65,6 +66,11 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
          * Check if deploy label was added
          */
         results.push(...await new DeployAddedUseCase().invoke(param));
+
+        /**
+         * Check if deployed label was added
+         */
+        results.push(...await new DeployedAddedUseCase().invoke(param));
 
         return results;
     }

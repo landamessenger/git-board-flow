@@ -15749,14 +15749,6 @@ const { isUint8Array, isArrayBuffer } = __nccwpck_require__(9830)
 const { File: UndiciFile } = __nccwpck_require__(8511)
 const { parseMIMEType, serializeAMimeType } = __nccwpck_require__(685)
 
-let random
-try {
-  const crypto = __nccwpck_require__(6005)
-  random = (max) => crypto.randomInt(0, max)
-} catch {
-  random = (max) => Math.floor(Math.random(max))
-}
-
 let ReadableStream = globalThis.ReadableStream
 
 /** @type {globalThis['File']} */
@@ -15842,7 +15834,7 @@ function extractBody (object, keepalive = false) {
     // Set source to a copy of the bytes held by object.
     source = new Uint8Array(object.buffer.slice(object.byteOffset, object.byteOffset + object.byteLength))
   } else if (util.isFormDataLike(object)) {
-    const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, '0')}`
+    const boundary = `----formdata-undici-0${`${Math.floor(Math.random() * 1e11)}`.padStart(11, '0')}`
     const prefix = `--${boundary}\r\nContent-Disposition: form-data`
 
     /*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
@@ -32459,6 +32451,7 @@ const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const check_permissions_use_case_1 = __nccwpck_require__(9901);
 const close_not_allowed_issue_use_case_1 = __nccwpck_require__(5717);
 const label_deploy_added_use_case_1 = __nccwpck_require__(6636);
+const label_deployed_added_use_case_1 = __nccwpck_require__(2477);
 class IssueLinkUseCase {
     constructor() {
         this.taskId = 'IssueLinkUseCase';
@@ -32505,6 +32498,10 @@ class IssueLinkUseCase {
          * Check if deploy label was added
          */
         results.push(...await new label_deploy_added_use_case_1.DeployAddedUseCase().invoke(param));
+        /**
+         * Check if deployed label was added
+         */
+        results.push(...await new label_deployed_added_use_case_1.DeployedAddedUseCase().invoke(param));
         return results;
     }
 }
@@ -34133,6 +34130,111 @@ exports.DeployAddedUseCase = DeployAddedUseCase;
 
 /***/ }),
 
+/***/ 2477:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DeployedAddedUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+class DeployedAddedUseCase {
+    constructor() {
+        this.taskId = 'DeployedAddedUseCase';
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            if (param.issue.labeled && param.issue.labelAdded === param.labels.deployed) {
+                core.info(`Deploy complete.`);
+                if (param.release.active && param.release.branch !== undefined) {
+                    const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Deploy complete from [${param.release.branch}](${releaseUrl})`
+                        ]
+                    }));
+                }
+                else if (param.hotfix.active && param.hotfix.branch !== undefined) {
+                    const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Deploy complete from [${param.hotfix.branch}](${hotfixUrl})`
+                        ]
+                    }));
+                }
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+            }
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to complete de deploy, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.DeployedAddedUseCase = DeployedAddedUseCase;
+
+
+/***/ }),
+
 /***/ 1503:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -35659,14 +35761,6 @@ module.exports = require("https");
 
 "use strict";
 module.exports = require("net");
-
-/***/ }),
-
-/***/ 6005:
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("node:crypto");
 
 /***/ }),
 
