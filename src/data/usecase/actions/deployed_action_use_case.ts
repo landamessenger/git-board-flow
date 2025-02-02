@@ -14,12 +14,11 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
         const result: Result[] = [];
 
         try {
-            const issueNumber = parseInt('${{ github.event.inputs.issue }}'.replace('#', ''), 10);
 
             const labels = await this.issueRepository.getLabels(
                 param.owner,
                 param.repo,
-                issueNumber,
+                param.singleAction.currentSingleActionIssue,
                 param.tokens.token,
             )
 
@@ -43,12 +42,12 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
             await this.issueRepository.setLabels(
                 param.owner,
                 param.repo,
-                issueNumber,
+                param.singleAction.currentSingleActionIssue,
                 labelNames,
                 param.tokens.token,
             )
 
-            console.log(`Updated labels on issue #${issueNumber}:`, labelNames);
+            console.log(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`, labelNames);
 
             result.push(
                 new Result({

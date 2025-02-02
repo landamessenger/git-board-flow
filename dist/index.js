@@ -30950,12 +30950,22 @@ class SingleAction {
         return this.currentSingleAction === deployedAction;
     }
     constructor(currentSingleAction, currentSingleActionIssue) {
+        this.currentSingleActionIssue = -1;
         this.actions = [deployedAction];
+        let validIssueNumber = false;
+        try {
+            this.currentSingleActionIssue = parseInt(currentSingleActionIssue);
+            validIssueNumber = true;
+        }
+        catch (error) {
+            console.error(error);
+            console.error(`Issue ${currentSingleActionIssue} is not a number.`);
+        }
         this.currentSingleAction = currentSingleAction;
-        this.currentSingleActionIssue = currentSingleActionIssue;
         this.enabledSingleAction = this.currentSingleAction.length > 0;
         this.validSingleAction = this.currentSingleAction.length > 0 &&
-            this.currentSingleActionIssue.length > 0 &&
+            this.currentSingleActionIssue > 0 &&
+            validIssueNumber &&
             this.actions.indexOf(this.currentSingleAction) > -1;
     }
 }
@@ -32195,8 +32205,7 @@ class DeployedActionUseCase {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const issueNumber = parseInt('${{ github.event.inputs.issue }}'.replace('#', ''), 10);
-            const labels = await this.issueRepository.getLabels(param.owner, param.repo, issueNumber, param.tokens.token);
+            const labels = await this.issueRepository.getLabels(param.owner, param.repo, param.singleAction.currentSingleActionIssue, param.tokens.token);
             if (labels.indexOf(param.labels.deploy) === -1) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -32210,8 +32219,8 @@ class DeployedActionUseCase {
             }
             const labelNames = labels.filter(name => name !== param.labels.deploy);
             labelNames.push(param.labels.deployed);
-            await this.issueRepository.setLabels(param.owner, param.repo, issueNumber, labelNames, param.tokens.token);
-            console.log(`Updated labels on issue #${issueNumber}:`, labelNames);
+            await this.issueRepository.setLabels(param.owner, param.repo, param.singleAction.currentSingleActionIssue, labelNames, param.tokens.token);
+            console.log(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`, labelNames);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
