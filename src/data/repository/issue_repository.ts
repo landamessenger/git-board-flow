@@ -369,6 +369,22 @@ export class IssueRepository {
         return labels.map(label => label.name);
     }
 
+    setLabels = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        labels: string[],
+        token: string,
+    ): Promise<void> => {
+        const octokit = github.getOctokit(token);
+        await octokit.rest.issues.setLabels({
+            owner: owner,
+            repo: repository,
+            issue_number: issueNumber,
+            labels: labels,
+        });
+    }
+
     isRelease = async (
         owner: string,
         repository: string,

@@ -22,6 +22,7 @@ import {GetReleaseTypeUseCase} from "../usecase/steps/get_release_type_use_case"
 import {BranchConfiguration} from "./branch_configuration";
 import {BranchRepository} from "../repository/branch_repository";
 import {incrementVersion} from "../utils/version_utils";
+import {SingleAction} from "./single_action";
 
 export class Execution {
     /**
@@ -31,6 +32,7 @@ export class Execution {
      * master <- develop
      */
     issueNumber: number = -1
+    singleAction: SingleAction;
     commitPrefixBuilder: string;
     commitPrefixBuilderParams: any = {};
     emoji: Emoji;
@@ -49,6 +51,10 @@ export class Execution {
 
     get eventName(): string {
         return github.context.eventName;
+    }
+
+    get isSingleAction(): boolean {
+        return this.singleAction.enabledSingleAction;
     }
 
     get isIssue(): boolean {
@@ -120,6 +126,7 @@ export class Execution {
     }
 
     constructor(
+        singleAction: SingleAction,
         commitPrefixBuilder: string,
         issue: Issue,
         pullRequest: PullRequest,
@@ -133,6 +140,7 @@ export class Execution {
         workflows: Workflows,
         projects: ProjectDetail[],
     ) {
+        this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
         this.pullRequest = pullRequest;

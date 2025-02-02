@@ -2,6 +2,12 @@ name: "Git Board Flow"
 description: "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology."
 author: "Landa Messenger"
 inputs:
+  single-action:
+    description: "Launch single actions."
+    default: ""
+  single-action-issue:
+    description: "Issue target for executing single action."
+    default: ""
   emoji-labeled-title:
     description: "Enable titles with emojis based on issue labels."
     default: "true"
