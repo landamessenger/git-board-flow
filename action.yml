@@ -47,6 +47,9 @@ inputs:
   deploy-label:
     description: "Label to detect deploy actions."
     default: "deploy"
+  deployed-label:
+    description: "Label to detect the deployed was."
+    default: "deployed"
   project-urls:
     description: "Comma-separated list of project URLs to link issues and pull requests."
     default: ""
