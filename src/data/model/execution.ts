@@ -157,7 +157,16 @@ export class Execution {
     }
 
     setup = async () => {
-        if (this.isIssue) {
+        if (this.isSingleAction) {
+            this.issueNumber = this.singleAction.currentSingleActionIssue;
+            const issueRepository = new IssueRepository();
+            this.labels.currentIssueLabels = await issueRepository.getLabels(
+                this.owner,
+                this.repo,
+                this.issueNumber,
+                this.tokens.token
+            );
+        } else if (this.isIssue) {
             this.issueNumber = this.issue.number;
             const issueRepository = new IssueRepository();
             const branchRepository = new BranchRepository();

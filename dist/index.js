@@ -30510,7 +30510,12 @@ class Execution {
         this.issueNumber = -1;
         this.commitPrefixBuilderParams = {};
         this.setup = async () => {
-            if (this.isIssue) {
+            if (this.isSingleAction) {
+                this.issueNumber = this.singleAction.currentSingleActionIssue;
+                const issueRepository = new issue_repository_1.IssueRepository();
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+            }
+            else if (this.isIssue) {
                 this.issueNumber = this.issue.number;
                 const issueRepository = new issue_repository_1.IssueRepository();
                 const branchRepository = new branch_repository_1.BranchRepository();
@@ -32213,19 +32218,29 @@ class DeployedActionUseCase {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const labels = await this.issueRepository.getLabels(param.owner, param.repo, param.singleAction.currentSingleActionIssue, param.tokens.token);
-            if (labels.indexOf(param.labels.deploy) === -1) {
+            if (!param.labels.isDeploy) {
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to set label \`${param.labels.deployed}\` but there was no \`${param.labels.deploy}\` label`,
+                        `Tried to set label \`${param.labels.deployed}\` but there was no \`${param.labels.deploy}\` label.`,
                     ],
                 }));
                 return result;
             }
-            const labelNames = labels.filter(name => name !== param.labels.deploy);
+            if (param.labels.isDeployed) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Tried to set label \`${param.labels.deployed}\` but it was already set.`,
+                    ],
+                }));
+                return result;
+            }
+            const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.deploy);
             labelNames.push(param.labels.deployed);
             await this.issueRepository.setLabels(param.owner, param.repo, param.singleAction.currentSingleActionIssue, labelNames, param.tokens.token);
             console.log(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`, labelNames);
