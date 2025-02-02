@@ -34053,7 +34053,7 @@ class DeployAddedUseCase {
                         version: param.release.version,
                         title: 'Demo Release Title',
                         changelog: 'Demo changelog',
-                        issue: param.issue.number,
+                        issue: `${param.issue.number}`,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.release.branch, param.workflows.release, parameters, param.tokens.tokenPat);
                     result.push(new result_1.Result({
