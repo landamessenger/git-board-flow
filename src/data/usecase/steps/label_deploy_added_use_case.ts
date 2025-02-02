@@ -22,7 +22,7 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
                         version: param.release.version,
                         title: 'Demo Release Title',
                         changelog: 'Demo changelog',
-                        issue: param.issue.number,
+                        issue: `${param.issue.number}`,
                     }
                     await this.branchRepository.executeWorkflow(
                         param.owner,
