@@ -14,29 +14,35 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
         const result: Result[] = [];
 
         try {
-
-            const labels = await this.issueRepository.getLabels(
-                param.owner,
-                param.repo,
-                param.singleAction.currentSingleActionIssue,
-                param.tokens.token,
-            )
-
-            if (labels.indexOf(param.labels.deploy) === -1) {
+            if (!param.labels.isDeploy) {
                 result.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
                         steps: [
-                            `Tried to set label \`${param.labels.deployed}\` but there was no \`${param.labels.deploy}\` label`,
+                            `Tried to set label \`${param.labels.deployed}\` but there was no \`${param.labels.deploy}\` label.`,
                         ],
                     })
                 );
                 return result;
             }
 
-            const labelNames = labels.filter(name => name !== param.labels.deploy);
+            if (param.labels.isDeployed) {
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Tried to set label \`${param.labels.deployed}\` but it was already set.`,
+                        ],
+                    })
+                );
+                return result;
+            }
+
+            const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.deploy);
             labelNames.push(param.labels.deployed);
 
             await this.issueRepository.setLabels(
