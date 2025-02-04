@@ -341,7 +341,7 @@ export class IssueRepository {
         const octokit = github.getOctokit(token);
 
         try {
-            const { data: issue } = await octokit.rest.issues.get({
+            const {data: issue} = await octokit.rest.issues.get({
                 owner: owner,
                 repo: repository,
                 issue_number: issueNumber,
@@ -360,6 +360,9 @@ export class IssueRepository {
         issueNumber: number,
         token: string,
     ): Promise<string[]> => {
+        if (issueNumber === -1) {
+            return [];
+        }
         const octokit = github.getOctokit(token);
         const {data: labels} = await octokit.rest.issues.listLabelsOnIssue({
             owner: owner,
@@ -385,27 +388,62 @@ export class IssueRepository {
         });
     }
 
-    isRelease = async (
+    isIssue = async (
         owner: string,
         repository: string,
         issueNumber: number,
-        releaseLabel: string,
         token: string,
-    ): Promise<boolean> => {
-        const labels = await this.getLabels(owner, repository, issueNumber, token)
-        return labels.includes(releaseLabel)
+    ) => {
+        const isPullRequest = await this.isPullRequest(
+            owner,
+            repository,
+            issueNumber,
+            token,
+        )
+        return !isPullRequest;
     }
 
-    isHotfix = async (
+    isPullRequest = async (
         owner: string,
         repository: string,
         issueNumber: number,
-        hotfixLabel: string,
         token: string,
-    ): Promise<boolean> => {
-        const labels = await this.getLabels(owner, repository, issueNumber, token)
-        return labels.includes(hotfixLabel)
+    ) => {
+        const octokit = github.getOctokit(token);
+        const {data} = await octokit.rest.issues.get({
+            owner: owner,
+            repo: repository,
+            issue_number: issueNumber,
+        });
+
+        return !!data.pull_request;
     }
+
+
+    getHeadBranch = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string
+    ): Promise<string | undefined> => {
+        const isPr = await this.isPullRequest(
+            owner,
+            repository,
+            issueNumber,
+            token
+        )
+        if (!isPr) {
+            return undefined
+        }
+        const octokit = github.getOctokit(token);
+        const pullRequest = await octokit.rest.pulls.get({
+            owner,
+            repo: repository,
+            pull_number: issueNumber,
+        })
+
+        return pullRequest.data.head.ref
+    };
 
     addComment = async (
         owner: string,

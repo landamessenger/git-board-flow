@@ -9,7 +9,9 @@ export abstract class IssueContentInterface extends ContentInterface {
     internalGetter = async (execution: Execution): Promise<string | undefined> => {
         try {
             let number = -1
-            if (execution.isIssue) {
+            if (execution.isSingleAction) {
+                number = execution.singleAction.currentSingleActionIssue
+            } else if (execution.isIssue) {
                 number = execution.issue.number
             } else if (execution.isPullRequest) {
                 number = execution.pullRequest.number
@@ -34,10 +36,12 @@ export abstract class IssueContentInterface extends ContentInterface {
     internalUpdate = async (execution: Execution, content: string): Promise<string | undefined> => {
         try {
             let number = -1
-            if (execution.isIssue) {
-                number = execution.issue.number
+            if (execution.isSingleAction) {
+                number = execution.singleAction.currentSingleActionIssue;
+            } else if (execution.isIssue) {
+                number = execution.issue.number;
             } else if (execution.isPullRequest) {
-                number = execution.pullRequest.number
+                number = execution.pullRequest.number;
             } else {
                 return undefined;
             }
@@ -57,7 +61,7 @@ export abstract class IssueContentInterface extends ContentInterface {
             await this.issueRepository.updateDescription(
                 execution.owner,
                 execution.repo,
-                execution.issueNumber,
+                number,
                 updated,
                 execution.tokens.token,
             )

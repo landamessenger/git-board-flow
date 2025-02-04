@@ -29,6 +29,9 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
                 if (param.issueNotBranched) {
                     title = '🪄 Automatic Actions'
                     image = getRandomElement(param.giphy.issueAutomaticActions)
+                } else if (param.release.active) {
+                    title = '🚀 Release Actions'
+                    image = getRandomElement(param.giphy.issueFeatureGifs)
                 } else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions'
                     image = getRandomElement(param.giphy.issueHotfixGifs)
@@ -109,7 +112,15 @@ Thank you for contributing! 🙌
                 return;
             }
 
-            if (param.isIssue) {
+            if (param.isSingleAction) {
+                await this.issueRepository.addComment(
+                    param.owner,
+                    param.repo,
+                    param.singleAction.currentSingleActionIssue,
+                    commentBody,
+                    param.tokens.token,
+                )
+            } else if (param.isIssue) {
                 await this.issueRepository.addComment(
                     param.owner,
                     param.repo,

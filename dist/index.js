@@ -30080,7 +30080,10 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
         this.internalGetter = async (execution) => {
             try {
                 let number = -1;
-                if (execution.isIssue) {
+                if (execution.isSingleAction) {
+                    number = execution.singleAction.currentSingleActionIssue;
+                }
+                else if (execution.isIssue) {
                     number = execution.issue.number;
                 }
                 else if (execution.isPullRequest) {
@@ -30100,7 +30103,10 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
         this.internalUpdate = async (execution, content) => {
             try {
                 let number = -1;
-                if (execution.isIssue) {
+                if (execution.isSingleAction) {
+                    number = execution.singleAction.currentSingleActionIssue;
+                }
+                else if (execution.isIssue) {
                     number = execution.issue.number;
                 }
                 else if (execution.isPullRequest) {
@@ -30114,7 +30120,7 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 if (updated === undefined) {
                     return undefined;
                 }
-                await this.issueRepository.updateDescription(execution.owner, execution.repo, execution.issueNumber, updated, execution.tokens.token);
+                await this.issueRepository.updateDescription(execution.owner, execution.repo, number, updated, execution.tokens.token);
                 return updated;
             }
             catch (error) {
@@ -30360,6 +30366,7 @@ class Config {
     constructor(data) {
         this.results = [];
         this.branchType = data['branchType'] ?? '';
+        this.hotfixOriginBranch = data['hotfixOriginBranch'];
         this.hotfixBranch = data['hotfixBranch'];
         this.releaseBranch = data['releaseBranch'];
         if (data['branchConfiguration'] !== undefined) {
@@ -30450,10 +30457,10 @@ class Execution {
         return this.singleAction.enabledSingleAction;
     }
     get isIssue() {
-        return this.eventName === 'issues';
+        return this.eventName === 'issues' || this.singleAction.isIssue;
     }
     get isPullRequest() {
-        return this.eventName === 'pull_request';
+        return this.eventName === 'pull_request' || this.singleAction.isPullRequest;
     }
     get isPush() {
         return this.eventName === 'push';
@@ -30502,19 +30509,76 @@ class Execution {
         this.issueNumber = -1;
         this.commitPrefixBuilderParams = {};
         this.setup = async () => {
+            const issueRepository = new issue_repository_1.IssueRepository();
+            /**
+             * Set the issue number
+             */
             if (this.isSingleAction) {
-                this.issueNumber = this.singleAction.currentSingleActionIssue;
-                const issueRepository = new issue_repository_1.IssueRepository();
-                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+                this.singleAction.isPullRequest = await issueRepository.isPullRequest(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.tokenPat);
+                this.singleAction.isIssue = await issueRepository.isIssue(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.tokenPat);
+                if (this.singleAction.isIssue) {
+                    this.issueNumber = this.singleAction.currentSingleActionIssue;
+                }
+                else if (this.singleAction.isPullRequest) {
+                    const head = await issueRepository.getHeadBranch(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.tokenPat);
+                    if (head === undefined) {
+                        return;
+                    }
+                    this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(head);
+                }
             }
             else if (this.isIssue) {
                 this.issueNumber = this.issue.number;
-                const issueRepository = new issue_repository_1.IssueRepository();
+            }
+            else if (this.isPullRequest) {
+                this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
+            }
+            else if (this.isPush) {
+                this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
+            }
+            this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
+            /**
+             * Get labels of issue
+             */
+            this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+            /**
+             * Contains release label
+             */
+            this.release.active = this.labels.isRelease;
+            this.hotfix.active = this.labels.isHotfix;
+            /**
+             * Get previous state
+             */
+            if (this.release.active) {
+                const previousReleaseBranch = this.previousConfiguration?.releaseBranch;
+                if (previousReleaseBranch) {
+                    this.release.version = previousReleaseBranch.split('/')[1] ?? '';
+                    this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
+                    this.currentConfiguration.releaseBranch = this.release.branch;
+                }
+            }
+            else if (this.hotfix.active) {
+                const previousHotfixOriginBranch = this.previousConfiguration?.hotfixOriginBranch;
+                if (previousHotfixOriginBranch) {
+                    this.hotfix.baseVersion = previousHotfixOriginBranch.split('/v')[1] ?? '';
+                    this.hotfix.baseBranch = `tags/v${this.hotfix.baseVersion}`;
+                    this.currentConfiguration.hotfixOriginBranch = this.hotfix.baseBranch;
+                }
+                const previousHotfixBranch = this.previousConfiguration?.hotfixBranch;
+                if (previousHotfixBranch) {
+                    this.hotfix.version = previousHotfixBranch.split('/')[1] ?? '';
+                    this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
+                    this.currentConfiguration.hotfixBranch = this.hotfix.branch;
+                }
+            }
+            if (this.isSingleAction) {
+                /**
+                 * Nothing to do here (for now)
+                 */
+            }
+            else if (this.isIssue) {
                 const branchRepository = new branch_repository_1.BranchRepository();
-                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
-                this.release.active = await issueRepository.isRelease(this.owner, this.repo, this.issue.number, this.labels.release, this.tokens.token);
-                this.hotfix.active = await issueRepository.isHotfix(this.owner, this.repo, this.issue.number, this.labels.hotfix, this.tokens.token);
-                if (this.release.active) {
+                if (this.release.active && this.release.version === undefined) {
                     const versionResult = await new get_release_version_use_case_1.GetReleaseVersionUseCase().invoke(this);
                     const versionInfo = versionResult[versionResult.length - 1];
                     if (versionInfo.executed && versionInfo.success) {
@@ -30537,7 +30601,7 @@ class Execution {
                     }
                     this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
                 }
-                else if (this.hotfix.active) {
+                else if (this.hotfix.active && this.hotfix.version === undefined) {
                     const versionResult = await new get_hotfix_version_use_case_1.GetHotfixVersionUseCase().invoke(this);
                     const versionInfo = versionResult[versionResult.length - 1];
                     if (versionInfo.executed && versionInfo.success) {
@@ -30552,22 +30616,16 @@ class Execution {
                         this.hotfix.version = (0, version_utils_1.incrementVersion)(this.hotfix.baseVersion, 'Patch');
                     }
                     this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
+                    this.currentConfiguration.hotfixBranch = this.hotfix.branch;
+                    this.hotfix.baseBranch = `tags/v${this.hotfix.baseVersion}`;
+                    this.currentConfiguration.hotfixOriginBranch = this.hotfix.baseBranch;
                 }
             }
             else if (this.isPullRequest) {
-                const issueRepository = new issue_repository_1.IssueRepository();
-                this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
-                if (this.issueNumber > -1) {
-                    this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
-                }
                 this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1;
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
-            else if (this.isPush) {
-                this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
-            }
-            this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
             this.currentConfiguration.branchType = this.issueType;
         };
         this.singleAction = singleAction;
@@ -30957,6 +31015,8 @@ class SingleAction {
     constructor(currentSingleAction, currentSingleActionIssue) {
         this.currentSingleActionIssue = -1;
         this.actions = [deployedAction];
+        this.isIssue = false;
+        this.isPullRequest = false;
         let validIssueNumber = false;
         try {
             this.currentSingleActionIssue = parseInt(currentSingleActionIssue);
@@ -31110,12 +31170,19 @@ class BranchRepository {
                     core.setFailed('No LATEST_TAG found in the environment');
                     return;
                 }
-                core.info(`Fetching commit hash for the tag: ${latestTag}`);
+                let tagVersion;
+                if (latestTag.startsWith('v')) {
+                    tagVersion = latestTag;
+                }
+                else {
+                    tagVersion = `v${latestTag}`;
+                }
+                core.info(`Fetching commit hash for the tag: ${tagVersion}`);
                 let commitOid = '';
-                await exec.exec('git', ['rev-list', '-n', '1', latestTag], {
+                await exec.exec('git', ['rev-list', '-n', '1', tagVersion], {
                     listeners: {
                         stdout: (data) => {
-                            commitOid = data.toString().trim(); // Obtener el hash del commit
+                            commitOid = data.toString().trim();
                         },
                     },
                 });
@@ -31713,6 +31780,9 @@ class IssueRepository {
             }
         };
         this.getLabels = async (owner, repository, issueNumber, token) => {
+            if (issueNumber === -1) {
+                return [];
+            }
             const octokit = github.getOctokit(token);
             const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
                 owner: owner,
@@ -31730,13 +31800,31 @@ class IssueRepository {
                 labels: labels,
             });
         };
-        this.isRelease = async (owner, repository, issueNumber, releaseLabel, token) => {
-            const labels = await this.getLabels(owner, repository, issueNumber, token);
-            return labels.includes(releaseLabel);
+        this.isIssue = async (owner, repository, issueNumber, token) => {
+            const isPullRequest = await this.isPullRequest(owner, repository, issueNumber, token);
+            return !isPullRequest;
         };
-        this.isHotfix = async (owner, repository, issueNumber, hotfixLabel, token) => {
-            const labels = await this.getLabels(owner, repository, issueNumber, token);
-            return labels.includes(hotfixLabel);
+        this.isPullRequest = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const { data } = await octokit.rest.issues.get({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+            return !!data.pull_request;
+        };
+        this.getHeadBranch = async (owner, repository, issueNumber, token) => {
+            const isPr = await this.isPullRequest(owner, repository, issueNumber, token);
+            if (!isPr) {
+                return undefined;
+            }
+            const octokit = github.getOctokit(token);
+            const pullRequest = await octokit.rest.pulls.get({
+                owner,
+                repo: repository,
+                pull_number: issueNumber,
+            });
+            return pullRequest.data.head.ref;
         };
         this.addComment = async (owner, repository, issueNumber, comment, token) => {
             const octokit = github.getOctokit(token);
@@ -32579,6 +32667,10 @@ class PublishResultUseCase {
                     title = '🪄 Automatic Actions';
                     image = (0, list_utils_1.getRandomElement)(param.giphy.issueAutomaticActions);
                 }
+                else if (param.release.active) {
+                    title = '🚀 Release Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueFeatureGifs);
+                }
                 else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions';
                     image = (0, list_utils_1.getRandomElement)(param.giphy.issueHotfixGifs);
@@ -32653,7 +32745,10 @@ Thank you for contributing! 🙌
             if (content.length === 0) {
                 return;
             }
-            if (param.isIssue) {
+            if (param.isSingleAction) {
+                await this.issueRepository.addComment(param.owner, param.repo, param.singleAction.currentSingleActionIssue, commentBody, param.tokens.token);
+            }
+            else if (param.isIssue) {
                 await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
             }
             else if (param.isPullRequest) {
@@ -33303,7 +33398,6 @@ class CheckPermissionsUseCase {
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
-        const number = param.isIssue ? param.issue.number : param.pullRequest.number;
         const result = [];
         /**
          * If a release/hotfix issue was opened, check if author is a member of the project.
@@ -33700,7 +33794,10 @@ class GetHotfixVersionUseCase {
         const result = [];
         try {
             let number = -1;
-            if (param.isIssue) {
+            if (param.isSingleAction) {
+                number = param.singleAction.currentSingleActionIssue;
+            }
+            else if (param.isIssue) {
                 number = param.issue.number;
             }
             else if (param.isPullRequest) {
@@ -33827,7 +33924,10 @@ class GetReleaseTypeUseCase {
         const result = [];
         try {
             let number = -1;
-            if (param.isIssue) {
+            if (param.isSingleAction) {
+                number = param.singleAction.currentSingleActionIssue;
+            }
+            else if (param.isIssue) {
                 number = param.issue.number;
             }
             else if (param.isPullRequest) {
@@ -33943,7 +34043,10 @@ class GetReleaseVersionUseCase {
         const result = [];
         try {
             let number = -1;
-            if (param.isIssue) {
+            if (param.isSingleAction) {
+                number = param.singleAction.currentSingleActionIssue;
+            }
+            else if (param.isIssue) {
                 number = param.issue.number;
             }
             else if (param.isPullRequest) {
@@ -34659,23 +34762,21 @@ class PrepareBranchesUseCase {
             }));
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             if (param.hotfix.active) {
-                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined && param.hotfix.branch !== undefined) {
+                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined && param.hotfix.branch !== undefined && param.hotfix.baseBranch !== undefined) {
                     const branchOid = await this.branchRepository.getCommitTag(param.hotfix.baseVersion);
-                    const baseBranchName = `tags/${param.hotfix.baseVersion}`;
-                    param.currentConfiguration.hotfixBranch = param.hotfix.branch;
-                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${baseBranchName}`;
+                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.baseBranch}`;
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
-                    core.info(`Tag branch: ${baseBranchName}`);
+                    core.info(`Tag branch: ${param.hotfix.baseBranch}`);
                     core.info(`Hotfix branch: ${param.hotfix.branch}`);
                     if (branches.indexOf(param.hotfix.branch) === -1) {
-                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, baseBranchName, param.hotfix.branch, param.issueNumber, branchOid, param.tokens.tokenPat);
+                        const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, param.hotfix.baseBranch, param.hotfix.branch, param.issueNumber, branchOid, param.tokens.tokenPat);
                         if (linkResult[linkResult.length - 1].success) {
                             result.push(new result_1.Result({
                                 id: this.taskId,
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The tag [**${baseBranchName}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                    `The tag [**${param.hotfix.baseBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
                                 ],
                             }));
                             core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
@@ -34687,7 +34788,7 @@ class PrepareBranchesUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${baseBranchName}**](${tagUrl}).`,
+                                `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${param.hotfix.baseBranch}**](${tagUrl}).`,
                             ],
                         }));
                     }

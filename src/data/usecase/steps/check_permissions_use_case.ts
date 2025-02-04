@@ -11,7 +11,6 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
     async invoke(param: Execution): Promise<Result[]> {
         core.info(`Executing ${this.taskId}.`);
 
-        const number = param.isIssue ? param.issue.number : param.pullRequest.number;
         const result: Result[] = [];
 
         /**
