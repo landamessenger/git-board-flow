@@ -58,11 +58,11 @@ export class Execution {
     }
 
     get isIssue(): boolean {
-        return this.eventName === 'issues';
+        return this.eventName === 'issues' || this.singleAction.isIssue;
     }
 
     get isPullRequest(): boolean {
-        return this.eventName === 'pull_request';
+        return this.eventName === 'pull_request' || this.singleAction.isPullRequest;
     }
 
     get isPush(): boolean {
@@ -157,41 +157,99 @@ export class Execution {
     }
 
     setup = async () => {
+        const issueRepository = new IssueRepository();
+
+        /**
+         * Set the issue number
+         */
         if (this.isSingleAction) {
-            this.issueNumber = this.singleAction.currentSingleActionIssue;
-            const issueRepository = new IssueRepository();
-            this.labels.currentIssueLabels = await issueRepository.getLabels(
+            this.singleAction.isPullRequest = await issueRepository.isPullRequest(
                 this.owner,
                 this.repo,
-                this.issueNumber,
-                this.tokens.token
-            );
+                this.singleAction.currentSingleActionIssue,
+                this.tokens.tokenPat,
+            )
+            this.singleAction.isIssue = await issueRepository.isIssue(
+                this.owner,
+                this.repo,
+                this.singleAction.currentSingleActionIssue,
+                this.tokens.tokenPat,
+            )
+
+            if (this.singleAction.isIssue) {
+                this.issueNumber = this.singleAction.currentSingleActionIssue
+            } else if (this.singleAction.isPullRequest) {
+                const head = await issueRepository.getHeadBranch(
+                    this.owner,
+                    this.repo,
+                    this.singleAction.currentSingleActionIssue,
+                    this.tokens.tokenPat,
+                )
+                if (head === undefined) {
+                    return
+                }
+                this.issueNumber = extractIssueNumberFromBranch(head);
+            }
         } else if (this.isIssue) {
             this.issueNumber = this.issue.number;
-            const issueRepository = new IssueRepository();
-            const branchRepository = new BranchRepository();
-            this.labels.currentIssueLabels = await issueRepository.getLabels(
-                this.owner,
-                this.repo,
-                this.issueNumber,
-                this.tokens.token
-            );
-            this.release.active = await issueRepository.isRelease(
-                this.owner,
-                this.repo,
-                this.issue.number,
-                this.labels.release,
-                this.tokens.token,
-            );
-            this.hotfix.active = await issueRepository.isHotfix(
-                this.owner,
-                this.repo,
-                this.issue.number,
-                this.labels.hotfix,
-                this.tokens.token,
-            );
+        } else if (this.isPullRequest) {
+            this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
+        } else if (this.isPush) {
+            this.issueNumber = extractIssueNumberFromPush(this.commit.branch)
+        }
 
-            if (this.release.active) {
+        this.previousConfiguration = await new ConfigurationHandler().get(this)
+
+
+        /**
+         * Get labels of issue
+         */
+        this.labels.currentIssueLabels = await issueRepository.getLabels(
+            this.owner,
+            this.repo,
+            this.issueNumber,
+            this.tokens.token
+        );
+
+        /**
+         * Contains release label
+         */
+        this.release.active = this.labels.isRelease;
+        this.hotfix.active = this.labels.isHotfix;
+
+        /**
+         * Get previous state
+         */
+        if (this.release.active) {
+            const previousReleaseBranch = this.previousConfiguration?.releaseBranch
+            if (previousReleaseBranch) {
+                this.release.version = previousReleaseBranch.split('/')[1] ?? ''
+                this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
+                this.currentConfiguration.releaseBranch = this.release.branch
+            }
+        } else if (this.hotfix.active) {
+            const previousHotfixOriginBranch = this.previousConfiguration?.hotfixOriginBranch
+            if (previousHotfixOriginBranch) {
+                this.hotfix.baseVersion = previousHotfixOriginBranch.split('/v')[1] ?? ''
+                this.hotfix.baseBranch = `tags/v${this.hotfix.baseVersion}`;
+                this.currentConfiguration.hotfixOriginBranch = this.hotfix.baseBranch;
+            }
+            const previousHotfixBranch = this.previousConfiguration?.hotfixBranch
+            if (previousHotfixBranch) {
+                this.hotfix.version = previousHotfixBranch.split('/')[1] ?? ''
+                this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
+                this.currentConfiguration.hotfixBranch = this.hotfix.branch
+            }
+        }
+
+        if (this.isSingleAction) {
+            /**
+             * Nothing to do here (for now)
+             */
+        } else if (this.isIssue) {
+            const branchRepository = new BranchRepository();
+
+            if (this.release.active && this.release.version === undefined) {
                 const versionResult = await new GetReleaseVersionUseCase().invoke(this);
                 const versionInfo = versionResult[versionResult.length - 1];
                 if (versionInfo.executed && versionInfo.success) {
@@ -215,7 +273,7 @@ export class Execution {
                 }
 
                 this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
-            } else if (this.hotfix.active) {
+            } else if (this.hotfix.active && this.hotfix.version === undefined) {
                 const versionResult = await new GetHotfixVersionUseCase().invoke(this);
                 const versionInfo = versionResult[versionResult.length - 1];
                 if (versionInfo.executed && versionInfo.success) {
@@ -226,22 +284,16 @@ export class Execution {
                     if (this.hotfix.baseVersion === undefined) {
                         return
                     }
-
                     this.hotfix.version = incrementVersion(this.hotfix.baseVersion, 'Patch')
                 }
+
                 this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
+                this.currentConfiguration.hotfixBranch = this.hotfix.branch;
+
+                this.hotfix.baseBranch = `tags/v${this.hotfix.baseVersion}`;
+                this.currentConfiguration.hotfixOriginBranch = this.hotfix.baseBranch;
             }
         } else if (this.isPullRequest) {
-            const issueRepository = new IssueRepository();
-            this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
-            if (this.issueNumber > -1) {
-                this.labels.currentIssueLabels = await issueRepository.getLabels(
-                    this.owner,
-                    this.repo,
-                    this.issueNumber,
-                    this.tokens.token
-                );
-            }
             this.labels.currentPullRequestLabels = await issueRepository.getLabels(
                 this.owner,
                 this.repo,
@@ -250,10 +302,8 @@ export class Execution {
             );
             this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
-        } else if (this.isPush) {
-            this.issueNumber = extractIssueNumberFromPush(this.commit.branch)
         }
-        this.previousConfiguration = await new ConfigurationHandler().get(this)
+
         this.currentConfiguration.branchType = this.issueType
     }
 }

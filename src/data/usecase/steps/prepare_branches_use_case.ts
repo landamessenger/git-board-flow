@@ -55,23 +55,20 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             )
 
             if (param.hotfix.active) {
-                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined && param.hotfix.branch !== undefined) {
+                if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined && param.hotfix.branch !== undefined && param.hotfix.baseBranch !== undefined) {
                     const branchOid = await this.branchRepository.getCommitTag(param.hotfix.baseVersion)
 
-                    const baseBranchName = `tags/${param.hotfix.baseVersion}`;
-                    param.currentConfiguration.hotfixBranch = param.hotfix.branch;
-
-                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${baseBranchName}`;
+                    const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.baseBranch}`;
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
 
-                    core.info(`Tag branch: ${baseBranchName}`);
+                    core.info(`Tag branch: ${param.hotfix.baseBranch}`);
                     core.info(`Hotfix branch: ${param.hotfix.branch}`);
 
                     if (branches.indexOf(param.hotfix.branch) === -1) {
                         const linkResult = await this.branchRepository.createLinkedBranch(
                             param.owner,
                             param.repo,
-                            baseBranchName,
+                            param.hotfix.baseBranch,
                             param.hotfix.branch,
                             param.issueNumber,
                             branchOid,
@@ -85,7 +82,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                     success: true,
                                     executed: true,
                                     steps: [
-                                        `The tag [**${baseBranchName}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
+                                        `The tag [**${param.hotfix.baseBranch}**](${tagUrl}) was used to create the branch [**${param.hotfix.branch}**](${hotfixUrl})`,
                                     ],
                                 })
                             )
@@ -98,7 +95,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${baseBranchName}**](${tagUrl}).`,
+                                    `The branch [**${param.hotfix.branch}**](${hotfixUrl}) already exists and will not be created from the tag [**${param.hotfix.baseBranch}**](${tagUrl}).`,
                                 ],
                             })
                         )

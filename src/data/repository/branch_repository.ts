@@ -60,12 +60,19 @@ export class BranchRepository {
                 return;
             }
 
-            core.info(`Fetching commit hash for the tag: ${latestTag}`);
+            let tagVersion: string
+            if (latestTag.startsWith('v')) {
+                tagVersion = latestTag;
+            } else {
+                tagVersion = `v${latestTag}`;
+            }
+
+            core.info(`Fetching commit hash for the tag: ${tagVersion}`);
             let commitOid = '';
-            await exec.exec('git', ['rev-list', '-n', '1', latestTag], {
+            await exec.exec('git', ['rev-list', '-n', '1', tagVersion], {
                 listeners: {
                     stdout: (data: Buffer) => {
-                        commitOid = data.toString().trim(); // Obtener el hash del commit
+                        commitOid = data.toString().trim();
                     },
                 },
             });

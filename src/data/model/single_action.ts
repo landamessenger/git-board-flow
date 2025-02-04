@@ -6,6 +6,8 @@ export class SingleAction {
     actions: string[] = [deployedAction];
     enabledSingleAction: boolean;
     validSingleAction: boolean;
+    isIssue: boolean = false;
+    isPullRequest: boolean = false;
 
     get isDeployedAction(): boolean {
         return this.currentSingleAction === deployedAction;
