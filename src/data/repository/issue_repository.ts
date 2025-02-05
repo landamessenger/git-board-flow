@@ -8,6 +8,7 @@ export class IssueRepository {
     updateTitleIssueFormat = async (
         owner: string,
         repository: string,
+        version: string,
         issueTitle: string,
         issueNumber: number,
         branchManagementAlways: boolean,
@@ -45,6 +46,7 @@ export class IssueRepository {
             }
 
             let sanitizedTitle = issueTitle
+                .replace(/\b\d+(\.\d+){2,}\b/g, '')
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')
                 .replace(/[^\S\r\n]+/g, ' ')
@@ -54,7 +56,10 @@ export class IssueRepository {
                 .replace(/-+/g, '-')
                 .trim();
 
-            const formattedTitle = `${emoji} - ${sanitizedTitle}`;
+            let formattedTitle = `${emoji} - ${sanitizedTitle}`;
+            if (version.length > 0) {
+                formattedTitle = `${emoji} - ${version} - ${sanitizedTitle}`;
+            }
 
             if (formattedTitle !== issueTitle) {
                 await octokit.rest.issues.update({

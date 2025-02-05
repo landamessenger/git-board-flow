@@ -31512,7 +31512,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
-        this.updateTitleIssueFormat = async (owner, repository, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
+        this.updateTitleIssueFormat = async (owner, repository, version, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
@@ -31548,6 +31548,7 @@ class IssueRepository {
                     emoji = '❓';
                 }
                 let sanitizedTitle = issueTitle
+                    .replace(/\b\d+(\.\d+){2,}\b/g, '')
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                     .replace(/\u200D/g, '')
                     .replace(/[^\S\r\n]+/g, ' ')
@@ -31556,7 +31557,10 @@ class IssueRepository {
                     .replace(/- -/g, '-').trim()
                     .replace(/-+/g, '-')
                     .trim();
-                const formattedTitle = `${emoji} - ${sanitizedTitle}`;
+                let formattedTitle = `${emoji} - ${sanitizedTitle}`;
+                if (version.length > 0) {
+                    formattedTitle = `${emoji} - ${version} - ${sanitizedTitle}`;
+                }
                 if (formattedTitle !== issueTitle) {
                     await octokit.rest.issues.update({
                         owner: owner,
@@ -35156,16 +35160,19 @@ class UpdateTitleUseCase {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
                     let _title = '';
+                    let _version = '';
                     if (param.release.active) {
-                        _title = param.release.version ?? 'Unknown release';
+                        _title = param.issue.title;
+                        _version = param.release.version ?? 'Unknown Version';
                     }
                     else if (param.hotfix.active) {
-                        _title = param.hotfix.version ?? 'Unknown hotfix';
+                        _title = param.issue.title;
+                        _version = param.hotfix.version ?? 'Unknown Version';
                     }
                     else {
                         _title = param.issue.title;
                     }
-                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, _title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, _version, _title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
