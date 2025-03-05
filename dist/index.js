@@ -30957,9 +30957,10 @@ class PullRequest {
         return github.context.payload.pull_request?.state === 'closed'
             || this.action === 'closed';
     }
-    constructor(desiredAssigneesCount, desiredReviewersCount) {
+    constructor(desiredAssigneesCount, desiredReviewersCount, mergeTimeout) {
         this.desiredAssigneesCount = desiredAssigneesCount;
         this.desiredReviewersCount = desiredReviewersCount;
+        this.mergeTimeout = mergeTimeout;
     }
 }
 exports.PullRequest = PullRequest;
@@ -31467,6 +31468,110 @@ class BranchRepository {
                 ref: branch,
                 inputs: inputs
             });
+        };
+        this.mergeBranch = async (owner, repository, head, base, timeout, token) => {
+            const result = [];
+            try {
+                const octokit = github.getOctokit(token);
+                core.info(`Creating merge from ${head} into ${base}`);
+                // First we try to create a pull request
+                const { data: pullRequest } = await octokit.rest.pulls.create({
+                    owner: owner,
+                    repo: repository,
+                    head: head,
+                    base: base,
+                    title: `Merge ${head} into ${base}`,
+                    body: `Automated merge of ${head} into ${base}`,
+                });
+                core.info(`Pull request #${pullRequest.number} created, waiting for checks...`);
+                const iteration = 10;
+                if (timeout > iteration) {
+                    // Wait for checks to complete
+                    let checksCompleted = false;
+                    let attempts = 0;
+                    const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
+                    while (!checksCompleted && attempts < maxAttempts) {
+                        const { data: checkRuns } = await octokit.rest.checks.listForRef({
+                            owner: owner,
+                            repo: repository,
+                            ref: head,
+                        });
+                        const pendingChecks = checkRuns.check_runs.filter(check => check.status !== 'completed');
+                        if (pendingChecks.length === 0) {
+                            checksCompleted = true;
+                            core.info('All checks have completed.');
+                            // Verify if all checks passed
+                            const failedChecks = checkRuns.check_runs.filter(check => check.conclusion !== 'success' && check.conclusion !== 'skipped');
+                            if (failedChecks.length > 0) {
+                                throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
+                            }
+                        }
+                        else {
+                            core.info(`Waiting for ${pendingChecks.length} checks to complete...`);
+                            await new Promise(resolve => setTimeout(resolve, iteration * 1000)); // Wait expected seconds
+                            attempts++;
+                        }
+                    }
+                    if (!checksCompleted) {
+                        throw new Error('Timed out waiting for checks to complete');
+                    }
+                }
+                // Then we force the merge of the PR
+                await octokit.rest.pulls.merge({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                    merge_method: 'merge',
+                    commit_title: `Merge ${head} into ${base}`,
+                    commit_message: `Automated merge of ${head} into ${base}\n\nForced merge with PAT token.`,
+                });
+                result.push(new result_1.Result({
+                    id: 'branch_repository',
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `Successfully merged branch ${head} into ${base}`,
+                    ],
+                }));
+            }
+            catch (error) {
+                core.error(`Error in PR workflow: ${error}`);
+                // If the PR workflow fails, we try to merge directly
+                try {
+                    const octokit = github.getOctokit(token);
+                    await octokit.rest.repos.merge({
+                        owner: owner,
+                        repo: repository,
+                        base: base,
+                        head: head,
+                        commit_message: `Forced merge of ${head} into ${base}\n\nAutomated merge with PAT token.`,
+                    });
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Successfully merged branch ${head} into ${base} using direct merge`,
+                        ],
+                    }));
+                    return result;
+                }
+                catch (directMergeError) {
+                    core.error(`Error in direct merge attempt: ${directMergeError}`);
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Failed to merge branch ${head} into ${base}`,
+                            `PR workflow failed: ${error}`,
+                            `Direct merge failed: ${directMergeError}`,
+                        ],
+                        error: directMergeError,
+                    }));
+                }
+            }
+            return result;
         };
     }
 }
@@ -32309,10 +32414,12 @@ exports.DeployedActionUseCase = void 0;
 const issue_repository_1 = __nccwpck_require__(57);
 const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
+const branch_repository_1 = __nccwpck_require__(7701);
 class DeployedActionUseCase {
     constructor() {
         this.taskId = 'DeployedActionUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
+        this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
@@ -32353,40 +32460,16 @@ class DeployedActionUseCase {
                 ],
             }));
             if (param.currentConfiguration.releaseBranch) {
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Merging \`${param.currentConfiguration.releaseBranch}\` into \`${param.branches.defaultBranch}\`.`,
-                    ],
-                }));
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Merging \`${param.currentConfiguration.releaseBranch}\` into \`${param.branches.development}\`.`,
-                    ],
-                }));
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                result.push(...mergeToDefaultResult);
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                result.push(...mergeToDevelopResult);
             }
             else if (param.currentConfiguration.hotfixBranch) {
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Merging \`${param.currentConfiguration.hotfixBranch}\` into \`${param.branches.defaultBranch}\`.`,
-                    ],
-                }));
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Merging \`${param.branches.defaultBranch}\` into \`${param.branches.development}\`.`,
-                    ],
-                }));
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.hotfixBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                result.push(...mergeToDefaultResult);
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                result.push(...mergeToDevelopResult);
             }
             return result;
         }
@@ -35774,7 +35857,8 @@ async function run() {
      */
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);

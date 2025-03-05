@@ -142,7 +142,7 @@ async function run(): Promise<void> {
      */
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
-
+    const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
 
     const execution = new Execution(
         new SingleAction(
@@ -157,7 +157,8 @@ async function run(): Promise<void> {
         ),
         new PullRequest(
             pullRequestDesiredAssigneesCount,
-            pullRequestDesiredReviewersCount
+            pullRequestDesiredReviewersCount,
+            pullRequestMergeTimeout,
         ),
         new Emoji(
             titleEmoji,

@@ -3,10 +3,12 @@ import {Execution} from "../../model/execution";
 import {IssueRepository} from "../../repository/issue_repository";
 import * as core from "@actions/core";
 import {Result} from "../../model/result";
+import {BranchRepository} from "../../repository/branch_repository";
 
 export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployedActionUseCase';
     private issueRepository = new IssueRepository();
+    private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
         core.info(`Executing ${this.taskId}.`);
@@ -67,51 +69,45 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
             );
 
             if (param.currentConfiguration.releaseBranch) {
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `Merging \`${param.currentConfiguration.releaseBranch}\` into \`${param.branches.defaultBranch}\`.`,
-                        ],
-                    })
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(
+                    param.owner,
+                    param.repo,
+                    param.currentConfiguration.releaseBranch,
+                    param.branches.defaultBranch,
+                    param.pullRequest.mergeTimeout,
+                    param.tokens.tokenPat
                 );
+                result.push(...mergeToDefaultResult);
 
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `Merging \`${param.currentConfiguration.releaseBranch}\` into \`${param.branches.development}\`.`,
-                        ],
-                    })
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(
+                    param.owner,
+                    param.repo,
+                    param.currentConfiguration.releaseBranch,
+                    param.branches.development,
+                    param.pullRequest.mergeTimeout,
+                    param.tokens.tokenPat
                 );
-         
+                result.push(...mergeToDevelopResult);
             } else if (param.currentConfiguration.hotfixBranch) {
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `Merging \`${param.currentConfiguration.hotfixBranch}\` into \`${param.branches.defaultBranch}\`.`,
-                        ],
-                    })
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(
+                    param.owner,
+                    param.repo,
+                    param.currentConfiguration.hotfixBranch,
+                    param.branches.defaultBranch,
+                    param.pullRequest.mergeTimeout,
+                    param.tokens.tokenPat
                 );
+                result.push(...mergeToDefaultResult);
 
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `Merging \`${param.branches.defaultBranch}\` into \`${param.branches.development}\`.`,
-                        ],
-                    })
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(
+                    param.owner,
+                    param.repo,
+                    param.branches.defaultBranch,
+                    param.branches.development,
+                    param.pullRequest.mergeTimeout,
+                    param.tokens.tokenPat
                 );
-         
+                result.push(...mergeToDevelopResult);
             }
             
             return result;

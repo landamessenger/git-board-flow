@@ -3,6 +3,7 @@ import * as github from "@actions/github";
 export class PullRequest {
     desiredAssigneesCount: number;
     desiredReviewersCount: number;
+    mergeTimeout: number;
 
     get action(): string {
         return github.context.payload.action ?? '';
@@ -57,8 +58,10 @@ export class PullRequest {
     constructor(
         desiredAssigneesCount: number,
         desiredReviewersCount: number,
+        mergeTimeout: number,
     ) {
         this.desiredAssigneesCount = desiredAssigneesCount;
         this.desiredReviewersCount = desiredReviewersCount;
+        this.mergeTimeout = mergeTimeout;
     }
 }
