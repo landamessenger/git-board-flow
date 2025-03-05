@@ -146,7 +146,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                     reminders: [
                                         `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
 > Version files, changelogs, last minute changes.`,
-                                        `Before deploying, create the tag version [**${param.release.branch}**](${releaseUrl}).
+                                        `Before deploying, create the tag version in [**${param.release.branch}**](${releaseUrl}).
 > Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
                                         `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
                                         `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).

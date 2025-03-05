@@ -66,6 +66,54 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                 })
             );
 
+            if (param.currentConfiguration.releaseBranch) {
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Merging \`${param.currentConfiguration.releaseBranch}\` into \`${param.branches.defaultBranch}\`.`,
+                        ],
+                    })
+                );
+
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Merging \`${param.currentConfiguration.releaseBranch}\` into \`${param.branches.development}\`.`,
+                        ],
+                    })
+                );
+         
+            } else if (param.currentConfiguration.hotfixBranch) {
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Merging \`${param.currentConfiguration.hotfixBranch}\` into \`${param.branches.defaultBranch}\`.`,
+                        ],
+                    })
+                );
+
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Merging \`${param.branches.defaultBranch}\` into \`${param.branches.development}\`.`,
+                        ],
+                    })
+                );
+         
+            }
+            
             return result;
         } catch (error) {
             console.error(error);

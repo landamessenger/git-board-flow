@@ -154,7 +154,8 @@ jobs:
 
 ---
 
-Get started with **Git Board Flow** and simplify your GitHub project workflows today! 🚀
+Transform your GitHub workflow with **Git Board Flow**! 🚀
 
+Experience seamless project management, automated branch handling, and enhanced team collaboration. Start optimizing your development process today and take your Git workflow to the next level! ✨
 
 ssh -i gitboardflow -T git@gitboardflow.github.com
