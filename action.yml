@@ -107,6 +107,9 @@ inputs:
   desired-reviewers-count:
     description: "The number of reviewers desired for the pull request. If set to 0, no reviewers will be added. If the number exceeds the available members, all members will be reviewers. Max 15."
     default: "1"
+  merge-timeout:
+    description: "The timeout for the merge workflow in seconds. If set to 0, the merge will not be timed out."
+    default: "600"
   github-token:
     description: "GitHub token for branch and project operations within the repository scope."
     required: true

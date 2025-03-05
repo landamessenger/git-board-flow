@@ -445,4 +445,137 @@ export class BranchRepository {
         });
     }
 
+    mergeBranch = async (
+        owner: string,
+        repository: string,
+        head: string,
+        base: string,
+        timeout: number,
+        token: string,
+    ): Promise<Result[]> => {
+        const result: Result[] = [];
+        try {
+            const octokit = github.getOctokit(token);
+            
+            core.info(`Creating merge from ${head} into ${base}`);
+            
+            // First we try to create a pull request
+            const { data: pullRequest } = await octokit.rest.pulls.create({
+                owner: owner,
+                repo: repository,
+                head: head,
+                base: base,
+                title: `Merge ${head} into ${base}`,
+                body: `Automated merge of ${head} into ${base}`,
+            });
+
+            core.info(`Pull request #${pullRequest.number} created, waiting for checks...`);
+
+            const iteration = 10;
+            if (timeout > iteration) {
+                // Wait for checks to complete
+                let checksCompleted = false;
+                let attempts = 0;
+                const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
+
+                while (!checksCompleted && attempts < maxAttempts) {
+                    const { data: checkRuns } = await octokit.rest.checks.listForRef({
+                        owner: owner,
+                        repo: repository,
+                        ref: head,
+                    });
+
+                    const pendingChecks = checkRuns.check_runs.filter(
+                        check => check.status !== 'completed'
+                    );
+
+                    if (pendingChecks.length === 0) {
+                        checksCompleted = true;
+                        core.info('All checks have completed.');
+
+                        // Verify if all checks passed
+                        const failedChecks = checkRuns.check_runs.filter(
+                            check => check.conclusion !== 'success' && check.conclusion !== 'skipped'
+                        );
+
+                        if (failedChecks.length > 0) {
+                            throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
+                        }
+                    } else {
+                        core.info(`Waiting for ${pendingChecks.length} checks to complete...`);
+                        await new Promise(resolve => setTimeout(resolve, iteration * 1000)); // Wait expected seconds
+                        attempts++;
+                    }
+                }
+
+                if (!checksCompleted) {
+                    throw new Error('Timed out waiting for checks to complete');
+                }
+            }
+
+            // Then we force the merge of the PR
+            await octokit.rest.pulls.merge({
+                owner: owner,
+                repo: repository,
+                pull_number: pullRequest.number,
+                merge_method: 'merge',
+                commit_title: `Merge ${head} into ${base}`,
+                commit_message: `Automated merge of ${head} into ${base}\n\nForced merge with PAT token.`,
+            });
+
+            result.push(
+                new Result({
+                    id: 'branch_repository',
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `Successfully merged branch ${head} into ${base}`,
+                    ],
+                })
+            );
+        } catch (error) {
+            core.error(`Error in PR workflow: ${error}`);
+            
+            // If the PR workflow fails, we try to merge directly
+            try {
+                const octokit = github.getOctokit(token);
+                await octokit.rest.repos.merge({
+                    owner: owner,
+                    repo: repository,
+                    base: base,
+                    head: head,
+                    commit_message: `Forced merge of ${head} into ${base}\n\nAutomated merge with PAT token.`,
+                });
+
+                result.push(
+                    new Result({
+                        id: 'branch_repository',
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Successfully merged branch ${head} into ${base} using direct merge`,
+                        ],
+                    })
+                );
+                return result;
+            } catch (directMergeError) {
+                core.error(`Error in direct merge attempt: ${directMergeError}`);
+                result.push(
+                    new Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Failed to merge branch ${head} into ${base}`,
+                            `PR workflow failed: ${error}`,
+                            `Direct merge failed: ${directMergeError}`,
+                        ],
+                        error: directMergeError,
+                    })
+                );
+            }
+        }
+        return result;
+    }
+
 }
