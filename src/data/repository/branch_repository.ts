@@ -452,28 +452,56 @@ export class BranchRepository {
         base: string,
         timeout: number,
         token: string,
+        tokenPAT: string,
     ): Promise<Result[]> => {
         const result: Result[] = [];
         try {
             const octokit = github.getOctokit(token);
-            
+            const octokitPAT = github.getOctokit(tokenPAT);
             core.info(`Creating merge from ${head} into ${base}`);
             
-            // First we try to create a pull request
-            const { data: pullRequest } = await octokit.rest.pulls.create({
+            // Build PR body with commit list
+            const prBody = `🚀 Automated Merge  
+
+This PR merges **${head}** into **${base}**.  
+
+**Commits included:**`;
+
+            // We need PAT for creating PR to ensure it can trigger workflows
+            const { data: pullRequest } = await octokitPAT.rest.pulls.create({
                 owner: owner,
                 repo: repository,
                 head: head,
                 base: base,
                 title: `Merge ${head} into ${base}`,
-                body: `Automated merge of ${head} into ${base}`,
+                body: prBody,
             });
 
-            core.info(`Pull request #${pullRequest.number} created, waiting for checks...`);
+            core.info(`Pull request #${pullRequest.number} created, getting commits...`);
+
+            // Get all commits in the PR
+            const { data: commits } = await octokitPAT.rest.pulls.listCommits({
+                owner: owner,
+                repo: repository,
+                pull_number: pullRequest.number
+            });
+
+            const commitMessages = commits.map(commit => commit.commit.message);
+            
+            core.info(`Found ${commitMessages.length} commits in PR`);
+
+            // Update PR with commit list and footer
+            await octokitPAT.rest.pulls.update({
+                owner: owner,
+                repo: repository,
+                pull_number: pullRequest.number,
+                body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
+                    '\n\nThis PR was automatically created by [`git-board-flow`](https://github.com/landamessenger/git-board-flow).'
+            });
 
             const iteration = 10;
             if (timeout > iteration) {
-                // Wait for checks to complete
+                // Wait for checks to complete - can use regular token for reading checks
                 let checksCompleted = false;
                 let attempts = 0;
                 const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
@@ -513,8 +541,8 @@ export class BranchRepository {
                 }
             }
 
-            // Then we force the merge of the PR
-            await octokit.rest.pulls.merge({
+            // Need PAT for merging to ensure it can trigger subsequent workflows
+            await octokitPAT.rest.pulls.merge({
                 owner: owner,
                 repo: repository,
                 pull_number: pullRequest.number,
@@ -529,17 +557,17 @@ export class BranchRepository {
                     success: true,
                     executed: true,
                     steps: [
-                        `Successfully merged branch ${head} into ${base}`,
+                        `The branch \`${head}\` was merged into \`${base}\`.`,
                     ],
                 })
             );
         } catch (error) {
             core.error(`Error in PR workflow: ${error}`);
             
-            // If the PR workflow fails, we try to merge directly
+            // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
             try {
-                const octokit = github.getOctokit(token);
-                await octokit.rest.repos.merge({
+                const octokitPAT = github.getOctokit(tokenPAT);
+                await octokitPAT.rest.repos.merge({
                     owner: owner,
                     repo: repository,
                     base: base,
@@ -553,7 +581,7 @@ export class BranchRepository {
                         success: true,
                         executed: true,
                         steps: [
-                            `Successfully merged branch ${head} into ${base} using direct merge`,
+                            `The branch \`${head}\` was merged into \`${base}\` using direct merge.`,
                         ],
                     })
                 );
@@ -566,7 +594,7 @@ export class BranchRepository {
                         success: false,
                         executed: true,
                         steps: [
-                            `Failed to merge branch ${head} into ${base}`,
+                            `Failed to merge branch \`${head}\` into \`${base}\`.`,
                             `PR workflow failed: ${error}`,
                             `Direct merge failed: ${directMergeError}`,
                         ],
