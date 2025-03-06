@@ -547,8 +547,7 @@ This PR merges **${head}** into **${base}**.
                 repo: repository,
                 pull_number: pullRequest.number,
                 merge_method: 'merge',
-                commit_title: `Merge ${head} into ${base}`,
-                commit_message: `Automated merge of ${head} into ${base}\n\nForced merge with PAT token.`,
+                commit_title: `Merge ${head} into ${base}. Forced merge with PAT token.`,
             });
 
             result.push(
