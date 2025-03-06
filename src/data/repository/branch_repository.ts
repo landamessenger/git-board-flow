@@ -513,9 +513,20 @@ This PR merges **${head}** into **${base}**.
                         ref: head,
                     });
 
-                    const pendingChecks = checkRuns.check_runs.filter(
-                        check => check.status !== 'completed'
-                    );
+                    // Get commit status checks for the PR head commit
+                    const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
+                        owner: owner,
+                        repo: repository,
+                        ref: head
+                    });
+
+                    core.info(`Combined status state: ${commitStatus.state}`);
+
+                    // Filter for pending status checks
+                    const pendingChecks = commitStatus.statuses.filter(status => {
+                        core.info(`Status check: ${status.context} (State: ${status.state})`);
+                        return status.state === 'pending';
+                    });
 
                     if (pendingChecks.length === 0) {
                         checksCompleted = true;
@@ -530,7 +541,10 @@ This PR merges **${head}** into **${base}**.
                             throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
                         }
                     } else {
-                        core.info(`Waiting for ${pendingChecks.length} checks to complete...`);
+                        core.info(`Waiting for ${pendingChecks.length} checks to complete:`);
+                        pendingChecks.forEach(check => {
+                            core.info(`  - ${check.id} (Status: ${check.state})`);
+                        });
                         await new Promise(resolve => setTimeout(resolve, iteration * 1000)); // Wait expected seconds
                         attempts++;
                     }
