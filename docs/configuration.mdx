@@ -1,0 +1,59 @@
+---
+title: Configuration
+description: Detailed configuration options for Git Board Flow
+---
+
+# Configuration Options
+
+Git Board Flow provides extensive configuration options to customize your workflow. Below you'll find detailed information about each configuration option available.
+
+## Authentication
+
+- `github-token`: GitHub token for repository operations (required)
+- `github-token-personal`: Personal Access Token for extended operations (required)
+
+## Branch Management
+
+- `branch-management-launcher-label`: Label to trigger branch management (default: "branched")
+- `branch-management-always`: Ignore launcher label requirement (default: "false")
+- `branch-management-emoji`: Emoji for branched issues (default: "🧑‍💻")
+
+## Branch Types and Labels
+
+- `main-branch`: Main branch name (default: "master")
+- `development-branch`: Development branch name (default: "develop")
+- `feature-tree`: Feature branch prefix (default: "feature")
+- `bugfix-tree`: Bugfix branch prefix (default: "bugfix")
+- `hotfix-tree`: Hotfix branch prefix (default: "hotfix")
+- `release-tree`: Release branch prefix (default: "release")
+
+## Issue Labels
+
+- `feature-label`: Feature branch label (default: "feature")
+- `bugfix-label`: Bugfix branch label (default: "bugfix")
+- `hotfix-label`: Hotfix branch label (default: "hotfix")
+- `release-label`: Release branch label (default: "release")
+- `bug-label`: Bug type label (default: "bug")
+- `enhancement-label`: Enhancement type label (default: "enhancement")
+- `question-label`: Question label (default: "question")
+- `help-label`: Help request label (default: "help")
+- `deploy-label`: Deploy action label (default: "deploy")
+- `deployed-label`: Deployed status label (default: "deployed")
+
+## Project Integration
+
+- `project-urls`: Comma-separated list of GitHub Project URLs to link issues and PRs
+- `desired-assignees-count`: Number of assignees for issues/PRs (default: 1, max: 10)
+- `desired-reviewers-count`: Number of reviewers for PRs (default: 1, max: 15)
+
+## Customization
+
+- `emoji-labeled-title`: Enable emoji titles based on labels (default: "true")
+- `commit-prefix-builder`: Custom commit prefix generation logic
+- `reopen-issue-on-push`: Reopen closed issues on new commits (default: "true")
+- `merge-timeout`: Timeout for merge operations in seconds (default: 600)
+
+## Workflow Files
+
+- `release-workflow`: Release workflow filename (default: "release_workflow.yml")
+- `hotfix-workflow`: Hotfix workflow filename (default: "release") 
