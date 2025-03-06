@@ -31566,7 +31566,7 @@ This PR merges **${head}** into **${base}**.
                         repo: repository,
                         base: base,
                         head: head,
-                        commit_message: `Forced merge of ${head} into ${base}\n\nAutomated merge with PAT token.`,
+                        commit_message: `Forced merge of ${head} into ${base}. Automated merge with PAT token.`,
                     });
                     result.push(new result_1.Result({
                         id: 'branch_repository',

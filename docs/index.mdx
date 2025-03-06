@@ -1,56 +1,52 @@
 ---
-title: Welcome to docs.page!
-description: Get started with docs.page
+title: Git-Board-Flow
+description: Experience seamless project management, automated branch handling, and enhanced team collaboration. Start optimizing your development process today and take your Git workflow to the next level! ✨
 ---
 
-Welcome to docs.page! The init command you just ran has created a basic file struture in your project to help you get started.
+# Git Board Flow
 
-## Walkthrough
+**Git Board Flow** is a powerful GitHub Action designed to streamline issue, branch, and project management while adhering to the Git-Flow methodology. This action simplifies your workflow by automating the creation and management of branches, linking them to issues, and ensuring smooth integration with GitHub Projects.
 
-### Configuration
+## Key Features
 
-In the root of your directory a new `docs.json` file has been created. This file is used to configure your documentation site. You can customize the name, description, and sidebar, theme, logos and more using this file.
+Git Board Flow offers several powerful features to streamline your GitHub workflow:
 
-Here's a basic example of what the file looks like:
+1. **Automatic Branch Creation** - Creates and links branches based on issue labels
+2. **Commit Monitoring** - Tracks commits and updates issues automatically
+3. **Pull Request Linking** - Connects PRs to corresponding issues
+4. **GitHub Project Integration** - Seamlessly manages projects and tasks
+5. **Efficient Execution** - Completes tasks in under 20 seconds
 
+## Quick Start
+
+To get started with Git Board Flow, add the following workflow to your repository:
+
+```yaml
+name: Git Board Flow - Issue
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+
+jobs:
+  git-board-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: landamessenger/git-board-flow@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token-personal: ${{ secrets.REPO_PAT }}
 ```
-{
-  "name": "My Docs",
-  "description": "My documentation site",
-  "sidebar": [
-  {
-    "group": "Getting Started",
-    "pages": [
-      {
-        "title": "Getting to know docs.page",
-        "href": "/",
-        "icon": "rocket"
-      },
-      {
-        "title": "Next Steps",
-        "href": "/next-steps",
-        "icon": "arrow-right"
-      }
-    ]
-  }
-]
-}
-```
 
-To learn more about the advanced configuration options, check out the [docs](https://use.docs.page/configuration).
+## Documentation Structure
 
-### Content
+- [Configuration](/configuration) - Detailed configuration options and parameters
+- [Usage Examples](/examples) - Common use cases and workflow examples
+- [Best Practices](/best-practices) - Guidelines for optimal usage
+- [Troubleshooting](/troubleshooting) - Common issues and solutions
+- [Support](/support) - Getting help and contributing
 
-docs.page uses the `docs` directory to store your documentation pages. Two pages have been created for you:
+Transform your GitHub workflow with **Git Board Flow**! 🚀
 
-- `index.mdx` - The home page of your documentation site, resolves to the root URL.
-- `next-steps.mdx` - A page to help you get started with docs.page, resolves to `/next-steps`.
-
-Documentation can be written using the standard [GitHub Flavored Markdown Spec](https://github.github.com/gfm/) and also supports the use of [MDX](https://mdxjs.com/), 
-with the ability to render custom [components](https://use.docs.page/components) for more advanced use cases.
-
-## Preview
-
-To preview your documentation site, head over to [https://docs.page/preview](https://docs.page/preview) in your browser and open this directory.
-
-Previewing your documentation site will allow you to see the changes you make in real-time before you publish to the world.
+Experience seamless project management, automated branch handling, and enhanced team collaboration. Start optimizing your development process today and take your Git workflow to the next level! ✨
