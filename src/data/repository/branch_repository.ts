@@ -513,17 +513,19 @@ This PR merges **${head}** into **${base}**.
                         ref: head,
                     });
 
-                    const currentRunId = github.context.runId.toString();
-                    core.info(`Current workflow run ID: ${currentRunId}`);
+                    // Get commit status checks for the PR head commit
+                    const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
+                        owner: owner,
+                        repo: repository,
+                        ref: head
+                    });
 
-                    const pendingChecks = checkRuns.check_runs.filter(check => {
-                        if (check.status === 'completed') return false;
-                        
-                        // Log check details for debugging
-                        core.info(`Check: ${check.name} (ID: ${check.id}, External ID: ${check.external_id}, Status: ${check.status})`);
-                        
-                        // Exclude the current workflow run
-                        return check.external_id !== currentRunId;
+                    core.info(`Combined status state: ${commitStatus.state}`);
+
+                    // Filter for pending status checks
+                    const pendingChecks = commitStatus.statuses.filter(status => {
+                        core.info(`Status check: ${status.context} (State: ${status.state})`);
+                        return status.state === 'pending';
                     });
 
                     if (pendingChecks.length === 0) {
@@ -541,7 +543,7 @@ This PR merges **${head}** into **${base}**.
                     } else {
                         core.info(`Waiting for ${pendingChecks.length} checks to complete:`);
                         pendingChecks.forEach(check => {
-                            core.info(`  - ${check.name} (Status: ${check.status})`);
+                            core.info(`  - ${check.id} (Status: ${check.state})`);
                         });
                         await new Promise(resolve => setTimeout(resolve, iteration * 1000)); // Wait expected seconds
                         attempts++;
