@@ -17,11 +17,24 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
                 core.info(`Deploying requested.`)
                 if (param.release.active && param.release.branch !== undefined) {
+                    const sanitizedTitle = param.issue.title
+                        .replace(/\b\d+(\.\d+){2,}\b/g, '')
+                        .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                        .replace(/\u200D/g, '')
+                        .replace(/[^\S\r\n]+/g, ' ')
+                        .replace(/[^a-zA-Z0-9 .]/g, '')
+                        .replace(/^-+|-+$/g, '')
+                        .replace(/- -/g, '-').trim()
+                        .replace(/-+/g, '-')
+                        .trim();
+
+                    const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
+                    
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
                         version: param.release.version,
-                        title: 'Demo Release Title',
-                        changelog: 'Demo changelog',
+                        title: sanitizedTitle,
+                        changelog: description,
                         issue: `${param.issue.number}`,
                     }
                     await this.branchRepository.executeWorkflow(
@@ -45,11 +58,24 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}`
                         })
                     )
                 } else if (param.hotfix.active && param.hotfix.branch !== undefined) {
+                    const sanitizedTitle = param.issue.title
+                        .replace(/\b\d+(\.\d+){2,}\b/g, '')
+                        .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                        .replace(/\u200D/g, '')
+                        .replace(/[^\S\r\n]+/g, ' ')
+                        .replace(/[^a-zA-Z0-9 .]/g, '')
+                        .replace(/^-+|-+$/g, '')
+                        .replace(/- -/g, '-').trim()
+                        .replace(/-+/g, '-')
+                        .trim();
+
+                    const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
+                        
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
-                        title: 'Demo Hotfix Title',
-                        changelog: 'Demo hotfix changelog',
+                        title: sanitizedTitle,
+                        changelog: description,
                         issue: param.issue.number,
                     }
                     await this.branchRepository.executeWorkflow(

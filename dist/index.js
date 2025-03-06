@@ -31469,24 +31469,47 @@ class BranchRepository {
                 inputs: inputs
             });
         };
-        this.mergeBranch = async (owner, repository, head, base, timeout, token) => {
+        this.mergeBranch = async (owner, repository, head, base, timeout, token, tokenPAT) => {
             const result = [];
             try {
                 const octokit = github.getOctokit(token);
+                const octokitPAT = github.getOctokit(tokenPAT);
                 core.info(`Creating merge from ${head} into ${base}`);
-                // First we try to create a pull request
-                const { data: pullRequest } = await octokit.rest.pulls.create({
+                // Build PR body with commit list
+                const prBody = `🚀 Automated Merge  
+
+This PR merges **${head}** into **${base}**.  
+
+**Commits included:**`;
+                // We need PAT for creating PR to ensure it can trigger workflows
+                const { data: pullRequest } = await octokitPAT.rest.pulls.create({
                     owner: owner,
                     repo: repository,
                     head: head,
                     base: base,
                     title: `Merge ${head} into ${base}`,
-                    body: `Automated merge of ${head} into ${base}`,
+                    body: prBody,
                 });
-                core.info(`Pull request #${pullRequest.number} created, waiting for checks...`);
+                core.info(`Pull request #${pullRequest.number} created, getting commits...`);
+                // Get all commits in the PR
+                const { data: commits } = await octokitPAT.rest.pulls.listCommits({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number
+                });
+                const commitMessages = commits.map(commit => commit.commit.message);
+                core.info(`Found ${commitMessages.length} commits in PR`);
+                // Update PR with commit list and footer
+                await octokitPAT.rest.pulls.update({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                    body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
+                        '\n\nThis PR was automatically created by [`git-board-flow`](https://github.com/landamessenger/git-board-flow).'
+                });
                 const iteration = 10;
                 if (timeout > iteration) {
-                    // Wait for checks to complete
+                    // Wait for checks to complete - can use regular token for reading checks
                     let checksCompleted = false;
                     let attempts = 0;
                     const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
@@ -31516,8 +31539,8 @@ class BranchRepository {
                         throw new Error('Timed out waiting for checks to complete');
                     }
                 }
-                // Then we force the merge of the PR
-                await octokit.rest.pulls.merge({
+                // Need PAT for merging to ensure it can trigger subsequent workflows
+                await octokitPAT.rest.pulls.merge({
                     owner: owner,
                     repo: repository,
                     pull_number: pullRequest.number,
@@ -31530,16 +31553,16 @@ class BranchRepository {
                     success: true,
                     executed: true,
                     steps: [
-                        `Successfully merged branch ${head} into ${base}`,
+                        `The branch \`${head}\` was merged into \`${base}\`.`,
                     ],
                 }));
             }
             catch (error) {
                 core.error(`Error in PR workflow: ${error}`);
-                // If the PR workflow fails, we try to merge directly
+                // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
                 try {
-                    const octokit = github.getOctokit(token);
-                    await octokit.rest.repos.merge({
+                    const octokitPAT = github.getOctokit(tokenPAT);
+                    await octokitPAT.rest.repos.merge({
                         owner: owner,
                         repo: repository,
                         base: base,
@@ -31551,7 +31574,7 @@ class BranchRepository {
                         success: true,
                         executed: true,
                         steps: [
-                            `Successfully merged branch ${head} into ${base} using direct merge`,
+                            `The branch \`${head}\` was merged into \`${base}\` using direct merge.`,
                         ],
                     }));
                     return result;
@@ -31563,7 +31586,7 @@ class BranchRepository {
                         success: false,
                         executed: true,
                         steps: [
-                            `Failed to merge branch ${head} into ${base}`,
+                            `Failed to merge branch \`${head}\` into \`${base}\`.`,
                             `PR workflow failed: ${error}`,
                             `Direct merge failed: ${directMergeError}`,
                         ],
@@ -32460,15 +32483,15 @@ class DeployedActionUseCase {
                 ],
             }));
             if (param.currentConfiguration.releaseBranch) {
-                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token, param.tokens.tokenPat);
                 result.push(...mergeToDefaultResult);
-                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token, param.tokens.tokenPat);
                 result.push(...mergeToDevelopResult);
             }
             else if (param.currentConfiguration.hotfixBranch) {
-                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.hotfixBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.hotfixBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token, param.tokens.tokenPat);
                 result.push(...mergeToDefaultResult);
-                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.tokenPat);
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token, param.tokens.tokenPat);
                 result.push(...mergeToDevelopResult);
             }
             return result;
@@ -34302,11 +34325,22 @@ class DeployAddedUseCase {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
                 core.info(`Deploying requested.`);
                 if (param.release.active && param.release.branch !== undefined) {
+                    const sanitizedTitle = param.issue.title
+                        .replace(/\b\d+(\.\d+){2,}\b/g, '')
+                        .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                        .replace(/\u200D/g, '')
+                        .replace(/[^\S\r\n]+/g, ' ')
+                        .replace(/[^a-zA-Z0-9 .]/g, '')
+                        .replace(/^-+|-+$/g, '')
+                        .replace(/- -/g, '-').trim()
+                        .replace(/-+/g, '-')
+                        .trim();
+                    const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
                         version: param.release.version,
-                        title: 'Demo Release Title',
-                        changelog: 'Demo changelog',
+                        title: sanitizedTitle,
+                        changelog: description,
                         issue: `${param.issue.number}`,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.release.branch, param.workflows.release, parameters, param.tokens.tokenPat);
@@ -34322,11 +34356,22 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                     }));
                 }
                 else if (param.hotfix.active && param.hotfix.branch !== undefined) {
+                    const sanitizedTitle = param.issue.title
+                        .replace(/\b\d+(\.\d+){2,}\b/g, '')
+                        .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
+                        .replace(/\u200D/g, '')
+                        .replace(/[^\S\r\n]+/g, ' ')
+                        .replace(/[^a-zA-Z0-9 .]/g, '')
+                        .replace(/^-+|-+$/g, '')
+                        .replace(/- -/g, '-').trim()
+                        .replace(/-+/g, '-')
+                        .trim();
+                    const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
-                        title: 'Demo Hotfix Title',
-                        changelog: 'Demo hotfix changelog',
+                        title: sanitizedTitle,
+                        changelog: description,
                         issue: param.issue.number,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.release, parameters, param.tokens.tokenPat);
