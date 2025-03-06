@@ -26,15 +26,26 @@ name: Git Board Flow - Issue
 
 on:
   issues:
-    types: [opened, edited, labeled, unlabeled]
+    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  git-board-flow:
+  git-board-issues:
+    name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: landamessenger/git-board-flow@master
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
         with:
+          project-urls: https://github.com/orgs/ORGANIZATION/projects/123
+          commit-prefix-builder: |
+            branchName.replace("/", "-");
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
 ```
