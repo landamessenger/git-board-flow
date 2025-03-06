@@ -513,9 +513,18 @@ This PR merges **${head}** into **${base}**.
                         ref: head,
                     });
 
-                    const pendingChecks = checkRuns.check_runs.filter(
-                        check => check.status !== 'completed'
-                    );
+                    const currentRunId = github.context.runId.toString();
+                    core.info(`Current workflow run ID: ${currentRunId}`);
+
+                    const pendingChecks = checkRuns.check_runs.filter(check => {
+                        if (check.status === 'completed') return false;
+                        
+                        // Log check details for debugging
+                        core.info(`Check: ${check.name} (ID: ${check.id}, External ID: ${check.external_id}, Status: ${check.status})`);
+                        
+                        // Exclude the current workflow run
+                        return check.external_id !== currentRunId;
+                    });
 
                     if (pendingChecks.length === 0) {
                         checksCompleted = true;
@@ -530,7 +539,10 @@ This PR merges **${head}** into **${base}**.
                             throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
                         }
                     } else {
-                        core.info(`Waiting for ${pendingChecks.length} checks to complete...`);
+                        core.info(`Waiting for ${pendingChecks.length} checks to complete:`);
+                        pendingChecks.forEach(check => {
+                            core.info(`  - ${check.name} (Status: ${check.status})`);
+                        });
                         await new Promise(resolve => setTimeout(resolve, iteration * 1000)); // Wait expected seconds
                         attempts++;
                     }
