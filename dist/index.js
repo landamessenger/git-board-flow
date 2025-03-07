@@ -31535,7 +31535,7 @@ This PR merges **${head}** into **${base}**.
                             checksCompleted = true;
                             core.info('All checks have completed.');
                             // Verify if all checks passed
-                            const failedChecks = checkRuns.check_runs.filter(check => check.conclusion !== 'success' && check.conclusion !== 'skipped');
+                            const failedChecks = checkRuns.check_runs.filter(check => check.conclusion !== 'success' && check.conclusion !== 'skipped' && check.conclusion !== 'cancelled');
                             if (failedChecks.length > 0) {
                                 throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
                             }
