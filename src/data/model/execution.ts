@@ -19,11 +19,11 @@ import {Release} from "./release";
 import {GetHotfixVersionUseCase} from "../usecase/steps/get_hotfix_version_use_case";
 import {GetReleaseVersionUseCase} from "../usecase/steps/get_release_version_use_case";
 import {GetReleaseTypeUseCase} from "../usecase/steps/get_release_type_use_case";
-import {BranchConfiguration} from "./branch_configuration";
 import {BranchRepository} from "../repository/branch_repository";
 import {incrementVersion} from "../utils/version_utils";
 import {SingleAction} from "./single_action";
-
+import {Ai} from "./ai";   
+ 
 export class Execution {
     /**
      * Every usage of this field should be checked.
@@ -38,6 +38,7 @@ export class Execution {
     emoji: Emoji;
     giphy: Images;
     tokens: Tokens;
+    ai: Ai;
     labels: Labels;
     branches: Branches;
     release: Release;
@@ -133,6 +134,7 @@ export class Execution {
         emoji: Emoji,
         giphy: Images,
         tokens: Tokens,
+        ai: Ai,
         labels: Labels,
         branches: Branches,
         release: Release,
@@ -146,6 +148,7 @@ export class Execution {
         this.pullRequest = pullRequest;
         this.giphy = giphy;
         this.tokens = tokens;
+        this.ai = ai;
         this.emoji = emoji;
         this.labels = labels;
         this.branches = branches;

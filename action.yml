@@ -116,6 +116,12 @@ inputs:
   github-token-personal:
     description: "GitHub PAT for extended operations on commits, branches, and projects."
     required: true
+  openai-api-key:
+    description: "OpenAI API key for AI operations."
+    default: ""
+  ai-pull-request-description:
+    description: "Enable AI-powered automatic updates for pull request descriptions."
+    default: "false"
 runs:
   using: "node20"
   main: "dist/index.js"

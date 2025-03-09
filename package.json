@@ -1,6 +1,6 @@
 {
   "name": "git-board-flow",
-  "version": "1.0.33",
+  "version": "1.0.34",
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "dist/index.js",
   "scripts": {
@@ -14,7 +14,8 @@
     "@actions/core": "^1.10.0",
     "@actions/exec": "^1.1.1",
     "@actions/github": "^6.0.0",
-    "isolated-vm": "^5.0.1"
+    "isolated-vm": "^5.0.1",
+    "openai": "^4.28.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.1",

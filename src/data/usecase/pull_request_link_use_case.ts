@@ -8,6 +8,7 @@ import {CloseIssueAfterMergingUseCase} from "./steps/close_issue_after_merging_u
 import {AssignMemberToIssueUseCase} from "./steps/assign_members_to_issue_use_case";
 import {AssignReviewersToIssueUseCase} from "./steps/assign_reviewers_to_issue_use_case";
 import {UpdateTitleUseCase} from "./steps/update_title_use_case";
+import { UpdatePullRequestDescriptionUseCase } from "./steps/update_pull_request_description_use_case";
 
 export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestLinkUseCase';
@@ -46,6 +47,13 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                  * Link Pull Request to issue
                  */
                 results.push(...await new LinkPullRequestIssueUseCase().invoke(param));
+
+                if (param.ai.getAiPullRequestDescription()) {
+                    /**
+                     * Update pull request description
+                     */
+                    results.push(...await new UpdatePullRequestDescriptionUseCase().invoke(param));
+                }
             } else if (param.pullRequest.isClosed && param.pullRequest.isMerged) {
                 /**
                  * Close issue if needed
