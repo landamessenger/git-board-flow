@@ -35948,15 +35948,19 @@ exports.ConfigurationHandler = ConfigurationHandler;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Ai = void 0;
 class Ai {
-    constructor(openaiApiKey, aiPullRequestDescription) {
+    constructor(openaiApiKey, aiPullRequestDescription, aiMembersOnly) {
         this.openaiApiKey = openaiApiKey;
         this.aiPullRequestDescription = aiPullRequestDescription;
+        this.aiMembersOnly = aiMembersOnly;
     }
     getOpenaiApiKey() {
         return this.openaiApiKey;
     }
     getAiPullRequestDescription() {
         return this.aiPullRequestDescription;
+    }
+    getAiMembersOnly() {
+        return this.aiMembersOnly;
     }
 }
 exports.Ai = Ai;
@@ -41228,17 +41232,33 @@ const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const project_repository_1 = __nccwpck_require__(7917);
 class UpdatePullRequestDescriptionUseCase {
     constructor() {
         this.taskId = 'UpdatePullRequestDescriptionUseCase';
         this.aiRepository = new ai_repository_1.AiRepository();
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
             const prNumber = param.pullRequest.number;
+            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
+            const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
+                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
+            if (!pullRequestCreatorIsTeamMember && param.ai.getAiMembersOnly()) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: false,
+                    steps: [
+                        `The pull request creator @${param.pullRequest.creator} is not a team member and \`AI members only\` is enabled. Skipping update pull request description.`
+                    ]
+                }));
+                return result;
+            }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
             // Generate prompt for AI
             let prompt = `Please generate a detailed pull request description for the following changes:\n\n`;
@@ -41276,7 +41296,7 @@ class UpdatePullRequestDescriptionUseCase {
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
-                executed: false,
+                executed: true,
                 steps: [
                     `Error updating pull request description: ${error}`
                 ]
@@ -41832,6 +41852,7 @@ async function run() {
      */
     const openaiApiKey = core.getInput('openai-api-key');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
+    const aiMembersOnly = core.getInput('ai-members-only') === 'true';
     /**
      * Projects Details
      */
@@ -41922,7 +41943,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);

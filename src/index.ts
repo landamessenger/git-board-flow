@@ -42,6 +42,7 @@ async function run(): Promise<void> {
      */
     const openaiApiKey = core.getInput('openai-api-key');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
+    const aiMembersOnly = core.getInput('ai-members-only') === 'true';
 
     /**
      * Projects Details
@@ -179,7 +180,7 @@ async function run(): Promise<void> {
             imagesPullRequestAutomatic,
         ),
         new Tokens(token, tokenPat),
-        new Ai(openaiApiKey, aiPullRequestDescription),
+        new Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly),
         new Labels(
             branchManagementLauncherLabel,
             bugLabel,
