@@ -122,6 +122,9 @@ inputs:
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
     default: "false"
+  ai-members-only:
+    description: "Restrict AI features to only organization/project members."
+    default: "true"
 runs:
   using: "node20"
   main: "dist/index.js"

@@ -9,7 +9,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
     private aiRepository = new AiRepository();
     private pullRequestRepository = new PullRequestRepository();
-
+    private projectRepository = new ProjectRepository();
     async invoke(param: Execution): Promise<Result[]> {
         core.info(`Executing ${this.taskId}.`)
 
@@ -17,6 +17,29 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
 
         try {
             const prNumber = param.pullRequest.number;
+
+
+            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
+            const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
+                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
+
+
+            if (!pullRequestCreatorIsTeamMember && param.ai.getAiMembersOnly()) {
+                result.push(
+                    new Result(
+                        {
+                            id: this.taskId,
+                            success: false,
+                            executed: false,
+                            steps: [
+                                `The pull request creator @${param.pullRequest.creator} is not a team member and \`AI members only\` is enabled. Skipping update pull request description.`
+                            ]
+                        }
+                    )
+                );
+                return result;
+            }
+
             const changes = await this.pullRequestRepository.getPullRequestChanges(
                 param.owner,
                 param.repo,
@@ -81,7 +104,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                     {
                         id: this.taskId,
                         success: false,
-                        executed: false,
+                        executed: true,
                         steps: [
                             `Error updating pull request description: ${error}`
                         ]
