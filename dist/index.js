@@ -31526,34 +31526,54 @@ This PR merges **${head}** into **${base}**.
                             ref: head
                         });
                         core.info(`Combined status state: ${commitStatus.state}`);
-                        // Check if the overall status is still pending
-                        if (commitStatus.state === 'pending') {
-                            core.info('Combined status is still pending');
-                            await new Promise(resolve => setTimeout(resolve, iteration * 1000));
-                            attempts++;
-                            continue;
-                        }
-                        // Filter for pending status checks
-                        const pendingChecks = commitStatus.statuses.filter(status => {
-                            core.info(`Status check: ${status.context} (State: ${status.state})`);
-                            return status.state === 'pending';
-                        });
-                        if (pendingChecks.length === 0) {
-                            checksCompleted = true;
-                            core.info('All checks have completed.');
-                            // Verify if all checks passed
-                            const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
-                            if (failedChecks.length > 0) {
-                                throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
+                        core.info(`Number of check runs: ${checkRuns.check_runs.length}`);
+                        // If there are check runs, prioritize those over status checks
+                        if (checkRuns.check_runs.length > 0) {
+                            const pendingCheckRuns = checkRuns.check_runs.filter(check => check.status !== 'completed');
+                            if (pendingCheckRuns.length === 0) {
+                                checksCompleted = true;
+                                core.info('All check runs have completed.');
+                                // Verify if all checks passed
+                                const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
+                                if (failedChecks.length > 0) {
+                                    throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
+                                }
+                            }
+                            else {
+                                core.info(`Waiting for ${pendingCheckRuns.length} check runs to complete:`);
+                                pendingCheckRuns.forEach(check => {
+                                    core.info(`  - ${check.name} (Status: ${check.status})`);
+                                });
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                                continue;
                             }
                         }
                         else {
-                            core.info(`Waiting for ${pendingChecks.length} checks to complete:`);
-                            pendingChecks.forEach(check => {
-                                core.info(`  - ${check.id} (Status: ${check.state})`);
+                            // Fall back to status checks if no check runs exist
+                            if (commitStatus.state === 'pending') {
+                                core.info('Combined status is still pending');
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                                continue;
+                            }
+                            // Filter for pending status checks
+                            const pendingChecks = commitStatus.statuses.filter(status => {
+                                core.info(`Status check: ${status.context} (State: ${status.state})`);
+                                return status.state === 'pending';
                             });
-                            await new Promise(resolve => setTimeout(resolve, iteration * 1000)); // Wait expected seconds
-                            attempts++;
+                            if (pendingChecks.length === 0) {
+                                checksCompleted = true;
+                                core.info('All status checks have completed.');
+                            }
+                            else {
+                                core.info(`Waiting for ${pendingChecks.length} status checks to complete:`);
+                                pendingChecks.forEach(check => {
+                                    core.info(`  - ${check.context} (State: ${check.state})`);
+                                });
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                            }
                         }
                     }
                     if (!checksCompleted) {
