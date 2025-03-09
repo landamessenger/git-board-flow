@@ -96,4 +96,63 @@ export class PullRequestRepository {
         }
     };
 
+    getChangedFiles = async (
+        owner: string,
+        repository: string,
+        pullNumber: number,
+        token: string
+    ): Promise<{filename: string, status: string}[]> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const {data} = await octokit.rest.pulls.listFiles({
+                owner,
+                repo: repository,
+                pull_number: pullNumber,
+            });
+
+            return data.map((file) => ({
+                filename: file.filename,
+                status: file.status
+            }));
+        } catch (error) {
+            core.error(`Error getting changed files from pull request: ${error}.`);
+            return [];
+        }
+    };
+
+    getPullRequestChanges = async (
+        owner: string,
+        repository: string,
+        pullNumber: number,
+        token: string
+    ): Promise<Array<{
+        filename: string,
+        status: string,
+        additions: number,
+        deletions: number,
+        patch: string
+    }>> => {
+        const octokit = github.getOctokit(token);
+
+        try {
+            const { data: filesData } = await octokit.rest.pulls.listFiles({
+                owner,
+                repo: repository,
+                pull_number: pullNumber,
+            });
+
+            return filesData.map((file) => ({
+                filename: file.filename,
+                status: file.status,
+                additions: file.additions,
+                deletions: file.deletions,
+                patch: file.patch || ''
+            }));
+        } catch (error) {
+            core.error(`Error getting pull request changes: ${error}.`);
+            return [];
+        }
+    };
+
 }

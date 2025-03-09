@@ -20,6 +20,7 @@ import {Workflows} from "./data/model/workflows";
 import {Release} from "./data/model/release";
 import {SingleAction} from "./data/model/single_action";
 import {SingleActionUseCase} from "./data/usecase/single_action_use_case";
+import { Ai } from './data/model/ai';
 
 async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -35,6 +36,12 @@ async function run(): Promise<void> {
      */
     const token = core.getInput('github-token', {required: true});
     const tokenPat = core.getInput('github-token-personal', {required: true});
+
+    /**
+     * AI
+     */
+    const openaiApiKey = core.getInput('openai-api-key', {required: true});
+    const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
 
     /**
      * Projects Details
@@ -172,6 +179,7 @@ async function run(): Promise<void> {
             imagesPullRequestAutomatic,
         ),
         new Tokens(token, tokenPat),
+        new Ai(openaiApiKey, aiPullRequestDescription),
         new Labels(
             branchManagementLauncherLabel,
             bugLabel,
