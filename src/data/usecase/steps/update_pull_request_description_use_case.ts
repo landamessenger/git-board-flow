@@ -4,6 +4,7 @@ import { Result } from "../../model/result";
 import { ParamUseCase } from "../base/param_usecase";
 import { AiRepository } from "../../repository/ai_repository";
 import { PullRequestRepository } from "../../repository/pull_request_repository";
+import { ProjectRepository } from "../../repository/project_repository";
 
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
