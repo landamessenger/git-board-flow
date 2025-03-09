@@ -31551,13 +31551,6 @@ This PR merges **${head}** into **${base}**.
                         }
                         else {
                             // Fall back to status checks if no check runs exist
-                            if (commitStatus.state === 'pending') {
-                                core.info('Combined status is still pending');
-                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
-                                attempts++;
-                                continue;
-                            }
-                            // Filter for pending status checks
                             const pendingChecks = commitStatus.statuses.filter(status => {
                                 core.info(`Status check: ${status.context} (State: ${status.state})`);
                                 return status.state === 'pending';
@@ -35127,6 +35120,8 @@ class PrepareBranchesUseCase {
                 let firstReminder = `Commit the required changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`;
                 if (commitPrefix.length > 0) {
                     firstReminder += `
+> \`git fetch -v && git checkout ${lastAction.payload.newBranchName}\`
+>
 > Consider commiting with the prefix \`${commitPrefix}\`.`;
                 }
                 result.push(new result_1.Result({
