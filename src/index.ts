@@ -40,7 +40,7 @@ async function run(): Promise<void> {
     /**
      * AI
      */
-    const openaiApiKey = core.getInput('openai-api-key', {required: true});
+    const openaiApiKey = core.getInput('openai-api-key');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
 
     /**
