@@ -26,4 +26,5 @@ jobs:
             branchName.replace("/", "-");
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
-
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          ai-pull-request-description: true
