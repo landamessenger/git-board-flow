@@ -31526,6 +31526,13 @@ This PR merges **${head}** into **${base}**.
                             ref: head
                         });
                         core.info(`Combined status state: ${commitStatus.state}`);
+                        // Check if the overall status is still pending
+                        if (commitStatus.state === 'pending') {
+                            core.info('Combined status is still pending');
+                            await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                            attempts++;
+                            continue;
+                        }
                         // Filter for pending status checks
                         const pendingChecks = commitStatus.statuses.filter(status => {
                             core.info(`Status check: ${status.context} (State: ${status.state})`);
