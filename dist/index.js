@@ -41267,7 +41267,7 @@ class UpdatePullRequestDescriptionUseCase {
                 success: true,
                 executed: true,
                 steps: [
-                    `Successfully updated pull request #${prNumber} description with AI-generated content.`
+                    `The description has been updated with AI-generated content.`
                 ]
             }));
         }
