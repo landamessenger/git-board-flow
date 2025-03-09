@@ -238,6 +238,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 let firstReminder = `Commit the required changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`
                 if (commitPrefix.length > 0) {
                     firstReminder += `
+> \`git fetch -v && git checkout ${lastAction.payload.newBranchName}\`
+>
 > Consider commiting with the prefix \`${commitPrefix}\`.`
                 }
                 result.push(
