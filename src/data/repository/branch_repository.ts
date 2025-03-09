@@ -637,9 +637,22 @@ This PR merges **${head}** into **${base}**.
                         executed: true,
                         steps: [
                             `Failed to merge branch \`${head}\` into \`${base}\`.`,
-                            `PR workflow failed: ${error}`,
-                            `Direct merge failed: ${directMergeError}`,
                         ],
+                    })
+                );
+                result.push(
+                    new Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        error: error,
+                    })
+                );
+                result.push(
+                    new Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
                         error: directMergeError,
                     })
                 );
