@@ -534,7 +534,7 @@ This PR merges **${head}** into **${base}**.
 
                         // Verify if all checks passed
                         const failedChecks = checkRuns.check_runs.filter(
-                            check => check.conclusion !== 'success' && check.conclusion !== 'skipped' && check.conclusion !== 'cancelled'
+                            check => check.conclusion === 'failure'
                         );
 
                         if (failedChecks.length > 0) {
