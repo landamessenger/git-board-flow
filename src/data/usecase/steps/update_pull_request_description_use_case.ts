@@ -48,7 +48,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            let changesDescription = `### Summary of changes\n`;
+            let changesDescription = `### Summary of changes\n\n`;
             
             // Process each file individually
             for (const change of changes) {
@@ -67,7 +67,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                     param.ai.getOpenaiApiKey()
                 );
 
-                changesDescription += fileDescription + '\n\n';
+                changesDescription += fileDescription + '\n';
             }
 
             let resumePrompt = `Please make a short summary of the following changes:\n\n`;
@@ -84,7 +84,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.owner,
                 param.repo,
                 prNumber,
-                currentDescription + '\n\n' + changesDescription + '\n\n' + resumeDescription,
+                currentDescription + '\n\n' + resumeDescription + '\n\n' + changesDescription,
                 param.tokens.token
             );
 
