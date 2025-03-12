@@ -36426,10 +36426,11 @@ exports.Hotfix = Hotfix;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Images = void 0;
 class Images {
-    constructor(cleanUpGifs, featureGifs, bugfixGifs, hotfixGifs, prLinkGifs) {
+    constructor(cleanUpGifs, featureGifs, bugfixGifs, releaseGifs, hotfixGifs, prLinkGifs) {
         this.issueAutomaticActions = cleanUpGifs;
         this.issueFeatureGifs = featureGifs;
         this.issueBugfixGifs = bugfixGifs;
+        this.issueReleaseGifs = releaseGifs;
         this.issueHotfixGifs = hotfixGifs;
         this.pullRequestAutomaticActions = prLinkGifs;
     }
@@ -38733,7 +38734,7 @@ class PublishResultUseCase {
                 }
                 else if (param.release.active) {
                     title = '🚀 Release Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueFeatureGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueReleaseGifs);
                 }
                 else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions';
@@ -41886,6 +41887,11 @@ async function run() {
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    const imagesIssueReleaseInput = core.getInput('images-issue-release');
+    const imagesIssueRelease = imagesIssueReleaseInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
     const imagesIssueHotfixInput = core.getInput('images-issue-hotfix');
     const imagesIssueHotfix = imagesIssueHotfixInput
         .split(',')
@@ -41945,7 +41951,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
