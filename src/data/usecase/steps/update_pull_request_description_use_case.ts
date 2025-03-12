@@ -48,7 +48,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            let finalDescription = '';
+            let changesDescription = `### Summary of changes\n`;
             
             // Process each file individually
             for (const change of changes) {
@@ -67,8 +67,15 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                     param.ai.getOpenaiApiKey()
                 );
 
-                finalDescription += fileDescription + '\n\n';
+                changesDescription += fileDescription + '\n\n';
             }
+
+            let resumePrompt = `Please make a short summary of the following changes:\n\n`;
+            resumePrompt += changesDescription;
+            const resumeDescription = await this.aiRepository.askChatGPT(
+                resumePrompt,
+                param.ai.getOpenaiApiKey()
+            );
 
             const currentDescription = param.pullRequest.body;
 
@@ -77,7 +84,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.owner,
                 param.repo,
                 prNumber,
-                currentDescription + '\n\n' + finalDescription,
+                currentDescription + '\n\n' + changesDescription + '\n\n' + resumeDescription,
                 param.tokens.token
             );
 
