@@ -82,6 +82,11 @@ async function run(): Promise<void> {
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
+    const imagesIssueReleaseInput = core.getInput('images-issue-release');
+    const imagesIssueRelease: string[] = imagesIssueReleaseInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
 
     const imagesIssueHotfixInput = core.getInput('images-issue-hotfix');
     const imagesIssueHotfix: string[] = imagesIssueHotfixInput
@@ -176,6 +181,7 @@ async function run(): Promise<void> {
             imagesIssueAutomatic,
             imagesIssueFeature,
             imagesIssueBugfix,
+            imagesIssueRelease,
             imagesIssueHotfix,
             imagesPullRequestAutomatic,
         ),
