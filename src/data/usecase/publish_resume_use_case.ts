@@ -31,7 +31,7 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
                     image = getRandomElement(param.giphy.issueAutomaticActions)
                 } else if (param.release.active) {
                     title = '🚀 Release Actions'
-                    image = getRandomElement(param.giphy.issueFeatureGifs)
+                    image = getRandomElement(param.giphy.issueReleaseGifs)
                 } else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions'
                     image = getRandomElement(param.giphy.issueHotfixGifs)
