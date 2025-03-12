@@ -38804,7 +38804,7 @@ ${stupidGif}
 
 ${footer}
 
-Thank you for contributing! 🙌
+🚀 Happy coding!
             `;
             if (content.length === 0) {
                 return;
@@ -40850,7 +40850,7 @@ class PrepareBranchesUseCase {
                 success: true,
                 executed: true,
                 reminders: [
-                    `Make yourself a coffee ☕.`
+                    `Take a coffee break while you work ☕.`
                 ]
             }));
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
@@ -40981,16 +40981,21 @@ class PrepareBranchesUseCase {
                     reminder = `Open a Pull Request from [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}) to [\`${param.branches.development}\`](${developmentUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${lastAction.payload.newBranchName}?expand=1)`;
                 }
                 else {
-                    step = `The branch [**${lastAction.payload.baseBranchName}**](${lastAction.payload.baseBranchUrl}) was used to create the branch [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`;
+                    step = `The branch [**${lastAction.payload.baseBranchName}**](${lastAction.payload.baseBranchUrl}) was used to create [**${lastAction.payload.newBranchName}**](${lastAction.payload.newBranchUrl}).`;
                     reminder = `Open a Pull Request from [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}) to [\`${lastAction.payload.baseBranchName}\`](${lastAction.payload.baseBranchUrl}). [New PR](https://github.com/${param.owner}/${param.repo}/compare/${lastAction.payload.baseBranchName}...${lastAction.payload.newBranchName}?expand=1)`;
                 }
-                let firstReminder = `Commit the required changes to [\`${lastAction.payload.newBranchName}\`](${lastAction.payload.newBranchUrl}).`;
+                const reminders = [];
+                reminders.push(`Check out the branch:
+> \`\`\`bash
+> git fetch -v && git checkout ${lastAction.payload.newBranchName}
+> \`\`\``);
                 if (commitPrefix.length > 0) {
-                    firstReminder += `
-> \`git fetch -v && git checkout ${lastAction.payload.newBranchName}\`
->
-> Consider commiting with the prefix \`${commitPrefix}\`.`;
+                    reminders.push(`Commit the needed changes with this prefix:
+> \`\`\`
+>${commitPrefix}
+> \`\`\``);
                 }
+                reminders.push(reminder);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -40998,10 +41003,7 @@ class PrepareBranchesUseCase {
                     steps: [
                         step,
                     ],
-                    reminders: [
-                        firstReminder,
-                        reminder,
-                    ]
+                    reminders: reminders,
                 }));
                 if (param.hotfix.active) {
                     const mainBranchUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.main}`;
