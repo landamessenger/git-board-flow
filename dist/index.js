@@ -41263,25 +41263,40 @@ class UpdatePullRequestDescriptionUseCase {
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            // Generate prompt for AI
-            let prompt = `Please generate a detailed pull request description for the following changes:\n\n`;
-            // Add file changes to prompt
-            changes.forEach(change => {
-                prompt += `File: ${change.filename}\n`;
-                prompt += `Status: ${change.status}\n`;
-                prompt += `Changes: +${change.additions} -${change.deletions}\n`;
-                if (change.patch) {
-                    prompt += `Patch:\n${change.patch}\n`;
-                }
-                prompt += `\n`;
-            });
-            prompt += `\nPlease include:\n`;
-            prompt += `1. A brief summary of the changes\n`;
-            prompt += `2. Technical details of what was changed\n`;
-            prompt += `3. Any potential impact on other parts of the system\n`;
-            prompt += `4. Testing considerations\n`;
-            // Get AI response
-            const description = await this.aiRepository.askChatGPT(prompt, param.ai.getOpenaiApiKey());
+            // Process changes in blocks of 3 files
+            const BLOCK_SIZE = 3;
+            const blocks = [];
+            for (let i = 0; i < changes.length; i += BLOCK_SIZE) {
+                blocks.push(changes.slice(i, i + BLOCK_SIZE));
+            }
+            let finalDescription = '';
+            // Process each block
+            for (let i = 0; i < blocks.length; i++) {
+                const block = blocks[i];
+                let blockPrompt = `Please analyze the following changes (block ${i + 1} of ${blocks.length}):\n\n`;
+                // Add file changes to prompt
+                block.forEach(change => {
+                    blockPrompt += `File: ${change.filename}\n`;
+                    blockPrompt += `Status: ${change.status}\n`;
+                    blockPrompt += `Changes: +${change.additions} -${change.deletions}\n`;
+                    if (change.patch) {
+                        blockPrompt += `Patch:\n${change.patch}\n`;
+                    }
+                    blockPrompt += `\n`;
+                });
+                blockPrompt += `\nPlease provide a detailed analysis of these changes including:\n`;
+                blockPrompt += `1. Summary of changes in these files\n`;
+                blockPrompt += `2. Technical details of the modifications\n`;
+                //blockPrompt += `3. Potential impact on the system\n`;
+                //blockPrompt += `4. Testing considerations\n`;
+                // Get AI response for this block
+                const blockDescription = await this.aiRepository.askChatGPT(blockPrompt, param.ai.getOpenaiApiKey());
+                finalDescription += blockDescription + '\n\n';
+            }
+            // Generate final summary prompt
+            const summaryPrompt = `Based on the following detailed analysis of changes, please provide a concise and well-structured pull request description that includes:\n\n${finalDescription}\n\nPlease format the final description in a clear and organized way, highlighting the key changes and their impact.`;
+            // Get final summary
+            const description = await this.aiRepository.askChatGPT(summaryPrompt, param.ai.getOpenaiApiKey());
             const currentDescription = param.pullRequest.body;
             // Update pull request description
             await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + description, param.tokens.token);
