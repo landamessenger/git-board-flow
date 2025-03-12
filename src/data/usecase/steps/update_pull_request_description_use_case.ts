@@ -59,8 +59,8 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 if (change.patch) {
                     filePrompt += `Patch:\n${change.patch}\n`;
                 }
-                filePrompt += `\nPlease provide a detailed analysis of the changes in this file. Use this as example:\n\n`;
-                filePrompt += `- \`file/path\`: summary details of the changes in this file\n`;
+                filePrompt += `\nPlease provide a detailed analysis of the changes in this file. Use this as example for the output:\n\n`;
+                filePrompt += `- \`/path/to/file.ts\`: summary details of the changes in this file\n`;
                 // Get AI response for this file
                 const fileDescription = await this.aiRepository.askChatGPT(
                     filePrompt,
