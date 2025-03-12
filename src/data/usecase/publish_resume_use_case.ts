@@ -105,7 +105,7 @@ ${stupidGif}
 
 ${footer}
 
-Thank you for contributing! 🙌
+🚀 Happy coding!
             `;
 
             if (content.length === 0) {
