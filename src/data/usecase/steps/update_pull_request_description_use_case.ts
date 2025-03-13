@@ -79,9 +79,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                     continue;
                 }
 
-                let filePrompt = `Please analyze the following changes. Provide a detailed analysis of the changes in this file.
-
-Use this as template for the output (No additional text should be added. Only a response like the provided sample):
+                let filePrompt = `Please analyze the following changes. Use this as template for the output (No additional text should be added. Only a response like the provided sample):
 
 - \`/path/to/file.ts\`: summary details of the changes in this file.
 
