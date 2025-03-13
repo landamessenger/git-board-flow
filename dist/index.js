@@ -41342,13 +41342,10 @@ No additional text should be added. Only a response like the provided sample.
                 const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
                 changesDescription += fileDescription + '\n';
             }
-            let resumePrompt = `Please make a short summary of the following changes:\n\n`;
-            resumePrompt += changesDescription;
-            const resumeDescription = await this.aiRepository.askChatGPT(resumePrompt, param.ai.getOpenaiApiKey());
             const descriptionPrompt = `this an issue descrition. define a description for the pull request which closes the issue:\n\n${issueDescription}`;
             const currentDescription = await this.aiRepository.askChatGPT(descriptionPrompt, param.ai.getOpenaiApiKey());
             // Update pull request description
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + resumeDescription + '\n\n' + changesDescription, param.tokens.token);
+            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + changesDescription, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
