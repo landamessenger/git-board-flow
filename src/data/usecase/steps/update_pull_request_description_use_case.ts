@@ -61,12 +61,16 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 }
                 filePrompt += `\nPlease provide a detailed analysis of the changes in this file. Use this as example for the output:\n\n`;
                 filePrompt += `- \`/path/to/file.ts\`: summary details of the changes in this file\n`;
+                core.info(`filePrompt:`);
+                core.info(filePrompt);
                 // Get AI response for this file
                 const fileDescription = await this.aiRepository.askChatGPT(
                     filePrompt,
                     param.ai.getOpenaiApiKey()
                 );
 
+                core.info(`fileDescription:`);
+                core.info(fileDescription);
                 changesDescription += fileDescription + '\n';
             }
 
