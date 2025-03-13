@@ -85,18 +85,6 @@ Use this as template for the output (No additional text should be added. Only a 
 
 - \`/path/to/file.ts\`: summary details of the changes in this file.
 
-> suggestions for improving the current changes on the file.
-> instead of
-> \`\`\`any_markdown_lang
-> var text = "world"
-> console.log("hello " + text)
-> \`\`\`
-> do
-> \`\`\`any_markdown_lang
-> const text = \`world\`;
-> console.log(\`hello \${text}\`);
-> \`\`\`
-
 -----------------------------------------------------------------------------\n\n`;
                 filePrompt += `File: ${change.filename}\n`;
                 filePrompt += `Status: ${change.status}\n`;
