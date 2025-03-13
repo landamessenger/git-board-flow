@@ -37941,6 +37941,15 @@ class IssueRepository {
                 return [];
             }
         };
+        this.getIssueDescription = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const { data: issue } = await octokit.rest.issues.get({
+                owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+            return issue.body ?? '';
+        };
     }
 }
 exports.IssueRepository = IssueRepository;
@@ -41254,11 +41263,13 @@ const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const project_repository_1 = __nccwpck_require__(7917);
+const issue_repository_1 = __nccwpck_require__(57);
 class UpdatePullRequestDescriptionUseCase {
     constructor() {
         this.taskId = 'UpdatePullRequestDescriptionUseCase';
         this.aiRepository = new ai_repository_1.AiRepository();
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
@@ -41266,6 +41277,18 @@ class UpdatePullRequestDescriptionUseCase {
         const result = [];
         try {
             const prNumber = param.pullRequest.number;
+            const issueDescription = await this.issueRepository.getIssueDescription(param.owner, param.repo, param.issueNumber, param.tokens.token);
+            if (issueDescription.length === 0) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: false,
+                    steps: [
+                        `No issue description found. Skipping update pull request description.`
+                    ]
+                }));
+                return result;
+            }
             const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
             const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
                 && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
@@ -41322,7 +41345,8 @@ No additional text should be added. Only a response like the provided sample.
             let resumePrompt = `Please make a short summary of the following changes:\n\n`;
             resumePrompt += changesDescription;
             const resumeDescription = await this.aiRepository.askChatGPT(resumePrompt, param.ai.getOpenaiApiKey());
-            const currentDescription = param.pullRequest.body;
+            const descriptionPrompt = `this an issue descrition. define a description for the pull request which closes the issue:\n\n${issueDescription}`;
+            const currentDescription = await this.aiRepository.askChatGPT(descriptionPrompt, param.ai.getOpenaiApiKey());
             // Update pull request description
             await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + resumeDescription + '\n\n' + changesDescription, param.tokens.token);
             result.push(new result_1.Result({
