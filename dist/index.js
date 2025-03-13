@@ -41304,7 +41304,7 @@ class UpdatePullRequestDescriptionUseCase {
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            let changesDescription = `### Summary of changes\n\n`;
+            let changesDescription = ``;
             // Process each file individually
             for (const change of changes) {
                 const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
@@ -41328,7 +41328,17 @@ just a text description:\n\n
 ${issueDescription}`;
             const currentDescription = await this.aiRepository.askChatGPT(descriptionPrompt, param.ai.getOpenaiApiKey());
             // Update pull request description
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + changesDescription, param.tokens.token);
+            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, `
+#${param.issueNumber}
+
+## What does this PR do?
+
+${currentDescription}
+
+## What files were changed?
+
+${changesDescription}
+`, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
