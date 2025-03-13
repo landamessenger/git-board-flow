@@ -41313,12 +41313,11 @@ class UpdatePullRequestDescriptionUseCase {
                 }
                 let filePrompt = `Please analyze the following changes. Provide a detailed analysis of the changes in this file.
 
-Use this as example for the output:
+Use this as template for the output (No additional text should be added. Only a response like the provided sample):
 
 - \`/path/to/file.ts\`: summary details of the changes in this file.
 
-> ### Suggestion
-> suggestions for improving the current changes.
+> suggestions for improving the current changes on the file.
 > instead of
 > \`\`\`any_markdown_lang
 > var text = "world"
@@ -41330,7 +41329,6 @@ Use this as example for the output:
 > console.log(\`hello \${text}\`);
 > \`\`\`
 
-No additional text should be added. Only a response like the provided sample.
 -----------------------------------------------------------------------------\n\n`;
                 filePrompt += `File: ${change.filename}\n`;
                 filePrompt += `Status: ${change.status}\n`;
