@@ -122,6 +122,9 @@ inputs:
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
     default: "false"
+  ai-ignore-files:
+    description: "Comma-separated list of files to ignore for AI operations."
+    default: ""
   ai-members-only:
     description: "Restrict AI features to only organization/project members."
     default: "true"

@@ -43,6 +43,11 @@ async function run(): Promise<void> {
     const openaiApiKey = core.getInput('openai-api-key');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
     const aiMembersOnly = core.getInput('ai-members-only') === 'true';
+    const aiIgnoreFilesInput = core.getInput('ai-ignore-files');
+    const aiIgnoreFiles: string[] = aiIgnoreFilesInput
+        .split(',')
+        .map(path => path.trim())
+        .filter(path => path.length > 0);
 
     /**
      * Projects Details
@@ -186,7 +191,12 @@ async function run(): Promise<void> {
             imagesPullRequestAutomatic,
         ),
         new Tokens(token, tokenPat),
-        new Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly),
+        new Ai(
+            openaiApiKey,
+            aiPullRequestDescription,
+            aiMembersOnly,
+            aiIgnoreFiles,
+        ),
         new Labels(
             branchManagementLauncherLabel,
             bugLabel,
