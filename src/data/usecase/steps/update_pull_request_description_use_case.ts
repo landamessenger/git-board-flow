@@ -92,7 +92,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                     param.ai.getOpenaiApiKey()
                 );
 
-                changesDescription += `\`${change.filename}\`: ${fileDescription}\n`;
+                changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
             }
 
             const descriptionPrompt = `this an issue descrition.

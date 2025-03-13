@@ -28,4 +28,4 @@ jobs:
           github-token-personal: ${{ secrets.REPO_PAT }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           ai-pull-request-description: true
-          ai-ignore-files: "dist/*"
+          ai-ignore-files: dist/*
