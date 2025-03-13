@@ -41311,11 +41311,7 @@ class UpdatePullRequestDescriptionUseCase {
                 if (shouldIgnoreFile) {
                     continue;
                 }
-                let filePrompt = `Please analyze the following changes. Use this as template for the output (No additional text should be added. Only a response like the provided sample):
-
-- \`/path/to/file.ts\`: summary details of the changes in this file.
-
------------------------------------------------------------------------------\n\n`;
+                let filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
                 filePrompt += `File: ${change.filename}\n`;
                 filePrompt += `Status: ${change.status}\n`;
                 filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
@@ -41324,7 +41320,7 @@ class UpdatePullRequestDescriptionUseCase {
                 }
                 // Get AI response for this file
                 const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
-                changesDescription += fileDescription + '\n';
+                changesDescription += `\`${change.filename}\`: ${fileDescription}\n`;
             }
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
