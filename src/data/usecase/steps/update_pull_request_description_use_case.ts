@@ -70,7 +70,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            let changesDescription = `### Summary of changes\n\n`;
+            let changesDescription = ``;
             
             // Process each file individually
             for (const change of changes) {
@@ -110,7 +110,17 @@ ${issueDescription}`;
                 param.owner,
                 param.repo,
                 prNumber,
-                currentDescription + '\n\n' + changesDescription,
+                `
+#${param.issueNumber}
+
+## What does this PR do?
+
+${currentDescription}
+
+## What files were changed?
+
+${changesDescription}
+`,
                 param.tokens.token
             );
 
