@@ -101,7 +101,11 @@ Use this as template for the output (No additional text should be added. Only a 
                 changesDescription += fileDescription + '\n';
             }
 
-            const descriptionPrompt = `this an issue descrition. define a description for the pull request which closes the issue:\n\n${issueDescription}`;
+            const descriptionPrompt = `this an issue descrition.
+define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
+just a text description:\n\n
+${issueDescription}`;
+
             const currentDescription = await this.aiRepository.askChatGPT(
                 descriptionPrompt,
                 param.ai.getOpenaiApiKey()
