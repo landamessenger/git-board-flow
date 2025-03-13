@@ -41320,7 +41320,7 @@ class UpdatePullRequestDescriptionUseCase {
                 }
                 // Get AI response for this file
                 const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
-                changesDescription += `\`${change.filename}\`: ${fileDescription}\n`;
+                changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
             }
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
