@@ -115,13 +115,6 @@ No additional text should be added. Only a response like the provided sample.
                 changesDescription += fileDescription + '\n';
             }
 
-            let resumePrompt = `Please make a short summary of the following changes:\n\n`;
-            resumePrompt += changesDescription;
-            const resumeDescription = await this.aiRepository.askChatGPT(
-                resumePrompt,
-                param.ai.getOpenaiApiKey()
-            );
-
             const descriptionPrompt = `this an issue descrition. define a description for the pull request which closes the issue:\n\n${issueDescription}`;
             const currentDescription = await this.aiRepository.askChatGPT(
                 descriptionPrompt,
@@ -133,7 +126,7 @@ No additional text should be added. Only a response like the provided sample.
                 param.owner,
                 param.repo,
                 prNumber,
-                currentDescription + '\n\n' + resumeDescription + '\n\n' + changesDescription,
+                currentDescription + '\n\n' + changesDescription,
                 param.tokens.token
             );
 
