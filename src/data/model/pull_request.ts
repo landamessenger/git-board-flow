@@ -55,6 +55,10 @@ export class PullRequest {
             || this.action === 'closed';
     }
 
+    get isSynchronize(): boolean {
+        return this.action === 'synchronize';
+    }
+
     constructor(
         desiredAssigneesCount: number,
         desiredReviewersCount: number,
