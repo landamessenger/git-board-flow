@@ -35948,10 +35948,11 @@ exports.ConfigurationHandler = ConfigurationHandler;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Ai = void 0;
 class Ai {
-    constructor(openaiApiKey, aiPullRequestDescription, aiMembersOnly) {
+    constructor(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles) {
         this.openaiApiKey = openaiApiKey;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
+        this.aiIgnoreFiles = aiIgnoreFiles;
     }
     getOpenaiApiKey() {
         return this.openaiApiKey;
@@ -35961,6 +35962,9 @@ class Ai {
     }
     getAiMembersOnly() {
         return this.aiMembersOnly;
+    }
+    getAiIgnoreFiles() {
+        return this.aiIgnoreFiles;
     }
 }
 exports.Ai = Ai;
@@ -41266,21 +41270,39 @@ class UpdatePullRequestDescriptionUseCase {
             let changesDescription = `### Summary of changes\n\n`;
             // Process each file individually
             for (const change of changes) {
-                let filePrompt = `Please analyze the following changes:\n\n`;
+                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
+                if (shouldIgnoreFile) {
+                    continue;
+                }
+                let filePrompt = `Please analyze the following changes. Provide a detailed analysis of the changes in this file.
+
+Use this as example for the output:
+
+- \`/path/to/file.ts\`: summary details of the changes in this file.
+
+> ### Suggestion
+> suggestions for improving the current changes.
+> instead of
+> \`\`\`any_markdown_lang
+> var text = "world"
+> console.log("hello " + text)
+> \`\`\`
+> do
+> \`\`\`any_markdown_lang
+> const text = \`world\`;
+> console.log(\`hello \${text}\`);
+> \`\`\`
+
+No additional text should be added. Only a response like the provided sample.
+-----------------------------------------------------------------------------\n\n`;
                 filePrompt += `File: ${change.filename}\n`;
                 filePrompt += `Status: ${change.status}\n`;
                 filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
                 if (change.patch) {
                     filePrompt += `Patch:\n${change.patch}\n`;
                 }
-                filePrompt += `\nPlease provide a detailed analysis of the changes in this file. Use this as example for the output:\n\n`;
-                filePrompt += `- \`/path/to/file.ts\`: summary details of the changes in this file\n`;
-                core.info(`filePrompt:`);
-                core.info(filePrompt);
                 // Get AI response for this file
                 const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
-                core.info(`fileDescription:`);
-                core.info(fileDescription);
                 changesDescription += fileDescription + '\n';
             }
             let resumePrompt = `Please make a short summary of the following changes:\n\n`;
@@ -41310,6 +41332,17 @@ class UpdatePullRequestDescriptionUseCase {
             }));
         }
         return result;
+    }
+    shouldIgnoreFile(filename, ignorePatterns) {
+        return ignorePatterns.some(pattern => {
+            // Convert glob pattern to regex
+            const regexPattern = pattern
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters
+                .replace(/\*/g, '.*') // Convert * to regex wildcard
+                .replace(/\//g, '\\/'); // Escape forward slashes
+            const regex = new RegExp(`^${regexPattern}$`);
+            return regex.test(filename);
+        });
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
@@ -41860,6 +41893,11 @@ async function run() {
     const openaiApiKey = core.getInput('openai-api-key');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
     const aiMembersOnly = core.getInput('ai-members-only') === 'true';
+    const aiIgnoreFilesInput = core.getInput('ai-ignore-files');
+    const aiIgnoreFiles = aiIgnoreFilesInput
+        .split(',')
+        .map(path => path.trim())
+        .filter(path => path.length > 0);
     /**
      * Projects Details
      */
@@ -41955,7 +41993,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
