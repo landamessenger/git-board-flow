@@ -584,5 +584,18 @@ export class IssueRepository {
         }
     };
 
-
+    getIssueDescription = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<string> => {
+        const octokit = github.getOctokit(token);
+        const {data: issue} = await octokit.rest.issues.get({
+            owner,
+            repo: repository,
+            issue_number: issueNumber,
+        });
+        return issue.body ?? '';
+    }
 }

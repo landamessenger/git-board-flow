@@ -5,11 +5,12 @@ import { ParamUseCase } from "../base/param_usecase";
 import { AiRepository } from "../../repository/ai_repository";
 import { PullRequestRepository } from "../../repository/pull_request_repository";
 import { ProjectRepository } from "../../repository/project_repository";
-
+import { IssueRepository } from "../../repository/issue_repository";
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
     private aiRepository = new AiRepository();
     private pullRequestRepository = new PullRequestRepository();
+    private issueRepository = new IssueRepository();
     private projectRepository = new ProjectRepository();
     async invoke(param: Execution): Promise<Result[]> {
         core.info(`Executing ${this.taskId}.`)
@@ -18,7 +19,28 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
 
         try {
             const prNumber = param.pullRequest.number;
+            const issueDescription = await this.issueRepository.getIssueDescription(
+                param.owner,
+                param.repo,
+                param.issueNumber,
+                param.tokens.token
+            );
 
+            if (issueDescription.length === 0) {
+                result.push(
+                    new Result(
+                        {
+                            id: this.taskId,
+                            success: false,
+                            executed: false,
+                            steps: [
+                                `No issue description found. Skipping update pull request description.`
+                            ]
+                        }
+                    )
+                );
+                return result;
+            }
 
             const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
             const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
@@ -100,7 +122,11 @@ No additional text should be added. Only a response like the provided sample.
                 param.ai.getOpenaiApiKey()
             );
 
-            const currentDescription = param.pullRequest.body;
+            const descriptionPrompt = `this an issue descrition. define a description for the pull request which closes the issue:\n\n${issueDescription}`;
+            const currentDescription = await this.aiRepository.askChatGPT(
+                descriptionPrompt,
+                param.ai.getOpenaiApiKey()
+            );
 
             // Update pull request description
             await this.pullRequestRepository.updateDescription(
