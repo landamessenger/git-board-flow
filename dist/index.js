@@ -41263,7 +41263,7 @@ class UpdatePullRequestDescriptionUseCase {
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            let changesDescription = `### Summary of changes\n`;
+            let changesDescription = `### Summary of changes\n\n`;
             // Process each file individually
             for (const change of changes) {
                 let filePrompt = `Please analyze the following changes:\n\n`;
@@ -41277,14 +41277,14 @@ class UpdatePullRequestDescriptionUseCase {
                 filePrompt += `- \`/path/to/file.ts\`: summary details of the changes in this file\n`;
                 // Get AI response for this file
                 const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
-                changesDescription += fileDescription + '\n\n';
+                changesDescription += fileDescription + '\n';
             }
             let resumePrompt = `Please make a short summary of the following changes:\n\n`;
             resumePrompt += changesDescription;
             const resumeDescription = await this.aiRepository.askChatGPT(resumePrompt, param.ai.getOpenaiApiKey());
             const currentDescription = param.pullRequest.body;
             // Update pull request description
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + changesDescription + '\n\n' + resumeDescription, param.tokens.token);
+            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + resumeDescription + '\n\n' + changesDescription, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
