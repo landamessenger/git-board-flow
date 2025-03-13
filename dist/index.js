@@ -36707,6 +36707,9 @@ class PullRequest {
         return github.context.payload.pull_request?.state === 'closed'
             || this.action === 'closed';
     }
+    get isSynchronize() {
+        return this.action === 'synchronize';
+    }
     constructor(desiredAssigneesCount, desiredReviewersCount, mergeTimeout) {
         this.desiredAssigneesCount = desiredAssigneesCount;
         this.desiredReviewersCount = desiredReviewersCount;
@@ -38925,6 +38928,17 @@ class PullRequestLinkUseCase {
                  * Link Pull Request to issue
                  */
                 results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
+                if (param.ai.getAiPullRequestDescription()) {
+                    /**
+                     * Update pull request description
+                     */
+                    results.push(...await new update_pull_request_description_use_case_1.UpdatePullRequestDescriptionUseCase().invoke(param));
+                }
+            }
+            else if (param.pullRequest.isSynchronize) {
+                /**
+                 * Pushed changes to the pull request
+                 */
                 if (param.ai.getAiPullRequestDescription()) {
                     /**
                      * Update pull request description
