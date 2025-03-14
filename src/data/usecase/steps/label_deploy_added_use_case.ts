@@ -72,12 +72,13 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}`
                         .trim();
 
                     const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                        
+                    const escapedDescription = description.replace(/\n/g, '\\n');
+    
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
                         title: sanitizedTitle,
-                        changelog: description,
+                        changelog: escapedDescription,
                         issue: param.issue.number,
                     }
                     await this.branchRepository.executeWorkflow(
