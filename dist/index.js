@@ -37585,7 +37585,7 @@ class IssueRepository {
                 return undefined;
             }
         };
-        this.updateTitlePullRequestFormat = async (owner, repository, issueTitle, issueNumber, pullRequestNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
+        this.updateTitlePullRequestFormat = async (owner, repository, pullRequestTitle, issueTitle, issueNumber, pullRequestNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
@@ -37631,12 +37631,12 @@ class IssueRepository {
                     .trim();
                 const formattedTitle = `[#${issueNumber}] ${emoji} - ${sanitizedTitle}`;
                 // Add debug logging
-                core.info(`Original title: "${issueTitle}"`);
+                core.info(`Original title: "${pullRequestTitle}"`);
                 core.info(`Formatted title: "${formattedTitle}"`);
-                core.info(`Title lengths - Original: ${issueTitle.length}, Formatted: ${formattedTitle.length}`);
-                core.info(`Title character codes - Original: ${Array.from(issueTitle).map(c => c.charCodeAt(0)).join(', ')}`);
+                core.info(`Title lengths - Original: ${pullRequestTitle.length}, Formatted: ${formattedTitle.length}`);
+                core.info(`Title character codes - Original: ${Array.from(pullRequestTitle).map(c => c.charCodeAt(0)).join(', ')}`);
                 core.info(`Title character codes - Formatted: ${Array.from(formattedTitle).map(c => c.charCodeAt(0)).join(', ')}`);
-                if (formattedTitle !== issueTitle) {
+                if (formattedTitle !== pullRequestTitle) {
                     await octokit.rest.issues.update({
                         owner: owner,
                         repo: repository,
@@ -41492,7 +41492,7 @@ class UpdateTitleUseCase {
                         }));
                         return result;
                     }
-                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, issueTitle, param.issueNumber, param.pullRequest.number, false, '', param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, param.pullRequest.title, issueTitle, param.issueNumber, param.pullRequest.number, false, '', param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
