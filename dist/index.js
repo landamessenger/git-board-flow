@@ -40882,6 +40882,10 @@ class PrepareBranchesUseCase {
                 ]
             }));
             const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
+            core.info('Available branches:');
+            branches.forEach(branch => {
+                core.info(`- ${branch}`);
+            });
             if (param.hotfix.active) {
                 if (param.hotfix.baseVersion !== undefined && param.hotfix.version !== undefined && param.hotfix.branch !== undefined && param.hotfix.baseBranch !== undefined) {
                     const branchOid = await this.branchRepository.getCommitTag(param.hotfix.baseVersion);
