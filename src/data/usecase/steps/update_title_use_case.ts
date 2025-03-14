@@ -91,6 +91,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                     const title = await this.issueRepository.updateTitlePullRequestFormat(
                         param.owner,
                         param.repo,
+                        param.pullRequest.title,
                         issueTitle,
                         param.issueNumber,
                         param.pullRequest.number,
