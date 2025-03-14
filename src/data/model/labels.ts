@@ -10,6 +10,8 @@ export class Labels {
     help: string;
     deploy: string;
     deployed: string;
+    docs: string;
+    chore: string;
     currentIssueLabels: string[] = [];
     currentPullRequestLabels: string[] = [];
 
@@ -61,6 +63,14 @@ export class Labels {
         return this.currentIssueLabels.includes(this.release);
     }
 
+    get isDocs(): boolean {
+        return this.currentIssueLabels.includes(this.docs);
+    }
+
+    get isChore(): boolean {
+        return this.currentIssueLabels.includes(this.chore);
+    }
+
     constructor(
         branchManagementLauncherLabel: string,
         bug: string,
@@ -73,6 +83,8 @@ export class Labels {
         help: string,
         deploy: string,
         deployed: string,
+        docs: string,
+        chore: string,
     ) {
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
@@ -85,5 +97,7 @@ export class Labels {
         this.help = help;
         this.deploy = deploy;
         this.deployed = deployed;
+        this.docs = docs;
+        this.chore = chore;
     }
 }

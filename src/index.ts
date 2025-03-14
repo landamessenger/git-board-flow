@@ -87,6 +87,18 @@ async function run(): Promise<void> {
         .map(url => url.trim())
         .filter(url => url.length > 0);
 
+    const imagesIssueDocsInput = core.getInput('images-issue-docs');
+    const imagesIssueDocs: string[] = imagesIssueDocsInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
+    const imagesIssueChoreInput = core.getInput('images-issue-chore');
+    const imagesIssueChore: string[] = imagesIssueChoreInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+
     const imagesIssueReleaseInput = core.getInput('images-issue-release');
     const imagesIssueRelease: string[] = imagesIssueReleaseInput
         .split(',')
@@ -132,6 +144,8 @@ async function run(): Promise<void> {
     const helpLabel = core.getInput('help-label');
     const deployLabel = core.getInput('deploy-label');
     const deployedLabel = core.getInput('deployed-label');
+    const docsLabel = core.getInput('docs-label');
+    const choreLabel = core.getInput('chore-label');
 
     /**
      * Branches
@@ -142,6 +156,8 @@ async function run(): Promise<void> {
     const bugfixTree = core.getInput('bugfix-tree');
     const hotfixTree = core.getInput('hotfix-tree');
     const releaseTree = core.getInput('release-tree');
+    const docsTree = core.getInput('docs-tree');
+    const choreTree = core.getInput('chore-tree');
 
     /**
      * Prefix builder
@@ -186,6 +202,8 @@ async function run(): Promise<void> {
             imagesIssueAutomatic,
             imagesIssueFeature,
             imagesIssueBugfix,
+            imagesIssueDocs,
+            imagesIssueChore,
             imagesIssueRelease,
             imagesIssueHotfix,
             imagesPullRequestAutomatic,
@@ -209,6 +227,8 @@ async function run(): Promise<void> {
             helpLabel,
             deployLabel,
             deployedLabel,
+            docsLabel,
+            choreLabel,
         ),
         new Branches(
             mainBranch,
@@ -217,6 +237,8 @@ async function run(): Promise<void> {
             bugfixTree,
             hotfixTree,
             releaseTree,
+            docsTree,
+            choreTree,
         ),
         new Release(),
         new Hotfix(),

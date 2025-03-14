@@ -41,6 +41,12 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
                 } else if (param.isFeature) {
                     title = '✨ Feature Actions'
                     image = getRandomElement(param.giphy.issueFeatureGifs)
+                } else if (param.isDocs) {
+                    title = '📝 Documentation Actions'
+                    image = getRandomElement(param.giphy.issueDocsGifs)
+                } else if (param.isChore) {
+                    title = '🔧 Chore Actions'
+                    image = getRandomElement(param.giphy.issueChoreGifs)
                 }
             } else if (param.isPullRequest) {
                 title = '🪄 Automatic Actions'

@@ -1,54 +1,40 @@
 ---
 title: Git-Board-Flow
-description: Experience seamless project management, automated branch handling, and enhanced team collaboration. Start optimizing your development process today and take your Git workflow to the next level! ✨
+description: Streamline your GitHub workflow with automated branch management, issue tracking, and project integration. Enhance team collaboration and optimize your development process.
 ---
 
 # Git Board Flow
 
-**Git Board Flow** is a powerful GitHub Action designed to streamline issue, branch, and project management while adhering to the Git-Flow methodology. This action simplifies your workflow by automating the creation and management of branches, linking them to issues, and ensuring smooth integration with GitHub Projects.
+**Git Board Flow** is a powerful GitHub Action that automates and streamlines your development workflow by integrating issues, branches, and project management following Git-Flow methodology. It enhances team collaboration by automating branch creation, issue tracking, and project management.
 
-## Key Features
+## Core Features
 
-Git Board Flow offers several powerful features to streamline your GitHub workflow:
+### Issue Management
+- Automatic branch creation based on issue labels
+- Real-time issue status updates
+- Automated issue tracking and monitoring
+- Seamless integration with GitHub Projects
+- Issue assignment and label management
 
-1. **Automatic Branch Creation** - Creates and links branches based on issue labels
-2. **Commit Monitoring** - Tracks commits and updates issues automatically
-3. **Pull Request Linking** - Connects PRs to corresponding issues
-4. **GitHub Project Integration** - Seamlessly manages projects and tasks
-5. **Efficient Execution** - Completes tasks in under 20 seconds
+### Pull Request Features
+- Automatic PR linking to issues
+- Branch status tracking
+- PR review process automation
+- Commit monitoring and updates
+- Efficient PR lifecycle management
 
-## Quick Start
+### Project Integration
+- Automated project board updates
+- Task status synchronization
+- Column movement automation
+- Project progress tracking
+- Team workflow optimization
 
-To get started with Git Board Flow, add the following workflow to your repository:
-
-```yaml
-name: Git Board Flow - Issue
-
-on:
-  issues:
-    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  git-board-issues:
-    name: Git Board - Issue
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: ./
-        with:
-          project-urls: https://github.com/orgs/ORGANIZATION/projects/123
-          commit-prefix-builder: |
-            branchName.replace("/", "-");
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-token-personal: ${{ secrets.REPO_PAT }}
-```
+## Performance
+- Fast execution (under 20 seconds)
+- Concurrent workflow handling
+- Efficient resource utilization
+- Reliable automation
 
 ## Documentation Structure
 

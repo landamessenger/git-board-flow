@@ -11,6 +11,7 @@ Git Board Flow provides extensive configuration options to customize your workfl
 
 - `github-token`: GitHub token for repository operations (required)
 - `github-token-personal`: Personal Access Token for extended operations (required)
+- `openai-api-key`: OpenAI API key for AI operations (optional)
 
 ## Branch Management
 
@@ -26,6 +27,8 @@ Git Board Flow provides extensive configuration options to customize your workfl
 - `bugfix-tree`: Bugfix branch prefix (default: "bugfix")
 - `hotfix-tree`: Hotfix branch prefix (default: "hotfix")
 - `release-tree`: Release branch prefix (default: "release")
+- `docs-tree`: Documentation branch prefix (default: "docs")
+- `chore-tree`: Chore branch prefix (default: "chore")
 
 ## Issue Labels
 
@@ -33,6 +36,8 @@ Git Board Flow provides extensive configuration options to customize your workfl
 - `bugfix-label`: Bugfix branch label (default: "bugfix")
 - `hotfix-label`: Hotfix branch label (default: "hotfix")
 - `release-label`: Release branch label (default: "release")
+- `docs-label`: Documentation label (default: "docs")
+- `chore-label`: Chore label (default: "chore")
 - `bug-label`: Bug type label (default: "bug")
 - `enhancement-label`: Enhancement type label (default: "enhancement")
 - `question-label`: Question label (default: "question")
@@ -56,4 +61,26 @@ Git Board Flow provides extensive configuration options to customize your workfl
 ## Workflow Files
 
 - `release-workflow`: Release workflow filename (default: "release_workflow.yml")
-- `hotfix-workflow`: Hotfix workflow filename (default: "release") 
+- `hotfix-workflow`: Hotfix workflow filename (default: "release")
+
+## Single Actions
+
+- `single-action`: Launch single actions
+- `single-action-issue`: Issue target for executing single action
+
+## Image Configuration
+
+- `images-issue-automatic`: Image URLs for automatic action issue comments
+- `images-issue-feature`: Image URLs for feature action issue comments
+- `images-issue-bugfix`: Image URLs for bugfix action issue comments
+- `images-issue-docs`: Image URLs for docs action issue comments
+- `images-issue-chore`: Image URLs for chore action issue comments
+- `images-issue-hotfix`: Image URLs for hotfix action issue comments
+- `images-issue-release`: Image URLs for release action issue comments
+- `images-pull-request-automatic`: Image URLs for automatic action pull request comments
+
+## AI Features
+
+- `ai-pull-request-description`: Enable AI-powered automatic updates for pull request descriptions (default: "false")
+- `ai-ignore-files`: Comma-separated list of files to ignore for AI operations
+- `ai-members-only`: Restrict AI features to only organization/project members (default: "true") 

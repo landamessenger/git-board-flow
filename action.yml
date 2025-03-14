@@ -20,6 +20,12 @@ inputs:
   branch-management-emoji:
     description: "Emoji to indicate branched issues. It will be ignored if emoji-labeled-title is false."
     default: "🧑‍💻"
+  docs-label:
+    description: "Label to manage docs branches."
+    default: "docs"
+  chore-label:
+    description: "Label to manage chore branches."
+    default: "chore"
   hotfix-label:
     description: "Label to manage hotfix branches."
     default: "hotfix"
@@ -59,6 +65,12 @@ inputs:
   development-branch:
     description: "Name of the development branch (e.g., develop)."
     default: "develop"
+  docs-tree:
+    description: "Naming convention for docs branches."
+    default: "docs"
+  chore-tree:
+    description: "Naming convention for chore branches."
+    default: "chore"
   feature-tree:
     description: "Naming convention for feature branches."
     default: "feature"
@@ -79,6 +91,12 @@ inputs:
     default: ""
   images-issue-bugfix:
     description: "Image URLs to display in bugfix action issue comments."
+    default: ""
+  images-issue-docs:
+    description: "Image URLs to display in docs action issue comments."
+    default: ""
+  images-issue-chore:
+    description: "Image URLs to display in chore action issue comments."
     default: ""
   images-issue-hotfix:
     description: "Image URLs to display in hotfix action issue comments."
