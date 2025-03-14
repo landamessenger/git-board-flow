@@ -420,11 +420,26 @@ export class BranchRepository {
         token: string
     ): Promise<string[]> => {
         const octokit = github.getOctokit(token);
-        const {data} = await octokit.rest.repos.listBranches({
-            owner: owner,
-            repo: repository,
-        });
-        return data.map(branch => branch.name);
+        const allBranches = [];
+        let page = 1;
+        
+        while (true) {
+            const {data} = await octokit.rest.repos.listBranches({
+                owner: owner,
+                repo: repository,
+                per_page: 100,
+                page: page,
+            });
+            
+            if (data.length === 0) {
+                break;
+            }
+            
+            allBranches.push(...data.map(branch => branch.name));
+            page++;
+        }
+        
+        return allBranches;
     }
 
     executeWorkflow = async (
