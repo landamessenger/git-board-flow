@@ -133,13 +133,6 @@ export class IssueRepository {
 
             const formattedTitle = `[#${issueNumber}] ${emoji} - ${sanitizedTitle}`;
 
-            // Add debug logging
-            core.info(`Original title: "${pullRequestTitle}"`);
-            core.info(`Formatted title: "${formattedTitle}"`);
-            core.info(`Title lengths - Original: ${pullRequestTitle.length}, Formatted: ${formattedTitle.length}`);
-            core.info(`Title character codes - Original: ${Array.from(pullRequestTitle).map(c => c.charCodeAt(0)).join(', ')}`);
-            core.info(`Title character codes - Formatted: ${Array.from(formattedTitle).map(c => c.charCodeAt(0)).join(', ')}`);
-
             if (formattedTitle !== pullRequestTitle) {
                 await octokit.rest.issues.update({
                     owner: owner,
