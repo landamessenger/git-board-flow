@@ -83,6 +83,7 @@ export class IssueRepository {
     updateTitlePullRequestFormat = async (
         owner: string,
         repository: string,
+        pullRequestTitle: string,
         issueTitle: string,
         issueNumber: number,
         pullRequestNumber: number,
@@ -132,7 +133,7 @@ export class IssueRepository {
 
             const formattedTitle = `[#${issueNumber}] ${emoji} - ${sanitizedTitle}`;
 
-            if (formattedTitle !== issueTitle) {
+            if (formattedTitle !== pullRequestTitle) {
                 await octokit.rest.issues.update({
                     owner: owner,
                     repo: repository,
@@ -584,5 +585,18 @@ export class IssueRepository {
         }
     };
 
-
+    getIssueDescription = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<string> => {
+        const octokit = github.getOctokit(token);
+        const {data: issue} = await octokit.rest.issues.get({
+            owner,
+            repo: repository,
+            issue_number: issueNumber,
+        });
+        return issue.body ?? '';
+    }
 }

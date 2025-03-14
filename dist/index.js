@@ -35948,10 +35948,11 @@ exports.ConfigurationHandler = ConfigurationHandler;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Ai = void 0;
 class Ai {
-    constructor(openaiApiKey, aiPullRequestDescription, aiMembersOnly) {
+    constructor(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles) {
         this.openaiApiKey = openaiApiKey;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
+        this.aiIgnoreFiles = aiIgnoreFiles;
     }
     getOpenaiApiKey() {
         return this.openaiApiKey;
@@ -35961,6 +35962,9 @@ class Ai {
     }
     getAiMembersOnly() {
         return this.aiMembersOnly;
+    }
+    getAiIgnoreFiles() {
+        return this.aiIgnoreFiles;
     }
 }
 exports.Ai = Ai;
@@ -36702,6 +36706,9 @@ class PullRequest {
     get isClosed() {
         return github.context.payload.pull_request?.state === 'closed'
             || this.action === 'closed';
+    }
+    get isSynchronize() {
+        return this.action === 'synchronize';
     }
     constructor(desiredAssigneesCount, desiredReviewersCount, mergeTimeout) {
         this.desiredAssigneesCount = desiredAssigneesCount;
@@ -37578,7 +37585,7 @@ class IssueRepository {
                 return undefined;
             }
         };
-        this.updateTitlePullRequestFormat = async (owner, repository, issueTitle, issueNumber, pullRequestNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
+        this.updateTitlePullRequestFormat = async (owner, repository, pullRequestTitle, issueTitle, issueNumber, pullRequestNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
                 let emoji = '🤖';
@@ -37623,7 +37630,7 @@ class IssueRepository {
                     .replace(/-+/g, '-')
                     .trim();
                 const formattedTitle = `[#${issueNumber}] ${emoji} - ${sanitizedTitle}`;
-                if (formattedTitle !== issueTitle) {
+                if (formattedTitle !== pullRequestTitle) {
                     await octokit.rest.issues.update({
                         owner: owner,
                         repo: repository,
@@ -37933,6 +37940,15 @@ class IssueRepository {
                 core.error(`Error assigning members to issue: ${error}.`);
                 return [];
             }
+        };
+        this.getIssueDescription = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const { data: issue } = await octokit.rest.issues.get({
+                owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+            return issue.body ?? '';
         };
     }
 }
@@ -38921,6 +38937,17 @@ class PullRequestLinkUseCase {
                  * Link Pull Request to issue
                  */
                 results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
+                if (param.ai.getAiPullRequestDescription()) {
+                    /**
+                     * Update pull request description
+                     */
+                    results.push(...await new update_pull_request_description_use_case_1.UpdatePullRequestDescriptionUseCase().invoke(param));
+                }
+            }
+            else if (param.pullRequest.isSynchronize) {
+                /**
+                 * Pushed changes to the pull request
+                 */
                 if (param.ai.getAiPullRequestDescription()) {
                     /**
                      * Update pull request description
@@ -41236,11 +41263,13 @@ const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const project_repository_1 = __nccwpck_require__(7917);
+const issue_repository_1 = __nccwpck_require__(57);
 class UpdatePullRequestDescriptionUseCase {
     constructor() {
         this.taskId = 'UpdatePullRequestDescriptionUseCase';
         this.aiRepository = new ai_repository_1.AiRepository();
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
@@ -41248,6 +41277,18 @@ class UpdatePullRequestDescriptionUseCase {
         const result = [];
         try {
             const prNumber = param.pullRequest.number;
+            const issueDescription = await this.issueRepository.getIssueDescription(param.owner, param.repo, param.issueNumber, param.tokens.token);
+            if (issueDescription.length === 0) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: false,
+                    steps: [
+                        `No issue description found. Skipping update pull request description.`
+                    ]
+                }));
+                return result;
+            }
             const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
             const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
                 && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
@@ -41263,43 +41304,41 @@ class UpdatePullRequestDescriptionUseCase {
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            // Process changes in blocks of 3 files
-            const BLOCK_SIZE = 3;
-            const blocks = [];
-            for (let i = 0; i < changes.length; i += BLOCK_SIZE) {
-                blocks.push(changes.slice(i, i + BLOCK_SIZE));
+            let changesDescription = ``;
+            // Process each file individually
+            for (const change of changes) {
+                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
+                if (shouldIgnoreFile) {
+                    continue;
+                }
+                let filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
+                filePrompt += `File: ${change.filename}\n`;
+                filePrompt += `Status: ${change.status}\n`;
+                filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
+                if (change.patch) {
+                    filePrompt += `Patch:\n${change.patch}\n`;
+                }
+                // Get AI response for this file
+                const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
+                changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
             }
-            let finalDescription = '';
-            // Process each block
-            for (let i = 0; i < blocks.length; i++) {
-                const block = blocks[i];
-                let blockPrompt = `Please analyze the following changes (block ${i + 1} of ${blocks.length}):\n\n`;
-                // Add file changes to prompt
-                block.forEach(change => {
-                    blockPrompt += `File: ${change.filename}\n`;
-                    blockPrompt += `Status: ${change.status}\n`;
-                    blockPrompt += `Changes: +${change.additions} -${change.deletions}\n`;
-                    if (change.patch) {
-                        blockPrompt += `Patch:\n${change.patch}\n`;
-                    }
-                    blockPrompt += `\n`;
-                });
-                blockPrompt += `\nPlease provide a detailed analysis of these changes including:\n`;
-                blockPrompt += `1. Summary of changes in these files\n`;
-                blockPrompt += `2. Technical details of the modifications\n`;
-                //blockPrompt += `3. Potential impact on the system\n`;
-                //blockPrompt += `4. Testing considerations\n`;
-                // Get AI response for this block
-                const blockDescription = await this.aiRepository.askChatGPT(blockPrompt, param.ai.getOpenaiApiKey());
-                finalDescription += blockDescription + '\n\n';
-            }
-            // Generate final summary prompt
-            const summaryPrompt = `Based on the following detailed analysis of changes, please provide a concise and well-structured pull request description that includes:\n\n${finalDescription}\n\nPlease format the final description in a clear and organized way, highlighting the key changes and their impact.`;
-            // Get final summary
-            const description = await this.aiRepository.askChatGPT(summaryPrompt, param.ai.getOpenaiApiKey());
-            const currentDescription = param.pullRequest.body;
+            const descriptionPrompt = `this an issue descrition.
+define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
+just a text description:\n\n
+${issueDescription}`;
+            const currentDescription = await this.aiRepository.askChatGPT(descriptionPrompt, param.ai.getOpenaiApiKey());
             // Update pull request description
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, currentDescription + '\n\n' + description, param.tokens.token);
+            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, `
+#${param.issueNumber}
+
+## What does this PR do?
+
+${currentDescription}
+
+## What files were changed?
+
+${changesDescription}
+`, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -41321,6 +41360,17 @@ class UpdatePullRequestDescriptionUseCase {
             }));
         }
         return result;
+    }
+    shouldIgnoreFile(filename, ignorePatterns) {
+        return ignorePatterns.some(pattern => {
+            // Convert glob pattern to regex
+            const regexPattern = pattern
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters
+                .replace(/\*/g, '.*') // Convert * to regex wildcard
+                .replace(/\//g, '\\/'); // Escape forward slashes
+            const regex = new RegExp(`^${regexPattern}$`);
+            return regex.test(filename);
+        });
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
@@ -41436,7 +41486,7 @@ class UpdateTitleUseCase {
                         }));
                         return result;
                     }
-                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, issueTitle, param.issueNumber, param.pullRequest.number, false, '', param.labels, param.tokens.token);
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, param.pullRequest.title, issueTitle, param.issueNumber, param.pullRequest.number, false, '', param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -41871,6 +41921,11 @@ async function run() {
     const openaiApiKey = core.getInput('openai-api-key');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
     const aiMembersOnly = core.getInput('ai-members-only') === 'true';
+    const aiIgnoreFilesInput = core.getInput('ai-ignore-files');
+    const aiIgnoreFiles = aiIgnoreFilesInput
+        .split(',')
+        .map(path => path.trim())
+        .filter(path => path.length > 0);
     /**
      * Projects Details
      */
@@ -41966,7 +42021,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);

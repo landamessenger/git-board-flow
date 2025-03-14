@@ -54,6 +54,16 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                      */
                     results.push(...await new UpdatePullRequestDescriptionUseCase().invoke(param));
                 }
+            } else if (param.pullRequest.isSynchronize) {
+                /**
+                 * Pushed changes to the pull request
+                 */
+                if (param.ai.getAiPullRequestDescription()) {
+                    /**
+                     * Update pull request description
+                     */
+                    results.push(...await new UpdatePullRequestDescriptionUseCase().invoke(param));
+                }
             } else if (param.pullRequest.isClosed && param.pullRequest.isMerged) {
                 /**
                  * Close issue if needed
