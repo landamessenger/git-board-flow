@@ -5,11 +5,12 @@ import { ParamUseCase } from "../base/param_usecase";
 import { AiRepository } from "../../repository/ai_repository";
 import { PullRequestRepository } from "../../repository/pull_request_repository";
 import { ProjectRepository } from "../../repository/project_repository";
-
+import { IssueRepository } from "../../repository/issue_repository";
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
     private aiRepository = new AiRepository();
     private pullRequestRepository = new PullRequestRepository();
+    private issueRepository = new IssueRepository();
     private projectRepository = new ProjectRepository();
     async invoke(param: Execution): Promise<Result[]> {
         core.info(`Executing ${this.taskId}.`)
@@ -18,7 +19,28 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
 
         try {
             const prNumber = param.pullRequest.number;
+            const issueDescription = await this.issueRepository.getIssueDescription(
+                param.owner,
+                param.repo,
+                param.issueNumber,
+                param.tokens.token
+            );
 
+            if (issueDescription.length === 0) {
+                result.push(
+                    new Result(
+                        {
+                            id: this.taskId,
+                            success: false,
+                            executed: false,
+                            steps: [
+                                `No issue description found. Skipping update pull request description.`
+                            ]
+                        }
+                    )
+                );
+                return result;
+            }
 
             const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
             const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
@@ -48,63 +70,57 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            // Process changes in blocks of 3 files
-            const BLOCK_SIZE = 3;
-            const blocks = [];
-            for (let i = 0; i < changes.length; i += BLOCK_SIZE) {
-                blocks.push(changes.slice(i, i + BLOCK_SIZE));
-            }
-
-            let finalDescription = '';
+            let changesDescription = ``;
             
-            // Process each block
-            for (let i = 0; i < blocks.length; i++) {
-                const block = blocks[i];
-                let blockPrompt = `Please analyze the following changes (block ${i + 1} of ${blocks.length}):\n\n`;
-                
-                // Add file changes to prompt
-                block.forEach(change => {
-                    blockPrompt += `File: ${change.filename}\n`;
-                    blockPrompt += `Status: ${change.status}\n`;
-                    blockPrompt += `Changes: +${change.additions} -${change.deletions}\n`;
-                    if (change.patch) {
-                        blockPrompt += `Patch:\n${change.patch}\n`;
-                    }
-                    blockPrompt += `\n`;
-                });
+            // Process each file individually
+            for (const change of changes) {
+                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
+                if (shouldIgnoreFile) {
+                    continue;
+                }
 
-                blockPrompt += `\nPlease provide a detailed analysis of these changes including:\n`;
-                blockPrompt += `1. Summary of changes in these files\n`;
-                blockPrompt += `2. Technical details of the modifications\n`;
-                //blockPrompt += `3. Potential impact on the system\n`;
-                //blockPrompt += `4. Testing considerations\n`;
-
-                // Get AI response for this block
-                const blockDescription = await this.aiRepository.askChatGPT(
-                    blockPrompt,
+                let filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
+                filePrompt += `File: ${change.filename}\n`;
+                filePrompt += `Status: ${change.status}\n`;
+                filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
+                if (change.patch) {
+                    filePrompt += `Patch:\n${change.patch}\n`;
+                }
+                // Get AI response for this file
+                const fileDescription = await this.aiRepository.askChatGPT(
+                    filePrompt,
                     param.ai.getOpenaiApiKey()
                 );
 
-                finalDescription += blockDescription + '\n\n';
+                changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
             }
 
-            // Generate final summary prompt
-            const summaryPrompt = `Based on the following detailed analysis of changes, please provide a concise and well-structured pull request description that includes:\n\n${finalDescription}\n\nPlease format the final description in a clear and organized way, highlighting the key changes and their impact.`;
+            const descriptionPrompt = `this an issue descrition.
+define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
+just a text description:\n\n
+${issueDescription}`;
 
-            // Get final summary
-            const description = await this.aiRepository.askChatGPT(
-                summaryPrompt,
+            const currentDescription = await this.aiRepository.askChatGPT(
+                descriptionPrompt,
                 param.ai.getOpenaiApiKey()
             );
-
-            const currentDescription = param.pullRequest.body;
 
             // Update pull request description
             await this.pullRequestRepository.updateDescription(
                 param.owner,
                 param.repo,
                 prNumber,
-                currentDescription + '\n\n' + description,
+                `
+#${param.issueNumber}
+
+## What does this PR do?
+
+${currentDescription}
+
+## What files were changed?
+
+${changesDescription}
+`,
                 param.tokens.token
             );
 
@@ -138,5 +154,18 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
         }
 
         return result;
+    }
+
+    private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
+        return ignorePatterns.some(pattern => {
+            // Convert glob pattern to regex
+            const regexPattern = pattern
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters
+                .replace(/\*/g, '.*') // Convert * to regex wildcard
+                .replace(/\//g, '\\/'); // Escape forward slashes
+            
+            const regex = new RegExp(`^${regexPattern}$`);
+            return regex.test(filename);
+        });
     }
 }

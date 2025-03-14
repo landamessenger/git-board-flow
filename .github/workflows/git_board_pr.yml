@@ -2,7 +2,7 @@ name: Git Board Flow - Pull Request
 
 on:
   pull_request:
-    types: [opened, edited, labeled, unlabeled, closed, assigned, unassigned]
+    types: [opened, edited, labeled, unlabeled, closed, assigned, unassigned, synchronize]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -28,3 +28,4 @@ jobs:
           github-token-personal: ${{ secrets.REPO_PAT }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           ai-pull-request-description: true
+          ai-ignore-files: dist/*
