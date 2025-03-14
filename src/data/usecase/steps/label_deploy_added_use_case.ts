@@ -29,7 +29,6 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
                         .trim();
 
                     const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    // Escape newlines for GitHub Actions workflow
                     const escapedDescription = description.replace(/\n/g, '\\n');
                     
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
