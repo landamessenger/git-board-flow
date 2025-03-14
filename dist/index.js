@@ -40284,7 +40284,6 @@ class DeployAddedUseCase {
                         .replace(/-+/g, '-')
                         .trim();
                     const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    // Escape newlines for GitHub Actions workflow
                     const escapedDescription = description.replace(/\n/g, '\\n');
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
@@ -40317,11 +40316,12 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                         .replace(/-+/g, '-')
                         .trim();
                     const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
+                    const escapedDescription = description.replace(/\n/g, '\\n');
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
                         title: sanitizedTitle,
-                        changelog: description,
+                        changelog: escapedDescription,
                         issue: param.issue.number,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.release, parameters, param.tokens.tokenPat);
