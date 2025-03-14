@@ -152,7 +152,12 @@ export class BranchRepository {
                 return result
             }
 
-            const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
+            const branchTypes = [
+                param.branches.featureTree,
+                param.branches.bugfixTree,
+                param.branches.docsTree,
+                param.branches.choreTree,
+            ];
 
             /**
              * Default base branch name. (ex. [develop])

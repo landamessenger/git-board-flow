@@ -7,6 +7,8 @@ export class Branches {
     bugfixTree: string;
     hotfixTree: string;
     releaseTree: string;
+    docsTree: string;
+    choreTree: string;
 
     get defaultBranch(): string {
         return github.context.payload.repository?.default_branch ?? '';
@@ -19,6 +21,8 @@ export class Branches {
         bugfixTree: string,
         hotfixTree: string,
         releaseTree: string,
+        docsTree: string,
+        choreTree: string,
     ) {
         this.main = main;
         this.development = development;
@@ -26,5 +30,7 @@ export class Branches {
         this.bugfixTree = bugfixTree;
         this.hotfixTree = hotfixTree;
         this.releaseTree = releaseTree;
+        this.docsTree = docsTree;
+        this.choreTree = choreTree;
     }
 }

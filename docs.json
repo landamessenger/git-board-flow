@@ -1,21 +1,51 @@
 {
-  "name": "My Docs",
-  "description": "My documentation site",
+  "name": "Git Board Flow",
+  "description": "A tool for managing Git workflow and board integration",
   "sidebar": [
-  {
-    "group": "Getting Started",
-    "pages": [
-      {
-        "title": "Getting to know docs.page",
-        "href": "/",
-        "icon": "rocket"
-      },
-      {
-        "title": "Next Steps",
-        "href": "/next-steps",
-        "icon": "arrow-right"
-      }
-    ]
-  }
-]
+    {
+      "group": "Getting Started",
+      "pages": [
+        {
+          "title": "Introduction",
+          "href": "/",
+          "icon": "rocket"
+        },
+        {
+          "title": "Configuration",
+          "href": "/configuration",
+          "icon": "settings"
+        },
+        {
+          "title": "Examples",
+          "href": "/examples",
+          "icon": "code"
+        }
+      ]
+    },
+    {
+      "group": "Advanced Topics",
+      "pages": [
+        {
+          "title": "Best Practices",
+          "href": "/best-practices",
+          "icon": "star"
+        },
+        {
+          "title": "Troubleshooting",
+          "href": "/troubleshooting",
+          "icon": "wrench"
+        }
+      ]
+    },
+    {
+      "group": "Support",
+      "pages": [
+        {
+          "title": "Support",
+          "href": "/support",
+          "icon": "help-circle"
+        }
+      ]
+    }
+  ]
 }
