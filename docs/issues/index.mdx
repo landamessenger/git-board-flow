@@ -36,7 +36,7 @@ jobs:
           github-token-personal: ${{ secrets.REPO_PAT }}
 ```
 
-### Automatic Assignment
+### Member Assignment
 
 Git Board Flow rolls the dice for you by automatically assigning newly created issues to a member of the organization or repository.
 
@@ -56,17 +56,19 @@ Git Board Flow rolls the dice for you by automatically assigning newly created i
         - name: Git Board - Issue
           uses: ./
           with:
-            desired-assignees-count: 1
+            desired-assignees-count: 1 // [!code highlight]
   ```
 </Card>
 
-### Automatic Board Assignment
+### Board Assignment
 
 Git Board Flow takes care of organizing your issues by automatically assigning newly created issues to a designated project board, ensuring seamless tracking and management.
 
+<Warning>Linking the issue to a board requires a Personal Access Token (PAT).</Warning>
+
 <Card title="How many boards do you want to work with?" icon="table-columns">
   
-  Define the links to all the boards where you want to track the issue. Linking the issue to a board requires a Personal Access Token (PAT).
+  Define the links to all the boards where you want to track the issue.
 
   ```yml
   jobs:
@@ -80,19 +82,18 @@ Git Board Flow takes care of organizing your issues by automatically assigning n
         - name: Git Board - Issue
           uses: ./
           with:
-            github-token-personal: ${{ secrets.REPO_PAT }}
-            project-urls: https://github.com/orgs/landamessenger/projects/1, https://github.com/orgs/landamessenger/projects/2
+            github-token-personal: ${{ secrets.REPO_PAT }} // [!code highlight]
+            project-urls: https://github.com/orgs/landamessenger/projects/1, https://github.com/orgs/landamessenger/projects/2 // [!code highlight]
   ```
 </Card>
 
-### Automated Branch Management
+### Branch Management
 
 Issues usually require new changes (unless they are inquiries or help requests).
 
 Once members of the organization (or repository) add a specific label, the necessary branches are automatically created to save time and effort for developers.
 
 Some types of issues (`hotfix` and `release`) create branches automatically. This only happens when the issue creator is a member of the organization.
-
 
 <Card title="How to branch issues" icon="code-branch">
   
@@ -110,7 +111,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
         - name: Git Board - Issue
           uses: ./
           with:
-            branch-management-launcher-label: branched
+            branch-management-launcher-label: branched // [!code highlight]
   ```
 </Card>
 
