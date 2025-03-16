@@ -43,7 +43,7 @@
         {
           "title": "Feature",
           "href": "/issues/feature",
-          "icon": "sparkles"
+          "icon": "star-filled"
         },
         {
           "title": "Bugfix",
