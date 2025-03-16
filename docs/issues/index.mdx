@@ -64,6 +64,27 @@ Git Board Flow rolls the dice for you by automatically assigning newly created i
 
 Git Board Flow takes care of organizing your issues by automatically assigning newly created issues to a designated project board, ensuring seamless tracking and management.
 
+<Card title="How many boards do you want to work with?" icon="table-columns">
+  
+  Define the links to all the boards where you want to track the issue. Linking the issue to a board requires a Personal Access Token (PAT).
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            github-token-personal: ${{ secrets.REPO_PAT }}
+            project-urls: https://github.com/orgs/landamessenger/projects/1, https://github.com/orgs/landamessenger/projects/2
+  ```
+</Card>
+
 ### Automated Branch Management
 
 Issues usually require new changes (unless they are inquiries or help requests).
