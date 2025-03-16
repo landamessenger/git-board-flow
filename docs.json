@@ -26,6 +26,7 @@
   "sidebar": [
     {
       "group": "Getting Started",
+      "tab": "root",
       "pages": [
         {
           "title": "Introduction",
@@ -46,6 +47,7 @@
     },
     {
       "group": "Issues",
+      "tab": "issues",
       "pages": [
         {
           "title": "General",
@@ -90,17 +92,34 @@
       ]
     },
     {
-      "group": "Advanced Topics",
+      "group": "Pull Requests",
+      "tab": "pull-requests",
       "pages": [
         {
-          "title": "Best Practices",
-          "href": "/best-practices",
-          "icon": "star"
+          "title": "General",
+          "href": "/issues/",
+          "icon": "book"
         },
         {
-          "title": "Troubleshooting",
-          "href": "/troubleshooting",
-          "icon": "wrench"
+          "title": "Configuration",
+          "href": "/issues/configuration",
+          "icon": "gear"
+        }
+      ]
+    },
+    {
+      "group": "Single Action",
+      "tab": "single-action",
+      "pages": [
+        {
+          "title": "General",
+          "href": "/issues/",
+          "icon": "book"
+        },
+        {
+          "title": "Configuration",
+          "href": "/issues/configuration",
+          "icon": "gear"
         }
       ]
     },
