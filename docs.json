@@ -34,14 +34,9 @@
           "icon": "rocket"
         },
         {
-          "title": "Configuration",
-          "href": "/configuration",
-          "icon": "settings"
-        },
-        {
-          "title": "Examples",
-          "href": "/examples",
-          "icon": "code"
+          "title": "Features",
+          "href": "/features",
+          "icon": "lightbulb"
         }
       ]
     },
@@ -58,7 +53,13 @@
           "title": "Configuration",
           "href": "/issues/configuration",
           "icon": "gear"
-        },
+        }
+      ]
+    },
+    {
+      "group": "Types",
+      "tab": "issues",
+      "pages": [
         {
           "title": "Documentation",
           "href": "/issues/type/docs",
