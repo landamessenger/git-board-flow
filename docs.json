@@ -1,6 +1,28 @@
 {
   "name": "Git Board Flow",
   "description": "A tool for managing Git workflow and board integration",
+  "tabs": [
+    {
+      "id": "root",
+      "title": "Home",
+      "href": "/"
+    },
+    {
+      "id": "issues",
+      "title": "Issues",
+      "href": "/issues"
+    },
+    {
+      "id": "pull-requests",
+      "title": "Pull Requests",
+      "href": "/pull-requests"
+    },
+    {
+      "id": "single-action",
+      "title": "Single Action",
+      "href": "/single-action"
+    }
+  ],
   "sidebar": [
     {
       "group": "Getting Started",
@@ -31,44 +53,39 @@
           "icon": "book"
         },
         {
-          "title": "General",
+          "title": "Configuration",
           "href": "/issues/configuration",
           "icon": "gear"
         },
         {
-          "group": "Types",
-          "pages": [
-            {
-              "title": "Documentation",
-              "href": "/issues/type/docs",
-              "icon": "file-text"
-            },
-            {
-              "title": "Chore",
-              "href": "/issues/type/chore",
-              "icon": "wrench"
-            },
-            {
-              "title": "Feature",
-              "href": "/issues/type/feature",
-              "icon": "lightbulb"
-            },
-            {
-              "title": "Bugfix",
-              "href": "/issues/type/bugfix",
-              "icon": "bug"
-            },
-            {
-              "title": "Hotfix",
-              "href": "/issues/type/hotfix",
-              "icon": "fire"
-            },
-            {
-              "title": "Release",
-              "href": "/issues/type/release",
-              "icon": "tag"
-            }
-          ]
+          "title": "Documentation",
+          "href": "/issues/type/docs",
+          "icon": "file-text"
+        },
+        {
+          "title": "Chore",
+          "href": "/issues/type/chore",
+          "icon": "wrench"
+        },
+        {
+          "title": "Feature",
+          "href": "/issues/type/feature",
+          "icon": "lightbulb"
+        },
+        {
+          "title": "Bugfix",
+          "href": "/issues/type/bugfix",
+          "icon": "bug"
+        },
+        {
+          "title": "Hotfix",
+          "href": "/issues/type/hotfix",
+          "icon": "fire"
+        },
+        {
+          "title": "Release",
+          "href": "/issues/type/release",
+          "icon": "tag"
         }
       ]
     },
