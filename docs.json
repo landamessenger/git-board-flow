@@ -27,38 +27,48 @@
       "pages": [
         {
           "title": "General",
-          "href": "/issues/index",
+          "href": "/issues/",
           "icon": "book"
         },
         {
-          "title": "Documentation",
-          "href": "/issues/docs",
-          "icon": "file-text"
+          "title": "General",
+          "href": "/issues/configuration",
+          "icon": "gear"
         },
         {
-          "title": "Chore",
-          "href": "/issues/chore",
-          "icon": "wrench"
-        },
-        {
-          "title": "Feature",
-          "href": "/issues/feature",
-          "icon": "lightbulb"
-        },
-        {
-          "title": "Bugfix",
-          "href": "/issues/bugfix",
-          "icon": "bug"
-        },
-        {
-          "title": "Hotfix",
-          "href": "/issues/hotfix",
-          "icon": "fire"
-        },
-        {
-          "title": "Release",
-          "href": "/issues/release",
-          "icon": "tag"
+          "group": "Types",
+          "pages": [
+            {
+              "title": "Documentation",
+              "href": "/issues/type/docs",
+              "icon": "file-text"
+            },
+            {
+              "title": "Chore",
+              "href": "/issues/type/chore",
+              "icon": "wrench"
+            },
+            {
+              "title": "Feature",
+              "href": "/issues/type/feature",
+              "icon": "lightbulb"
+            },
+            {
+              "title": "Bugfix",
+              "href": "/issues/type/bugfix",
+              "icon": "bug"
+            },
+            {
+              "title": "Hotfix",
+              "href": "/issues/type/hotfix",
+              "icon": "fire"
+            },
+            {
+              "title": "Release",
+              "href": "/issues/type/release",
+              "icon": "tag"
+            }
+          ]
         }
       ]
     },
