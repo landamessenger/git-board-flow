@@ -40,8 +40,24 @@ jobs:
 
 Git Board Flow rolls the dice for you by automatically assigning newly created issues to a member of the organization or repository.
 
-<Card title="Info" icon="info">
-  The issue is assigned to its creator if they belong to the organization
+<Card title="How many members do we assign?" icon="person-circle-exclamation">
+  
+  The issue is assigned to its creator if they belong to the organization. We will assign additional members if needed.
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            desired-assignees-count: 1
+  ```
 </Card>
 
 ### Automatic Board Assignment
@@ -73,7 +89,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
         - name: Git Board - Issue
           uses: ./
           with:
-            branch-management-launcher-label: "branched"
+            branch-management-launcher-label: branched
   ```
 </Card>
 
