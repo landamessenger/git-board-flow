@@ -115,6 +115,34 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
   ```
 </Card>
 
+<Card title="Naming convenions" icon="i-cursor">
+  `main` or `master`? `develop` or `dev`? `feature` or `feat`?
+
+  You can define the branch naming convention that best suits your project. Here are all the possibilities and their default values:
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            main-branch: master // [!code highlight]
+            development-branch: develop // [!code highlight]
+            docs-tree: docs // [!code highlight]
+            chore-tree: chore // [!code highlight]
+            feature-tree: feature // [!code highlight]
+            bugfix-tree: bugfix // [!code highlight]
+            hotfix-tree: hotfix // [!code highlight]
+            release-tree: release // [!code highlight]
+  ```
+</Card>
+
 ### Smart Workflow Guidance
 
 Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Git-Board-Flow will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
