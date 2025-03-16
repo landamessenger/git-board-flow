@@ -1,9 +1,11 @@
 ---
 title: Issues
-description: Detailed configuration options for Git Board Flow
+description: Boosted and connected issues.
 ---
 
-To enable the GitHub Action for issues, you need to create a workflow with the following configuration.
+Git Board Flow automates issue tracking, ensuring smooth branch management and seamless project integration.  
+
+To enable the GitHub Action for issues, create a workflow with the following configuration:  
 
 ```yml
 name: Git Board Flow - Issue
@@ -33,4 +35,57 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
 ```
+
+### Automatic Assignment
+
+Git Board Flow rolls the dice for you by automatically assigning newly created issues to a member of the organization or repository.
+
+<Card title="Info" icon="info">
+  The issue is assigned to its creator if they belong to the organization
+</Card>
+
+### Automatic Board Assignment
+
+Git Board Flow takes care of organizing your issues by automatically assigning newly created issues to a designated project board, ensuring seamless tracking and management.
+
+### Automated Branch Management
+
+Issues usually require new changes (unless they are inquiries or help requests).
+
+Once members of the organization (or repository) add a specific label, the necessary branches are automatically created to save time and effort for developers.
+
+Some types of issues (`hotfix` and `release`) create branches automatically. This only happens when the issue creator is a member of the organization.
+
+
+<Card title="How to branch issues" icon="code-branch">
+  
+  `branched` is the default label for running this branch management on non-mandatory branched issues.
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            branch-management-launcher-label: "branched"
+  ```
+</Card>
+
+### Smart Workflow Guidance
+
+Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Git-Board-Flow will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
+
+### Real-Time Code Tracking
+
+Issues take time to be resolved, and interest in their progress increases. Therefore, any changes in the branches created by the issue will be notified as comments, providing real-time feedback on the issue's progress.
+
+### Auto-Closure
+
+Forget about closing issues when development is complete, Git-Board-Flow will automatically close them once the branches created by the issue are successfully merged.
 
