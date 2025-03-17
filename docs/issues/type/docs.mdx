@@ -3,4 +3,44 @@ title: Docs
 description: Everything about documentation-type issues.
 ---
 
-Sample here.
+Documentation issues are used to track tasks related to improving or creating documentation in the project. These issues help maintain and enhance the project's documentation quality.
+
+## Label
+
+All documentation issues are created with the `docs` label.
+
+<Card title="Configuration" icon="tag">
+  
+  `docs` is the default label for creating a docs-type issue. You can configure the label for this type of issue as follows:
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            docs-label: docs // [!code highlight]
+  ```
+</Card>
+
+## Branch Naming
+
+When working on a documentation issue, create a new branch following this pattern:
+
+```
+docs/NUM-issue-name
+```
+
+For example:
+```
+docs/123-update-readme-instructions
+```
+
+The branch should be created from the development branch (`develop` by default).
+
