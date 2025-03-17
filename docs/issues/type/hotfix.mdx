@@ -190,6 +190,30 @@ The hotfix process follows these steps after creating an issue with `hotfix` and
 
 This workflow ensures that critical fixes reach production quickly while maintaining code quality and proper version control. The process is designed to minimize disruption while addressing urgent issues.
 
+<Warning>Deploy workflow files should be located in the `.github/workflows` directory of your repository.</Warning>
+
+<Card title="How do I trigger the hotfix deployment?" icon="code-branch">
+  Once your bug fix is merged into the `hotfix` branch and ready for deployment, simply add the **deploy-label** to the issue. This will automatically trigger the hotfix deployment workflow.
+
+  By default, the deployment is triggered with the `deploy` label and uses the `hotfix_workflow.yml` workflow file. You can customize these settings as shown below:
+  
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            deploy-label: deploy // [!code highlight]
+            hotfix-workflow: hotfix_workflow.yml // [!code highlight]
+  ```
+</Card>
+
 ## Example
 
 For a hotfix issue #123 fixing a critical login bug:
