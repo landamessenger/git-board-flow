@@ -89,5 +89,94 @@ jobs:
       - name: Git Board - Issue
         uses: ./
         with:
-          images-issue-docs: url1, url2, url3
+          images-issue-docs: url1, url2, url3 // [!code highlight]
+```
+
+<Image zoom src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHNrY2JseXlwNmY3bTI2aDd3eXp4N2pjMHJtNDBiYWg3OHE3Zmd5aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ROlbnsc7aCIL6Icq6h/giphy.gif" />
+
+## Template
+
+You can use this template for documentation issues that helps capture all the necessary information. The template includes fields for:
+
+- Checking for duplicate issues
+- Selecting which part of the documentation needs updating
+- Describing the proposed changes
+- Explaining why the update is needed
+- Adding additional context and resources
+
+You can find this template in `.github/ISSUE_TEMPLATE/doc_update.yml`. Below is an example of how the template looks when creating a new documentation issue:
+
+```yml
+name: 📝 Documentation Update
+description: Propose changes or improvements to the documentation
+title: "<YOUR TITLE HERE>"
+labels: ["documentation", "docs"] // [!code highlight]
+body:
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: |
+        Please search to see if an issue already exists for what you are proposing.
+      options:
+        - label: I have searched the existing issues.
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: dropdown
+    id: docs_scope
+    attributes:
+      label: What part of the documentation needs an update?
+      multiple: false
+      options:
+        - README.md
+        - Wiki
+        - API Documentation
+        - Inline Code Comments
+        - Other
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    attributes:
+      label: Describe the documentation update
+      description: |
+        Provide a clear and detailed explanation of what should be updated or added.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Why is this update needed?
+      description: |
+        Explain what issues or gaps this update is addressing.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Additional resources
+      description: |
+        If you have any external links, references, or examples, include them here.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    id: comments
+    attributes:
+      label: Additional context or comments
+      description: |
+        Add any additional context or suggestions related to this documentation update.
+
 ```
