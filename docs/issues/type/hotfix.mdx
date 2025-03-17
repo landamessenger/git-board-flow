@@ -3,4 +3,201 @@ title: Hotfix
 description: Everything about hotfix-type issues.
 ---
 
-Sample here.
+Hotfix issues are used to track and resolve critical bugs that need immediate attention in the production environment. These issues help maintain the stability of the production codebase by addressing urgent problems that affect functionality.
+
+## Label
+
+All hotfix issues are created with the `hotfix-label`. The default label for creating a hotfix-type issue is `hotfix`. You can configure this label as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          hotfix-label: hotfix // [!code highlight]
+```
+
+## Naming
+
+The default tree for creating hotfix branches is `hotfix`. You can configure this tree name as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          hotfix-tree: hotfix // [!code highlight]
+```
+
+Hotfix branches follow this naming convention:
+
+```
+hotfix/NUM-ISSUE-issue-name
+```
+
+For example:
+```
+hotfix/123-fix-critical-login-issue
+```
+
+## Source
+
+Hotfix branches are created from the master branch, specifically from the latest published tag. This ensures that hotfixes are based on the most recent stable production code. You can configure the master branch name as shown below:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          main-branch: master // [!code highlight]
+```
+
+## Images
+
+You can configure custom images to be displayed in the comments of hotfix issues. These images will be randomly selected and displayed when Git Board Flow performs actions on the issue.
+
+To configure the images, provide a comma-separated list of image URLs in the `images-issue-hotfix` input:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          images-issue-hotfix: url1, url2, url3 // [!code highlight]
+```
+
+<Image zoom src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHNrY2JseXlwNmY3bTI2aDd3eXp4N2pjMHJtNDBiYWg3OHE3Zmd5aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ROlbnsc7aCIL6Icq6h/giphy.gif" />
+
+## Template
+You can use this template for hotfix issues that helps capture all the necessary information. The template includes fields for:
+
+- Base version selection
+- Hotfix version specification 
+- Detailed issue description
+- Proposed hotfix solution
+- Additional context and comments
+
+You can find this template in `.github/ISSUE_TEMPLATE/hotfix.yml`. Below is an example of how the template looks when creating a new hotfix issue:
+
+```yml
+name: 🔥 Hotfix Issue
+
+description: Request a new hotfix for git-board-flow (only team members)
+title: "<YOUR TITLE HERE>"
+labels: [ "hotfix", "branched" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### ⚠️ Disclaimer
+        > **Only members of the git-board-flow team can create hotfix issues.**
+        > Any hotfix issue created by someone outside the team will be closed automatically.
+
+        ---
+
+  - type: input
+    id: base_version
+    attributes:
+      label: Base Version
+      description: |
+        The base version is typically the most recent tag version. However, you can specify a different version tag if you'd like to start from a specific version for this hotfix.
+      placeholder: "e.g., 1.2.3"
+      value: "Automatic"
+    validations:
+      required: false
+
+  - type: input
+    id: hotfix_version
+    attributes:
+      label: Hotfix Version
+      description: |
+        By default, the version will increment the patch number of the most recent tag version (e.g., from 1.2.3 to 1.2.4). You can specify a different version number for the hotfix if needed.
+      placeholder: "e.g., 1.2.4"
+      value: "Automatic"
+    validations:
+      required: false
+
+  - type: textarea
+    id: issue_description
+    attributes:
+      label: Issue Description
+      description: |
+        Provide a detailed description of the issue this hotfix is addressing.
+      placeholder: "Describe the issue being fixed."
+    validations:
+      required: true
+
+  - type: textarea
+    id: hotfix_solution
+    attributes:
+      label: Hotfix Solution
+      description: |
+        Explain the solution being implemented in this hotfix.
+      placeholder: "Describe the solution."
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: |
+        Add any additional details or context about this hotfix request.
+      placeholder: "Anything else to note?"
+```
+
+## Workflow
+
+The hotfix process follows these steps after creating an issue with `hotfix` and `branched` labels:
+
+1. A hotfix branch is created from `master` at the latest tag version
+2. A bugfix branch is created from the hotfix branch to implement the fix
+3. The needed changes are applied on the bugfix branch
+4. The bugfix is merged back into the hotfix branch via Pull Request
+5. A new version is deployed from the hotfix branch by adding the `deploy` label to the issue
+6. After successful deployment, the hotfix branch is merged:
+   - First into `master` with the new version tag
+   - Then into `develop` to keep changes synchronized
+7. The issue is automatically closed with the `deployed` label once the process completes
+
+This workflow ensures that critical fixes reach production quickly while maintaining code quality and proper version control. The process is designed to minimize disruption while addressing urgent issues.
+
+## Example
+
+For a hotfix issue #123 fixing a critical login bug:
+
+1. Hotfix branch created: `hotfix/1.2.4`
+2. Bugfix branch created: `bugfix/123-fix-critical-login`
+3. Fix implemented and tested on bugfix branch
+4. PR merged into `hotfix/1.2.4`
+5. Version 1.2.4 deployed to production
+6. Changes merged to `master` and `develop`
+
