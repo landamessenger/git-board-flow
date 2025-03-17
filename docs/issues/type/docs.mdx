@@ -31,27 +31,22 @@ All documentation issues are created with the `docs-label`.
 
 ## Branch Naming
 
-When working on a documentation issue, create a new branch following this pattern:
+The default tree for creating documentation branches is `docs`. You can configure this tree name as follows:
 
-<Card title="Naming convention" icon="i-cursor">
-  
-  The default tree for creating documentation branches is `docs`. You can configure this tree name as follows:
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-  ```yml
-  jobs:
-    git-board-issues:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        - name: Git Board - Issue
-          uses: ./
-          with:
-            docs-tree: docs // [!code highlight]
-  ```
-</Card>
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          docs-tree: docs // [!code highlight]
+```
 
 ```
 docs/NUM-ISSUE-issue-name
@@ -64,24 +59,21 @@ docs/123-update-readme-instructions
 
 ## Branch Origin
 
-Documentation branches are created from the development branch by default.
+Documentation branches are created from the development branch.
 
-<Card title="Branch Source Configuration" icon="code-branch">
-  
-  By default, documentation branches are created from the `develop` branch. You can configure the development branch name as shown below:
+By default, documentation branches are created from the `develop` branch. You can configure the development branch name as shown below:
 
-  ```yml
-  jobs:
-    git-board-issues:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-        - name: Git Board - Issue
-          uses: ./
-          with:
-            development-branch: develop // [!code highlight]
-  ```
-</Card>
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          development-branch: develop // [!code highlight]
+```
