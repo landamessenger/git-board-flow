@@ -7,9 +7,9 @@ Documentation issues are used to track tasks related to improving or creating do
 
 ## Label
 
-All documentation issues are created with the `docs` label.
+All documentation issues are created with the `docs-label`.
 
-<Card title="Configuration" icon="tag">
+<Card title="How do I run it?" icon="tag">
   
   `docs` is the default label for creating a docs-type issue. You can configure the label for this type of issue as follows:
 
@@ -33,8 +33,28 @@ All documentation issues are created with the `docs` label.
 
 When working on a documentation issue, create a new branch following this pattern:
 
+<Card title="Naming convenion" icon="i-cursor">
+  
+  `docs` is the default tree for creating documentation branches. You can configure the tree name for this type of branch as follows:
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            docs-tree: docs // [!code highlight]
+  ```
+</Card>
+
 ```
-docs/NUM-issue-name
+docs/NUM-ISSUE-issue-name
 ```
 
 For example:
@@ -42,5 +62,26 @@ For example:
 docs/123-update-readme-instructions
 ```
 
-The branch should be created from the development branch (`develop` by default).
+### Branch Origin
 
+The branch will be created from the development branch.
+
+<Card title="Branch Source Configuration" icon="code-branch">
+  
+  Documentation branches are created from the `develop` branch by default. You can configure the development branch name as shown below.
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            development-branch: develop // [!code highlight]
+  ```
+</Card>
