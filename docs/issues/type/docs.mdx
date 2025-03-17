@@ -5,7 +5,7 @@ description: Everything about documentation-type issues.
 
 Documentation issues are used to track tasks related to improving or creating documentation in the project. These issues help maintain and enhance the project's documentation quality.
 
-## <Icon name="tag" size={24} /> Label
+## Label
 
 All documentation issues are created with the `docs-label`. The default label for creating a docs-type issue is `docs`. You can configure this label as follows:
 
@@ -24,7 +24,7 @@ jobs:
           docs-label: docs // [!code highlight]
 ```
 
-## <Icon name="i-cursor" size={32} /> Naming
+## Naming
 
 The default tree for creating documentation branches is `docs`. You can configure this tree name as follows:
 
@@ -52,7 +52,7 @@ For example:
 docs/123-update-readme-instructions
 ```
 
-## <Icon name="code-branch" /> Source
+## Source
 
 Documentation branches are created from the development branch. By default, documentation branches are created from the `develop` branch. You can configure the development branch name as shown below:
 
@@ -69,4 +69,25 @@ jobs:
         uses: ./
         with:
           development-branch: develop // [!code highlight]
+```
+
+## Images
+
+You can configure custom images to be displayed in the comments of documentation issues. These images will be randomly selected and displayed when Git Board Flow performs actions on the issue.
+
+To configure the images, provide a comma-separated list of image URLs in the `images-issue-docs` input:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          images-issue-docs: url1, url2, url3
 ```
