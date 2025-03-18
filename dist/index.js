@@ -36249,10 +36249,10 @@ class Execution {
         return this.isIssue && !this.isBranched;
     }
     get managementBranch() {
-        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release, this.labels.docs, this.labels.chore);
+        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentIssueLabels, this.labels.feature, this.labels.enhancement, this.labels.bugfix, this.labels.bug, this.labels.hotfix, this.labels.release, this.labels.docs, this.labels.documentation, this.labels.chore, this.labels.maintenance);
     }
     get issueType() {
-        return (0, label_utils_1.typesForIssue)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release, this.labels.docs, this.labels.chore);
+        return (0, label_utils_1.typesForIssue)(this, this.labels.currentIssueLabels, this.labels.feature, this.labels.enhancement, this.labels.bugfix, this.labels.bug, this.labels.hotfix, this.labels.release, this.labels.docs, this.labels.documentation, this.labels.chore, this.labels.maintenance);
     }
     get cleanIssueBranches() {
         return this.isIssue
@@ -36578,10 +36578,16 @@ class Labels {
     get isDocs() {
         return this.currentIssueLabels.includes(this.docs);
     }
+    get isDocumentation() {
+        return this.currentIssueLabels.includes(this.documentation);
+    }
     get isChore() {
         return this.currentIssueLabels.includes(this.chore);
     }
-    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, chore) {
+    get isMaintenance() {
+        return this.currentIssueLabels.includes(this.maintenance);
+    }
+    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, documentation, chore, maintenance) {
         this.currentIssueLabels = [];
         this.currentPullRequestLabels = [];
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
@@ -36596,7 +36602,9 @@ class Labels {
         this.deploy = deploy;
         this.deployed = deployed;
         this.docs = docs;
+        this.documentation = documentation;
         this.chore = chore;
+        this.maintenance = maintenance;
     }
 }
 exports.Labels = Labels;
@@ -37559,10 +37567,10 @@ class IssueRepository {
                 else if ((labels.isFeature || labels.isEnhancement) && branched) {
                     emoji = `✨${branchManagementEmoji}`;
                 }
-                else if (labels.isDocs && branched) {
+                else if ((labels.isDocs || labels.isDocumentation) && branched) {
                     emoji = `📝${branchManagementEmoji}`;
                 }
-                else if (labels.isChore && branched) {
+                else if ((labels.isChore || labels.isMaintenance) && branched) {
                     emoji = `🔧${branchManagementEmoji}`;
                 }
                 else if (labels.isHotfix) {
@@ -37571,10 +37579,10 @@ class IssueRepository {
                 else if (labels.isRelease) {
                     emoji = '🚀';
                 }
-                else if (labels.isDocs) {
+                else if ((labels.isDocs || labels.isDocumentation)) {
                     emoji = '📝';
                 }
-                else if (labels.isChore) {
+                else if (labels.isChore || labels.isMaintenance) {
                     emoji = '🔧';
                 }
                 else if (labels.isBugfix || labels.isBug) {
@@ -41695,31 +41703,35 @@ exports.injectJsonAsMarkdownBlock = injectJsonAsMarkdownBlock;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.typesForIssue = exports.branchesForManagement = void 0;
-const branchesForManagement = (params, labels, bugfixLabel, hotfixLabel, releaseLabel, docsLabel, choreLabel) => {
+const branchesForManagement = (params, labels, featureLabel, enhancementLabel, bugfixLabel, bugLabel, hotfixLabel, releaseLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel) => {
     if (labels.includes(hotfixLabel))
         return params.branches.bugfixTree;
-    if (labels.includes(bugfixLabel))
+    if (labels.includes(bugfixLabel) || labels.includes(bugLabel))
         return params.branches.bugfixTree;
     if (labels.includes(releaseLabel))
         return params.branches.releaseTree;
-    if (labels.includes(docsLabel))
+    if (labels.includes(docsLabel) || labels.includes(documentationLabel))
         return params.branches.docsTree;
-    if (labels.includes(choreLabel))
+    if (labels.includes(choreLabel) || labels.includes(maintenanceLabel))
         return params.branches.choreTree;
+    if (labels.includes(featureLabel) || labels.includes(enhancementLabel))
+        return params.branches.featureTree;
     return params.branches.featureTree;
 };
 exports.branchesForManagement = branchesForManagement;
-const typesForIssue = (params, labels, bugfixLabel, hotfixLabel, releaseLabel, docsLabel, choreLabel) => {
+const typesForIssue = (params, labels, featureLabel, enhancementLabel, bugfixLabel, bugLabel, hotfixLabel, releaseLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel) => {
     if (labels.includes(hotfixLabel))
         return params.branches.hotfixTree;
-    if (labels.includes(bugfixLabel))
+    if (labels.includes(bugfixLabel) || labels.includes(bugLabel))
         return params.branches.bugfixTree;
     if (labels.includes(releaseLabel))
         return params.branches.releaseTree;
-    if (labels.includes(docsLabel))
+    if (labels.includes(docsLabel) || labels.includes(documentationLabel))
         return params.branches.docsTree;
-    if (labels.includes(choreLabel))
+    if (labels.includes(choreLabel) || labels.includes(maintenanceLabel))
         return params.branches.choreTree;
+    if (labels.includes(featureLabel) || labels.includes(enhancementLabel))
+        return params.branches.featureTree;
     return params.branches.featureTree;
 };
 exports.typesForIssue = typesForIssue;
@@ -42074,7 +42086,9 @@ async function run() {
     const deployLabel = core.getInput('deploy-label');
     const deployedLabel = core.getInput('deployed-label');
     const docsLabel = core.getInput('docs-label');
+    const documentationLabel = core.getInput('documentation-label');
     const choreLabel = core.getInput('chore-label');
+    const maintenanceLabel = core.getInput('maintenance-label');
     /**
      * Branches
      */
@@ -42102,7 +42116,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, choreLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
