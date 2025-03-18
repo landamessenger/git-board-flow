@@ -1,0 +1,214 @@
+---
+title: Bugfix
+description: Everything about bug-type issues.
+---
+
+Bugfix issues are used to track and resolve bugs in the project. These issues help maintain the quality and reliability of the codebase by addressing problems that affect functionality.
+
+## Label
+
+All bugfix issues are created with the `bugfix-label`. The default label for creating a bugfix-type issue is `bugfix`. You can configure this label as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          bugfix-label: bugfix // [!code highlight]
+```
+
+## Naming
+
+The default tree for creating bugfix branches is `bugfix`. You can configure this tree name as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          bugfix-tree: bugfix // [!code highlight]
+```
+
+Bugfix branches follow this naming convention:
+
+```
+bugfix/NUM-ISSUE-issue-name
+```
+
+For example:
+```
+bugfix/123-fix-login-validation
+```
+
+## Source
+
+Bugfix branches are created from the development branch. By default, bugfix branches are created from the `develop` branch. You can configure the development branch name as shown below:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          development-branch: develop // [!code highlight]
+```
+
+## Images
+
+You can configure custom images to be displayed in the comments of bugfix issues. These images will be randomly selected and displayed when Git Board Flow performs actions on the issue.
+
+To configure the images, provide a comma-separated list of image URLs in the `images-issue-bugfix` input:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          images-issue-bugfix: url1, url2, url3 // [!code highlight]
+```
+
+<Image zoom src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHNrY2JseXlwNmY3bTI2aDd3eXp4N2pjMHJtNDBiYWg3OHE3Zmd5aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ROlbnsc7aCIL6Icq6h/giphy.gif" />
+
+## Template
+
+You can use this template for bugfix issues that helps capture all the necessary information. The template includes fields for:
+
+- Checking for duplicate issues
+- Selecting affected actions and platforms
+- Providing a detailed bug description
+- Including steps to reproduce
+- Specifying git-board-flow version
+- Adding relevant log output
+- Including additional context and comments
+
+You can find this template in `.github/ISSUE_TEMPLATE/bug_report.yml`. Below is an example of how the template looks when creating a new bugfix issue:
+
+```yml
+name: 🐛 Bug Report
+description: Report a bug on git-board-flow
+title: "<YOUR TITLE HERE>"
+labels: ["bug", "bugfix"]
+body:
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: |
+        Please search to see if an issue already exists for the bug you encountered.
+      options:
+        - label: I have searched the existing issues.
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: dropdown
+    id: plugins
+    attributes:
+      label: Which actions are affected?
+      multiple: true
+      options:
+        - Issue
+        - Pull Request
+        - Commits
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Which platforms are affected?
+      multiple: true
+      options:
+        - macOS
+        - Windows
+        - Linux
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    attributes:
+      label: Description
+      description: |
+        Describe the issue. Explain what you _expected_ to happen and what
+        _actually_ happened.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Reproducing the issue
+      description: |
+        Please provide either **steps to reproduce** or a [**minimal reproducible example**](https://stackoverflow.com/help/minimal-reproducible-example).
+        Providing a minimal reproducible example will help us triage your issue
+        faster.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: input
+    attributes:
+      label: git-board-flow Version
+      description: What version of git-board-flow is being used?
+      placeholder: "master"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    attributes:
+      label: Relevant Log Output
+      description: |
+        Please copy and paste any relevant log output.
+      placeholder: |
+        Paste your logs here. Please redact any personally identifiable
+        information. This will be automatically formatted into code, so no
+        need for backticks.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: comments
+    attributes:
+      label: Additional context and comments
+      description: |
+        Anything else you want to add for this issue?
+```

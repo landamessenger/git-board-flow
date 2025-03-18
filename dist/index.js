@@ -36041,13 +36041,15 @@ class Branches {
     get defaultBranch() {
         return github.context.payload.repository?.default_branch ?? '';
     }
-    constructor(main, development, featureTree, bugfixTree, hotfixTree, releaseTree) {
+    constructor(main, development, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree) {
         this.main = main;
         this.development = development;
         this.featureTree = featureTree;
         this.bugfixTree = bugfixTree;
         this.hotfixTree = hotfixTree;
         this.releaseTree = releaseTree;
+        this.docsTree = docsTree;
+        this.choreTree = choreTree;
     }
 }
 exports.Branches = Branches;
@@ -36227,10 +36229,16 @@ class Execution {
         return github.context.repo.owner;
     }
     get isFeature() {
-        return this.issueType === 'feature';
+        return this.issueType === this.branches.featureTree;
     }
     get isBugfix() {
-        return this.issueType === 'bugfix';
+        return this.issueType === this.branches.bugfixTree;
+    }
+    get isDocs() {
+        return this.issueType === this.branches.docsTree;
+    }
+    get isChore() {
+        return this.issueType === this.branches.choreTree;
     }
     get isBranched() {
         return this.issue.branchManagementAlways ||
@@ -36241,10 +36249,10 @@ class Execution {
         return this.isIssue && !this.isBranched;
     }
     get managementBranch() {
-        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
+        return (0, label_utils_1.branchesForManagement)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release, this.labels.docs, this.labels.chore);
     }
     get issueType() {
-        return (0, label_utils_1.typesForIssue)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release);
+        return (0, label_utils_1.typesForIssue)(this, this.labels.currentIssueLabels, this.labels.bugfix, this.labels.hotfix, this.labels.release, this.labels.docs, this.labels.chore);
     }
     get cleanIssueBranches() {
         return this.isIssue
@@ -36430,12 +36438,14 @@ exports.Hotfix = Hotfix;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Images = void 0;
 class Images {
-    constructor(cleanUpGifs, featureGifs, bugfixGifs, releaseGifs, hotfixGifs, prLinkGifs) {
+    constructor(cleanUpGifs, featureGifs, bugfixGifs, docsGifs, choreGifs, releaseGifs, hotfixGifs, prLinkGifs) {
         this.issueAutomaticActions = cleanUpGifs;
         this.issueFeatureGifs = featureGifs;
         this.issueBugfixGifs = bugfixGifs;
         this.issueReleaseGifs = releaseGifs;
         this.issueHotfixGifs = hotfixGifs;
+        this.issueDocsGifs = docsGifs;
+        this.issueChoreGifs = choreGifs;
         this.pullRequestAutomaticActions = prLinkGifs;
     }
 }
@@ -36565,7 +36575,13 @@ class Labels {
     get isRelease() {
         return this.currentIssueLabels.includes(this.release);
     }
-    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed) {
+    get isDocs() {
+        return this.currentIssueLabels.includes(this.docs);
+    }
+    get isChore() {
+        return this.currentIssueLabels.includes(this.chore);
+    }
+    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, chore) {
         this.currentIssueLabels = [];
         this.currentPullRequestLabels = [];
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
@@ -36579,6 +36595,8 @@ class Labels {
         this.help = help;
         this.deploy = deploy;
         this.deployed = deployed;
+        this.docs = docs;
+        this.chore = chore;
     }
 }
 exports.Labels = Labels;
@@ -37078,7 +37096,12 @@ class BranchRepository {
                     }));
                     return result;
                 }
-                const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
+                const branchTypes = [
+                    param.branches.featureTree,
+                    param.branches.bugfixTree,
+                    param.branches.docsTree,
+                    param.branches.choreTree,
+                ];
                 /**
                  * Default base branch name. (ex. [develop])
                  */
@@ -37547,11 +37570,23 @@ class IssueRepository {
                 else if ((labels.isFeature || labels.isEnhancement) && branched) {
                     emoji = `✨${branchManagementEmoji}`;
                 }
+                else if (labels.isDocs && branched) {
+                    emoji = `📝${branchManagementEmoji}`;
+                }
+                else if (labels.isChore && branched) {
+                    emoji = `🔧${branchManagementEmoji}`;
+                }
                 else if (labels.isHotfix) {
                     emoji = '🔥';
                 }
                 else if (labels.isRelease) {
                     emoji = '🚀';
+                }
+                else if (labels.isDocs) {
+                    emoji = '📝';
+                }
+                else if (labels.isChore) {
+                    emoji = '🔧';
                 }
                 else if (labels.isBugfix || labels.isBug) {
                     emoji = '🐛';
@@ -37613,6 +37648,12 @@ class IssueRepository {
                 else if ((labels.isFeature || labels.isEnhancement) && branched) {
                     emoji = `✨${branchManagementEmoji}`;
                 }
+                else if (labels.isDocs && branched) {
+                    emoji = `📝${branchManagementEmoji}`;
+                }
+                else if (labels.isChore && branched) {
+                    emoji = `🔧${branchManagementEmoji}`;
+                }
                 else if (labels.isHotfix) {
                     emoji = '🔥';
                 }
@@ -37624,6 +37665,12 @@ class IssueRepository {
                 }
                 else if (labels.isFeature || labels.isEnhancement) {
                     emoji = '✨';
+                }
+                else if (labels.isDocs) {
+                    emoji = '📝';
+                }
+                else if (labels.isChore) {
+                    emoji = '🔧';
                 }
                 else if (labels.isHelp) {
                     emoji = '🆘';
@@ -38774,6 +38821,14 @@ class PublishResultUseCase {
                 else if (param.isFeature) {
                     title = '✨ Feature Actions';
                     image = (0, list_utils_1.getRandomElement)(param.giphy.issueFeatureGifs);
+                }
+                else if (param.isDocs) {
+                    title = '📝 Documentation Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueDocsGifs);
+                }
+                else if (param.isChore) {
+                    title = '🔧 Chore Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueChoreGifs);
                 }
             }
             else if (param.isPullRequest) {
@@ -41653,23 +41708,31 @@ exports.injectJsonAsMarkdownBlock = injectJsonAsMarkdownBlock;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.typesForIssue = exports.branchesForManagement = void 0;
-const branchesForManagement = (params, labels, bugfixLabel, hotfixLabel, releaseLabel) => {
+const branchesForManagement = (params, labels, bugfixLabel, hotfixLabel, releaseLabel, docsLabel, choreLabel) => {
     if (labels.includes(hotfixLabel))
         return params.branches.bugfixTree;
     if (labels.includes(bugfixLabel))
         return params.branches.bugfixTree;
     if (labels.includes(releaseLabel))
         return params.branches.releaseTree;
+    if (labels.includes(docsLabel))
+        return params.branches.docsTree;
+    if (labels.includes(choreLabel))
+        return params.branches.choreTree;
     return params.branches.featureTree;
 };
 exports.branchesForManagement = branchesForManagement;
-const typesForIssue = (params, labels, bugfixLabel, hotfixLabel, releaseLabel) => {
+const typesForIssue = (params, labels, bugfixLabel, hotfixLabel, releaseLabel, docsLabel, choreLabel) => {
     if (labels.includes(hotfixLabel))
         return params.branches.hotfixTree;
     if (labels.includes(bugfixLabel))
         return params.branches.bugfixTree;
     if (labels.includes(releaseLabel))
         return params.branches.releaseTree;
+    if (labels.includes(docsLabel))
+        return params.branches.docsTree;
+    if (labels.includes(choreLabel))
+        return params.branches.choreTree;
     return params.branches.featureTree;
 };
 exports.typesForIssue = typesForIssue;
@@ -41974,6 +42037,16 @@ async function run() {
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    const imagesIssueDocsInput = core.getInput('images-issue-docs');
+    const imagesIssueDocs = imagesIssueDocsInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    const imagesIssueChoreInput = core.getInput('images-issue-chore');
+    const imagesIssueChore = imagesIssueChoreInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
     const imagesIssueReleaseInput = core.getInput('images-issue-release');
     const imagesIssueRelease = imagesIssueReleaseInput
         .split(',')
@@ -42013,6 +42086,8 @@ async function run() {
     const helpLabel = core.getInput('help-label');
     const deployLabel = core.getInput('deploy-label');
     const deployedLabel = core.getInput('deployed-label');
+    const docsLabel = core.getInput('docs-label');
+    const choreLabel = core.getInput('chore-label');
     /**
      * Branches
      */
@@ -42022,6 +42097,8 @@ async function run() {
     const bugfixTree = core.getInput('bugfix-tree');
     const hotfixTree = core.getInput('hotfix-tree');
     const releaseTree = core.getInput('release-tree');
+    const docsTree = core.getInput('docs-tree');
+    const choreTree = core.getInput('chore-tree');
     /**
      * Prefix builder
      */
@@ -42038,7 +42115,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, choreLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);

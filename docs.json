@@ -1,21 +1,138 @@
 {
-  "name": "My Docs",
-  "description": "My documentation site",
+  "name": "Git Board Flow",
+  "description": "A tool for managing Git workflow and board integration",
+  "tabs": [
+    {
+      "id": "root",
+      "title": "Home",
+      "href": "/"
+    },
+    {
+      "id": "issues",
+      "title": "Issues",
+      "href": "/issues"
+    },
+    {
+      "id": "pull-requests",
+      "title": "Pull Requests",
+      "href": "/pull-requests"
+    },
+    {
+      "id": "single-action",
+      "title": "Single Action",
+      "href": "/single-action"
+    }
+  ],
   "sidebar": [
-  {
-    "group": "Getting Started",
-    "pages": [
-      {
-        "title": "Getting to know docs.page",
-        "href": "/",
-        "icon": "rocket"
-      },
-      {
-        "title": "Next Steps",
-        "href": "/next-steps",
-        "icon": "arrow-right"
-      }
-    ]
-  }
-]
+    {
+      "group": "Getting Started",
+      "tab": "root",
+      "pages": [
+        {
+          "title": "Introduction",
+          "href": "/",
+          "icon": "rocket"
+        },
+        {
+          "title": "Features",
+          "href": "/features",
+          "icon": "lightbulb"
+        }
+      ]
+    },
+    {
+      "group": "Issues",
+      "tab": "issues",
+      "pages": [
+        {
+          "title": "General",
+          "href": "/issues/",
+          "icon": "book"
+        },
+        {
+          "title": "Configuration",
+          "href": "/issues/configuration",
+          "icon": "gear"
+        }
+      ]
+    },
+    {
+      "group": "Types",
+      "tab": "issues",
+      "pages": [
+        {
+          "title": "Documentation",
+          "href": "/issues/type/docs",
+          "icon": "file-text"
+        },
+        {
+          "title": "Chore",
+          "href": "/issues/type/chore",
+          "icon": "wrench"
+        },
+        {
+          "title": "Feature",
+          "href": "/issues/type/feature",
+          "icon": "lightbulb"
+        },
+        {
+          "title": "Bugfix",
+          "href": "/issues/type/bugfix",
+          "icon": "bug"
+        },
+        {
+          "title": "Hotfix",
+          "href": "/issues/type/hotfix",
+          "icon": "fire"
+        },
+        {
+          "title": "Release",
+          "href": "/issues/type/release",
+          "icon": "tag"
+        }
+      ]
+    },
+    {
+      "group": "Pull Requests",
+      "tab": "pull-requests",
+      "pages": [
+        {
+          "title": "General",
+          "href": "/issues/",
+          "icon": "book"
+        },
+        {
+          "title": "Configuration",
+          "href": "/issues/configuration",
+          "icon": "gear"
+        }
+      ]
+    },
+    {
+      "group": "Single Action",
+      "tab": "single-action",
+      "pages": [
+        {
+          "title": "General",
+          "href": "/issues/",
+          "icon": "book"
+        },
+        {
+          "title": "Configuration",
+          "href": "/issues/configuration",
+          "icon": "gear"
+        }
+      ]
+    },
+    {
+      "group": "Support",
+      "pages": [
+        {
+          "title": "Support",
+          "href": "/support",
+          "icon": "help-circle"
+        }
+      ]
+    }
+  ]
 }

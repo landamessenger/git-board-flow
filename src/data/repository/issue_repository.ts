@@ -31,10 +31,18 @@ export class IssueRepository {
                 emoji = `🐛${branchManagementEmoji}`;
             } else if ((labels.isFeature || labels.isEnhancement) && branched) {
                 emoji = `✨${branchManagementEmoji}`;
+            } else if (labels.isDocs && branched) {
+                emoji = `📝${branchManagementEmoji}`;
+            } else if (labels.isChore && branched) {
+                emoji = `🔧${branchManagementEmoji}`;
             } else if (labels.isHotfix) {
                 emoji = '🔥';
             } else if (labels.isRelease) {
                 emoji = '🚀';
+            } else if (labels.isDocs) {
+                emoji = '📝';
+            } else if (labels.isChore) {
+                emoji = '🔧';
             } else if (labels.isBugfix || labels.isBug) {
                 emoji = '🐛';
             } else if (labels.isFeature || labels.isEnhancement) {
@@ -107,6 +115,10 @@ export class IssueRepository {
                 emoji = `🐛${branchManagementEmoji}`;
             } else if ((labels.isFeature || labels.isEnhancement) && branched) {
                 emoji = `✨${branchManagementEmoji}`;
+            } else if (labels.isDocs && branched) {
+                emoji = `📝${branchManagementEmoji}`;
+            } else if (labels.isChore && branched) {
+                emoji = `🔧${branchManagementEmoji}`;
             } else if (labels.isHotfix) {
                 emoji = '🔥';
             } else if (labels.isRelease) {
@@ -115,6 +127,10 @@ export class IssueRepository {
                 emoji = '🐛';
             } else if (labels.isFeature || labels.isEnhancement) {
                 emoji = '✨';
+            } else if (labels.isDocs) {
+                emoji = '📝';
+            } else if (labels.isChore) {
+                emoji = '🔧';
             } else if (labels.isHelp) {
                 emoji = '🆘';
             } else if (labels.isQuestion) {

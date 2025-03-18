@@ -79,11 +79,19 @@ export class Execution {
     }
 
     get isFeature(): boolean {
-        return this.issueType === 'feature';
+        return this.issueType === this.branches.featureTree;
     }
 
     get isBugfix(): boolean {
-        return this.issueType === 'bugfix';
+        return this.issueType === this.branches.bugfixTree;
+    }
+
+    get isDocs(): boolean {
+        return this.issueType === this.branches.docsTree;
+    }
+
+    get isChore(): boolean {
+        return this.issueType === this.branches.choreTree;
     }
 
     get isBranched(): boolean {
@@ -103,6 +111,8 @@ export class Execution {
             this.labels.bugfix,
             this.labels.hotfix,
             this.labels.release,
+            this.labels.docs,
+            this.labels.chore,
         );
     }
 
@@ -113,6 +123,8 @@ export class Execution {
             this.labels.bugfix,
             this.labels.hotfix,
             this.labels.release,
+            this.labels.docs,
+            this.labels.chore,
         );
     }
 

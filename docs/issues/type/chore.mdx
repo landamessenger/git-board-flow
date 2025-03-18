@@ -1,0 +1,193 @@
+---
+title: Chore
+description: Everything about maintenance-type issues.
+---
+
+Chore issues are used to track maintenance tasks and housekeeping activities in the project. These issues help keep the project organized and up-to-date.
+
+## Label
+
+All chore issues are created with the `chore-label`. The default label for creating a chore-type issue is `chore`. You can configure this label as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          chore-label: chore // [!code highlight]
+```
+
+## Naming
+
+The default tree for creating chore branches is `chore`. You can configure this tree name as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          chore-tree: chore // [!code highlight]
+```
+
+Chore branches follow this naming convention:
+
+```
+chore/NUM-ISSUE-issue-name
+```
+
+For example:
+```
+chore/123-update-dependencies
+```
+
+## Source
+
+Chore branches are created from the development branch. By default, chore branches are created from the `develop` branch. You can configure the development branch name as shown below:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          development-branch: develop // [!code highlight]
+```
+
+## Images
+
+You can configure custom images to be displayed in the comments of chore issues. These images will be randomly selected and displayed when Git Board Flow performs actions on the issue.
+
+To configure the images, provide a comma-separated list of image URLs in the `images-issue-chore` input:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          images-issue-chore: url1, url2, url3 // [!code highlight]
+```
+
+<Image zoom src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHNrY2JseXlwNmY3bTI2aDd3eXp4N2pjMHJtNDBiYWg3OHE3Zmd5aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ROlbnsc7aCIL6Icq6h/giphy.gif" />
+
+## Template
+
+You can use this template for chore issues that helps capture all the necessary information. The template includes fields for:
+
+- Checking for duplicate issues
+- Selecting the maintenance task area (CI/CD, Dependencies, Code Refactoring, etc.)
+- Providing a detailed task description
+- Explaining current issues and inefficiencies
+- Describing expected impact and improvements
+- Documenting alternatives considered
+- Adding additional context and comments
+
+You can find this template in `.github/ISSUE_TEMPLATE/chore_task.yml`. Below is an example of how the template looks when creating a new chore issue:
+
+```yml
+name: 🔧 Chore Task
+description: Suggest a maintenance or internal improvement task
+title: "<YOUR TITLE HERE>"
+labels: ["chore", "maintenance"]
+body:
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: |
+        Please search to see if an issue already exists for what you are proposing.
+      options:
+        - label: I have searched the existing issues.
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: dropdown
+    id: chore_scope
+    attributes:
+      label: What area does this task affect?
+      multiple: false
+      options:
+        - CI/CD
+        - Dependencies
+        - Code Refactoring
+        - Repository Configuration
+        - Other
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    attributes:
+      label: Task description
+      description: |
+        Describe the chore task in detail. Explain what needs to be done and why.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Current issues or inefficiencies
+      description: |
+        Describe any problems this task is addressing. Why is this necessary?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected impact
+      description: |
+        Explain how completing this chore will improve the project.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Alternatives considered
+      description: |
+        If you considered alternative solutions, describe them here.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    id: comments
+    attributes:
+      label: Additional context or comments
+      description: |
+        Add any additional context, logs, or examples related to this task.
+```
