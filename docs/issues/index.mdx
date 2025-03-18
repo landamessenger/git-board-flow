@@ -1,0 +1,157 @@
+---
+title: Issues
+description: Boosted and connected issues.
+---
+
+Git Board Flow automates issue tracking, ensuring smooth branch management and seamless project integration.  
+
+To enable the GitHub Action for issues, create a workflow with the following configuration:  
+
+```yml
+name: Git Board Flow - Issue
+
+on:
+  issues:
+    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          project-urls: https://github.com/orgs/landamessenger/projects/2
+          commit-prefix-builder: |
+            branchName.replace("/", "-");
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token-personal: ${{ secrets.REPO_PAT }}
+```
+
+### Member Assignment
+
+Git Board Flow rolls the dice for you by automatically assigning newly created issues to a member of the organization or repository.
+
+<Card title="How many members do we assign?" icon="person-circle-exclamation">
+  
+  The issue is assigned to its creator if they belong to the organization. We will assign additional members if needed.
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            desired-assignees-count: 1 // [!code highlight]
+  ```
+</Card>
+
+### Board Assignment
+
+Git Board Flow takes care of organizing your issues by automatically assigning newly created issues to a designated project board, ensuring seamless tracking and management.
+
+<Warning>Linking the issue to a board requires a Personal Access Token (PAT).</Warning>
+
+<Card title="How many boards do you want to work with?" icon="table-columns">
+  
+  Define the links to all the boards where you want to track the issue.
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            github-token-personal: ${{ secrets.REPO_PAT }} // [!code highlight]
+            project-urls: https://github.com/orgs/landamessenger/projects/1, https://github.com/orgs/landamessenger/projects/2 // [!code highlight]
+  ```
+</Card>
+
+### Branch Management
+
+Issues usually require new changes (unless they are inquiries or help requests).
+
+Once members of the organization (or repository) add a specific label, the necessary branches are automatically created to save time and effort for developers.
+
+Some types of issues (`hotfix` and `release`) create branches automatically. This only happens when the issue creator is a member of the organization.
+
+<Card title="How to branch issues" icon="code-branch">
+  
+  `branched` is the default label for running this branch management on non-mandatory branched issues.
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            branch-management-launcher-label: branched // [!code highlight]
+  ```
+</Card>
+
+<Card title="Naming convenions" icon="i-cursor">
+  `main` or `master`? `develop` or `dev`? `feature` or `feat`?
+
+  You can define the branch naming convention that best suits your project. Here are all the possibilities and their default values:
+
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            main-branch: master // [!code highlight]
+            development-branch: develop // [!code highlight]
+            docs-tree: docs // [!code highlight]
+            chore-tree: chore // [!code highlight]
+            feature-tree: feature // [!code highlight]
+            bugfix-tree: bugfix // [!code highlight]
+            hotfix-tree: hotfix // [!code highlight]
+            release-tree: release // [!code highlight]
+  ```
+</Card>
+
+### Smart Workflow Guidance
+
+Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Git-Board-Flow will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
+
+### Real-Time Code Tracking
+
+Issues take time to be resolved, and interest in their progress increases. Therefore, any changes in the branches created by the issue will be notified as comments, providing real-time feedback on the issue's progress.
+
+### Auto-Closure
+
+Forget about closing issues when development is complete, Git-Board-Flow will automatically close them once the branches created by the issue are successfully merged.
+

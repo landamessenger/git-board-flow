@@ -20,6 +20,12 @@ inputs:
   branch-management-emoji:
     description: "Emoji to indicate branched issues. It will be ignored if emoji-labeled-title is false."
     default: "🧑‍💻"
+  docs-label:
+    description: "Label to manage docs branches."
+    default: "docs"
+  chore-label:
+    description: "Label to manage chore branches."
+    default: "chore"
   hotfix-label:
     description: "Label to manage hotfix branches."
     default: "hotfix"
@@ -59,6 +65,12 @@ inputs:
   development-branch:
     description: "Name of the development branch (e.g., develop)."
     default: "develop"
+  docs-tree:
+    description: "Naming convention for docs branches."
+    default: "docs"
+  chore-tree:
+    description: "Naming convention for chore branches."
+    default: "chore"
   feature-tree:
     description: "Naming convention for feature branches."
     default: "feature"
@@ -80,6 +92,12 @@ inputs:
   images-issue-bugfix:
     description: "Image URLs to display in bugfix action issue comments."
     default: ""
+  images-issue-docs:
+    description: "Image URLs to display in docs action issue comments."
+    default: ""
+  images-issue-chore:
+    description: "Image URLs to display in chore action issue comments."
+    default: ""
   images-issue-hotfix:
     description: "Image URLs to display in hotfix action issue comments."
     default: ""
@@ -100,7 +118,7 @@ inputs:
     default: "release_workflow.yml"
   hotfix-workflow:
     description: "Hotfix workflow for running hotfix deploys."
-    default: "release"
+    default: "hotfix_workflow.yml"
   desired-assignees-count:
     description: "The number of assignees desired for the issue or pull request. If set to 0, no assignees will be added. If the number exceeds the available members, all members will be assigned. Max 10."
     default: "1"

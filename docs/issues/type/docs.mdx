@@ -1,0 +1,184 @@
+---
+title: Docs
+description: Everything about documentation-type issues.
+---
+
+Documentation issues are used to track tasks related to improving or creating documentation in the project. These issues help maintain and enhance the project's documentation quality.
+
+## Label
+
+All documentation issues are created with the `docs-label`. The default label for creating a docs-type issue is `docs`. You can configure this label as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          docs-label: docs // [!code highlight]
+```
+
+## Naming
+
+The default tree for creating documentation branches is `docs`. You can configure this tree name as follows:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          docs-tree: docs // [!code highlight]
+```
+
+Documentation branches follow this naming convention:
+
+```
+docs/NUM-ISSUE-issue-name
+```
+
+For example:
+```
+docs/123-update-readme-instructions
+```
+
+## Source
+
+Documentation branches are created from the development branch. By default, documentation branches are created from the `develop` branch. You can configure the development branch name as shown below:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          development-branch: develop // [!code highlight]
+```
+
+## Images
+
+You can configure custom images to be displayed in the comments of documentation issues. These images will be randomly selected and displayed when Git Board Flow performs actions on the issue.
+
+To configure the images, provide a comma-separated list of image URLs in the `images-issue-docs` input:
+
+```yml
+jobs:
+  git-board-issues:
+    name: Git Board - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board - Issue
+        uses: ./
+        with:
+          images-issue-docs: url1, url2, url3 // [!code highlight]
+```
+
+<Image zoom src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHNrY2JseXlwNmY3bTI2aDd3eXp4N2pjMHJtNDBiYWg3OHE3Zmd5aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ROlbnsc7aCIL6Icq6h/giphy.gif" />
+
+## Template
+
+You can use this template for documentation issues that helps capture all the necessary information. The template includes fields for:
+
+- Checking for duplicate issues
+- Selecting which part of the documentation needs updating
+- Describing the proposed changes
+- Explaining why the update is needed
+- Adding additional context and resources
+
+You can find this template in `.github/ISSUE_TEMPLATE/doc_update.yml`. Below is an example of how the template looks when creating a new documentation issue:
+
+```yml
+name: 📝 Documentation Update
+description: Propose changes or improvements to the documentation
+title: "<YOUR TITLE HERE>"
+labels: ["documentation", "docs"] // [!code highlight]
+body:
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: |
+        Please search to see if an issue already exists for what you are proposing.
+      options:
+        - label: I have searched the existing issues.
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: dropdown
+    id: docs_scope
+    attributes:
+      label: What part of the documentation needs an update?
+      multiple: false
+      options:
+        - README.md
+        - Wiki
+        - API Documentation
+        - Inline Code Comments
+        - Other
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    attributes:
+      label: Describe the documentation update
+      description: |
+        Provide a clear and detailed explanation of what should be updated or added.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Why is this update needed?
+      description: |
+        Explain what issues or gaps this update is addressing.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Additional resources
+      description: |
+        If you have any external links, references, or examples, include them here.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+  - type: textarea
+    id: comments
+    attributes:
+      label: Additional context or comments
+      description: |
+        Add any additional context or suggestions related to this documentation update.
+
+```
