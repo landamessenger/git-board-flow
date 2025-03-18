@@ -23,9 +23,15 @@ inputs:
   docs-label:
     description: "Label to manage docs branches."
     default: "docs"
+  documentation-label:
+    description: "Label to manage docs branches."
+    default: "documentation"
   chore-label:
     description: "Label to manage chore branches."
     default: "chore"
+  maintenance-label:
+    description: "Label to manage chore branches."
+    default: "maintenance"
   hotfix-label:
     description: "Label to manage hotfix branches."
     default: "hotfix"

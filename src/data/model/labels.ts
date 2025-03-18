@@ -11,7 +11,9 @@ export class Labels {
     deploy: string;
     deployed: string;
     docs: string;
+    documentation: string;
     chore: string;
+    maintenance: string;
     currentIssueLabels: string[] = [];
     currentPullRequestLabels: string[] = [];
 
@@ -67,8 +69,16 @@ export class Labels {
         return this.currentIssueLabels.includes(this.docs);
     }
 
+    get isDocumentation(): boolean {
+        return this.currentIssueLabels.includes(this.documentation);
+    }
+
     get isChore(): boolean {
         return this.currentIssueLabels.includes(this.chore);
+    }
+
+    get isMaintenance(): boolean {
+        return this.currentIssueLabels.includes(this.maintenance);
     }
 
     constructor(
@@ -84,7 +94,9 @@ export class Labels {
         deploy: string,
         deployed: string,
         docs: string,
+        documentation: string,
         chore: string,
+        maintenance: string,
     ) {
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
@@ -98,6 +110,8 @@ export class Labels {
         this.deploy = deploy;
         this.deployed = deployed;
         this.docs = docs;
+        this.documentation = documentation;
         this.chore = chore;
+        this.maintenance = maintenance;
     }
 }

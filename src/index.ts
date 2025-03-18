@@ -145,7 +145,9 @@ async function run(): Promise<void> {
     const deployLabel = core.getInput('deploy-label');
     const deployedLabel = core.getInput('deployed-label');
     const docsLabel = core.getInput('docs-label');
+    const documentationLabel = core.getInput('documentation-label');
     const choreLabel = core.getInput('chore-label');
+    const maintenanceLabel = core.getInput('maintenance-label');
 
     /**
      * Branches
@@ -228,7 +230,9 @@ async function run(): Promise<void> {
             deployLabel,
             deployedLabel,
             docsLabel,
+            documentationLabel,
             choreLabel,
+            maintenanceLabel,
         ),
         new Branches(
             mainBranch,
