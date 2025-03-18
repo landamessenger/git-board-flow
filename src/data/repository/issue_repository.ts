@@ -31,17 +31,17 @@ export class IssueRepository {
                 emoji = `🐛${branchManagementEmoji}`;
             } else if ((labels.isFeature || labels.isEnhancement) && branched) {
                 emoji = `✨${branchManagementEmoji}`;
-            } else if (labels.isDocs && branched) {
+            } else if ((labels.isDocs || labels.isDocumentation) && branched) {
                 emoji = `📝${branchManagementEmoji}`;
-            } else if (labels.isChore && branched) {
+            } else if ((labels.isChore || labels.isMaintenance) && branched) {
                 emoji = `🔧${branchManagementEmoji}`;
             } else if (labels.isHotfix) {
                 emoji = '🔥';
             } else if (labels.isRelease) {
                 emoji = '🚀';
-            } else if (labels.isDocs) {
+            } else if ((labels.isDocs || labels.isDocumentation)) {
                 emoji = '📝';
-            } else if (labels.isChore) {
+            } else if (labels.isChore || labels.isMaintenance) {
                 emoji = '🔧';
             } else if (labels.isBugfix || labels.isBug) {
                 emoji = '🐛';

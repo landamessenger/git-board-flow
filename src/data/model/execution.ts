@@ -108,11 +108,16 @@ export class Execution {
         return branchesForManagement(
             this,
             this.labels.currentIssueLabels,
+            this.labels.feature,
+            this.labels.enhancement,
             this.labels.bugfix,
+            this.labels.bug,
             this.labels.hotfix,
             this.labels.release,
             this.labels.docs,
+            this.labels.documentation,
             this.labels.chore,
+            this.labels.maintenance,
         );
     }
 
@@ -120,11 +125,16 @@ export class Execution {
         return typesForIssue(
             this,
             this.labels.currentIssueLabels,
+            this.labels.feature,
+            this.labels.enhancement,
             this.labels.bugfix,
+            this.labels.bug,
             this.labels.hotfix,
             this.labels.release,
             this.labels.docs,
+            this.labels.documentation,
             this.labels.chore,
+            this.labels.maintenance,
         );
     }
 
