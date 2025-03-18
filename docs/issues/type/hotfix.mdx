@@ -178,15 +178,15 @@ body:
 
 The hotfix process follows these steps after creating an issue with `hotfix` and `branched` labels:
 
-1. A hotfix branch is created from `master` at the latest tag version
+1. A hotfix branch is created from `main-branch` at the latest tag version
 2. A bugfix branch is created from the hotfix branch to implement the fix
 3. The needed changes are applied on the bugfix branch
 4. The bugfix is merged back into the hotfix branch via Pull Request
-5. A new version is deployed from the hotfix branch by adding the `deploy` label to the issue
+5. A new version is deployed from the hotfix branch by adding the `deploy-label` to the issue
 6. After successful deployment, the hotfix branch is merged:
-   - First into `master` with the new version tag
-   - Then into `develop` to keep changes synchronized
-7. The issue is automatically closed with the `deployed` label once the process completes
+   - First into `main-branch` with the new version tag
+   - Then into `development-branch` to keep changes synchronized
+7. The issue is automatically closed with the `deployed-label` label once the process completes
 
 This workflow ensures that critical fixes reach production quickly while maintaining code quality and proper version control. The process is designed to minimize disruption while addressing urgent issues.
 
@@ -214,6 +214,67 @@ This workflow ensures that critical fixes reach production quickly while maintai
   ```
 </Card>
 
+<Card title="How do I control the end of the deployment?" icon="rocket">
+  The hotfix deployment workflow is defined in the `hotfix_workflow.yml` file.
+
+  The workflow requires the following inputs:
+  - `version`: The new version number
+  - `title`: Title for the release
+  - `changelog`: Description of changes
+  - `issue`: ID of the originating issue
+
+  <Warning>Remember to create a new tag for the new deployed version.</Warning>
+  
+  ```yml
+  name: Task - Hotfix
+
+  on:
+    workflow_dispatch:
+      inputs:
+        version:
+          description: 'Hotfix version'
+          required: true
+          default: '1.0.0'
+        title:
+          description: 'Title'
+          required: true
+          default: 'New Version'
+        changelog:
+          description: 'Changelog'
+          required: true
+          default: '- Several improvements'
+        issue:
+          description: 'Launcher issue'
+          required: true
+          default: '-1'
+
+  concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+  jobs:
+    deploy:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        // create a new tag version here
+
+        // deploy logic here
+
+        - name: Git Board - Deploy success notification
+          uses: ./
+          if: ${{ success() }}
+          with:
+            single-action: 'deployed_action'
+            single-action-issue: '${{ github.event.inputs.issue }}'
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            github-token-personal: ${{ secrets.REPO_PAT }}
+  ```
+</Card>
+
 ## Example
 
 For a hotfix issue #123 fixing a critical login bug:
@@ -224,4 +285,3 @@ For a hotfix issue #123 fixing a critical login bug:
 4. PR merged into `hotfix/1.2.4`
 5. Version 1.2.4 deployed to production
 6. Changes merged to `master` and `develop`
-
