@@ -3557,11 +3557,11 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // pkg/dist-src/index.js
-var dist_src_exports = {};
-__export(dist_src_exports, {
+var index_exports = {};
+__export(index_exports, {
   Octokit: () => Octokit
 });
-module.exports = __toCommonJS(dist_src_exports);
+module.exports = __toCommonJS(index_exports);
 var import_universal_user_agent = __nccwpck_require__(5030);
 var import_before_after_hook = __nccwpck_require__(3682);
 var import_request = __nccwpck_require__(6234);
@@ -3569,7 +3569,7 @@ var import_graphql = __nccwpck_require__(8467);
 var import_auth_token = __nccwpck_require__(334);
 
 // pkg/dist-src/version.js
-var VERSION = "5.2.0";
+var VERSION = "5.2.1";
 
 // pkg/dist-src/index.js
 var noop = () => {
@@ -16756,7 +16756,7 @@ module.exports = {
 
 
 const { parseSetCookie } = __nccwpck_require__(4408)
-const { stringify, getHeadersList } = __nccwpck_require__(3121)
+const { stringify } = __nccwpck_require__(3121)
 const { webidl } = __nccwpck_require__(1744)
 const { Headers } = __nccwpck_require__(554)
 
@@ -16832,14 +16832,13 @@ function getSetCookies (headers) {
 
   webidl.brandCheck(headers, Headers, { strict: false })
 
-  const cookies = getHeadersList(headers).cookies
+  const cookies = headers.getSetCookie()
 
   if (!cookies) {
     return []
   }
 
-  // In older versions of undici, cookies is a list of name:value.
-  return cookies.map((pair) => parseSetCookie(Array.isArray(pair) ? pair[1] : pair))
+  return cookies.map((pair) => parseSetCookie(pair))
 }
 
 /**
@@ -17267,14 +17266,15 @@ module.exports = {
 /***/ }),
 
 /***/ 3121:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module) => {
 
 "use strict";
 
 
-const assert = __nccwpck_require__(9491)
-const { kHeadersList } = __nccwpck_require__(2785)
-
+/**
+ * @param {string} value
+ * @returns {boolean}
+ */
 function isCTLExcludingHtab (value) {
   if (value.length === 0) {
     return false
@@ -17535,31 +17535,13 @@ function stringify (cookie) {
   return out.join('; ')
 }
 
-let kHeadersListNode
-
-function getHeadersList (headers) {
-  if (headers[kHeadersList]) {
-    return headers[kHeadersList]
-  }
-
-  if (!kHeadersListNode) {
-    kHeadersListNode = Object.getOwnPropertySymbols(headers).find(
-      (symbol) => symbol.description === 'headers list'
-    )
-
-    assert(kHeadersListNode, 'Headers cannot be parsed')
-  }
-
-  const headersList = headers[kHeadersListNode]
-  assert(headersList)
-
-  return headersList
-}
-
 module.exports = {
   isCTLExcludingHtab,
-  stringify,
-  getHeadersList
+  validateCookieName,
+  validateCookiePath,
+  validateCookieValue,
+  toIMFDate,
+  stringify
 }
 
 
@@ -21563,6 +21545,7 @@ const {
   isValidHeaderName,
   isValidHeaderValue
 } = __nccwpck_require__(2538)
+const util = __nccwpck_require__(3837)
 const { webidl } = __nccwpck_require__(1744)
 const assert = __nccwpck_require__(9491)
 
@@ -22116,6 +22099,9 @@ Object.defineProperties(Headers.prototype, {
   [Symbol.toStringTag]: {
     value: 'Headers',
     configurable: true
+  },
+  [util.inspect.custom]: {
+    enumerable: false
   }
 })
 
@@ -31292,6 +31278,20 @@ class Pool extends PoolBase {
       ? { ...options.interceptors }
       : undefined
     this[kFactory] = factory
+
+    this.on('connectionError', (origin, targets, error) => {
+      // If a connection error occurs, we remove the client from the pool,
+      // and emit a connectionError event. They will not be re-used.
+      // Fixes https://github.com/nodejs/undici/issues/3895
+      for (const target of targets) {
+        // Do not use kRemoveClient here, as it will close the client,
+        // but the client cannot be closed in this state.
+        const idx = this[kClients].indexOf(target)
+        if (idx !== -1) {
+          this[kClients].splice(idx, 1)
+        }
+      }
+    })
   }
 
   [kGetDispatcher] () {
@@ -50720,14 +50720,18 @@ exports.Realtime = void 0;
 const resource_1 = __nccwpck_require__(9593);
 const SessionsAPI = __importStar(__nccwpck_require__(5731));
 const sessions_1 = __nccwpck_require__(5731);
+const TranscriptionSessionsAPI = __importStar(__nccwpck_require__(1059));
+const transcription_sessions_1 = __nccwpck_require__(1059);
 class Realtime extends resource_1.APIResource {
     constructor() {
         super(...arguments);
         this.sessions = new SessionsAPI.Sessions(this._client);
+        this.transcriptionSessions = new TranscriptionSessionsAPI.TranscriptionSessions(this._client);
     }
 }
 exports.Realtime = Realtime;
 Realtime.Sessions = sessions_1.Sessions;
+Realtime.TranscriptionSessions = transcription_sessions_1.TranscriptionSessions;
 //# sourceMappingURL=realtime.js.map
 
 /***/ }),
@@ -50761,6 +50765,38 @@ class Sessions extends resource_1.APIResource {
 }
 exports.Sessions = Sessions;
 //# sourceMappingURL=sessions.js.map
+
+/***/ }),
+
+/***/ 1059:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TranscriptionSessions = void 0;
+const resource_1 = __nccwpck_require__(9593);
+class TranscriptionSessions extends resource_1.APIResource {
+    /**
+     * Create an ephemeral API token for use in client-side applications with the
+     * Realtime API specifically for realtime transcriptions. Can be configured with
+     * the same session parameters as the `transcription_session.update` client event.
+     *
+     * It responds with a session object, plus a `client_secret` key which contains a
+     * usable ephemeral API token that can be used to authenticate browser clients for
+     * the Realtime API.
+     */
+    create(body, options) {
+        return this._client.post('/realtime/transcription_sessions', {
+            body,
+            ...options,
+            headers: { 'OpenAI-Beta': 'assistants=v2', ...options?.headers },
+        });
+    }
+}
+exports.TranscriptionSessions = TranscriptionSessions;
+//# sourceMappingURL=transcription-sessions.js.map
 
 /***/ }),
 
@@ -51917,26 +51953,23 @@ exports.Moderations = Moderations;
 
 // File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ResponseItemListDataPage = exports.InputItems = void 0;
+exports.ResponseItemsPage = exports.InputItems = void 0;
 const resource_1 = __nccwpck_require__(9593);
 const core_1 = __nccwpck_require__(1798);
-const pagination_1 = __nccwpck_require__(7401);
+const responses_1 = __nccwpck_require__(6214);
+Object.defineProperty(exports, "ResponseItemsPage", ({ enumerable: true, get: function () { return responses_1.ResponseItemsPage; } }));
 class InputItems extends resource_1.APIResource {
     list(responseId, query = {}, options) {
         if ((0, core_1.isRequestOptions)(query)) {
             return this.list(responseId, {}, query);
         }
-        return this._client.getAPIList(`/responses/${responseId}/input_items`, ResponseItemListDataPage, {
+        return this._client.getAPIList(`/responses/${responseId}/input_items`, responses_1.ResponseItemsPage, {
             query,
             ...options,
         });
     }
 }
 exports.InputItems = InputItems;
-class ResponseItemListDataPage extends pagination_1.CursorPage {
-}
-exports.ResponseItemListDataPage = ResponseItemListDataPage;
-InputItems.ResponseItemListDataPage = ResponseItemListDataPage;
 //# sourceMappingURL=input-items.js.map
 
 /***/ }),
@@ -51971,13 +52004,14 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Responses = void 0;
+exports.ResponseItemsPage = exports.Responses = void 0;
 const ResponsesParser_1 = __nccwpck_require__(9924);
 const core_1 = __nccwpck_require__(1798);
 const resource_1 = __nccwpck_require__(9593);
 const InputItemsAPI = __importStar(__nccwpck_require__(6867));
 const input_items_1 = __nccwpck_require__(6867);
 const ResponseStream_1 = __nccwpck_require__(6784);
+const pagination_1 = __nccwpck_require__(7401);
 class Responses extends resource_1.APIResource {
     constructor() {
         super(...arguments);
@@ -52019,8 +52053,10 @@ class Responses extends resource_1.APIResource {
     }
 }
 exports.Responses = Responses;
+class ResponseItemsPage extends pagination_1.CursorPage {
+}
+exports.ResponseItemsPage = ResponseItemsPage;
 Responses.InputItems = input_items_1.InputItems;
-Responses.ResponseItemListDataPage = input_items_1.ResponseItemListDataPage;
 //# sourceMappingURL=responses.js.map
 
 /***/ }),
@@ -53071,7 +53107,7 @@ const addFormValue = async (form, key, value) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
-exports.VERSION = '4.87.3'; // x-release-please-version
+exports.VERSION = '4.89.0'; // x-release-please-version
 //# sourceMappingURL=version.js.map
 
 /***/ }),
