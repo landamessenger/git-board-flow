@@ -53163,21 +53163,35 @@ class UpdatePullRequestDescriptionUseCase {
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
             let changesDescription = ``;
             // Process each file individually
+            let filePrompt = '';
             for (const change of changes) {
-                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
-                if (shouldIgnoreFile) {
-                    continue;
+                try {
+                    const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
+                    if (shouldIgnoreFile) {
+                        continue;
+                    }
+                    filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
+                    filePrompt += `File: ${change.filename}\n`;
+                    filePrompt += `Status: ${change.status}\n`;
+                    filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
+                    if (change.patch) {
+                        filePrompt += `Patch:\n${change.patch}\n`;
+                    }
+                    // Get AI response for this file
+                    const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
+                    changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
                 }
-                let filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
-                filePrompt += `File: ${change.filename}\n`;
-                filePrompt += `Status: ${change.status}\n`;
-                filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
-                if (change.patch) {
-                    filePrompt += `Patch:\n${change.patch}\n`;
+                catch (error) {
+                    console.error(error);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Error processing file ${change.filename}: ${error} \n\n${filePrompt}`
+                        ]
+                    }));
                 }
-                // Get AI response for this file
-                const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
-                changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
             }
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
