@@ -36438,9 +36438,10 @@ exports.Hotfix = Hotfix;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Images = void 0;
 class Images {
-    constructor(imagesOnIssue, imagesOnPullRequest, cleanUpGifs, featureGifs, bugfixGifs, docsGifs, choreGifs, releaseGifs, hotfixGifs, prLinkGifs, prFeatureGifs, prBugfixGifs, prReleaseGifs, prHotfixGifs, prDocsGifs, prChoreGifs) {
+    constructor(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, cleanUpGifs, featureGifs, bugfixGifs, docsGifs, choreGifs, releaseGifs, hotfixGifs, prLinkGifs, prFeatureGifs, prBugfixGifs, prReleaseGifs, prHotfixGifs, prDocsGifs, prChoreGifs, commitAutomaticActions, commitFeatureGifs, commitBugfixGifs, commitReleaseGifs, commitHotfixGifs, commitDocsGifs, commitChoreGifs) {
         this.imagesOnIssue = imagesOnIssue;
         this.imagesOnPullRequest = imagesOnPullRequest;
+        this.imagesOnCommit = imagesOnCommit;
         this.issueAutomaticActions = cleanUpGifs;
         this.issueFeatureGifs = featureGifs;
         this.issueBugfixGifs = bugfixGifs;
@@ -36455,6 +36456,13 @@ class Images {
         this.pullRequestHotfixGifs = prHotfixGifs;
         this.pullRequestDocsGifs = prDocsGifs;
         this.pullRequestChoreGifs = prChoreGifs;
+        this.commitAutomaticActions = commitAutomaticActions;
+        this.commitFeatureGifs = commitFeatureGifs;
+        this.commitBugfixGifs = commitBugfixGifs;
+        this.commitReleaseGifs = commitReleaseGifs;
+        this.commitHotfixGifs = commitHotfixGifs;
+        this.commitDocsGifs = commitDocsGifs;
+        this.commitChoreGifs = commitChoreGifs;
     }
 }
 exports.Images = Images;
@@ -38540,6 +38548,7 @@ const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
 const issue_repository_1 = __nccwpck_require__(57);
 const execute_script_use_case_1 = __nccwpck_require__(8057);
+const list_utils_1 = __nccwpck_require__(834);
 class CommitCheckUseCase {
     constructor() {
         this.taskId = 'CommitCheckUseCase';
@@ -38570,8 +38579,38 @@ class CommitCheckUseCase {
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.issueNumber}`);
+            let title = '';
+            let image = '';
+            if (param.release.active) {
+                title = '🚀 Release News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitReleaseGifs);
+            }
+            else if (param.hotfix.active) {
+                title = '🔥🐛 Hotfix News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitHotfixGifs);
+            }
+            else if (param.isBugfix) {
+                title = '🐛 Bugfix News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitBugfixGifs);
+            }
+            else if (param.isFeature) {
+                title = '✨ Feature News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitFeatureGifs);
+            }
+            else if (param.isDocs) {
+                title = '📝 Documentation News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitDocsGifs);
+            }
+            else if (param.isChore) {
+                title = '🔧 Chore News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitChoreGifs);
+            }
+            else {
+                title = '🪄 Automatic News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitAutomaticActions);
+            }
             let commentBody = `
-# 🎉  News
+# ${title}
 
 **Changes on branch \`${param.commit.branch}\`:**
 
@@ -38603,6 +38642,13 @@ One or more commits didn't start with the prefix **${commitPrefix}**.
 \`\`\`
 ${commitPrefix}: created hello-world app
 \`\`\`
+`;
+            }
+            if (image && param.images.imagesOnCommit) {
+                commentBody += `
+${this.separator}
+
+![image](${image})
 `;
             }
             if (param.issue.reopenOnPush) {
@@ -42024,49 +42070,175 @@ const ai_1 = __nccwpck_require__(4470);
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMm5iZHJydTJ4NGticXdxd3ZxYnZqNXdvaDQwOHdtb3o5NTRhdnRhOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LSX49vHf7JHGyGjrC0/giphy.gif",
             "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzRsNGFicndqMXgzMTVwdnhpeXNyZGsydXVxamV4eGxndWhna291OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ktcUyw6mBlMVa/200.webp",
             "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdjkyeWVubngzM28xODFrbXZ4Nng3Y2hubmM4cXJqNGpic3Bheml0NSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/M11UVCRrc0LUk/giphy.webp",
             "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExenQwNDJmZnZraDBzNXBoNjUwZjEzMzFlanMxcHVodmF4b3l3bDl2biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zrdUjl6N99nLq/200.webp",
             "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmozN3plMWNiYjZoemh6N2RmeTB1MG9ieHlqYTJsb3BrZmNoY3h0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/stv1Dliu5TrMs/giphy.webp"
         ],
         feature: [
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMm5iZHJydTJ4NGticXdxd3ZxYnZqNXdvaDQwOHdtb3o5NTRhdnRhOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LSX49vHf7JHGyGjrC0/giphy.gif",
             "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExYmc4YWplZWs0Y2c3ZXNtbGpwZnQzdWpncmNjNXpodjg3MHdtbnJ5NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OMK7LRBedcnhm/200.webp",
             "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHBrYXpmd2poeGU5cWswbjRqNmJlZ2U2dWc0ejVpY3RpcXVuYTY3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/llKJGxQ1ESmac/giphy.webp",
             "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnFleXV0MXZteGN6c2s2b3R3ZGc2cWY1aXB0Y3ZzNmpvZHhyNDVmNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/10FwycrnAkpshW/giphy.webp",
-            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExdmM1OWR0cnk5eXI0dXpoNWRzbmVseTVyd2l3MzdrOHZueHJ6bjhjMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/12yjKJaLB7DuG4/giphy.webp"
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcHo0MjIzaGIycTRmeWFwZmp6bGExczJicXcyZTQxemsxaTY1b3V1NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QKkV58ufpV4ksJ1Okh/giphy.gif",
         ],
         bugfix: [
             "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExazc3OWszenA5c2FlemE3a25oNnlmZDBra3liMWRqMW82NzM2b2FveCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xPGkOAdiIO3Is/giphy.webp",
-            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExYmFoaHdqMG10eHUzb2toZzJra3pibXZ0NHk5NnRnazE3YmFiNGV1ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OspWhQ8YttRf8QxDOh/giphy.webp",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmozN3plMWNiYjZoemh6N2RmeTB1MG9ieHlqYTJsb3BrZmNoY3h0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/stv1Dliu5TrMs/giphy.webp",
             "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExY3liaGF2NzI3bzM1YjRmdHFsaGdyenp4b3o3M3dqM3F0bGN5MHZtNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/npUpB306c3EStRK6qP/200.webp",
-            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWh6d3Nld3E0MTF1eTk2YXFibnI3MTBhbGtpamJiemRwejl3YmkzMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gU25raLP4pUu4/giphy.webp"
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWh6d3Nld3E0MTF1eTk2YXFibnI3MTBhbGtpamJiemRwejl3YmkzMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gU25raLP4pUu4/giphy.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExdmM1OWR0cnk5eXI0dXpoNWRzbmVseTVyd2l3MzdrOHZueHJ6bjhjMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/12yjKJaLB7DuG4/giphy.webp"
         ],
         hotfix: [
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmozN3plMWNiYjZoemh6N2RmeTB1MG9ieHlqYTJsb3BrZmNoY3h0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/stv1Dliu5TrMs/giphy.webp",
             "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2R0cjNxbXBjZjRjNmg4NmN3MGlhazVkNHJsaDkxMHZkY2hweGRtZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/pCU4bC7kC6sxy/200.webp",
             "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExenkyZTc3aDlweWl0MnI0cXJsZGptY3g0bzE2NTY1aWMyaHd4Y201ZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dbtDDSvWErdf2/giphy.webp",
             "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25ndGd2d3Uya3g3dnlnenJ1bjh0Y2NtNHdwZHY3Mjh2NnBmZDJpbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2xF8gHUf085aNyyAQR/200.webp",
-            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdjU3bHdsc3FtamlyazBlbWppNHc3MTV3MW4xdHd2cWo4b2tzbTkwcSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1EghTrigJJhq8/200.webp"
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdjU3bHdsc3FtamlyazBlbWppNHc3MTV3MW4xdHd2cWo4b2tzbTkwcSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1EghTrigJJhq8/200.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExdmM1OWR0cnk5eXI0dXpoNWRzbmVseTVyd2l3MzdrOHZueHJ6bjhjMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/12yjKJaLB7DuG4/giphy.webp"
         ],
         release: [
             "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExY2NxcHEzam92enRtd29xc21pMHhmbHozMWljamF1cmt4cjhwZTI0ayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/PApUm1HPVYlDNLoMmr/giphy.webp",
             "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNXU4dnhwOWVqZzc4NXVsdTY3c2I4Mm9lOHF1c253MDJya25zNXU0ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dxn6fRlTIShoeBr69N/giphy.webp",
-            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExbXN2bjJob3pxazE2NDJhbGE3ZWY5d2dzbDM4czgwZnA4ejlxY3ZqeCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/9D37RaHngWP7ZmmsEt/giphy.webp"
+            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExbXN2bjJob3pxazE2NDJhbGE3ZWY5d2dzbDM4czgwZnA4ejlxY3ZqeCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/9D37RaHngWP7ZmmsEt/giphy.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZnI0YTM2N2hwamd2dXYwNmN2MjRpYXIyN203cnNpbW13YjNhZGRhdyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LYWPXVUNz30ze/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdW1jZ3F4ZGRwMWkyc3ZocHJ3aXhyb2FuZGppcnMyMWtsYXpjbDY2ZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tXLpxypfSXvUc/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHRianpoOW51MzZ4Yjk3MmNpbmdseTJlb3o3dWVpYzJpazc5ZHNoayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/b85mPT4Usz7fq/giphy.gif",
         ],
-        docs: [],
-        chore: []
+        docs: [
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExaGRpZHJqYzRvZ25xcjR3ZXcwbzVudXF2Z2hsaHoyc2g1ZjZuam81YiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/eDArHBLT4aATKEKtCd/giphy.gif",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExa2NubXR1b2M1dDQ2Z2UxYmk5bzltbHdudWI1emVzOGFlbDNsOGU1bSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/wpgYasZ0tBrP4lCgS3/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmEyNzc3M2V0anp4d2JtOTJuMTZ2dXNnMmEyN3A4MmE0ZGpiaDhnNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orifaQEOagjYJ1EXe/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZjUyenc2eG5pZ3NjYzcyZXg2dDFndm5qZHRqMHk5amNoYjhhNnNvZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/7E8lI6TkLrvvAcPXso/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExaWFxcXZ3MTMxM3Bjd2IwNG43ZDJjdndreXNmdTVvZ2g3Z2Q4NjczMCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3tJdi9wQQ10BD2H47g/giphy.gif",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNjFrejZmaHQ2Z2o1Y3B2MDl6cmU5bzNybG84eXFrYjBjZjV0dGFpeSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/fsXOS3oBboiYf6fSsY/giphy.gif",
+            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHdhOHRianU1YmtrNHE0c2R2M2I2MTBzNnZhdnBrMW5ueG02eHF6OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieOEBYMAwTClHqM/giphy.gif",
+        ],
+        chore: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNjFtNXY0ZXdmdGxkdno2Nm5odGk3Nzd3aTRuYnJtbDA4MXIxdHFhdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/10zsjaH4g0GgmY/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZG1sNXB6eTZvdDNtNzJwNXVxenNjendwaGgxb2xzNWI1dGNpdTVmZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/NHHYRm7mAUQ6Y/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHd4bDJrc216YWpicDQ5emczdWF3bTk0dXYzeGQ4ajg2a3IyYjV6diZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/FHEjBpiqMwSuA/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3d5b2U1Z3Jic3AxY2llYjQwNW5wODFpNWp5NHY0dGV5Z2cxdThkdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/kLZNLNqUZ6bC0/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTNpZ2w0c3NrMmc0cmZobTd2eTM3YTRlM2lnbWpoZDUzNnRjdnNmZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/NV4cSrRYXXwfUcYnua/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmFzZHNuODg0dDRheGt0aGU2bjVvd2xiNDI1bWFmYTVsbHJ2eHI2dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/XaAbmtzzz35IgW3Ntn/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExYWM2OHkzYmNkajZxa204Njg0bmQzaWp1M3NobnJjbWxyYWJrbDNnciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OiwOPq0fFqqyainyMu/giphy.gif",
+        ],
     },
     pullRequest: {
         automatic: [
-            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExb2l4d25hNjEyNHRpN3NldzhsOGI2d2liZDdjYzcxdGFqb3E5N2FmOSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2UHbv8WT6TKBeeP9Mt/giphy.webp",
-            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3FzdHFnMmRtMzNqZzRtc3M5ZzJpcTEwMzcxc3E2b2M2em9yOXdlMyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MOGOpGFr52Rm5wZjJx/giphy.webp",
-            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGE5cHZsbjlybXBleXEwdDJ2N2N5enR6OGtoZjJqcjVncHZpNWJmciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/d2Z9QYzA2aidiWn6/giphy.webp"
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMm5iZHJydTJ4NGticXdxd3ZxYnZqNXdvaDQwOHdtb3o5NTRhdnRhOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LSX49vHf7JHGyGjrC0/giphy.gif",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzRsNGFicndqMXgzMTVwdnhpeXNyZGsydXVxamV4eGxndWhna291OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ktcUyw6mBlMVa/200.webp",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdjkyeWVubngzM28xODFrbXZ4Nng3Y2hubmM4cXJqNGpic3Bheml0NSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/M11UVCRrc0LUk/giphy.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExenQwNDJmZnZraDBzNXBoNjUwZjEzMzFlanMxcHVodmF4b3l3bDl2biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zrdUjl6N99nLq/200.webp",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmozN3plMWNiYjZoemh6N2RmeTB1MG9ieHlqYTJsb3BrZmNoY3h0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/stv1Dliu5TrMs/giphy.webp"
         ],
-        feature: [],
-        bugfix: [],
-        hotfix: [],
-        release: [],
-        docs: [],
-        chore: []
+        feature: [
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMm5iZHJydTJ4NGticXdxd3ZxYnZqNXdvaDQwOHdtb3o5NTRhdnRhOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LSX49vHf7JHGyGjrC0/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExYmc4YWplZWs0Y2c3ZXNtbGpwZnQzdWpncmNjNXpodjg3MHdtbnJ5NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OMK7LRBedcnhm/200.webp",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHBrYXpmd2poeGU5cWswbjRqNmJlZ2U2dWc0ejVpY3RpcXVuYTY3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/llKJGxQ1ESmac/giphy.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnFleXV0MXZteGN6c2s2b3R3ZGc2cWY1aXB0Y3ZzNmpvZHhyNDVmNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/10FwycrnAkpshW/giphy.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcHo0MjIzaGIycTRmeWFwZmp6bGExczJicXcyZTQxemsxaTY1b3V1NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QKkV58ufpV4ksJ1Okh/giphy.gif",
+        ],
+        bugfix: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExazc3OWszenA5c2FlemE3a25oNnlmZDBra3liMWRqMW82NzM2b2FveCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xPGkOAdiIO3Is/giphy.webp",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmozN3plMWNiYjZoemh6N2RmeTB1MG9ieHlqYTJsb3BrZmNoY3h0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/stv1Dliu5TrMs/giphy.webp",
+            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExY3liaGF2NzI3bzM1YjRmdHFsaGdyenp4b3o3M3dqM3F0bGN5MHZtNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/npUpB306c3EStRK6qP/200.webp",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWh6d3Nld3E0MTF1eTk2YXFibnI3MTBhbGtpamJiemRwejl3YmkzMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gU25raLP4pUu4/giphy.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExdmM1OWR0cnk5eXI0dXpoNWRzbmVseTVyd2l3MzdrOHZueHJ6bjhjMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/12yjKJaLB7DuG4/giphy.webp"
+        ],
+        hotfix: [
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmozN3plMWNiYjZoemh6N2RmeTB1MG9ieHlqYTJsb3BrZmNoY3h0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/stv1Dliu5TrMs/giphy.webp",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2R0cjNxbXBjZjRjNmg4NmN3MGlhazVkNHJsaDkxMHZkY2hweGRtZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/pCU4bC7kC6sxy/200.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExenkyZTc3aDlweWl0MnI0cXJsZGptY3g0bzE2NTY1aWMyaHd4Y201ZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dbtDDSvWErdf2/giphy.webp",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25ndGd2d3Uya3g3dnlnenJ1bjh0Y2NtNHdwZHY3Mjh2NnBmZDJpbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2xF8gHUf085aNyyAQR/200.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdjU3bHdsc3FtamlyazBlbWppNHc3MTV3MW4xdHd2cWo4b2tzbTkwcSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1EghTrigJJhq8/200.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExdmM1OWR0cnk5eXI0dXpoNWRzbmVseTVyd2l3MzdrOHZueHJ6bjhjMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/12yjKJaLB7DuG4/giphy.webp"
+        ],
+        release: [
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExY2NxcHEzam92enRtd29xc21pMHhmbHozMWljamF1cmt4cjhwZTI0ayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/PApUm1HPVYlDNLoMmr/giphy.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNXU4dnhwOWVqZzc4NXVsdTY3c2I4Mm9lOHF1c253MDJya25zNXU0ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dxn6fRlTIShoeBr69N/giphy.webp",
+            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExbXN2bjJob3pxazE2NDJhbGE3ZWY5d2dzbDM4czgwZnA4ejlxY3ZqeCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/9D37RaHngWP7ZmmsEt/giphy.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZnI0YTM2N2hwamd2dXYwNmN2MjRpYXIyN203cnNpbW13YjNhZGRhdyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LYWPXVUNz30ze/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdW1jZ3F4ZGRwMWkyc3ZocHJ3aXhyb2FuZGppcnMyMWtsYXpjbDY2ZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tXLpxypfSXvUc/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHRianpoOW51MzZ4Yjk3MmNpbmdseTJlb3o3dWVpYzJpazc5ZHNoayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/b85mPT4Usz7fq/giphy.gif",
+        ],
+        docs: [
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExaGRpZHJqYzRvZ25xcjR3ZXcwbzVudXF2Z2hsaHoyc2g1ZjZuam81YiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/eDArHBLT4aATKEKtCd/giphy.gif",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExa2NubXR1b2M1dDQ2Z2UxYmk5bzltbHdudWI1emVzOGFlbDNsOGU1bSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/wpgYasZ0tBrP4lCgS3/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExMmEyNzc3M2V0anp4d2JtOTJuMTZ2dXNnMmEyN3A4MmE0ZGpiaDhnNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orifaQEOagjYJ1EXe/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZjUyenc2eG5pZ3NjYzcyZXg2dDFndm5qZHRqMHk5amNoYjhhNnNvZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/7E8lI6TkLrvvAcPXso/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExaWFxcXZ3MTMxM3Bjd2IwNG43ZDJjdndreXNmdTVvZ2g3Z2Q4NjczMCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3tJdi9wQQ10BD2H47g/giphy.gif",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNjFrejZmaHQ2Z2o1Y3B2MDl6cmU5bzNybG84eXFrYjBjZjV0dGFpeSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/fsXOS3oBboiYf6fSsY/giphy.gif",
+            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHdhOHRianU1YmtrNHE0c2R2M2I2MTBzNnZhdnBrMW5ueG02eHF6OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieOEBYMAwTClHqM/giphy.gif",
+        ],
+        chore: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNjFtNXY0ZXdmdGxkdno2Nm5odGk3Nzd3aTRuYnJtbDA4MXIxdHFhdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/10zsjaH4g0GgmY/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZG1sNXB6eTZvdDNtNzJwNXVxenNjendwaGgxb2xzNWI1dGNpdTVmZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/NHHYRm7mAUQ6Y/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHd4bDJrc216YWpicDQ5emczdWF3bTk0dXYzeGQ4ajg2a3IyYjV6diZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/FHEjBpiqMwSuA/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3d5b2U1Z3Jic3AxY2llYjQwNW5wODFpNWp5NHY0dGV5Z2cxdThkdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/kLZNLNqUZ6bC0/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTNpZ2w0c3NrMmc0cmZobTd2eTM3YTRlM2lnbWpoZDUzNnRjdnNmZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/NV4cSrRYXXwfUcYnua/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmFzZHNuODg0dDRheGt0aGU2bjVvd2xiNDI1bWFmYTVsbHJ2eHI2dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/XaAbmtzzz35IgW3Ntn/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExYWM2OHkzYmNkajZxa204Njg0bmQzaWp1M3NobnJjbWxyYWJrbDNnciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OiwOPq0fFqqyainyMu/giphy.gif",
+        ],
+    },
+    commit: {
+        automatic: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWp2OGJ5ZmczaGhiMmVxdjRxMWZnYnRrNW5uemlmd2Ewam1nNGd0aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2XflxzEtr4EPIEzioLu/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTkzeTFveHd6N3Fubm8yZDlpYTVuMnp0bm1rODQyZDdpbTF4YzAxaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/n2IPMYMthV0m4/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3BmNXV1YzZod2NkYjZ3aTE1Z3BwMWJ0ZG9uMXN0bm5pbDQ4ajBvaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3WxRbhsvQjYw8/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWs5YXEyajhoNWI1aHdxeHNwcmt2czY2NW1mNjZrbnViYm9reXJsZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/loLqo6AzjUcMdjS1Jj/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHh5MndyMzBmY3c3bDRxeGhpanF2ZjIycGpmbzlkMDV5cDJkeXhjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieQDBZVlki2mJLW/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdkaHFsMTlzM2ZuY3R5ZXJpZmo3cHRqZWJieXVlOHQwc2F3eGVrdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tELuxgGsoL62ihEtQs/giphy.gif,"
+        ],
+        feature: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWp2OGJ5ZmczaGhiMmVxdjRxMWZnYnRrNW5uemlmd2Ewam1nNGd0aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2XflxzEtr4EPIEzioLu/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTkzeTFveHd6N3Fubm8yZDlpYTVuMnp0bm1rODQyZDdpbTF4YzAxaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/n2IPMYMthV0m4/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3BmNXV1YzZod2NkYjZ3aTE1Z3BwMWJ0ZG9uMXN0bm5pbDQ4ajBvaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3WxRbhsvQjYw8/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWs5YXEyajhoNWI1aHdxeHNwcmt2czY2NW1mNjZrbnViYm9reXJsZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/loLqo6AzjUcMdjS1Jj/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHh5MndyMzBmY3c3bDRxeGhpanF2ZjIycGpmbzlkMDV5cDJkeXhjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieQDBZVlki2mJLW/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdkaHFsMTlzM2ZuY3R5ZXJpZmo3cHRqZWJieXVlOHQwc2F3eGVrdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tELuxgGsoL62ihEtQs/giphy.gif,"
+        ],
+        bugfix: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWp2OGJ5ZmczaGhiMmVxdjRxMWZnYnRrNW5uemlmd2Ewam1nNGd0aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2XflxzEtr4EPIEzioLu/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTkzeTFveHd6N3Fubm8yZDlpYTVuMnp0bm1rODQyZDdpbTF4YzAxaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/n2IPMYMthV0m4/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3BmNXV1YzZod2NkYjZ3aTE1Z3BwMWJ0ZG9uMXN0bm5pbDQ4ajBvaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3WxRbhsvQjYw8/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWs5YXEyajhoNWI1aHdxeHNwcmt2czY2NW1mNjZrbnViYm9reXJsZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/loLqo6AzjUcMdjS1Jj/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHh5MndyMzBmY3c3bDRxeGhpanF2ZjIycGpmbzlkMDV5cDJkeXhjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieQDBZVlki2mJLW/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdkaHFsMTlzM2ZuY3R5ZXJpZmo3cHRqZWJieXVlOHQwc2F3eGVrdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tELuxgGsoL62ihEtQs/giphy.gif,"
+        ],
+        hotfix: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWp2OGJ5ZmczaGhiMmVxdjRxMWZnYnRrNW5uemlmd2Ewam1nNGd0aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2XflxzEtr4EPIEzioLu/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTkzeTFveHd6N3Fubm8yZDlpYTVuMnp0bm1rODQyZDdpbTF4YzAxaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/n2IPMYMthV0m4/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3BmNXV1YzZod2NkYjZ3aTE1Z3BwMWJ0ZG9uMXN0bm5pbDQ4ajBvaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3WxRbhsvQjYw8/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWs5YXEyajhoNWI1aHdxeHNwcmt2czY2NW1mNjZrbnViYm9reXJsZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/loLqo6AzjUcMdjS1Jj/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHh5MndyMzBmY3c3bDRxeGhpanF2ZjIycGpmbzlkMDV5cDJkeXhjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieQDBZVlki2mJLW/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdkaHFsMTlzM2ZuY3R5ZXJpZmo3cHRqZWJieXVlOHQwc2F3eGVrdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tELuxgGsoL62ihEtQs/giphy.gif,"
+        ],
+        release: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWp2OGJ5ZmczaGhiMmVxdjRxMWZnYnRrNW5uemlmd2Ewam1nNGd0aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2XflxzEtr4EPIEzioLu/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTkzeTFveHd6N3Fubm8yZDlpYTVuMnp0bm1rODQyZDdpbTF4YzAxaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/n2IPMYMthV0m4/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3BmNXV1YzZod2NkYjZ3aTE1Z3BwMWJ0ZG9uMXN0bm5pbDQ4ajBvaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3WxRbhsvQjYw8/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWs5YXEyajhoNWI1aHdxeHNwcmt2czY2NW1mNjZrbnViYm9reXJsZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/loLqo6AzjUcMdjS1Jj/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHh5MndyMzBmY3c3bDRxeGhpanF2ZjIycGpmbzlkMDV5cDJkeXhjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieQDBZVlki2mJLW/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdkaHFsMTlzM2ZuY3R5ZXJpZmo3cHRqZWJieXVlOHQwc2F3eGVrdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tELuxgGsoL62ihEtQs/giphy.gif,"
+        ],
+        docs: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWp2OGJ5ZmczaGhiMmVxdjRxMWZnYnRrNW5uemlmd2Ewam1nNGd0aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2XflxzEtr4EPIEzioLu/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTkzeTFveHd6N3Fubm8yZDlpYTVuMnp0bm1rODQyZDdpbTF4YzAxaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/n2IPMYMthV0m4/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3BmNXV1YzZod2NkYjZ3aTE1Z3BwMWJ0ZG9uMXN0bm5pbDQ4ajBvaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3WxRbhsvQjYw8/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWs5YXEyajhoNWI1aHdxeHNwcmt2czY2NW1mNjZrbnViYm9reXJsZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/loLqo6AzjUcMdjS1Jj/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHh5MndyMzBmY3c3bDRxeGhpanF2ZjIycGpmbzlkMDV5cDJkeXhjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieQDBZVlki2mJLW/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdkaHFsMTlzM2ZuY3R5ZXJpZmo3cHRqZWJieXVlOHQwc2F3eGVrdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tELuxgGsoL62ihEtQs/giphy.gif,"
+        ],
+        chore: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWp2OGJ5ZmczaGhiMmVxdjRxMWZnYnRrNW5uemlmd2Ewam1nNGd0aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2XflxzEtr4EPIEzioLu/giphy.gif",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExaTkzeTFveHd6N3Fubm8yZDlpYTVuMnp0bm1rODQyZDdpbTF4YzAxaiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/n2IPMYMthV0m4/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3BmNXV1YzZod2NkYjZ3aTE1Z3BwMWJ0ZG9uMXN0bm5pbDQ4ajBvaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3WxRbhsvQjYw8/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWs5YXEyajhoNWI1aHdxeHNwcmt2czY2NW1mNjZrbnViYm9reXJsZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/loLqo6AzjUcMdjS1Jj/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHh5MndyMzBmY3c3bDRxeGhpanF2ZjIycGpmbzlkMDV5cDJkeXhjMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3orieQDBZVlki2mJLW/giphy.gif",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdkaHFsMTlzM2ZuY3R5ZXJpZmo3cHRqZWJieXVlOHQwc2F3eGVrdSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tELuxgGsoL62ihEtQs/giphy.gif,"
+        ]
     }
 };
 async function run() {
@@ -42110,6 +42282,7 @@ async function run() {
      */
     const imagesOnIssue = core.getInput('images-on-issue') === 'true';
     const imagesOnPullRequest = core.getInput('images-on-pull-request') === 'true';
+    const imagesOnCommit = core.getInput('images-on-commit') === 'true';
     const imagesIssueAutomaticInput = core.getInput('images-issue-automatic');
     const imagesIssueAutomatic = imagesIssueAutomaticInput
         .split(',')
@@ -42222,6 +42395,62 @@ async function run() {
     if (imagesPullRequestChore.length === 0) {
         imagesPullRequestChore.push(...DEFAULT_IMAGE_CONFIG.pullRequest.chore);
     }
+    const imagesCommitAutomaticInput = core.getInput('images-commit-automatic');
+    const imagesCommitAutomatic = imagesCommitAutomaticInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesCommitAutomatic.length === 0) {
+        imagesCommitAutomatic.push(...DEFAULT_IMAGE_CONFIG.commit.automatic);
+    }
+    const imagesCommitFeatureInput = core.getInput('images-commit-feature');
+    const imagesCommitFeature = imagesCommitFeatureInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesCommitFeature.length === 0) {
+        imagesCommitFeature.push(...DEFAULT_IMAGE_CONFIG.commit.feature);
+    }
+    const imagesCommitBugfixInput = core.getInput('images-commit-bugfix');
+    const imagesCommitBugfix = imagesCommitBugfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesCommitBugfix.length === 0) {
+        imagesCommitBugfix.push(...DEFAULT_IMAGE_CONFIG.commit.bugfix);
+    }
+    const imagesCommitReleaseInput = core.getInput('images-commit-release');
+    const imagesCommitRelease = imagesCommitReleaseInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesCommitRelease.length === 0) {
+        imagesCommitRelease.push(...DEFAULT_IMAGE_CONFIG.commit.release);
+    }
+    const imagesCommitHotfixInput = core.getInput('images-commit-hotfix');
+    const imagesCommitHotfix = imagesCommitHotfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesCommitHotfix.length === 0) {
+        imagesCommitHotfix.push(...DEFAULT_IMAGE_CONFIG.commit.hotfix);
+    }
+    const imagesCommitDocsInput = core.getInput('images-commit-docs');
+    const imagesCommitDocs = imagesCommitDocsInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesCommitDocs.length === 0) {
+        imagesCommitDocs.push(...DEFAULT_IMAGE_CONFIG.commit.docs);
+    }
+    const imagesCommitChoreInput = core.getInput('images-commit-chore');
+    const imagesCommitChore = imagesCommitChoreInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesCommitChore.length === 0) {
+        imagesCommitChore.push(...DEFAULT_IMAGE_CONFIG.commit.chore);
+    }
     /**
      * Workflows
      */
@@ -42277,7 +42506,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
