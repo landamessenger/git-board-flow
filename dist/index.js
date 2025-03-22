@@ -41832,14 +41832,26 @@ exports.typesForIssue = typesForIssue;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getRandomElement = void 0;
 const getRandomElement = (list) => {
-    if (list.length === 0) {
+    // Return undefined for empty lists
+    if (!list?.length) {
         return undefined;
     }
+    // Return first element for single item lists
     if (list.length === 1) {
         return list[0];
     }
-    const randomIndex = Math.floor(Math.random() * list.length);
-    return list[randomIndex];
+    // Generate cryptographically secure random index using rejection sampling
+    const max = 2 ** 32;
+    const array = new Uint32Array(1);
+    while (true) {
+        crypto.getRandomValues(array);
+        const randomValue = array[0];
+        // Reject values that would cause bias
+        if (randomValue >= max - (max % list.length)) {
+            continue;
+        }
+        return list[randomValue % list.length];
+    }
 };
 exports.getRandomElement = getRandomElement;
 
