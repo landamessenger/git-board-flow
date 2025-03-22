@@ -1,3 +1,7 @@
+import Chance from 'chance';
+
+const chance = new Chance();
+
 export const getRandomElement = <T>(list: T[]): T | undefined => {
     // Return undefined for empty lists
     if (!list?.length) {
@@ -9,19 +13,7 @@ export const getRandomElement = <T>(list: T[]): T | undefined => {
         return list[0];
     }
 
-    // Generate cryptographically secure random index using rejection sampling
-    const max = 2 ** 32;
-    const array = new Uint32Array(1);
-    
-    while (true) {
-        crypto.getRandomValues(array);
-        const randomValue = array[0];
-        
-        // Reject values that would cause bias
-        if (randomValue >= max - (max % list.length)) {
-            continue;
-        }
-        
-        return list[randomValue % list.length];
-    }
+    // Use chance to get a random index
+    const randomIndex = chance.integer({ min: 0, max: list.length - 1 });
+    return list[randomIndex];
 };
