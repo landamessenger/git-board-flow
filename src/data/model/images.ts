@@ -17,9 +17,19 @@ export class Images {
     pullRequestDocsGifs: string[];
     pullRequestChoreGifs: string[];
 
+    imagesOnCommit: boolean;
+    commitAutomaticActions: string[];
+    commitFeatureGifs: string[];
+    commitBugfixGifs: string[];
+    commitReleaseGifs: string[];
+    commitHotfixGifs: string[];
+    commitDocsGifs: string[];
+    commitChoreGifs: string[];
+
     constructor(
         imagesOnIssue: boolean,
         imagesOnPullRequest: boolean,
+        imagesOnCommit: boolean,
         cleanUpGifs: string[],
         featureGifs: string[],
         bugfixGifs: string[],
@@ -34,9 +44,17 @@ export class Images {
         prHotfixGifs: string[],
         prDocsGifs: string[],
         prChoreGifs: string[],
+        commitAutomaticActions: string[],
+        commitFeatureGifs: string[],
+        commitBugfixGifs: string[],
+        commitReleaseGifs: string[],
+        commitHotfixGifs: string[],
+        commitDocsGifs: string[],
+        commitChoreGifs: string[],
     ) {
         this.imagesOnIssue = imagesOnIssue;
         this.imagesOnPullRequest = imagesOnPullRequest;
+        this.imagesOnCommit = imagesOnCommit;
         this.issueAutomaticActions = cleanUpGifs;
         this.issueFeatureGifs = featureGifs;
         this.issueBugfixGifs = bugfixGifs;
@@ -51,5 +69,12 @@ export class Images {
         this.pullRequestHotfixGifs = prHotfixGifs;
         this.pullRequestDocsGifs = prDocsGifs;
         this.pullRequestChoreGifs = prChoreGifs;
+        this.commitAutomaticActions = commitAutomaticActions;
+        this.commitFeatureGifs = commitFeatureGifs;
+        this.commitBugfixGifs = commitBugfixGifs;
+        this.commitReleaseGifs = commitReleaseGifs;
+        this.commitHotfixGifs = commitHotfixGifs;
+        this.commitDocsGifs = commitDocsGifs;
+        this.commitChoreGifs = commitChoreGifs;
     }
 }

@@ -95,6 +95,9 @@ inputs:
   images-on-pull-request:
     description: "Include images in pull request comments."
     default: "true"
+  images-on-commit:
+    description: "Include images in commit comments."
+    default: "true"
   images-issue-automatic:
     description: "Image URLs to display in automatic action issue comments."
     default: ""
