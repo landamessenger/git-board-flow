@@ -89,6 +89,12 @@ inputs:
   release-tree:
     description: "Naming convention for release branches."
     default: "release"
+  images-on-issue:
+    description: "Include images in issue comments."
+    default: "true"
+  images-on-pull-request:
+    description: "Include images in pull request comments."
+    default: "true"
   images-issue-automatic:
     description: "Image URLs to display in automatic action issue comments."
     default: ""
@@ -112,6 +118,24 @@ inputs:
     default: ""
   images-pull-request-automatic:
     description: "Image URLs to display in automatic action pull request comments."
+    default: ""
+  images-pull-request-feature:
+    description: "Image URLs to display in feature action pull request comments."
+    default: ""
+  images-pull-request-bugfix:
+    description: "Image URLs to display in bugfix action pull request comments."
+    default: ""
+  images-pull-request-docs:
+    description: "Image URLs to display in docs action pull request comments."
+    default: ""
+  images-pull-request-chore:
+    description: "Image URLs to display in chore action pull request comments."
+    default: ""
+  images-pull-request-hotfix:
+    description: "Image URLs to display in hotfix action pull request comments."
+    default: ""
+  images-pull-request-release:
+    description: "Image URLs to display in release action pull request comments."
     default: ""
   commit-prefix-builder:
     description: "Enable commit prefix generation."
