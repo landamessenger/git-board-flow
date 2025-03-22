@@ -36395,7 +36395,7 @@ class Execution {
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
         this.pullRequest = pullRequest;
-        this.giphy = giphy;
+        this.images = giphy;
         this.tokens = tokens;
         this.ai = ai;
         this.emoji = emoji;
@@ -36438,7 +36438,9 @@ exports.Hotfix = Hotfix;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Images = void 0;
 class Images {
-    constructor(cleanUpGifs, featureGifs, bugfixGifs, docsGifs, choreGifs, releaseGifs, hotfixGifs, prLinkGifs) {
+    constructor(imagesOnIssue, imagesOnPullRequest, cleanUpGifs, featureGifs, bugfixGifs, docsGifs, choreGifs, releaseGifs, hotfixGifs, prLinkGifs, prFeatureGifs, prBugfixGifs, prReleaseGifs, prHotfixGifs, prDocsGifs, prChoreGifs) {
+        this.imagesOnIssue = imagesOnIssue;
+        this.imagesOnPullRequest = imagesOnPullRequest;
         this.issueAutomaticActions = cleanUpGifs;
         this.issueFeatureGifs = featureGifs;
         this.issueBugfixGifs = bugfixGifs;
@@ -36447,6 +36449,12 @@ class Images {
         this.issueDocsGifs = docsGifs;
         this.issueChoreGifs = choreGifs;
         this.pullRequestAutomaticActions = prLinkGifs;
+        this.pullRequestFeatureGifs = prFeatureGifs;
+        this.pullRequestBugfixGifs = prBugfixGifs;
+        this.pullRequestReleaseGifs = prReleaseGifs;
+        this.pullRequestHotfixGifs = prHotfixGifs;
+        this.pullRequestDocsGifs = prDocsGifs;
+        this.pullRequestChoreGifs = prChoreGifs;
     }
 }
 exports.Images = Images;
@@ -37645,10 +37653,10 @@ class IssueRepository {
                 else if ((labels.isFeature || labels.isEnhancement) && branched) {
                     emoji = `✨${branchManagementEmoji}`;
                 }
-                else if (labels.isDocs && branched) {
+                else if ((labels.isDocs || labels.isDocumentation) && branched) {
                     emoji = `📝${branchManagementEmoji}`;
                 }
-                else if (labels.isChore && branched) {
+                else if ((labels.isChore || labels.isMaintenance) && branched) {
                     emoji = `🔧${branchManagementEmoji}`;
                 }
                 else if (labels.isHotfix) {
@@ -37663,10 +37671,10 @@ class IssueRepository {
                 else if (labels.isFeature || labels.isEnhancement) {
                     emoji = '✨';
                 }
-                else if (labels.isDocs) {
+                else if (labels.isDocs || labels.isDocumentation) {
                     emoji = '📝';
                 }
-                else if (labels.isChore) {
+                else if (labels.isChore || labels.isMaintenance) {
                     emoji = '🔧';
                 }
                 else if (labels.isHelp) {
@@ -38801,39 +38809,70 @@ class PublishResultUseCase {
             if (param.isIssue) {
                 if (param.issueNotBranched) {
                     title = '🪄 Automatic Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueAutomaticActions);
+                    image = (0, list_utils_1.getRandomElement)(param.images.issueAutomaticActions);
                 }
                 else if (param.release.active) {
                     title = '🚀 Release Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueReleaseGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.images.issueReleaseGifs);
                 }
                 else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueHotfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.images.issueHotfixGifs);
                 }
                 else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueBugfixGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.images.issueBugfixGifs);
                 }
                 else if (param.isFeature) {
                     title = '✨ Feature Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueFeatureGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.images.issueFeatureGifs);
                 }
                 else if (param.isDocs) {
                     title = '📝 Documentation Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueDocsGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.images.issueDocsGifs);
                 }
                 else if (param.isChore) {
                     title = '🔧 Chore Actions';
-                    image = (0, list_utils_1.getRandomElement)(param.giphy.issueChoreGifs);
+                    image = (0, list_utils_1.getRandomElement)(param.images.issueChoreGifs);
                 }
             }
             else if (param.isPullRequest) {
-                title = '🪄 Automatic Actions';
-                image = (0, list_utils_1.getRandomElement)(param.giphy.pullRequestAutomaticActions);
+                if (param.release.active) {
+                    title = '🚀 Release Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.images.pullRequestReleaseGifs);
+                }
+                else if (param.hotfix.active) {
+                    title = '🔥🐛 Hotfix Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.images.pullRequestHotfixGifs);
+                }
+                else if (param.isBugfix) {
+                    title = '🐛 Bugfix Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.images.pullRequestBugfixGifs);
+                }
+                else if (param.isFeature) {
+                    title = '✨ Feature Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.images.pullRequestFeatureGifs);
+                }
+                else if (param.isDocs) {
+                    title = '📝 Documentation Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.images.pullRequestDocsGifs);
+                }
+                else if (param.isChore) {
+                    title = '🔧 Chore Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.images.pullRequestChoreGifs);
+                }
+                else {
+                    title = '🪄 Automatic Actions';
+                    image = (0, list_utils_1.getRandomElement)(param.images.pullRequestAutomaticActions);
+                }
             }
             if (image) {
-                stupidGif = `![image](${image})`;
+                if (param.isIssue && param.images.imagesOnIssue) {
+                    stupidGif = `![image](${image})`;
+                }
+                else if (param.isPullRequest && param.images.imagesOnPullRequest) {
+                    stupidGif = `![image](${image})`;
+                }
             }
             let indexStep = 0;
             param.currentConfiguration.results.forEach(r => {
@@ -41982,6 +42021,54 @@ const release_1 = __nccwpck_require__(2551);
 const single_action_1 = __nccwpck_require__(8024);
 const single_action_use_case_1 = __nccwpck_require__(1817);
 const ai_1 = __nccwpck_require__(4470);
+const DEFAULT_IMAGE_CONFIG = {
+    issue: {
+        automatic: [
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzRsNGFicndqMXgzMTVwdnhpeXNyZGsydXVxamV4eGxndWhna291OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ktcUyw6mBlMVa/200.webp",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExdjkyeWVubngzM28xODFrbXZ4Nng3Y2hubmM4cXJqNGpic3Bheml0NSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/M11UVCRrc0LUk/giphy.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExenQwNDJmZnZraDBzNXBoNjUwZjEzMzFlanMxcHVodmF4b3l3bDl2biZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zrdUjl6N99nLq/200.webp",
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmozN3plMWNiYjZoemh6N2RmeTB1MG9ieHlqYTJsb3BrZmNoY3h0dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/stv1Dliu5TrMs/giphy.webp"
+        ],
+        feature: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExYmc4YWplZWs0Y2c3ZXNtbGpwZnQzdWpncmNjNXpodjg3MHdtbnJ5NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OMK7LRBedcnhm/200.webp",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHBrYXpmd2poeGU5cWswbjRqNmJlZ2U2dWc0ejVpY3RpcXVuYTY3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/llKJGxQ1ESmac/giphy.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnFleXV0MXZteGN6c2s2b3R3ZGc2cWY1aXB0Y3ZzNmpvZHhyNDVmNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/10FwycrnAkpshW/giphy.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExdmM1OWR0cnk5eXI0dXpoNWRzbmVseTVyd2l3MzdrOHZueHJ6bjhjMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/12yjKJaLB7DuG4/giphy.webp"
+        ],
+        bugfix: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExazc3OWszenA5c2FlemE3a25oNnlmZDBra3liMWRqMW82NzM2b2FveCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xPGkOAdiIO3Is/giphy.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExYmFoaHdqMG10eHUzb2toZzJra3pibXZ0NHk5NnRnazE3YmFiNGV1ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OspWhQ8YttRf8QxDOh/giphy.webp",
+            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExY3liaGF2NzI3bzM1YjRmdHFsaGdyenp4b3o3M3dqM3F0bGN5MHZtNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/npUpB306c3EStRK6qP/200.webp",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWh6d3Nld3E0MTF1eTk2YXFibnI3MTBhbGtpamJiemRwejl3YmkzMSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gU25raLP4pUu4/giphy.webp"
+        ],
+        hotfix: [
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2R0cjNxbXBjZjRjNmg4NmN3MGlhazVkNHJsaDkxMHZkY2hweGRtZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/pCU4bC7kC6sxy/200.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExenkyZTc3aDlweWl0MnI0cXJsZGptY3g0bzE2NTY1aWMyaHd4Y201ZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dbtDDSvWErdf2/giphy.webp",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25ndGd2d3Uya3g3dnlnenJ1bjh0Y2NtNHdwZHY3Mjh2NnBmZDJpbyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2xF8gHUf085aNyyAQR/200.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdjU3bHdsc3FtamlyazBlbWppNHc3MTV3MW4xdHd2cWo4b2tzbTkwcSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1EghTrigJJhq8/200.webp"
+        ],
+        release: [
+            "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExY2NxcHEzam92enRtd29xc21pMHhmbHozMWljamF1cmt4cjhwZTI0ayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/PApUm1HPVYlDNLoMmr/giphy.webp",
+            "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNXU4dnhwOWVqZzc4NXVsdTY3c2I4Mm9lOHF1c253MDJya25zNXU0ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dxn6fRlTIShoeBr69N/giphy.webp",
+            "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExbXN2bjJob3pxazE2NDJhbGE3ZWY5d2dzbDM4czgwZnA4ejlxY3ZqeCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/9D37RaHngWP7ZmmsEt/giphy.webp"
+        ],
+        docs: [],
+        chore: []
+    },
+    pullRequest: {
+        automatic: [
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExb2l4d25hNjEyNHRpN3NldzhsOGI2d2liZDdjYzcxdGFqb3E5N2FmOSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/2UHbv8WT6TKBeeP9Mt/giphy.webp",
+            "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3FzdHFnMmRtMzNqZzRtc3M5ZzJpcTEwMzcxc3E2b2M2em9yOXdlMyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MOGOpGFr52Rm5wZjJx/giphy.webp",
+            "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGE5cHZsbjlybXBleXEwdDJ2N2N5enR6OGtoZjJqcjVncHZpNWJmciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/d2Z9QYzA2aidiWn6/giphy.webp"
+        ],
+        feature: [],
+        bugfix: [],
+        hotfix: [],
+        release: [],
+        docs: [],
+        chore: []
+    }
+};
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     /**
@@ -42021,46 +42108,120 @@ async function run() {
     /**
      * Images
      */
+    const imagesOnIssue = core.getInput('images-on-issue') === 'true';
+    const imagesOnPullRequest = core.getInput('images-on-pull-request') === 'true';
     const imagesIssueAutomaticInput = core.getInput('images-issue-automatic');
     const imagesIssueAutomatic = imagesIssueAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesIssueAutomatic.length === 0) {
+        imagesIssueAutomatic.push(...DEFAULT_IMAGE_CONFIG.issue.automatic);
+    }
     const imagesIssueFeatureInput = core.getInput('images-issue-feature');
     const imagesIssueFeature = imagesIssueFeatureInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesIssueFeature.length === 0) {
+        imagesIssueFeature.push(...DEFAULT_IMAGE_CONFIG.issue.feature);
+    }
     const imagesIssueBugfixInput = core.getInput('images-issue-bugfix');
     const imagesIssueBugfix = imagesIssueBugfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesIssueBugfix.length === 0) {
+        imagesIssueBugfix.push(...DEFAULT_IMAGE_CONFIG.issue.bugfix);
+    }
     const imagesIssueDocsInput = core.getInput('images-issue-docs');
     const imagesIssueDocs = imagesIssueDocsInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesIssueDocs.length === 0) {
+        imagesIssueDocs.push(...DEFAULT_IMAGE_CONFIG.issue.docs);
+    }
     const imagesIssueChoreInput = core.getInput('images-issue-chore');
     const imagesIssueChore = imagesIssueChoreInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesIssueChore.length === 0) {
+        imagesIssueChore.push(...DEFAULT_IMAGE_CONFIG.issue.chore);
+    }
     const imagesIssueReleaseInput = core.getInput('images-issue-release');
     const imagesIssueRelease = imagesIssueReleaseInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesIssueRelease.length === 0) {
+        imagesIssueRelease.push(...DEFAULT_IMAGE_CONFIG.issue.release);
+    }
     const imagesIssueHotfixInput = core.getInput('images-issue-hotfix');
     const imagesIssueHotfix = imagesIssueHotfixInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesIssueHotfix.length === 0) {
+        imagesIssueHotfix.push(...DEFAULT_IMAGE_CONFIG.issue.hotfix);
+    }
     const imagesPullRequestAutomaticInput = core.getInput('images-pull-request-automatic');
     const imagesPullRequestAutomatic = imagesPullRequestAutomaticInput
         .split(',')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+    if (imagesPullRequestAutomatic.length === 0) {
+        imagesPullRequestAutomatic.push(...DEFAULT_IMAGE_CONFIG.pullRequest.automatic);
+    }
+    const imagesPullRequestFeatureInput = core.getInput('images-pull-request-feature');
+    const imagesPullRequestFeature = imagesPullRequestFeatureInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesPullRequestFeature.length === 0) {
+        imagesPullRequestFeature.push(...DEFAULT_IMAGE_CONFIG.pullRequest.feature);
+    }
+    const imagesPullRequestBugfixInput = core.getInput('images-pull-request-bugfix');
+    const imagesPullRequestBugfix = imagesPullRequestBugfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesPullRequestBugfix.length === 0) {
+        imagesPullRequestBugfix.push(...DEFAULT_IMAGE_CONFIG.pullRequest.bugfix);
+    }
+    const imagesPullRequestReleaseInput = core.getInput('images-pull-request-release');
+    const imagesPullRequestRelease = imagesPullRequestReleaseInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesPullRequestRelease.length === 0) {
+        imagesPullRequestRelease.push(...DEFAULT_IMAGE_CONFIG.pullRequest.release);
+    }
+    const imagesPullRequestHotfixInput = core.getInput('images-pull-request-hotfix');
+    const imagesPullRequestHotfix = imagesPullRequestHotfixInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesPullRequestHotfix.length === 0) {
+        imagesPullRequestHotfix.push(...DEFAULT_IMAGE_CONFIG.pullRequest.hotfix);
+    }
+    const imagesPullRequestDocsInput = core.getInput('images-pull-request-docs');
+    const imagesPullRequestDocs = imagesPullRequestDocsInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesPullRequestDocs.length === 0) {
+        imagesPullRequestDocs.push(...DEFAULT_IMAGE_CONFIG.pullRequest.docs);
+    }
+    const imagesPullRequestChoreInput = core.getInput('images-pull-request-chore');
+    const imagesPullRequestChore = imagesPullRequestChoreInput
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+    if (imagesPullRequestChore.length === 0) {
+        imagesPullRequestChore.push(...DEFAULT_IMAGE_CONFIG.pullRequest.chore);
+    }
     /**
      * Workflows
      */
@@ -42116,7 +42277,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
