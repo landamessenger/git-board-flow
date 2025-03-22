@@ -5,6 +5,134 @@ description: Everything about hotfix-type issues.
 
 Hotfix issues are used to track and resolve critical bugs that need immediate attention in the production environment. These issues help maintain the stability of the production codebase by addressing urgent problems that affect functionality.
 
+## Workflow
+
+The hotfix process follows these steps after creating an issue with `hotfix` and `branched` labels:
+
+<Steps>
+  <Step title="Create Hotfix Branch">
+    A hotfix branch is created from `main-branch` at the latest tag version
+  </Step>
+  <Step title="Create Bugfix Branch">
+    A bugfix branch is created from the hotfix branch to implement the fix
+  </Step>
+  <Step title="Implement Changes">
+    The needed changes are applied on the bugfix branch
+  </Step>
+  <Step title="Merge Bugfix">
+    The bugfix is merged back into the hotfix branch via Pull Request
+  </Step>
+  <Step title="Deploy New Version">
+    A new version is deployed from the hotfix branch by adding the `deploy-label` to the issue
+  </Step>
+  <Step title="Merge Hotfix">
+    After successful deployment, the hotfix branch is merged:
+    - First into `main-branch` with the new version tag
+    - Then into `development-branch` to keep changes synchronized
+  </Step>
+  <Step title="Close Issue">
+    The issue is automatically closed with the `deployed-label` label once the process completes
+  </Step>
+</Steps>
+
+This workflow ensures that critical fixes reach production quickly while maintaining code quality and proper version control. The process is designed to minimize disruption while addressing urgent issues.
+
+<Warning>Deploy workflow files should be located in the `.github/workflows` directory of your repository.</Warning>
+
+<Card title="How do I trigger the hotfix deployment?" icon="code-branch">
+  Once your bug fix is merged into the `hotfix` branch and ready for deployment, simply add the **deploy-label** to the issue. This will automatically trigger the hotfix deployment workflow.
+
+  By default, the deployment is triggered with the `deploy` label and uses the `hotfix_workflow.yml` workflow file. You can customize these settings as shown below:
+  
+  ```yml
+  jobs:
+    git-board-issues:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Git Board - Issue
+          uses: ./
+          with:
+            deploy-label: deploy // [!code highlight]
+            hotfix-workflow: hotfix_workflow.yml // [!code highlight]
+  ```
+</Card>
+
+<Card title="How do I control the end of the deployment?" icon="rocket">
+  The hotfix deployment workflow is defined in the `hotfix_workflow.yml` file.
+
+  The workflow requires the following inputs:
+  - `version`: The new version number
+  - `title`: Title for the release
+  - `changelog`: Description of changes
+  - `issue`: ID of the originating issue
+
+  <Warning>Remember to create a new tag for the new deployed version.</Warning>
+  
+  ```yml
+  name: Task - Hotfix
+
+  on:
+    workflow_dispatch:
+      inputs:
+        version:
+          description: 'Hotfix version'
+          required: true
+          default: '1.0.0'
+        title:
+          description: 'Title'
+          required: true
+          default: 'New Version'
+        changelog:
+          description: 'Changelog'
+          required: true
+          default: '- Several improvements'
+        issue:
+          description: 'Launcher issue'
+          required: true
+          default: '-1'
+
+  concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+  jobs:
+    deploy:
+      name: Git Board - Issue
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        // create a new tag version here
+
+        // deploy logic here
+
+        - name: Git Board - Deploy success notification
+          uses: ./
+          if: ${{ success() }}
+          with:
+            single-action: 'deployed_action'
+            single-action-issue: '${{ github.event.inputs.issue }}'
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            github-token-personal: ${{ secrets.REPO_PAT }}
+  ```
+</Card>
+
+## Example
+
+For a hotfix issue #123 fixing a critical login bug:
+
+1. Hotfix branch created: `hotfix/1.2.4`
+2. Bugfix branch created: `bugfix/123-fix-critical-login`
+3. Fix implemented and tested on bugfix branch
+4. PR merged into `hotfix/1.2.4`
+5. Version 1.2.4 deployed to production
+6. Changes merged to `master` and `develop`
+
 ## Label
 
 All hotfix issues are created with the `hotfix-label`. The default label for creating a hotfix-type issue is `hotfix`. You can configure this label as follows:
@@ -173,131 +301,3 @@ body:
         Add any additional details or context about this hotfix request.
       placeholder: "Anything else to note?"
 ```
-
-## Workflow
-
-The hotfix process follows these steps after creating an issue with `hotfix` and `branched` labels:
-
-<Steps>
-  <Step title="Create Hotfix Branch">
-    A hotfix branch is created from `main-branch` at the latest tag version
-  </Step>
-  <Step title="Create Bugfix Branch">
-    A bugfix branch is created from the hotfix branch to implement the fix
-  </Step>
-  <Step title="Implement Changes">
-    The needed changes are applied on the bugfix branch
-  </Step>
-  <Step title="Merge Bugfix">
-    The bugfix is merged back into the hotfix branch via Pull Request
-  </Step>
-  <Step title="Deploy New Version">
-    A new version is deployed from the hotfix branch by adding the `deploy-label` to the issue
-  </Step>
-  <Step title="Merge Hotfix">
-    After successful deployment, the hotfix branch is merged:
-    - First into `main-branch` with the new version tag
-    - Then into `development-branch` to keep changes synchronized
-  </Step>
-  <Step title="Close Issue">
-    The issue is automatically closed with the `deployed-label` label once the process completes
-  </Step>
-</Steps>
-
-This workflow ensures that critical fixes reach production quickly while maintaining code quality and proper version control. The process is designed to minimize disruption while addressing urgent issues.
-
-<Warning>Deploy workflow files should be located in the `.github/workflows` directory of your repository.</Warning>
-
-<Card title="How do I trigger the hotfix deployment?" icon="code-branch">
-  Once your bug fix is merged into the `hotfix` branch and ready for deployment, simply add the **deploy-label** to the issue. This will automatically trigger the hotfix deployment workflow.
-
-  By default, the deployment is triggered with the `deploy` label and uses the `hotfix_workflow.yml` workflow file. You can customize these settings as shown below:
-  
-  ```yml
-  jobs:
-    git-board-issues:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        - name: Git Board - Issue
-          uses: ./
-          with:
-            deploy-label: deploy // [!code highlight]
-            hotfix-workflow: hotfix_workflow.yml // [!code highlight]
-  ```
-</Card>
-
-<Card title="How do I control the end of the deployment?" icon="rocket">
-  The hotfix deployment workflow is defined in the `hotfix_workflow.yml` file.
-
-  The workflow requires the following inputs:
-  - `version`: The new version number
-  - `title`: Title for the release
-  - `changelog`: Description of changes
-  - `issue`: ID of the originating issue
-
-  <Warning>Remember to create a new tag for the new deployed version.</Warning>
-  
-  ```yml
-  name: Task - Hotfix
-
-  on:
-    workflow_dispatch:
-      inputs:
-        version:
-          description: 'Hotfix version'
-          required: true
-          default: '1.0.0'
-        title:
-          description: 'Title'
-          required: true
-          default: 'New Version'
-        changelog:
-          description: 'Changelog'
-          required: true
-          default: '- Several improvements'
-        issue:
-          description: 'Launcher issue'
-          required: true
-          default: '-1'
-
-  concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-    cancel-in-progress: true
-
-  jobs:
-    deploy:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        // create a new tag version here
-
-        // deploy logic here
-
-        - name: Git Board - Deploy success notification
-          uses: ./
-          if: ${{ success() }}
-          with:
-            single-action: 'deployed_action'
-            single-action-issue: '${{ github.event.inputs.issue }}'
-            github-token: ${{ secrets.GITHUB_TOKEN }}
-            github-token-personal: ${{ secrets.REPO_PAT }}
-  ```
-</Card>
-
-## Example
-
-For a hotfix issue #123 fixing a critical login bug:
-
-1. Hotfix branch created: `hotfix/1.2.4`
-2. Bugfix branch created: `bugfix/123-fix-critical-login`
-3. Fix implemented and tested on bugfix branch
-4. PR merged into `hotfix/1.2.4`
-5. Version 1.2.4 deployed to production
-6. Changes merged to `master` and `develop`
