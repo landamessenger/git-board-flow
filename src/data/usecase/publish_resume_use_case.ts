@@ -28,33 +28,57 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
             if (param.isIssue) {
                 if (param.issueNotBranched) {
                     title = '🪄 Automatic Actions'
-                    image = getRandomElement(param.giphy.issueAutomaticActions)
+                    image = getRandomElement(param.images.issueAutomaticActions)
                 } else if (param.release.active) {
                     title = '🚀 Release Actions'
-                    image = getRandomElement(param.giphy.issueReleaseGifs)
+                    image = getRandomElement(param.images.issueReleaseGifs)
                 } else if (param.hotfix.active) {
                     title = '🔥🐛 Hotfix Actions'
-                    image = getRandomElement(param.giphy.issueHotfixGifs)
+                    image = getRandomElement(param.images.issueHotfixGifs)
                 } else if (param.isBugfix) {
                     title = '🐛 Bugfix Actions'
-                    image = getRandomElement(param.giphy.issueBugfixGifs)
+                    image = getRandomElement(param.images.issueBugfixGifs)
                 } else if (param.isFeature) {
                     title = '✨ Feature Actions'
-                    image = getRandomElement(param.giphy.issueFeatureGifs)
+                    image = getRandomElement(param.images.issueFeatureGifs)
                 } else if (param.isDocs) {
                     title = '📝 Documentation Actions'
-                    image = getRandomElement(param.giphy.issueDocsGifs)
+                    image = getRandomElement(param.images.issueDocsGifs)
                 } else if (param.isChore) {
                     title = '🔧 Chore Actions'
-                    image = getRandomElement(param.giphy.issueChoreGifs)
+                    image = getRandomElement(param.images.issueChoreGifs)
                 }
             } else if (param.isPullRequest) {
-                title = '🪄 Automatic Actions'
-                image = getRandomElement(param.giphy.pullRequestAutomaticActions)
+                if (param.release.active) {
+                    title = '🚀 Release Actions'
+                    image = getRandomElement(param.images.pullRequestReleaseGifs)
+                } else if (param.hotfix.active) {
+                    title = '🔥🐛 Hotfix Actions'
+                    image = getRandomElement(param.images.pullRequestHotfixGifs)
+                } else if (param.isBugfix) {
+                    title = '🐛 Bugfix Actions'
+                    image = getRandomElement(param.images.pullRequestBugfixGifs)
+                } else if (param.isFeature) {
+                    title = '✨ Feature Actions'
+                    image = getRandomElement(param.images.pullRequestFeatureGifs)
+                } else if (param.isDocs) {
+                    title = '📝 Documentation Actions'
+                    image = getRandomElement(param.images.pullRequestDocsGifs)
+                } else if (param.isChore) {
+                    title = '🔧 Chore Actions'
+                    image = getRandomElement(param.images.pullRequestChoreGifs)
+                } else {
+                    title = '🪄 Automatic Actions'
+                    image = getRandomElement(param.images.pullRequestAutomaticActions)
+                }
             }
 
             if (image) {
-                stupidGif = `![image](${image})`
+                if (param.isIssue && param.images.imagesOnIssue) {
+                    stupidGif = `![image](${image})`
+                } else if (param.isPullRequest && param.images.imagesOnPullRequest) {
+                    stupidGif = `![image](${image})`
+                }
             }
 
             let indexStep = 0

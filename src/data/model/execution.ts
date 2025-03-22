@@ -36,7 +36,7 @@ export class Execution {
     commitPrefixBuilder: string;
     commitPrefixBuilderParams: any = {};
     emoji: Emoji;
-    giphy: Images;
+    images: Images;
     tokens: Tokens;
     ai: Ai;
     labels: Labels;
@@ -168,7 +168,7 @@ export class Execution {
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
         this.pullRequest = pullRequest;
-        this.giphy = giphy;
+        this.images = giphy;
         this.tokens = tokens;
         this.ai = ai;
         this.emoji = emoji;
