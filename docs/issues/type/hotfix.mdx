@@ -178,15 +178,31 @@ body:
 
 The hotfix process follows these steps after creating an issue with `hotfix` and `branched` labels:
 
-1. A hotfix branch is created from `main-branch` at the latest tag version
-2. A bugfix branch is created from the hotfix branch to implement the fix
-3. The needed changes are applied on the bugfix branch
-4. The bugfix is merged back into the hotfix branch via Pull Request
-5. A new version is deployed from the hotfix branch by adding the `deploy-label` to the issue
-6. After successful deployment, the hotfix branch is merged:
-   - First into `main-branch` with the new version tag
-   - Then into `development-branch` to keep changes synchronized
-7. The issue is automatically closed with the `deployed-label` label once the process completes
+<Steps>
+  <Step title="Create Hotfix Branch">
+    A hotfix branch is created from `main-branch` at the latest tag version
+  </Step>
+  <Step title="Create Bugfix Branch">
+    A bugfix branch is created from the hotfix branch to implement the fix
+  </Step>
+  <Step title="Implement Changes">
+    The needed changes are applied on the bugfix branch
+  </Step>
+  <Step title="Merge Bugfix">
+    The bugfix is merged back into the hotfix branch via Pull Request
+  </Step>
+  <Step title="Deploy New Version">
+    A new version is deployed from the hotfix branch by adding the `deploy-label` to the issue
+  </Step>
+  <Step title="Merge Hotfix">
+    After successful deployment, the hotfix branch is merged:
+    - First into `main-branch` with the new version tag
+    - Then into `development-branch` to keep changes synchronized
+  </Step>
+  <Step title="Close Issue">
+    The issue is automatically closed with the `deployed-label` label once the process completes
+  </Step>
+</Steps>
 
 This workflow ensures that critical fixes reach production quickly while maintaining code quality and proper version control. The process is designed to minimize disruption while addressing urgent issues.
 

@@ -164,15 +164,31 @@ body:
 
 The release process follows these steps after creating an issue with `release` and `branched` labels:
 
-1. A release branch is created from `development-branch`
-2. A feature branch is created from the release branch to implement any remaining changes
-3. The needed changes are applied on the feature branch
-4. The feature branch is merged back into the release branch via Pull Request
-5. A new version is deployed from the release branch by adding the `deploy-label` to the issue
-6. After successful deployment, the release branch is merged:
-   - First into `main-branch` with the new version tag
-   - Then back into `development-branch` to keep changes synchronized
-7. The issue is automatically closed with the `deployed-label` label once the process completes
+<Steps>
+  <Step title="Create Release Branch">
+    A release branch is created from `development-branch`
+  </Step>
+  <Step title="Create Feature Branch">
+    A feature branch is created from the release branch to implement any remaining changes
+  </Step>
+  <Step title="Apply Changes">
+    The needed changes are applied on the feature branch
+  </Step>
+  <Step title="Merge Feature Branch">
+    The feature branch is merged back into the release branch via Pull Request
+  </Step>
+  <Step title="Deploy New Version">
+    A new version is deployed from the release branch by adding the `deploy-label` to the issue
+  </Step>
+  <Step title="Merge Release Branch">
+    After successful deployment, the release branch is merged:
+    - First into `main-branch` with the new version tag
+    - Then back into `development-branch` to keep changes synchronized
+  </Step>
+  <Step title="Close Issue">
+    The issue is automatically closed with the `deployed-label` label once the process completes
+  </Step>
+</Steps>
 
 This workflow ensures that releases are properly planned, tested, and deployed while maintaining code quality and proper version control.
 
