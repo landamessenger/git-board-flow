@@ -73,26 +73,43 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
             let changesDescription = ``;
             
             // Process each file individually
+            let filePrompt = ''
             for (const change of changes) {
-                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
-                if (shouldIgnoreFile) {
-                    continue;
-                }
+                try {
+                    const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
+                    if (shouldIgnoreFile) {
+                        continue;
+                    }
 
-                let filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
-                filePrompt += `File: ${change.filename}\n`;
-                filePrompt += `Status: ${change.status}\n`;
-                filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
-                if (change.patch) {
-                    filePrompt += `Patch:\n${change.patch}\n`;
-                }
-                // Get AI response for this file
-                const fileDescription = await this.aiRepository.askChatGPT(
-                    filePrompt,
-                    param.ai.getOpenaiApiKey()
-                );
+                    filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
+                    filePrompt += `File: ${change.filename}\n`;
+                    filePrompt += `Status: ${change.status}\n`;
+                    filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
+                    if (change.patch) {
+                        filePrompt += `Patch:\n${change.patch}\n`;
+                    }
+                    // Get AI response for this file
+                    const fileDescription = await this.aiRepository.askChatGPT(
+                        filePrompt,
+                        param.ai.getOpenaiApiKey()
+                    );
 
-                changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
+                    changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
+                } catch (error) {
+                    console.error(error);
+                    result.push(
+                        new Result(
+                            {
+                                id: this.taskId,
+                                success: false,
+                                executed: true,
+                                steps: [
+                                    `Error processing file ${change.filename}: ${error} \n\n${filePrompt}`
+                                ]
+                            }
+                        )
+                    );
+                }
             }
 
             const descriptionPrompt = `this an issue descrition.
