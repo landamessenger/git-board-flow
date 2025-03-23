@@ -140,6 +140,27 @@ inputs:
   images-pull-request-release:
     description: "Image URLs to display in release action pull request comments."
     default: ""
+  images-commit-feature:
+    description: "Image URLs to display in feature action commit comments."
+    default: ""
+  images-commit-bugfix:
+    description: "Image URLs to display in bugfix action commit comments."
+    default: ""
+  images-commit-release:
+    description: "Image URLs to display in release action commit comments."
+    default: ""
+  images-commit-automatic:
+    description: "Image URLs to display in automatic action commit comments."
+    default: ""
+  images-commit-docs:
+    description: "Image URLs to display in docs action commit comments."
+    default: ""
+  images-commit-chore:
+    description: "Image URLs to display in chore action commit comments."
+    default: ""
+  images-commit-hotfix:
+    description: "Image URLs to display in hotfix action commit comments."
+    default: "" 
   commit-prefix-builder:
     description: "Enable commit prefix generation."
     default: ""

@@ -16,7 +16,6 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   git-board-issues:
@@ -27,7 +26,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board - Issue
-        uses: ./
+        uses: landamessenger/git-board-flow@master
         with:
           project-urls: https://github.com/orgs/landamessenger/projects/2
           commit-prefix-builder: |
@@ -54,7 +53,7 @@ Git Board Flow rolls the dice for you by automatically assigning newly created i
           uses: actions/checkout@v4
 
         - name: Git Board - Issue
-          uses: ./
+          uses: landamessenger/git-board-flow@master
           with:
             desired-assignees-count: 1 // [!code highlight]
   ```
@@ -80,7 +79,7 @@ Git Board Flow takes care of organizing your issues by automatically assigning n
           uses: actions/checkout@v4
 
         - name: Git Board - Issue
-          uses: ./
+          uses: landamessenger/git-board-flow@master
           with:
             github-token-personal: ${{ secrets.REPO_PAT }} // [!code highlight]
             project-urls: https://github.com/orgs/landamessenger/projects/1, https://github.com/orgs/landamessenger/projects/2 // [!code highlight]
@@ -109,7 +108,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
           uses: actions/checkout@v4
 
         - name: Git Board - Issue
-          uses: ./
+          uses: landamessenger/git-board-flow@master
           with:
             branch-management-launcher-label: branched // [!code highlight]
   ```
@@ -130,7 +129,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
           uses: actions/checkout@v4
 
         - name: Git Board - Issue
-          uses: ./
+          uses: landamessenger/git-board-flow@master
           with:
             main-branch: master // [!code highlight]
             development-branch: develop // [!code highlight]
