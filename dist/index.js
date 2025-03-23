@@ -53222,7 +53222,7 @@ ${changesDescription}
         return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
     }
     async processPatchSection(section, filename, status, additions, deletions, openaiApiKey, openaiModel) {
-        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section"):\n\n` +
+        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section". Try to start the explanation with "from line X to line Y: what was changed"):\n\n` +
             `File: ${filename}\n` +
             `Status: ${status}\n` +
             `Changes: +${additions} -${deletions}\n` +
