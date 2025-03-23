@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board - Issue
-        uses: ./
+        uses: landamessenger/git-board-flow@master
         with:
           bugfix-label: bugfix // [!code highlight]
 ```
@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board - Issue
-        uses: ./
+        uses: landamessenger/git-board-flow@master
         with:
           bugfix-tree: bugfix // [!code highlight]
 ```
@@ -68,7 +68,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board - Issue
-        uses: ./
+        uses: landamessenger/git-board-flow@master
         with:
           development-branch: develop // [!code highlight]
 ```
@@ -89,7 +89,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Git Board - Issue
-        uses: ./
+        uses: landamessenger/git-board-flow@master
         with:
           images-issue-bugfix: url1, url2, url3 // [!code highlight]
 ```

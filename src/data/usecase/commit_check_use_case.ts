@@ -4,6 +4,7 @@ import {Result} from "../model/result";
 import * as core from '@actions/core';
 import {IssueRepository} from "../repository/issue_repository";
 import {ExecuteScriptUseCase} from "./steps/execute_script_use_case";
+import { getRandomElement } from "../utils/list_utils";
 
 export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitCheckUseCase';
@@ -39,8 +40,33 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Commits detected: ${param.issueNumber}`);
 
+            let title = ''
+            let image: string | undefined = ''
+            if (param.release.active) {
+                title = '🚀 Release News'
+                image = getRandomElement(param.images.commitReleaseGifs)
+            } else if (param.hotfix.active) {
+                title = '🔥🐛 Hotfix News'
+                image = getRandomElement(param.images.commitHotfixGifs)
+            } else if (param.isBugfix) {
+                title = '🐛 Bugfix News'
+                image = getRandomElement(param.images.commitBugfixGifs)
+            } else if (param.isFeature) {
+                title = '✨ Feature News'
+                image = getRandomElement(param.images.commitFeatureGifs)
+            } else if (param.isDocs) {
+                title = '📝 Documentation News'
+                image = getRandomElement(param.images.commitDocsGifs)
+            } else if (param.isChore) {
+                title = '🔧 Chore News'
+                image = getRandomElement(param.images.commitChoreGifs)
+            } else {
+                title = '🪄 Automatic News'
+                image = getRandomElement(param.images.commitAutomaticActions)
+            }
+
             let commentBody = `
-# 🎉  News
+# ${title}
 
 **Changes on branch \`${param.commit.branch}\`:**
 
@@ -76,6 +102,14 @@ One or more commits didn't start with the prefix **${commitPrefix}**.
 \`\`\`
 ${commitPrefix}: created hello-world app
 \`\`\`
+`
+            }
+
+            if (image && param.images.imagesOnCommit) {
+                commentBody += `
+${this.separator}
+
+![image](${image})
 `
             }
 

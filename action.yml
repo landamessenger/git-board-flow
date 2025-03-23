@@ -89,6 +89,15 @@ inputs:
   release-tree:
     description: "Naming convention for release branches."
     default: "release"
+  images-on-issue:
+    description: "Include images in issue comments."
+    default: "true"
+  images-on-pull-request:
+    description: "Include images in pull request comments."
+    default: "true"
+  images-on-commit:
+    description: "Include images in commit comments."
+    default: "true"
   images-issue-automatic:
     description: "Image URLs to display in automatic action issue comments."
     default: ""
@@ -113,6 +122,45 @@ inputs:
   images-pull-request-automatic:
     description: "Image URLs to display in automatic action pull request comments."
     default: ""
+  images-pull-request-feature:
+    description: "Image URLs to display in feature action pull request comments."
+    default: ""
+  images-pull-request-bugfix:
+    description: "Image URLs to display in bugfix action pull request comments."
+    default: ""
+  images-pull-request-docs:
+    description: "Image URLs to display in docs action pull request comments."
+    default: ""
+  images-pull-request-chore:
+    description: "Image URLs to display in chore action pull request comments."
+    default: ""
+  images-pull-request-hotfix:
+    description: "Image URLs to display in hotfix action pull request comments."
+    default: ""
+  images-pull-request-release:
+    description: "Image URLs to display in release action pull request comments."
+    default: ""
+  images-commit-feature:
+    description: "Image URLs to display in feature action commit comments."
+    default: ""
+  images-commit-bugfix:
+    description: "Image URLs to display in bugfix action commit comments."
+    default: ""
+  images-commit-release:
+    description: "Image URLs to display in release action commit comments."
+    default: ""
+  images-commit-automatic:
+    description: "Image URLs to display in automatic action commit comments."
+    default: ""
+  images-commit-docs:
+    description: "Image URLs to display in docs action commit comments."
+    default: ""
+  images-commit-chore:
+    description: "Image URLs to display in chore action commit comments."
+    default: ""
+  images-commit-hotfix:
+    description: "Image URLs to display in hotfix action commit comments."
+    default: "" 
   commit-prefix-builder:
     description: "Enable commit prefix generation."
     default: ""
@@ -143,6 +191,9 @@ inputs:
   openai-api-key:
     description: "OpenAI API key for AI operations."
     default: ""
+  openai-model:
+    description: "OpenAI model for AI operations."
+    default: "gpt-3.5-turbo"
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
     default: "false"
