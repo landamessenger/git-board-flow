@@ -67,6 +67,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     core.info(`Tag branch: ${param.hotfix.baseBranch}`);
                     core.info(`Hotfix branch: ${param.hotfix.branch}`);
 
+                    param.currentConfiguration.parentBranch = param.hotfix.baseBranch
+
                     if (branches.indexOf(param.hotfix.branch) === -1) {
                         const linkResult = await this.branchRepository.createLinkedBranch(
                             param.owner,
@@ -121,6 +123,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     param.currentConfiguration.releaseBranch = param.release.branch;
 
                     core.info(`Release branch: ${param.release.branch}`);
+                    param.currentConfiguration.parentBranch = param.branches.development
 
                     const developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.development}`;
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
@@ -190,6 +193,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 }
                 return result
             }
+            
+            param.currentConfiguration.parentBranch = param.managementBranch
 
             core.info(`Branch type: ${param.managementBranch}`);
 

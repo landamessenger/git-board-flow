@@ -21,6 +21,8 @@ import {Release} from "./data/model/release";
 import {SingleAction} from "./data/model/single_action";
 import {SingleActionUseCase} from "./data/usecase/single_action_use_case";
 import { Ai } from './data/model/ai';
+import { SizeThreshold } from './data/model/size_threshold';
+import { SizeThresholds } from './data/model/size_thresholds';
 
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -487,7 +489,35 @@ async function run(): Promise<void> {
     const documentationLabel = core.getInput('documentation-label');
     const choreLabel = core.getInput('chore-label');
     const maintenanceLabel = core.getInput('maintenance-label');
+    const sizeXxlLabel = core.getInput('size-xxl-label');
+    const sizeXlLabel = core.getInput('size-xl-label');
+    const sizeLLabel = core.getInput('size-l-label');
+    const sizeMLabel = core.getInput('size-m-label');
+    const sizeSLabel = core.getInput('size-s-label');
+    const sizeXsLabel = core.getInput('size-xs-label');
 
+    /**
+     * Size Thresholds
+     */
+    const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
+    const sizeXxlThresholdFiles = parseInt(core.getInput('size-xxl-threshold-files')) ?? 20;
+    const sizeXxlThresholdCommits = parseInt(core.getInput('size-xxl-threshold-commits')) ?? 10;
+    const sizeXlThresholdLines = parseInt(core.getInput('size-xl-threshold-lines')) ?? 500;
+    const sizeXlThresholdFiles = parseInt(core.getInput('size-xl-threshold-files')) ?? 10;
+    const sizeXlThresholdCommits = parseInt(core.getInput('size-xl-threshold-commits')) ?? 5;
+    const sizeLThresholdLines = parseInt(core.getInput('size-l-threshold-lines')) ?? 250;
+    const sizeLThresholdFiles = parseInt(core.getInput('size-l-threshold-files')) ?? 5;
+    const sizeLThresholdCommits = parseInt(core.getInput('size-l-threshold-commits')) ?? 3;
+    const sizeMThresholdLines = parseInt(core.getInput('size-m-threshold-lines')) ?? 100;
+    const sizeMThresholdFiles = parseInt(core.getInput('size-m-threshold-files')) ?? 3;
+    const sizeMThresholdCommits = parseInt(core.getInput('size-m-threshold-commits')) ?? 2;
+    const sizeSThresholdLines = parseInt(core.getInput('size-s-threshold-lines')) ?? 50;
+    const sizeSThresholdFiles = parseInt(core.getInput('size-s-threshold-files')) ?? 2;
+    const sizeSThresholdCommits = parseInt(core.getInput('size-s-threshold-commits')) ?? 1;
+    const sizeXsThresholdLines = parseInt(core.getInput('size-xs-threshold-lines')) ?? 25;
+    const sizeXsThresholdFiles = parseInt(core.getInput('size-xs-threshold-files')) ?? 1;
+    const sizeXsThresholdCommits = parseInt(core.getInput('size-xs-threshold-commits')) ?? 1;
+    
     /**
      * Branches
      */
@@ -589,6 +619,44 @@ async function run(): Promise<void> {
             documentationLabel,
             choreLabel,
             maintenanceLabel,
+            sizeXxlLabel,
+            sizeXlLabel,
+            sizeLLabel,
+            sizeMLabel,
+            sizeSLabel,
+            sizeXsLabel,
+        ),
+        new SizeThresholds(
+            new SizeThreshold(
+                sizeXxlThresholdLines,
+                sizeXxlThresholdFiles,
+                sizeXxlThresholdCommits,
+            ),
+            new SizeThreshold(
+                sizeXlThresholdLines,
+                sizeXlThresholdFiles,
+                sizeXlThresholdCommits,
+            ),
+            new SizeThreshold(
+                sizeLThresholdLines,
+                sizeLThresholdFiles,
+                sizeLThresholdCommits,
+            ),
+            new SizeThreshold(
+                sizeMThresholdLines,
+                sizeMThresholdFiles,
+                sizeMThresholdCommits,
+            ),
+            new SizeThreshold(
+                sizeSThresholdLines,
+                sizeSThresholdFiles,
+                sizeSThresholdCommits,
+            ),
+            new SizeThreshold(
+                sizeXsThresholdLines,
+                sizeXsThresholdFiles,
+                sizeXsThresholdCommits,
+            ),
         ),
         new Branches(
             mainBranch,

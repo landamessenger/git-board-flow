@@ -37,13 +37,39 @@ Git Board Flow provides extensive configuration options to customize your workfl
 - `hotfix-label`: Hotfix branch label (default: "hotfix")
 - `release-label`: Release branch label (default: "release")
 - `docs-label`: Documentation label (default: "docs")
+- `documentation-label`: Alternative documentation label (default: "documentation")
 - `chore-label`: Chore label (default: "chore")
+- `maintenance-label`: Maintenance label (default: "maintenance")
 - `bug-label`: Bug type label (default: "bug")
 - `enhancement-label`: Enhancement type label (default: "enhancement")
 - `question-label`: Question label (default: "question")
 - `help-label`: Help request label (default: "help")
 - `deploy-label`: Deploy action label (default: "deploy")
 - `deployed-label`: Deployed status label (default: "deployed")
+
+## Size Labels and Thresholds
+
+### Size Labels
+- `size-xxl-label`: XXL size label (default: "size xxl")
+- `size-xl-label`: XL size label (default: "size xl")
+- `size-l-label`: L size label (default: "size l")
+- `size-m-label`: M size label (default: "size m")
+- `size-s-label`: S size label (default: "size s")
+- `size-xs-label`: XS size label (default: "size xs")
+
+### Size Thresholds
+Each size has three threshold parameters:
+- `size-{size}-threshold-lines`: Number of lines threshold
+- `size-{size}-threshold-files`: Number of files threshold
+- `size-{size}-threshold-commits`: Number of commits threshold
+
+Default thresholds:
+- XXL: 1000 lines, 20 files, 10 commits
+- XL: 500 lines, 10 files, 5 commits
+- L: 250 lines, 5 files, 3 commits
+- M: 100 lines, 3 files, 2 commits
+- S: 50 lines, 2 files, 1 commit
+- XS: 25 lines, 1 file, 1 commit
 
 ## Project Integration
 
@@ -61,7 +87,7 @@ Git Board Flow provides extensive configuration options to customize your workfl
 ## Workflow Files
 
 - `release-workflow`: Release workflow filename (default: "release_workflow.yml")
-- `hotfix-workflow`: Hotfix workflow filename (default: "release")
+- `hotfix-workflow`: Hotfix workflow filename (default: "hotfix_workflow.yml")
 
 ## Single Actions
 
@@ -70,6 +96,12 @@ Git Board Flow provides extensive configuration options to customize your workfl
 
 ## Image Configuration
 
+### Image Display Settings
+- `images-on-issue`: Enable images in issue comments (default: "true")
+- `images-on-pull-request`: Enable images in PR comments (default: "true")
+- `images-on-commit`: Enable images in commit comments (default: "true")
+
+### Issue Images
 - `images-issue-automatic`: Image URLs for automatic action issue comments
 - `images-issue-feature`: Image URLs for feature action issue comments
 - `images-issue-bugfix`: Image URLs for bugfix action issue comments
@@ -77,7 +109,24 @@ Git Board Flow provides extensive configuration options to customize your workfl
 - `images-issue-chore`: Image URLs for chore action issue comments
 - `images-issue-hotfix`: Image URLs for hotfix action issue comments
 - `images-issue-release`: Image URLs for release action issue comments
-- `images-pull-request-automatic`: Image URLs for automatic action pull request comments
+
+### Pull Request Images
+- `images-pull-request-automatic`: Image URLs for automatic action PR comments
+- `images-pull-request-feature`: Image URLs for feature action PR comments
+- `images-pull-request-bugfix`: Image URLs for bugfix action PR comments
+- `images-pull-request-docs`: Image URLs for docs action PR comments
+- `images-pull-request-chore`: Image URLs for chore action PR comments
+- `images-pull-request-hotfix`: Image URLs for hotfix action PR comments
+- `images-pull-request-release`: Image URLs for release action PR comments
+
+### Commit Images
+- `images-commit-automatic`: Image URLs for automatic action commit comments
+- `images-commit-feature`: Image URLs for feature action commit comments
+- `images-commit-bugfix`: Image URLs for bugfix action commit comments
+- `images-commit-docs`: Image URLs for docs action commit comments
+- `images-commit-chore`: Image URLs for chore action commit comments
+- `images-commit-hotfix`: Image URLs for hotfix action commit comments
+- `images-commit-release`: Image URLs for release action commit comments
 
 ## AI Features
 

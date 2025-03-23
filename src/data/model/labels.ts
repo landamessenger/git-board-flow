@@ -1,5 +1,6 @@
 export class Labels {
     branchManagementLauncherLabel: string;
+
     bug: string;
     bugfix: string;
     hotfix: string;
@@ -14,6 +15,14 @@ export class Labels {
     documentation: string;
     chore: string;
     maintenance: string;
+
+    sizeXxl: string;
+    sizeXl: string;
+    sizeL: string;
+    sizeM: string;
+    sizeS: string;
+    sizeXs: string;
+    
     currentIssueLabels: string[] = [];
     currentPullRequestLabels: string[] = [];
 
@@ -81,6 +90,51 @@ export class Labels {
         return this.currentIssueLabels.includes(this.maintenance);
     }
 
+    get isSizeXxl(): boolean {
+        return this.currentIssueLabels.includes(this.sizeXxl);
+    }
+
+    get isSizeXl(): boolean {
+        return this.currentIssueLabels.includes(this.sizeXl);
+    }
+
+    get isSizeL(): boolean {
+        return this.currentIssueLabels.includes(this.sizeL);
+    }
+
+    get isSizeM(): boolean {
+        return this.currentIssueLabels.includes(this.sizeM);
+    }
+
+    get isSizeS(): boolean {
+        return this.currentIssueLabels.includes(this.sizeS);
+    }
+
+    get isSizeXs(): boolean {
+        return this.currentIssueLabels.includes(this.sizeXs);
+    }
+
+    get sizedLabel(): string | undefined {
+        if (this.currentIssueLabels.includes(this.sizeXxl)) {
+            return this.sizeXxl;
+        } else if (this.currentIssueLabels.includes(this.sizeXl)) {
+            return this.sizeXl;
+        } else if (this.currentIssueLabels.includes(this.sizeL)) {
+            return this.sizeL;
+        } else if (this.currentIssueLabels.includes(this.sizeM)) {
+            return this.sizeM;
+        } else if (this.currentIssueLabels.includes(this.sizeS)) {
+            return this.sizeS;
+        } else if (this.currentIssueLabels.includes(this.sizeXs)) {
+            return this.sizeXs;
+        }
+        return undefined;
+    }
+
+    get isSized(): boolean {
+        return this.sizedLabel !== undefined;
+    }
+
     constructor(
         branchManagementLauncherLabel: string,
         bug: string,
@@ -97,6 +151,12 @@ export class Labels {
         documentation: string,
         chore: string,
         maintenance: string,
+        sizeXxl: string,
+        sizeXl: string,
+        sizeL: string,
+        sizeM: string,
+        sizeS: string,
+        sizeXs: string,
     ) {
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
         this.bug = bug;
@@ -113,5 +173,11 @@ export class Labels {
         this.documentation = documentation;
         this.chore = chore;
         this.maintenance = maintenance;
+        this.sizeXxl = sizeXxl;
+        this.sizeXl = sizeXl;
+        this.sizeL = sizeL;
+        this.sizeM = sizeM;
+        this.sizeS = sizeS;
+        this.sizeXs = sizeXs;
     }
 }

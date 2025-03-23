@@ -47808,8 +47808,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Commit = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 class Commit {
+    get branchReference() {
+        return github.context.payload.ref;
+    }
     get branch() {
-        return github.context.payload.ref.replace('refs/heads/', '');
+        return this.branchReference.replace('refs/heads/', '');
     }
     get commits() {
         return github.context.payload.commits || [];
@@ -47835,6 +47838,7 @@ class Config {
         this.hotfixOriginBranch = data['hotfixOriginBranch'];
         this.hotfixBranch = data['hotfixBranch'];
         this.releaseBranch = data['releaseBranch'];
+        this.parentBranch = data['parentBranch'];
         if (data['branchConfiguration'] !== undefined) {
             this.branchConfiguration = new branch_configuration_1.BranchConfiguration(data['branchConfiguration']);
         }
@@ -47971,7 +47975,7 @@ class Execution {
     get commit() {
         return new commit_1.Commit();
     }
-    constructor(singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, branches, release, hotfix, workflows, projects) {
+    constructor(singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, projects) {
         /**
          * Every usage of this field should be checked.
          * PRs with no issue ID in the head branch won't have it.
@@ -48026,6 +48030,7 @@ class Execution {
                 if (previousReleaseBranch) {
                     this.release.version = previousReleaseBranch.split('/')[1] ?? '';
                     this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
+                    this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch;
                     this.currentConfiguration.releaseBranch = this.release.branch;
                 }
             }
@@ -48035,6 +48040,7 @@ class Execution {
                     this.hotfix.baseVersion = previousHotfixOriginBranch.split('/v')[1] ?? '';
                     this.hotfix.baseBranch = `tags/v${this.hotfix.baseVersion}`;
                     this.currentConfiguration.hotfixOriginBranch = this.hotfix.baseBranch;
+                    this.currentConfiguration.parentBranch = this.hotfix.baseBranch;
                 }
                 const previousHotfixBranch = this.previousConfiguration?.hotfixBranch;
                 if (previousHotfixBranch) {
@@ -48042,6 +48048,9 @@ class Execution {
                     this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
                     this.currentConfiguration.hotfixBranch = this.hotfix.branch;
                 }
+            }
+            else {
+                this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch;
             }
             if (this.isSingleAction) {
                 /**
@@ -48109,6 +48118,7 @@ class Execution {
         this.ai = ai;
         this.emoji = emoji;
         this.labels = labels;
+        this.sizeThresholds = sizeThresholds;
         this.branches = branches;
         this.release = release;
         this.hotfix = hotfix;
@@ -48312,7 +48322,49 @@ class Labels {
     get isMaintenance() {
         return this.currentIssueLabels.includes(this.maintenance);
     }
-    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, documentation, chore, maintenance) {
+    get isSizeXxl() {
+        return this.currentIssueLabels.includes(this.sizeXxl);
+    }
+    get isSizeXl() {
+        return this.currentIssueLabels.includes(this.sizeXl);
+    }
+    get isSizeL() {
+        return this.currentIssueLabels.includes(this.sizeL);
+    }
+    get isSizeM() {
+        return this.currentIssueLabels.includes(this.sizeM);
+    }
+    get isSizeS() {
+        return this.currentIssueLabels.includes(this.sizeS);
+    }
+    get isSizeXs() {
+        return this.currentIssueLabels.includes(this.sizeXs);
+    }
+    get sizedLabel() {
+        if (this.currentIssueLabels.includes(this.sizeXxl)) {
+            return this.sizeXxl;
+        }
+        else if (this.currentIssueLabels.includes(this.sizeXl)) {
+            return this.sizeXl;
+        }
+        else if (this.currentIssueLabels.includes(this.sizeL)) {
+            return this.sizeL;
+        }
+        else if (this.currentIssueLabels.includes(this.sizeM)) {
+            return this.sizeM;
+        }
+        else if (this.currentIssueLabels.includes(this.sizeS)) {
+            return this.sizeS;
+        }
+        else if (this.currentIssueLabels.includes(this.sizeXs)) {
+            return this.sizeXs;
+        }
+        return undefined;
+    }
+    get isSized() {
+        return this.sizedLabel !== undefined;
+    }
+    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, documentation, chore, maintenance, sizeXxl, sizeXl, sizeL, sizeM, sizeS, sizeXs) {
         this.currentIssueLabels = [];
         this.currentPullRequestLabels = [];
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
@@ -48330,6 +48382,12 @@ class Labels {
         this.documentation = documentation;
         this.chore = chore;
         this.maintenance = maintenance;
+        this.sizeXxl = sizeXxl;
+        this.sizeXl = sizeXl;
+        this.sizeL = sizeL;
+        this.sizeM = sizeM;
+        this.sizeS = sizeS;
+        this.sizeXs = sizeXs;
     }
 }
 exports.Labels = Labels;
@@ -48547,6 +48605,47 @@ class SingleAction {
     }
 }
 exports.SingleAction = SingleAction;
+
+
+/***/ }),
+
+/***/ 3835:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SizeThreshold = void 0;
+class SizeThreshold {
+    constructor(lines, files, commits) {
+        this.lines = lines;
+        this.files = files;
+        this.commits = commits;
+    }
+}
+exports.SizeThreshold = SizeThreshold;
+
+
+/***/ }),
+
+/***/ 8237:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SizeThresholds = void 0;
+class SizeThresholds {
+    constructor(xxl, xl, l, m, s, xs) {
+        this.xxl = xxl;
+        this.xl = xl;
+        this.l = l;
+        this.m = m;
+        this.s = s;
+        this.xs = xs;
+    }
+}
+exports.SizeThresholds = SizeThresholds;
 
 
 /***/ }),
@@ -49222,6 +49321,104 @@ This PR merges **${head}** into **${base}**.
                 }
             }
             return result;
+        };
+        this.getChanges = async (owner, repository, head, base, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                core.info(`Comparing branches: ${head} with ${base}`);
+                let headRef = `heads/${head}`;
+                if (head.indexOf('tags/') > -1) {
+                    headRef = head;
+                }
+                let baseRef = `heads/${base}`;
+                if (base.indexOf('tags/') > -1) {
+                    baseRef = base;
+                }
+                const { data: comparison } = await octokit.rest.repos.compareCommits({
+                    owner: owner,
+                    repo: repository,
+                    base: baseRef,
+                    head: headRef,
+                });
+                return {
+                    aheadBy: comparison.ahead_by,
+                    behindBy: comparison.behind_by,
+                    totalCommits: comparison.total_commits,
+                    files: (comparison.files || []).map(file => ({
+                        filename: file.filename,
+                        status: file.status,
+                        additions: file.additions,
+                        deletions: file.deletions,
+                        changes: file.changes,
+                        blobUrl: file.blob_url,
+                        rawUrl: file.raw_url,
+                        contentsUrl: file.contents_url,
+                        patch: file.patch
+                    })),
+                    commits: comparison.commits.map(commit => ({
+                        sha: commit.sha,
+                        message: commit.commit.message,
+                        author: commit.commit.author || { name: 'Unknown', email: 'unknown@example.com', date: new Date().toISOString() },
+                        date: commit.commit.author?.date || new Date().toISOString()
+                    }))
+                };
+            }
+            catch (error) {
+                core.error(`Error comparing branches: ${error}`);
+                throw error;
+            }
+        };
+        this.getSizeCategoryAndReason = async (owner, repository, head, base, sizeThresholds, labels, token) => {
+            try {
+                const headBranchChanges = await this.getChanges(owner, repository, head, base, token);
+                const totalChanges = headBranchChanges.files.reduce((sum, file) => sum + file.changes, 0);
+                const totalFiles = headBranchChanges.files.length;
+                const totalCommits = headBranchChanges.totalCommits;
+                let sizeCategory;
+                let sizeReason;
+                if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
+                    sizeCategory = labels.sizeXxl;
+                    sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
+                        totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
+                            `More than ${sizeThresholds.xxl.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
+                    sizeCategory = labels.sizeXl;
+                    sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
+                        totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
+                            `More than ${sizeThresholds.xl.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
+                    sizeCategory = labels.sizeL;
+                    sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
+                        totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
+                            `More than ${sizeThresholds.l.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
+                    sizeCategory = labels.sizeM;
+                    sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
+                        totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
+                            `More than ${sizeThresholds.m.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
+                    sizeCategory = labels.sizeS;
+                    sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
+                        totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
+                            `More than ${sizeThresholds.s.commits} commits`;
+                }
+                else {
+                    sizeCategory = labels.sizeXs;
+                    sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
+                }
+                return {
+                    size: sizeCategory,
+                    reason: sizeReason
+                };
+            }
+            catch (error) {
+                core.error(`Error comparing branches: ${error}`);
+                throw error;
+            }
         };
     }
 }
@@ -50255,16 +50452,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommitCheckUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
-const issue_repository_1 = __nccwpck_require__(57);
-const execute_script_use_case_1 = __nccwpck_require__(8057);
-const list_utils_1 = __nccwpck_require__(834);
+const check_changes_issue_size_use_case_1 = __nccwpck_require__(6555);
+const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(7687);
 class CommitCheckUseCase {
     constructor() {
         this.taskId = 'CommitCheckUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.mergeBranchPattern = 'Merge branch ';
-        this.ghAction = 'gh-action: ';
-        this.separator = '------------------------------------------------------';
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
@@ -50274,99 +50466,11 @@ class CommitCheckUseCase {
                 core.info('No commits found in this push.');
                 return results;
             }
-            const branchName = param.commit.branch;
-            let commitPrefix = '';
-            if (param.commitPrefixBuilder.length > 0) {
-                param.commitPrefixBuilderParams = {
-                    branchName: branchName,
-                };
-                const executor = new execute_script_use_case_1.ExecuteScriptUseCase();
-                const prefixResult = await executor.invoke(param);
-                commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? '';
-                core.info(`Commit prefix: ${commitPrefix}`);
-            }
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
-            core.info(`Commits detected: ${param.issueNumber}`);
-            let title = '';
-            let image = '';
-            if (param.release.active) {
-                title = '🚀 Release News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitReleaseGifs);
-            }
-            else if (param.hotfix.active) {
-                title = '🔥🐛 Hotfix News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitHotfixGifs);
-            }
-            else if (param.isBugfix) {
-                title = '🐛 Bugfix News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitBugfixGifs);
-            }
-            else if (param.isFeature) {
-                title = '✨ Feature News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitFeatureGifs);
-            }
-            else if (param.isDocs) {
-                title = '📝 Documentation News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitDocsGifs);
-            }
-            else if (param.isChore) {
-                title = '🔧 Chore News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitChoreGifs);
-            }
-            else {
-                title = '🪄 Automatic News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitAutomaticActions);
-            }
-            let commentBody = `
-# ${title}
-
-**Changes on branch \`${param.commit.branch}\`:**
-
-`;
-            let shouldWarn = false;
-            for (const commit of param.commit.commits) {
-                commentBody += `
-${this.separator}
-
-- ${commit.id} by **${commit.author.name}** (@${commit.author.username})
-\`\`\`
-${commit.message.replaceAll(`${commitPrefix}: `, '')}
-\`\`\`
-
-`;
-                if ((commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0)
-                    && commit.message.indexOf(this.mergeBranchPattern) !== 0
-                    && commit.message.indexOf(this.ghAction) !== 0) {
-                    shouldWarn = true;
-                }
-            }
-            if (shouldWarn && commitPrefix.length > 0) {
-                commentBody += `
-${this.separator}
-## ⚠️ Attention
-
-One or more commits didn't start with the prefix **${commitPrefix}**.
-
-\`\`\`
-${commitPrefix}: created hello-world app
-\`\`\`
-`;
-            }
-            if (image && param.images.imagesOnCommit) {
-                commentBody += `
-${this.separator}
-
-![image](${image})
-`;
-            }
-            if (param.issue.reopenOnPush) {
-                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
-                if (opened) {
-                    await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
-                }
-            }
-            await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
+            core.info(`Issue number: ${param.issueNumber}`);
+            results.push(...(await new notify_new_commit_on_issue_use_case_1.NotifyNewCommitOnIssueUseCase().invoke(param)));
+            results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
         }
         catch (error) {
             console.error(error);
@@ -50375,7 +50479,7 @@ ${this.separator}
                 success: false,
                 executed: true,
                 steps: [
-                    `Error linking projects/issues with pull request.`,
+                    `Error processing the commits.`,
                 ],
                 error: error,
             }));
@@ -50761,6 +50865,7 @@ const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
 const update_title_use_case_1 = __nccwpck_require__(8411);
 const update_pull_request_description_use_case_1 = __nccwpck_require__(1977);
+const check_changes_pull_request_size_use_case_1 = __nccwpck_require__(6875);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
@@ -50794,6 +50899,10 @@ class PullRequestLinkUseCase {
                  * Link Pull Request to issue
                  */
                 results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
+                /**
+                 * Check changes size
+                 */
+                results.push(...await new check_changes_pull_request_size_use_case_1.CheckChangesPullRequestSizeUseCase().invoke(param));
                 if (param.ai.getAiPullRequestDescription()) {
                     /**
                      * Update pull request description
@@ -50802,6 +50911,10 @@ class PullRequestLinkUseCase {
                 }
             }
             else if (param.pullRequest.isSynchronize) {
+                /**
+                 * Check changes size
+                 */
+                results.push(...await new check_changes_pull_request_size_use_case_1.CheckChangesPullRequestSizeUseCase().invoke(param));
                 /**
                  * Pushed changes to the pull request
                  */
@@ -51300,6 +51413,200 @@ class AssignReviewersToIssueUseCase {
     }
 }
 exports.AssignReviewersToIssueUseCase = AssignReviewersToIssueUseCase;
+
+
+/***/ }),
+
+/***/ 6555:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckChangesIssueSizeUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+const branch_repository_1 = __nccwpck_require__(7701);
+const issue_repository_1 = __nccwpck_require__(57);
+class CheckChangesIssueSizeUseCase {
+    constructor() {
+        this.taskId = 'CheckChangesIssueSizeUseCase';
+        this.branchRepository = new branch_repository_1.BranchRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            if (param.currentConfiguration.parentBranch === undefined) {
+                core.info(`Parent branch is undefined.`);
+                return result;
+            }
+            const headBranch = param.commit.branch;
+            const baseBranch = param.currentConfiguration.parentBranch;
+            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.tokenPat);
+            if (param.labels.sizedLabel !== size) {
+                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+                labelNames.push(size);
+                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
+                console.log(`Updated labels on issue #${param.issueNumber}:`, labelNames);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `${reason}, so the issue was resized to ${size}.`,
+                    ],
+                }));
+            }
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to check the size of the changes, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.CheckChangesIssueSizeUseCase = CheckChangesIssueSizeUseCase;
+
+
+/***/ }),
+
+/***/ 6875:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckChangesPullRequestSizeUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+const branch_repository_1 = __nccwpck_require__(7701);
+const issue_repository_1 = __nccwpck_require__(57);
+class CheckChangesPullRequestSizeUseCase {
+    constructor() {
+        this.taskId = 'CheckChangesPullRequestSizeUseCase';
+        this.branchRepository = new branch_repository_1.BranchRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            if (param.currentConfiguration.parentBranch === undefined) {
+                core.info(`Parent branch is undefined.`);
+                return result;
+            }
+            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
+            if (param.labels.sizedLabel !== size) {
+                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+                labelNames.push(size);
+                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
+                console.log(`Updated labels on issue #${param.issueNumber}:`, labelNames);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `${reason}, so the issue was resized to ${size}.`,
+                    ],
+                }));
+            }
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to check the size of the changes, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.CheckChangesPullRequestSizeUseCase = CheckChangesPullRequestSizeUseCase;
 
 
 /***/ }),
@@ -52301,7 +52608,7 @@ class DeployedAddedUseCase {
                 success: false,
                 executed: true,
                 steps: [
-                    `Tried to complete de deploy, but there was a problem.`,
+                    `Tried to complete the deployment, but there was a problem.`,
                 ],
                 errors: [
                     error?.toString() ?? 'Unknown error',
@@ -52658,6 +52965,176 @@ exports.LinkPullRequestProjectUseCase = LinkPullRequestProjectUseCase;
 
 /***/ }),
 
+/***/ 7687:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotifyNewCommitOnIssueUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+const issue_repository_1 = __nccwpck_require__(57);
+const list_utils_1 = __nccwpck_require__(834);
+const execute_script_use_case_1 = __nccwpck_require__(8057);
+class NotifyNewCommitOnIssueUseCase {
+    constructor() {
+        this.taskId = 'NotifyNewCommitOnIssueUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.mergeBranchPattern = 'Merge branch ';
+        this.ghAction = 'gh-action: ';
+        this.separator = '------------------------------------------------------';
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            const branchName = param.commit.branch;
+            let commitPrefix = '';
+            if (param.commitPrefixBuilder.length > 0) {
+                param.commitPrefixBuilderParams = {
+                    branchName: branchName,
+                };
+                const executor = new execute_script_use_case_1.ExecuteScriptUseCase();
+                const prefixResult = await executor.invoke(param);
+                commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? '';
+                core.info(`Commit prefix: ${commitPrefix}`);
+            }
+            let title = '';
+            let image = '';
+            if (param.release.active) {
+                title = '🚀 Release News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitReleaseGifs);
+            }
+            else if (param.hotfix.active) {
+                title = '🔥🐛 Hotfix News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitHotfixGifs);
+            }
+            else if (param.isBugfix) {
+                title = '🐛 Bugfix News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitBugfixGifs);
+            }
+            else if (param.isFeature) {
+                title = '✨ Feature News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitFeatureGifs);
+            }
+            else if (param.isDocs) {
+                title = '📝 Documentation News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitDocsGifs);
+            }
+            else if (param.isChore) {
+                title = '🔧 Chore News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitChoreGifs);
+            }
+            else {
+                title = '🪄 Automatic News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitAutomaticActions);
+            }
+            let commentBody = `
+# ${title}
+
+**Changes on branch \`${param.commit.branch}\`:**
+
+`;
+            let shouldWarn = false;
+            for (const commit of param.commit.commits) {
+                commentBody += `
+${this.separator}
+
+- ${commit.id} by **${commit.author.name}** (@${commit.author.username})
+\`\`\`
+${commit.message.replaceAll(`${commitPrefix}: `, '')}
+\`\`\`
+
+`;
+                if ((commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0)
+                    && commit.message.indexOf(this.mergeBranchPattern) !== 0
+                    && commit.message.indexOf(this.ghAction) !== 0) {
+                    shouldWarn = true;
+                }
+            }
+            if (shouldWarn && commitPrefix.length > 0) {
+                commentBody += `
+${this.separator}
+## ⚠️ Attention
+
+One or more commits didn't start with the prefix **${commitPrefix}**.
+
+\`\`\`
+${commitPrefix}: created hello-world app
+\`\`\`
+`;
+            }
+            if (image && param.images.imagesOnCommit) {
+                commentBody += `
+${this.separator}
+
+![image](${image})
+`;
+            }
+            if (param.issue.reopenOnPush) {
+                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
+                if (opened) {
+                    await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
+                }
+            }
+            await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to notify the new commit on the issue, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.NotifyNewCommitOnIssueUseCase = NotifyNewCommitOnIssueUseCase;
+
+
+/***/ }),
+
 /***/ 9883:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -52750,6 +53227,7 @@ class PrepareBranchesUseCase {
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     core.info(`Tag branch: ${param.hotfix.baseBranch}`);
                     core.info(`Hotfix branch: ${param.hotfix.branch}`);
+                    param.currentConfiguration.parentBranch = param.hotfix.baseBranch;
                     if (branches.indexOf(param.hotfix.branch) === -1) {
                         const linkResult = await this.branchRepository.createLinkedBranch(param.owner, param.repo, param.hotfix.baseBranch, param.hotfix.branch, param.issueNumber, branchOid, param.tokens.tokenPat);
                         if (linkResult[linkResult.length - 1].success) {
@@ -52791,6 +53269,7 @@ class PrepareBranchesUseCase {
                 if (param.release.version !== undefined && param.release.branch !== undefined) {
                     param.currentConfiguration.releaseBranch = param.release.branch;
                     core.info(`Release branch: ${param.release.branch}`);
+                    param.currentConfiguration.parentBranch = param.branches.development;
                     const developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.development}`;
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const mainUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.defaultBranch}`;
@@ -52845,6 +53324,7 @@ class PrepareBranchesUseCase {
                 }
                 return result;
             }
+            param.currentConfiguration.parentBranch = param.managementBranch;
             core.info(`Branch type: ${param.managementBranch}`);
             const branchesResult = await this.branchRepository.manageBranches(param, param.owner, param.repo, param.issueNumber, issueTitle, param.managementBranch, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
             result.push(...branchesResult);
@@ -53806,6 +54286,8 @@ const release_1 = __nccwpck_require__(2551);
 const single_action_1 = __nccwpck_require__(8024);
 const single_action_use_case_1 = __nccwpck_require__(1817);
 const ai_1 = __nccwpck_require__(4470);
+const size_threshold_1 = __nccwpck_require__(3835);
+const size_thresholds_1 = __nccwpck_require__(8237);
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -54219,6 +54701,33 @@ async function run() {
     const documentationLabel = core.getInput('documentation-label');
     const choreLabel = core.getInput('chore-label');
     const maintenanceLabel = core.getInput('maintenance-label');
+    const sizeXxlLabel = core.getInput('size-xxl-label');
+    const sizeXlLabel = core.getInput('size-xl-label');
+    const sizeLLabel = core.getInput('size-l-label');
+    const sizeMLabel = core.getInput('size-m-label');
+    const sizeSLabel = core.getInput('size-s-label');
+    const sizeXsLabel = core.getInput('size-xs-label');
+    /**
+     * Size Thresholds
+     */
+    const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
+    const sizeXxlThresholdFiles = parseInt(core.getInput('size-xxl-threshold-files')) ?? 20;
+    const sizeXxlThresholdCommits = parseInt(core.getInput('size-xxl-threshold-commits')) ?? 10;
+    const sizeXlThresholdLines = parseInt(core.getInput('size-xl-threshold-lines')) ?? 500;
+    const sizeXlThresholdFiles = parseInt(core.getInput('size-xl-threshold-files')) ?? 10;
+    const sizeXlThresholdCommits = parseInt(core.getInput('size-xl-threshold-commits')) ?? 5;
+    const sizeLThresholdLines = parseInt(core.getInput('size-l-threshold-lines')) ?? 250;
+    const sizeLThresholdFiles = parseInt(core.getInput('size-l-threshold-files')) ?? 5;
+    const sizeLThresholdCommits = parseInt(core.getInput('size-l-threshold-commits')) ?? 3;
+    const sizeMThresholdLines = parseInt(core.getInput('size-m-threshold-lines')) ?? 100;
+    const sizeMThresholdFiles = parseInt(core.getInput('size-m-threshold-files')) ?? 3;
+    const sizeMThresholdCommits = parseInt(core.getInput('size-m-threshold-commits')) ?? 2;
+    const sizeSThresholdLines = parseInt(core.getInput('size-s-threshold-lines')) ?? 50;
+    const sizeSThresholdFiles = parseInt(core.getInput('size-s-threshold-files')) ?? 2;
+    const sizeSThresholdCommits = parseInt(core.getInput('size-s-threshold-commits')) ?? 1;
+    const sizeXsThresholdLines = parseInt(core.getInput('size-xs-threshold-lines')) ?? 25;
+    const sizeXsThresholdFiles = parseInt(core.getInput('size-xs-threshold-files')) ?? 1;
+    const sizeXsThresholdCommits = parseInt(core.getInput('size-xs-threshold-commits')) ?? 1;
     /**
      * Branches
      */
@@ -54246,7 +54755,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);

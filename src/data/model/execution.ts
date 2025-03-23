@@ -23,6 +23,7 @@ import {BranchRepository} from "../repository/branch_repository";
 import {incrementVersion} from "../utils/version_utils";
 import {SingleAction} from "./single_action";
 import {Ai} from "./ai";   
+import { SizeThresholds } from "./size_thresholds";
  
 export class Execution {
     /**
@@ -40,6 +41,7 @@ export class Execution {
     tokens: Tokens;
     ai: Ai;
     labels: Labels;
+    sizeThresholds: SizeThresholds;
     branches: Branches;
     release: Release;
     hotfix: Hotfix;
@@ -158,6 +160,7 @@ export class Execution {
         tokens: Tokens,
         ai: Ai,
         labels: Labels,
+        sizeThresholds: SizeThresholds,
         branches: Branches,
         release: Release,
         hotfix: Hotfix,
@@ -173,6 +176,7 @@ export class Execution {
         this.ai = ai;
         this.emoji = emoji;
         this.labels = labels;
+        this.sizeThresholds = sizeThresholds;
         this.branches = branches;
         this.release = release;
         this.hotfix = hotfix;
@@ -250,6 +254,7 @@ export class Execution {
             if (previousReleaseBranch) {
                 this.release.version = previousReleaseBranch.split('/')[1] ?? ''
                 this.release.branch = `${this.branches.releaseTree}/${this.release.version}`;
+                this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch
                 this.currentConfiguration.releaseBranch = this.release.branch
             }
         } else if (this.hotfix.active) {
@@ -258,6 +263,7 @@ export class Execution {
                 this.hotfix.baseVersion = previousHotfixOriginBranch.split('/v')[1] ?? ''
                 this.hotfix.baseBranch = `tags/v${this.hotfix.baseVersion}`;
                 this.currentConfiguration.hotfixOriginBranch = this.hotfix.baseBranch;
+                this.currentConfiguration.parentBranch = this.hotfix.baseBranch
             }
             const previousHotfixBranch = this.previousConfiguration?.hotfixBranch
             if (previousHotfixBranch) {
@@ -265,6 +271,8 @@ export class Execution {
                 this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
                 this.currentConfiguration.hotfixBranch = this.hotfix.branch
             }
+        } else {
+            this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch
         }
 
         if (this.isSingleAction) {
