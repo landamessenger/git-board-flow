@@ -47653,8 +47653,9 @@ exports.ConfigurationHandler = ConfigurationHandler;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Ai = void 0;
 class Ai {
-    constructor(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles) {
+    constructor(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles) {
         this.openaiApiKey = openaiApiKey;
+        this.openaiModel = openaiModel;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
@@ -47670,6 +47671,9 @@ class Ai {
     }
     getAiIgnoreFiles() {
         return this.aiIgnoreFiles;
+    }
+    getOpenaiModel() {
+        return this.openaiModel;
     }
 }
 exports.Ai = Ai;
@@ -53161,12 +53165,12 @@ class UpdatePullRequestDescriptionUseCase {
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey());
+            const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
 just a text description:\n\n
 ${issueDescription}`;
-            const currentDescription = await this.aiRepository.askChatGPT(descriptionPrompt, param.ai.getOpenaiApiKey());
+            const currentDescription = await this.aiRepository.askChatGPT(descriptionPrompt, param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
             // Update pull request description
             await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, `
 #${param.issueNumber}
@@ -53217,15 +53221,15 @@ ${changesDescription}
             return [];
         return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
     }
-    async processPatchSection(section, filename, status, additions, deletions, aiRepository, openaiApiKey) {
+    async processPatchSection(section, filename, status, additions, deletions, openaiApiKey, openaiModel) {
         const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section"):\n\n` +
             `File: ${filename}\n` +
             `Status: ${status}\n` +
             `Changes: +${additions} -${deletions}\n` +
             `Patch section:\n${section}`;
-        return await aiRepository.askChatGPT(filePrompt, openaiApiKey);
+        return await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
     }
-    async processChanges(changes, ignoreFiles, openaiApiKey) {
+    async processChanges(changes, ignoreFiles, openaiApiKey, openaiModel) {
         let changesDescription = ``;
         for (const change of changes) {
             try {
@@ -53233,7 +53237,7 @@ ${changesDescription}
                 if (shouldIgnoreFile) {
                     continue;
                 }
-                const fileDescription = await this.processFile(change, openaiApiKey);
+                const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
                 changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
             }
             catch (error) {
@@ -53243,12 +53247,12 @@ ${changesDescription}
         }
         return changesDescription;
     }
-    async processFile(change, openaiApiKey) {
+    async processFile(change, openaiApiKey, openaiModel) {
         if (!change.patch) {
             return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
         }
         const patchSections = this.splitPatchIntoSections(change.patch);
-        const sectionDescriptions = await Promise.all(patchSections.map(section => this.processPatchSection(section, change.filename, change.status, change.additions, change.deletions, this.aiRepository, openaiApiKey)));
+        const sectionDescriptions = await Promise.all(patchSections.map(section => this.processPatchSection(section, change.filename, change.status, change.additions, change.deletions, openaiApiKey, openaiModel)));
         return sectionDescriptions.map(desc => `- ${desc}`).join('\n  ');
     }
 }
@@ -53992,6 +53996,7 @@ async function run() {
      * AI
      */
     const openaiApiKey = core.getInput('openai-api-key');
+    const openaiModel = core.getInput('openai-model');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
     const aiMembersOnly = core.getInput('ai-members-only') === 'true';
     const aiIgnoreFilesInput = core.getInput('ai-ignore-files');
@@ -54241,7 +54246,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);
