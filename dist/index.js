@@ -53161,29 +53161,7 @@ class UpdatePullRequestDescriptionUseCase {
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            let changesDescription = ``;
-            // Process each file individually
-            for (const change of changes) {
-                try {
-                    const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
-                    if (shouldIgnoreFile) {
-                        continue;
-                    }
-                    const fileDescription = await this.processFile(change, param.ai.getOpenaiApiKey());
-                    changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
-                }
-                catch (error) {
-                    console.error(error);
-                    result.push(new result_1.Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Error processing file ${change.filename}: ${error}`
-                        ]
-                    }));
-                }
-            }
+            const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey());
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
 just a text description:\n\n
@@ -53247,13 +53225,31 @@ ${changesDescription}
             `Patch section:\n${section}`;
         return await aiRepository.askChatGPT(filePrompt, openaiApiKey);
     }
+    async processChanges(changes, ignoreFiles, openaiApiKey) {
+        let changesDescription = ``;
+        for (const change of changes) {
+            try {
+                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
+                if (shouldIgnoreFile) {
+                    continue;
+                }
+                const fileDescription = await this.processFile(change, openaiApiKey);
+                changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
+            }
+            catch (error) {
+                console.error(error);
+                throw new Error(`Error processing file ${change.filename}: ${error}`);
+            }
+        }
+        return changesDescription;
+    }
     async processFile(change, openaiApiKey) {
         if (!change.patch) {
-            return `File ${change.filename} was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+            return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
         }
         const patchSections = this.splitPatchIntoSections(change.patch);
         const sectionDescriptions = await Promise.all(patchSections.map(section => this.processPatchSection(section, change.filename, change.status, change.additions, change.deletions, this.aiRepository, openaiApiKey)));
-        return sectionDescriptions.join(' ');
+        return sectionDescriptions.map(desc => `- ${desc}`).join('\n  ');
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
