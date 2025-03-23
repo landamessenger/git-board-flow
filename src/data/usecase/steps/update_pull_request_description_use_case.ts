@@ -70,7 +70,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey());
+            const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
 
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
@@ -79,7 +79,8 @@ ${issueDescription}`;
 
             const currentDescription = await this.aiRepository.askChatGPT(
                 descriptionPrompt,
-                param.ai.getOpenaiApiKey()
+                param.ai.getOpenaiApiKey(),
+                param.ai.getOpenaiModel(),
             );
 
             // Update pull request description
@@ -157,8 +158,8 @@ ${changesDescription}
         status: string,
         additions: number,
         deletions: number,
-        aiRepository: AiRepository,
-        openaiApiKey: string
+        openaiApiKey: string,
+        openaiModel: string
     ): Promise<string> {
         const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section"):\n\n` +
             `File: ${filename}\n` +
@@ -166,13 +167,14 @@ ${changesDescription}
             `Changes: +${additions} -${deletions}\n` +
             `Patch section:\n${section}`;
 
-        return await aiRepository.askChatGPT(filePrompt, openaiApiKey);
+        return await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
     }
 
     private async processChanges(
         changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[],
         ignoreFiles: string[],
-        openaiApiKey: string
+        openaiApiKey: string,
+        openaiModel: string
     ): Promise<string> {
         let changesDescription = ``;
         
@@ -183,7 +185,7 @@ ${changesDescription}
                     continue;
                 }
 
-                const fileDescription = await this.processFile(change, openaiApiKey);
+                const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
                 changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
             } catch (error) {
                 console.error(error);
@@ -196,7 +198,8 @@ ${changesDescription}
 
     private async processFile(
         change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
-        openaiApiKey: string
+        openaiApiKey: string,
+        openaiModel: string
     ): Promise<string> {
         if (!change.patch) {
             return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
@@ -211,8 +214,8 @@ ${changesDescription}
                     change.status,
                     change.additions,
                     change.deletions,
-                    this.aiRepository,
-                    openaiApiKey
+                    openaiApiKey,
+                    openaiModel
                 )
             )
         );
