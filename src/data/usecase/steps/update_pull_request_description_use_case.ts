@@ -70,34 +70,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            let changesDescription = ``;
-            
-            // Process each file individually
-            for (const change of changes) {
-                try {
-                    const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
-                    if (shouldIgnoreFile) {
-                        continue;
-                    }
-
-                    const fileDescription = await this.processFile(change, param.ai.getOpenaiApiKey());
-                    changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
-                } catch (error) {
-                    console.error(error);
-                    result.push(
-                        new Result(
-                            {
-                                id: this.taskId,
-                                success: false,
-                                executed: true,
-                                steps: [
-                                    `Error processing file ${change.filename}: ${error}`
-                                ]
-                            }
-                        )
-                    );
-                }
-            }
+            const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey());
 
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
@@ -196,12 +169,37 @@ ${changesDescription}
         return await aiRepository.askChatGPT(filePrompt, openaiApiKey);
     }
 
+    private async processChanges(
+        changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[],
+        ignoreFiles: string[],
+        openaiApiKey: string
+    ): Promise<string> {
+        let changesDescription = ``;
+        
+        for (const change of changes) {
+            try {
+                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
+                if (shouldIgnoreFile) {
+                    continue;
+                }
+
+                const fileDescription = await this.processFile(change, openaiApiKey);
+                changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
+            } catch (error) {
+                console.error(error);
+                throw new Error(`Error processing file ${change.filename}: ${error}`);
+            }
+        }
+
+        return changesDescription;
+    }
+
     private async processFile(
         change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
         openaiApiKey: string
     ): Promise<string> {
         if (!change.patch) {
-            return `File ${change.filename} was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+            return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
         }
 
         const patchSections = this.splitPatchIntoSections(change.patch);
@@ -218,6 +216,6 @@ ${changesDescription}
                 )
             )
         );
-        return sectionDescriptions.join(' ');
+        return sectionDescriptions.map(desc => `- ${desc}`).join('\n  ');
     }
 }
