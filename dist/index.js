@@ -53163,22 +53163,13 @@ class UpdatePullRequestDescriptionUseCase {
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
             let changesDescription = ``;
             // Process each file individually
-            let filePrompt = '';
             for (const change of changes) {
                 try {
                     const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
                     if (shouldIgnoreFile) {
                         continue;
                     }
-                    filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
-                    filePrompt += `File: ${change.filename}\n`;
-                    filePrompt += `Status: ${change.status}\n`;
-                    filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
-                    if (change.patch) {
-                        filePrompt += `Patch:\n${change.patch}\n`;
-                    }
-                    // Get AI response for this file
-                    const fileDescription = await this.aiRepository.askChatGPT(filePrompt, param.ai.getOpenaiApiKey());
+                    const fileDescription = await this.processFile(change, param.ai.getOpenaiApiKey());
                     changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
                 }
                 catch (error) {
@@ -53188,7 +53179,7 @@ class UpdatePullRequestDescriptionUseCase {
                         success: false,
                         executed: true,
                         steps: [
-                            `Error processing file ${change.filename}: ${error} \n\n${filePrompt}`
+                            `Error processing file ${change.filename}: ${error}`
                         ]
                     }));
                 }
@@ -53242,6 +53233,27 @@ ${changesDescription}
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
+    }
+    splitPatchIntoSections(patch) {
+        if (!patch)
+            return [];
+        return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
+    }
+    async processPatchSection(section, filename, status, additions, deletions, aiRepository, openaiApiKey) {
+        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description):\n\n` +
+            `File: ${filename}\n` +
+            `Status: ${status}\n` +
+            `Changes: +${additions} -${deletions}\n` +
+            `Patch section:\n${section}`;
+        return await aiRepository.askChatGPT(filePrompt, openaiApiKey);
+    }
+    async processFile(change, openaiApiKey) {
+        if (!change.patch) {
+            return `File ${change.filename} was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+        }
+        const patchSections = this.splitPatchIntoSections(change.patch);
+        const sectionDescriptions = await Promise.all(patchSections.map(section => this.processPatchSection(section, change.filename, change.status, change.additions, change.deletions, this.aiRepository, openaiApiKey)));
+        return sectionDescriptions.join(' ');
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
