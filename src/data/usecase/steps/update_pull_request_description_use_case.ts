@@ -73,7 +73,6 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
             let changesDescription = ``;
             
             // Process each file individually
-            let filePrompt = ''
             for (const change of changes) {
                 try {
                     const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, param.ai.getAiIgnoreFiles());
@@ -81,19 +80,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                         continue;
                     }
 
-                    filePrompt = `Do a summary of the changes in this file (no titles, just a text description):\n\n`;
-                    filePrompt += `File: ${change.filename}\n`;
-                    filePrompt += `Status: ${change.status}\n`;
-                    filePrompt += `Changes: +${change.additions} -${change.deletions}\n`;
-                    if (change.patch) {
-                        filePrompt += `Patch:\n${change.patch}\n`;
-                    }
-                    // Get AI response for this file
-                    const fileDescription = await this.aiRepository.askChatGPT(
-                        filePrompt,
-                        param.ai.getOpenaiApiKey()
-                    );
-
+                    const fileDescription = await this.processFile(change, param.ai.getOpenaiApiKey());
                     changesDescription += `- \`${change.filename}\`: ${fileDescription}\n\n`;
                 } catch (error) {
                     console.error(error);
@@ -104,7 +91,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                                 success: false,
                                 executed: true,
                                 steps: [
-                                    `Error processing file ${change.filename}: ${error} \n\n${filePrompt}`
+                                    `Error processing file ${change.filename}: ${error}`
                                 ]
                             }
                         )
@@ -184,5 +171,53 @@ ${changesDescription}
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
+    }
+
+    private splitPatchIntoSections(patch: string): string[] {
+        if (!patch) return [];
+        return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
+    }
+
+    private async processPatchSection(
+        section: string,
+        filename: string,
+        status: string,
+        additions: number,
+        deletions: number,
+        aiRepository: AiRepository,
+        openaiApiKey: string
+    ): Promise<string> {
+        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description):\n\n` +
+            `File: ${filename}\n` +
+            `Status: ${status}\n` +
+            `Changes: +${additions} -${deletions}\n` +
+            `Patch section:\n${section}`;
+
+        return await aiRepository.askChatGPT(filePrompt, openaiApiKey);
+    }
+
+    private async processFile(
+        change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
+        openaiApiKey: string
+    ): Promise<string> {
+        if (!change.patch) {
+            return `File ${change.filename} was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+        }
+
+        const patchSections = this.splitPatchIntoSections(change.patch);
+        const sectionDescriptions = await Promise.all(
+            patchSections.map(section => 
+                this.processPatchSection(
+                    section,
+                    change.filename,
+                    change.status,
+                    change.additions,
+                    change.deletions,
+                    this.aiRepository,
+                    openaiApiKey
+                )
+            )
+        );
+        return sectionDescriptions.join(' ');
     }
 }
