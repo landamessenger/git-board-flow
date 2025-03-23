@@ -62,6 +62,78 @@ inputs:
   deployed-label:
     description: "Label to detect the deployed was."
     default: "deployed"
+  size-xxl-label:
+    description: "Label to indicate a task of size XXL."
+    default: "size xxl"
+  size-xl-label:
+    description: "Label to indicate a task of size XL."
+    default: "size xl"
+  size-l-label:
+    description: "Label to indicate a task of size L."
+    default: "size l"
+  size-m-label:
+    description: "Label to indicate a task of size M."
+    default: "size m"
+  size-s-label:
+    description: "Label to indicate a task of size S."
+    default: "size s"
+  size-xs-label:
+    description: "Label to indicate a task of size XS."
+    default: "size xs"
+  size-xxl-threshold-lines:
+    description: "Threshold for size XXL in lines."
+    default: "1000"
+  size-xxl-threshold-files:
+    description: "Threshold for size XXL in files."
+    default: "20"
+  size-xxl-threshold-commits:
+    description: "Threshold for size XXL in commits."
+    default: "10"
+  size-xl-threshold-lines:
+    description: "Threshold for size XL in lines."
+    default: "500"
+  size-xl-threshold-files:
+    description: "Threshold for size XL in files."
+    default: "10"
+  size-xl-threshold-commits:
+    description: "Threshold for size XL in commits."
+    default: "5"
+  size-l-threshold-lines:
+    description: "Threshold for size L in lines."
+    default: "250"
+  size-l-threshold-files:
+    description: "Threshold for size L in files."
+    default: "5"
+  size-l-threshold-commits:
+    description: "Threshold for size L in commits."
+    default: "3"
+  size-m-threshold-lines:
+    description: "Threshold for size M in lines."
+    default: "100"
+  size-m-threshold-files:
+    description: "Threshold for size M in files."
+    default: "3"
+  size-m-threshold-commits:
+    description: "Threshold for size M in commits."
+    default: "2"
+  size-s-threshold-lines:
+    description: "Threshold for size S in lines."
+    default: "50"
+  size-s-threshold-files:
+    description: "Threshold for size S in files."
+    default: "2"
+  size-s-threshold-commits:
+    description: "Threshold for size S in commits."
+    default: "1"
+  size-xs-threshold-lines:
+    description: "Threshold for size XS in lines."
+    default: "25"
+  size-xs-threshold-files:
+    description: "Threshold for size XS in files."
+    default: "1"
+  size-xs-threshold-commits:
+    description: "Threshold for size XS in commits."
+    default: "1"
   project-urls:
     description: "Comma-separated list of project URLs to link issues and pull requests."
     default: ""

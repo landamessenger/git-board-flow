@@ -5,6 +5,7 @@ import * as core from '@actions/core';
 import {IssueRepository} from "../repository/issue_repository";
 import {ExecuteScriptUseCase} from "./steps/execute_script_use_case";
 import { getRandomElement } from "../utils/list_utils";
+import { CheckChangesIssueSizeUseCase } from "./steps/check_changes_issue_size_use_case";
 
 export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitCheckUseCase';
@@ -23,7 +24,12 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
+            core.info(`Branch: ${param.commit.branch}`);
+            core.info(`Commits detected: ${param.commit.commits.length}`);
+            core.info(`Issue number: ${param.issueNumber}`);
+
             const branchName = param.commit.branch;
+            
 
             let commitPrefix = ''
             if (param.commitPrefixBuilder.length > 0) {
@@ -35,10 +41,6 @@ export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
                 commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
                 core.info(`Commit prefix: ${commitPrefix}`);
             }
-
-            core.info(`Branch: ${param.commit.branch}`);
-            core.info(`Commits detected: ${param.commit.commits.length}`);
-            core.info(`Commits detected: ${param.issueNumber}`);
 
             let title = ''
             let image: string | undefined = ''
@@ -139,6 +141,8 @@ ${this.separator}
                 commentBody,
                 param.tokens.token,
             )
+
+            results.push(...(await new CheckChangesIssueSizeUseCase().invoke(param)));
         } catch (error) {
             console.error(error);
             results.push(
