@@ -187,7 +187,7 @@ ${changesDescription}
         aiRepository: AiRepository,
         openaiApiKey: string
     ): Promise<string> {
-        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description):\n\n` +
+        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section"):\n\n` +
             `File: ${filename}\n` +
             `Status: ${status}\n` +
             `Changes: +${additions} -${deletions}\n` +
