@@ -50452,17 +50452,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommitCheckUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
-const issue_repository_1 = __nccwpck_require__(57);
-const execute_script_use_case_1 = __nccwpck_require__(8057);
-const list_utils_1 = __nccwpck_require__(834);
 const check_changes_issue_size_use_case_1 = __nccwpck_require__(6555);
+const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(7687);
 class CommitCheckUseCase {
     constructor() {
         this.taskId = 'CommitCheckUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.mergeBranchPattern = 'Merge branch ';
-        this.ghAction = 'gh-action: ';
-        this.separator = '------------------------------------------------------';
     }
     async invoke(param) {
         core.info(`Executing ${this.taskId}.`);
@@ -50475,96 +50469,7 @@ class CommitCheckUseCase {
             core.info(`Branch: ${param.commit.branch}`);
             core.info(`Commits detected: ${param.commit.commits.length}`);
             core.info(`Issue number: ${param.issueNumber}`);
-            const branchName = param.commit.branch;
-            let commitPrefix = '';
-            if (param.commitPrefixBuilder.length > 0) {
-                param.commitPrefixBuilderParams = {
-                    branchName: branchName,
-                };
-                const executor = new execute_script_use_case_1.ExecuteScriptUseCase();
-                const prefixResult = await executor.invoke(param);
-                commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? '';
-                core.info(`Commit prefix: ${commitPrefix}`);
-            }
-            let title = '';
-            let image = '';
-            if (param.release.active) {
-                title = '🚀 Release News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitReleaseGifs);
-            }
-            else if (param.hotfix.active) {
-                title = '🔥🐛 Hotfix News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitHotfixGifs);
-            }
-            else if (param.isBugfix) {
-                title = '🐛 Bugfix News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitBugfixGifs);
-            }
-            else if (param.isFeature) {
-                title = '✨ Feature News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitFeatureGifs);
-            }
-            else if (param.isDocs) {
-                title = '📝 Documentation News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitDocsGifs);
-            }
-            else if (param.isChore) {
-                title = '🔧 Chore News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitChoreGifs);
-            }
-            else {
-                title = '🪄 Automatic News';
-                image = (0, list_utils_1.getRandomElement)(param.images.commitAutomaticActions);
-            }
-            let commentBody = `
-# ${title}
-
-**Changes on branch \`${param.commit.branch}\`:**
-
-`;
-            let shouldWarn = false;
-            for (const commit of param.commit.commits) {
-                commentBody += `
-${this.separator}
-
-- ${commit.id} by **${commit.author.name}** (@${commit.author.username})
-\`\`\`
-${commit.message.replaceAll(`${commitPrefix}: `, '')}
-\`\`\`
-
-`;
-                if ((commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0)
-                    && commit.message.indexOf(this.mergeBranchPattern) !== 0
-                    && commit.message.indexOf(this.ghAction) !== 0) {
-                    shouldWarn = true;
-                }
-            }
-            if (shouldWarn && commitPrefix.length > 0) {
-                commentBody += `
-${this.separator}
-## ⚠️ Attention
-
-One or more commits didn't start with the prefix **${commitPrefix}**.
-
-\`\`\`
-${commitPrefix}: created hello-world app
-\`\`\`
-`;
-            }
-            if (image && param.images.imagesOnCommit) {
-                commentBody += `
-${this.separator}
-
-![image](${image})
-`;
-            }
-            if (param.issue.reopenOnPush) {
-                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
-                if (opened) {
-                    await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
-                }
-            }
-            await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
+            results.push(...(await new notify_new_commit_on_issue_use_case_1.NotifyNewCommitOnIssueUseCase().invoke(param)));
             results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
         }
         catch (error) {
@@ -50574,7 +50479,7 @@ ${this.separator}
                 success: false,
                 executed: true,
                 steps: [
-                    `Error linking projects/issues with pull request.`,
+                    `Error processing the commits.`,
                 ],
                 error: error,
             }));
@@ -53056,6 +52961,176 @@ class LinkPullRequestProjectUseCase {
     }
 }
 exports.LinkPullRequestProjectUseCase = LinkPullRequestProjectUseCase;
+
+
+/***/ }),
+
+/***/ 7687:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotifyNewCommitOnIssueUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const core = __importStar(__nccwpck_require__(2186));
+const issue_repository_1 = __nccwpck_require__(57);
+const list_utils_1 = __nccwpck_require__(834);
+const execute_script_use_case_1 = __nccwpck_require__(8057);
+class NotifyNewCommitOnIssueUseCase {
+    constructor() {
+        this.taskId = 'NotifyNewCommitOnIssueUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.mergeBranchPattern = 'Merge branch ';
+        this.ghAction = 'gh-action: ';
+        this.separator = '------------------------------------------------------';
+    }
+    async invoke(param) {
+        core.info(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            const branchName = param.commit.branch;
+            let commitPrefix = '';
+            if (param.commitPrefixBuilder.length > 0) {
+                param.commitPrefixBuilderParams = {
+                    branchName: branchName,
+                };
+                const executor = new execute_script_use_case_1.ExecuteScriptUseCase();
+                const prefixResult = await executor.invoke(param);
+                commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? '';
+                core.info(`Commit prefix: ${commitPrefix}`);
+            }
+            let title = '';
+            let image = '';
+            if (param.release.active) {
+                title = '🚀 Release News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitReleaseGifs);
+            }
+            else if (param.hotfix.active) {
+                title = '🔥🐛 Hotfix News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitHotfixGifs);
+            }
+            else if (param.isBugfix) {
+                title = '🐛 Bugfix News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitBugfixGifs);
+            }
+            else if (param.isFeature) {
+                title = '✨ Feature News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitFeatureGifs);
+            }
+            else if (param.isDocs) {
+                title = '📝 Documentation News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitDocsGifs);
+            }
+            else if (param.isChore) {
+                title = '🔧 Chore News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitChoreGifs);
+            }
+            else {
+                title = '🪄 Automatic News';
+                image = (0, list_utils_1.getRandomElement)(param.images.commitAutomaticActions);
+            }
+            let commentBody = `
+# ${title}
+
+**Changes on branch \`${param.commit.branch}\`:**
+
+`;
+            let shouldWarn = false;
+            for (const commit of param.commit.commits) {
+                commentBody += `
+${this.separator}
+
+- ${commit.id} by **${commit.author.name}** (@${commit.author.username})
+\`\`\`
+${commit.message.replaceAll(`${commitPrefix}: `, '')}
+\`\`\`
+
+`;
+                if ((commit.message.indexOf(commitPrefix) !== 0 && commitPrefix.length > 0)
+                    && commit.message.indexOf(this.mergeBranchPattern) !== 0
+                    && commit.message.indexOf(this.ghAction) !== 0) {
+                    shouldWarn = true;
+                }
+            }
+            if (shouldWarn && commitPrefix.length > 0) {
+                commentBody += `
+${this.separator}
+## ⚠️ Attention
+
+One or more commits didn't start with the prefix **${commitPrefix}**.
+
+\`\`\`
+${commitPrefix}: created hello-world app
+\`\`\`
+`;
+            }
+            if (image && param.images.imagesOnCommit) {
+                commentBody += `
+${this.separator}
+
+![image](${image})
+`;
+            }
+            if (param.issue.reopenOnPush) {
+                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
+                if (opened) {
+                    await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
+                }
+            }
+            await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
+        }
+        catch (error) {
+            console.error(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to notify the new commit on the issue, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.NotifyNewCommitOnIssueUseCase = NotifyNewCommitOnIssueUseCase;
 
 
 /***/ }),
