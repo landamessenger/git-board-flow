@@ -18,9 +18,9 @@ body:
       label: Release Type
       description: Indicate the type of release.
       options:
-        - Major
-        - Minor
         - Patch
+        - Minor
+        - Major
     validations:
       required: true
 

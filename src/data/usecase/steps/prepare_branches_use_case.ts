@@ -140,7 +140,46 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             param.tokens.tokenPat,
                         )
 
-                        if (linkResult[linkResult.length - 1].success) {
+                        const lastAction = linkResult[linkResult.length - 1];
+                        const reminders = []
+
+                        if (lastAction.success) {
+
+                            const branchName = lastAction.payload.newBranchName;
+
+                            let commitPrefix = ''
+                            if (param.commitPrefixBuilder.length > 0) {
+                                param.commitPrefixBuilderParams = {
+                                    branchName: branchName,
+                                }
+                                const executor = new ExecuteScriptUseCase();
+                                const prefixResult = await executor.invoke(param);
+                                commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
+                            }
+
+                            reminders.push(`Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}):
+> \`\`\`bash
+> git fetch -v && git checkout ${param.release.branch}
+> \`\`\`
+>
+> Version files, changelogs..`)
+                                                
+                            if (commitPrefix.length > 0) {
+                                reminders.push(`Commit the needed changes with this prefix:
+> \`\`\`
+>${commitPrefix}
+> \`\`\``)
+                            }
+                            reminders.push(...[
+                                `Create the tag version in [**${param.release.branch}**](${releaseUrl}).
+> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
+                                `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
+                                `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).
+> **Quick actions:**
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}).
+> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}).`,
+                            ])
+                       
                             result.push(
                                 new Result({
                                     id: this.taskId,
@@ -149,17 +188,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                     steps: [
                                         `The branch [**${param.branches.development}**](${developmentUrl}) was used to create the branch [**${param.release.branch}**](${releaseUrl})`,
                                     ],
-                                    reminders: [
-                                        `Before deploying, apply any change needed in [**${param.release.branch}**](${releaseUrl}).
-> Version files, changelogs, last minute changes.`,
-                                        `Before deploying, create the tag version in [**${param.release.branch}**](${releaseUrl}).
-> Avoid using \`git merge --squash\`, otherwise the created tag will be lost.`,
-                                        `Add the **${param.labels.deploy}** label to run the \`${param.workflows.release}\` workflow.`,
-                                        `After deploying, the new changes on [\`${param.release.branch}\`](${releaseUrl}) must end on [\`${param.branches.development}\`](${developmentUrl}) and [\`${param.branches.main}\`](${mainUrl}).
-> **Quick actions:**
-> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.development}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.development}\`](${developmentUrl}).
-> [New PR](https://github.com/${param.owner}/${param.repo}/compare/${param.branches.main}...${param.release.branch}?expand=1) from [\`${param.release.branch}\`](${releaseUrl}) to [\`${param.branches.main}\`](${mainUrl}).`,
-                                    ],
+                                    reminders: reminders,
                                 })
                             )
                             core.info(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
