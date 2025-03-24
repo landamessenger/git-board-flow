@@ -51572,10 +51572,6 @@ class CheckChangesPullRequestSizeUseCase {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            if (param.currentConfiguration.parentBranch === undefined) {
-                core.info(`Parent branch is undefined.`);
-                return result;
-            }
             const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
             if (param.labels.sizedLabel !== size) {
                 const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
