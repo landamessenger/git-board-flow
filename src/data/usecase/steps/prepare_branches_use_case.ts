@@ -165,7 +165,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 > Version files, changelogs..`)
                                                 
                             if (commitPrefix.length > 0) {
-                                    reminders.push(`Commit the needed changes with this prefix:
+                                reminders.push(`Commit the needed changes with this prefix:
 > \`\`\`
 >${commitPrefix}
 > \`\`\``)
