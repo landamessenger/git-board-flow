@@ -48975,6 +48975,7 @@ class BranchRepository {
                 else {
                     baseBranchName = hotfixBranch ?? developmentBranch;
                 }
+                param.currentConfiguration.parentBranch = baseBranchName;
                 core.info(`============================================================================================`);
                 core.info(`Base branch: ${baseBranchName}`);
                 core.info(`New branch: ${newBranchName}`);
@@ -53324,7 +53325,6 @@ class PrepareBranchesUseCase {
                 }
                 return result;
             }
-            param.currentConfiguration.parentBranch = param.managementBranch;
             core.info(`Branch type: ${param.managementBranch}`);
             const branchesResult = await this.branchRepository.manageBranches(param, param.owner, param.repo, param.issueNumber, issueTitle, param.managementBranch, param.branches.development, param.hotfix?.branch, param.hotfix.active, param.tokens.tokenPat);
             result.push(...branchesResult);
