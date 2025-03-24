@@ -161,7 +161,7 @@ ${changesDescription}
         openaiApiKey: string,
         openaiModel: string
     ): Promise<string> {
-        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section". Try to start the explanation with what was changed directly):\n\n` +
+        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section". Try to start the explanation with what was changed directly and highlight any piece of code mentioned):\n\n` +
             `File: ${filename}\n` +
             `Status: ${status}\n` +
             `Changes: +${additions} -${deletions}\n` +
