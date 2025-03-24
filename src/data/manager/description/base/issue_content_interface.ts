@@ -15,6 +15,8 @@ export abstract class IssueContentInterface extends ContentInterface {
                 number = execution.issue.number
             } else if (execution.isPullRequest) {
                 number = execution.pullRequest.number
+            } else if (execution.isPush) {
+                number = execution.issueNumber
             } else {
                 return undefined;
             }
@@ -42,6 +44,8 @@ export abstract class IssueContentInterface extends ContentInterface {
                 number = execution.issue.number;
             } else if (execution.isPullRequest) {
                 number = execution.pullRequest.number;
+            } else if (execution.isPush) {
+                number = execution.issueNumber;
             } else {
                 return undefined;
             }
