@@ -14,12 +14,6 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
 
         const result: Result[] = []
         try {
-
-            if (param.currentConfiguration.parentBranch === undefined) {
-                core.info(`Parent branch is undefined.`)
-                return result;
-            }
-
             const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(
                 param.owner,
                 param.repo,
