@@ -223,8 +223,6 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 return result
             }
             
-            param.currentConfiguration.parentBranch = param.managementBranch
-
             core.info(`Branch type: ${param.managementBranch}`);
 
             const branchesResult = await this.branchRepository.manageBranches(

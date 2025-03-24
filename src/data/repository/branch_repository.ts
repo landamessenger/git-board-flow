@@ -143,6 +143,7 @@ export class BranchRepository {
             const sanitizedTitle = this.formatBranchName(issueTitle, issueNumber);
 
             const newBranchName = `${branchType}/${issueNumber}-${sanitizedTitle}`;
+            
             if (branches.indexOf(newBranchName) > -1) {
                 result.push(
                     new Result({
@@ -207,6 +208,8 @@ export class BranchRepository {
             } else {
                 baseBranchName = hotfixBranch ?? developmentBranch;
             }
+
+            param.currentConfiguration.parentBranch = baseBranchName
 
             core.info(`============================================================================================`);
             core.info(`Base branch: ${baseBranchName}`);
