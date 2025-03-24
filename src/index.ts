@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import * as github from "@actions/github";
 import {PullRequestLinkUseCase} from "./data/usecase/pull_request_link_use_case";
 import {IssueLinkUseCase} from "./data/usecase/issue_link_use_case";
 import {ProjectRepository} from "./data/repository/project_repository";
@@ -230,14 +231,15 @@ async function run(): Promise<void> {
     /**
      * Projects Details
      */
-    const projectUrlsInput = core.getInput('project-urls');
-    const projectUrls: string[] = projectUrlsInput
+    const projectIdsInput = core.getInput('project-ids');
+    const projectIds: string[] = projectIdsInput
         .split(',')
-        .map(url => url.trim())
-        .filter(url => url.length > 0);
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
 
     const projects: ProjectDetail[] = []
-    for (const projectUrl of projectUrls) {
+    for (const projectId of projectIds) {
+        const projectUrl = `https://github.com/orgs/${github.context.repo.owner}/projects/${projectId}`
         const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat)
         projects.push(detail)
     }
@@ -533,7 +535,10 @@ async function run(): Promise<void> {
     /**
      * Prefix builder
      */
-    const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
+    let commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
+    if (commitPrefixBuilder.length === 0) {
+        commitPrefixBuilder = 'branchName.replace("/", "-");';
+    }
 
     /**
      * Issue
