@@ -31,12 +31,12 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                 await this.issueRepository.setLabels(
                     param.owner,
                     param.repo,
-                    param.issueNumber,
+                    param.pullRequest.number,
                     labelNames,
                     param.tokens.token,
                 )
 
-                console.log(`Updated labels on issue #${param.issueNumber}:`, labelNames);
+                console.log(`Updated labels on pull request #${param.pullRequest.number}:`, labelNames);
 
                 result.push(
                     new Result({
@@ -44,7 +44,7 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                         success: true,
                         executed: true,
                         steps: [
-                            `${reason}, so the issue was resized to ${size}.`,
+                            `${reason}, so the pull request was resized to ${size}.`,
                         ],
                     })
                 );
