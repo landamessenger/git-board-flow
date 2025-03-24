@@ -208,6 +208,8 @@ export class BranchRepository {
                 baseBranchName = hotfixBranch ?? developmentBranch;
             }
 
+            param.currentConfiguration.parentBranch = baseBranchName
+            
             core.info(`============================================================================================`);
             core.info(`Base branch: ${baseBranchName}`);
             core.info(`New branch: ${newBranchName}`);
