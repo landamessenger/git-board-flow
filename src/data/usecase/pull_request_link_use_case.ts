@@ -9,6 +9,7 @@ import {AssignMemberToIssueUseCase} from "./steps/assign_members_to_issue_use_ca
 import {AssignReviewersToIssueUseCase} from "./steps/assign_reviewers_to_issue_use_case";
 import {UpdateTitleUseCase} from "./steps/update_title_use_case";
 import { UpdatePullRequestDescriptionUseCase } from "./steps/update_pull_request_description_use_case";
+import { CheckChangesPullRequestSizeUseCase } from "./steps/check_changes_pull_request_size_use_case";
 
 export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestLinkUseCase';
@@ -48,6 +49,11 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                  */
                 results.push(...await new LinkPullRequestIssueUseCase().invoke(param));
 
+                /**
+                 * Check changes size
+                 */
+                results.push(...await new CheckChangesPullRequestSizeUseCase().invoke(param));
+
                 if (param.ai.getAiPullRequestDescription()) {
                     /**
                      * Update pull request description
@@ -55,6 +61,11 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                     results.push(...await new UpdatePullRequestDescriptionUseCase().invoke(param));
                 }
             } else if (param.pullRequest.isSynchronize) {
+                /**
+                 * Check changes size
+                 */
+                results.push(...await new CheckChangesPullRequestSizeUseCase().invoke(param));
+                
                 /**
                  * Pushed changes to the pull request
                  */

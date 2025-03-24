@@ -4,6 +4,8 @@ import * as github from "@actions/github";
 import {Result} from "../model/result";
 import {Execution} from "../model/execution";
 import {getLatestVersion} from "../utils/version_utils";
+import { Labels } from '../model/labels';
+import { SizeThresholds } from '../model/size_thresholds';
 
 export class BranchRepository {
 
@@ -673,4 +675,124 @@ This PR merges **${head}** into **${base}**.
         return result;
     }
 
+    getChanges = async (
+        owner: string,
+        repository: string,
+        head: string,
+        base: string,
+        token: string,
+    ) => {  
+        const octokit = github.getOctokit(token);
+
+        try {
+            core.info(`Comparing branches: ${head} with ${base}`);
+            
+            let headRef = `heads/${head}`
+            if (head.indexOf('tags/') > -1) {
+                headRef = head
+            }
+
+            let baseRef = `heads/${base}`
+            if (base.indexOf('tags/') > -1) {
+                baseRef = base
+            }
+
+            const { data: comparison } = await octokit.rest.repos.compareCommits({
+                owner: owner,
+                repo: repository,
+                base: baseRef,
+                head: headRef,
+            });
+
+            return {
+                aheadBy: comparison.ahead_by,
+                behindBy: comparison.behind_by,
+                totalCommits: comparison.total_commits,
+                files: (comparison.files || []).map(file => ({
+                    filename: file.filename,
+                    status: file.status,
+                    additions: file.additions,
+                    deletions: file.deletions,
+                    changes: file.changes,
+                    blobUrl: file.blob_url,
+                    rawUrl: file.raw_url,
+                    contentsUrl: file.contents_url,
+                    patch: file.patch
+                })),
+                commits: comparison.commits.map(commit => ({
+                    sha: commit.sha,
+                    message: commit.commit.message,
+                    author: commit.commit.author || { name: 'Unknown', email: 'unknown@example.com', date: new Date().toISOString() },
+                    date: commit.commit.author?.date || new Date().toISOString()
+                }))
+            };
+        } catch (error) {
+            core.error(`Error comparing branches: ${error}`);
+            throw error;
+        }
+    }
+
+    getSizeCategoryAndReason = async (
+        owner: string,
+        repository: string,
+        head: string,
+        base: string,
+        sizeThresholds: SizeThresholds,
+        labels: Labels,
+        token: string,
+    ) => {
+        try {
+            const headBranchChanges = await this.getChanges(
+                owner,
+                repository,
+                head,
+                base,
+                token,
+            )
+
+            const totalChanges = headBranchChanges.files.reduce((sum, file) => sum + file.changes, 0);
+            const totalFiles = headBranchChanges.files.length;
+            const totalCommits = headBranchChanges.totalCommits;
+
+            let sizeCategory: string;
+            let sizeReason: string;
+            if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
+                sizeCategory = labels.sizeXxl;
+                sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
+                            totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
+                            `More than ${sizeThresholds.xxl.commits} commits`;
+            } else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
+                sizeCategory = labels.sizeXl;
+                sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
+                            totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
+                            `More than ${sizeThresholds.xl.commits} commits`;
+            } else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
+                sizeCategory = labels.sizeL;
+                sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
+                            totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
+                            `More than ${sizeThresholds.l.commits} commits`;
+            } else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
+                sizeCategory = labels.sizeM;
+                sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
+                            totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
+                            `More than ${sizeThresholds.m.commits} commits`;
+            } else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
+                sizeCategory = labels.sizeS;
+                sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
+                            totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
+                            `More than ${sizeThresholds.s.commits} commits`;
+            } else {
+                sizeCategory = labels.sizeXs;
+                sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
+            }
+            
+            return {
+                size: sizeCategory,
+                reason: sizeReason
+            }
+        } catch (error) {
+            core.error(`Error comparing branches: ${error}`);
+            throw error;
+        }
+    }
 }

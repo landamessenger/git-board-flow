@@ -55,7 +55,7 @@ export class DeployedAddedUseCase implements ParamUseCase<Execution, Result[]> {
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to complete de deploy, but there was a problem.`,
+                        `Tried to complete the deployment, but there was a problem.`,
                     ],
                     errors: [
                         error?.toString() ?? 'Unknown error',
