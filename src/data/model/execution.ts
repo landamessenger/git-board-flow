@@ -228,7 +228,7 @@ export class Execution {
         }
 
         this.previousConfiguration = await new ConfigurationHandler().get(this)
-
+        console.log(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
 
         /**
          * Get labels of issue
@@ -338,5 +338,7 @@ export class Execution {
         }
 
         this.currentConfiguration.branchType = this.issueType
+
+        console.log(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
     }
 }
