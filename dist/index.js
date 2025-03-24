@@ -48013,6 +48013,7 @@ class Execution {
                 this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
             }
             this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
+            console.log(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
             /**
              * Get labels of issue
              */
@@ -48108,6 +48109,7 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             this.currentConfiguration.branchType = this.issueType;
+            console.log(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
         };
         this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
