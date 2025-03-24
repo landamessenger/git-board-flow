@@ -47517,6 +47517,9 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 else if (execution.isPullRequest) {
                     number = execution.pullRequest.number;
                 }
+                else if (execution.isPush) {
+                    number = execution.issueNumber;
+                }
                 else {
                     return undefined;
                 }
@@ -47539,6 +47542,9 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 }
                 else if (execution.isPullRequest) {
                     number = execution.pullRequest.number;
+                }
+                else if (execution.isPush) {
+                    number = execution.issueNumber;
                 }
                 else {
                     return undefined;
