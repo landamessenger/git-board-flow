@@ -14,7 +14,6 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
 
         const result: Result[] = []
         try {
-
             if (param.currentConfiguration.parentBranch === undefined) {
                 core.info(`Parent branch is undefined.`)
                 return result;

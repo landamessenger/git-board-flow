@@ -47517,6 +47517,9 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 else if (execution.isPullRequest) {
                     number = execution.pullRequest.number;
                 }
+                else if (execution.isPush) {
+                    number = execution.issueNumber;
+                }
                 else {
                     return undefined;
                 }
@@ -47539,6 +47542,9 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 }
                 else if (execution.isPullRequest) {
                     number = execution.pullRequest.number;
+                }
+                else if (execution.isPush) {
+                    number = execution.issueNumber;
                 }
                 else {
                     return undefined;
@@ -48013,6 +48019,7 @@ class Execution {
                 this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
             }
             this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
+            console.log(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
             /**
              * Get labels of issue
              */
@@ -48108,6 +48115,7 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             this.currentConfiguration.branchType = this.issueType;
+            console.log(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
         };
         this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
@@ -51581,22 +51589,18 @@ class CheckChangesPullRequestSizeUseCase {
         core.info(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            if (param.currentConfiguration.parentBranch === undefined) {
-                core.info(`Parent branch is undefined.`);
-                return result;
-            }
             const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
             if (param.labels.sizedLabel !== size) {
                 const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
                 labelNames.push(size);
-                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
-                console.log(`Updated labels on issue #${param.issueNumber}:`, labelNames);
+                await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.token);
+                console.log(`Updated labels on pull request #${param.pullRequest.number}:`, labelNames);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `${reason}, so the issue was resized to ${size}.`,
+                        `${reason}, so the pull request was resized to ${size}.`,
                     ],
                 }));
             }
@@ -53738,7 +53742,7 @@ ${changesDescription}
         return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
     }
     async processPatchSection(section, filename, status, additions, deletions, openaiApiKey, openaiModel) {
-        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section". Try to start the explanation with what was changed directly):\n\n` +
+        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section". Try to start the explanation with what was changed directly and highlight with \`\`\`language [new_line] [code here]\`\`\` any piece of code mentioned):\n\n` +
             `File: ${filename}\n` +
             `Status: ${status}\n` +
             `Changes: +${additions} -${deletions}\n` +
