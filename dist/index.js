@@ -51576,14 +51576,14 @@ class CheckChangesPullRequestSizeUseCase {
             if (param.labels.sizedLabel !== size) {
                 const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
                 labelNames.push(size);
-                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
-                console.log(`Updated labels on issue #${param.issueNumber}:`, labelNames);
+                await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.token);
+                console.log(`Updated labels on pull request #${param.pullRequest.number}:`, labelNames);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `${reason}, so the issue was resized to ${size}.`,
+                        `${reason}, so the pull request was resized to ${size}.`,
                     ],
                 }));
             }
