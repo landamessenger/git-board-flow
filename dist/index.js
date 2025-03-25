@@ -54293,6 +54293,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
+const github = __importStar(__nccwpck_require__(5438));
 const pull_request_link_use_case_1 = __nccwpck_require__(29);
 const issue_link_use_case_1 = __nccwpck_require__(5877);
 const project_repository_1 = __nccwpck_require__(7917);
@@ -54516,13 +54517,14 @@ async function run() {
     /**
      * Projects Details
      */
-    const projectUrlsInput = core.getInput('project-urls');
-    const projectUrls = projectUrlsInput
+    const projectIdsInput = core.getInput('project-ids');
+    const projectIds = projectIdsInput
         .split(',')
-        .map(url => url.trim())
-        .filter(url => url.length > 0);
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
     const projects = [];
-    for (const projectUrl of projectUrls) {
+    for (const projectId of projectIds) {
+        const projectUrl = `https://github.com/orgs/${github.context.repo.owner}/projects/${projectId}`;
         const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat);
         projects.push(detail);
     }
@@ -54769,7 +54771,10 @@ async function run() {
     /**
      * Prefix builder
      */
-    const commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
+    let commitPrefixBuilder = core.getInput('commit-prefix-builder') ?? '';
+    if (commitPrefixBuilder.length === 0) {
+        commitPrefixBuilder = 'branchName.replace("/", "-");';
+    }
     /**
      * Issue
      */

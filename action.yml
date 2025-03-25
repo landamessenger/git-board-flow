@@ -134,8 +134,8 @@ inputs:
   size-xs-threshold-commits:
     description: "Threshold for size XS in commits."
     default: "1"
-  project-urls:
-    description: "Comma-separated list of project URLs to link issues and pull requests."
+  project-ids:
+    description: "Comma-separated list of project IDs to link issues and pull requests."
     default: ""
   main-branch:
     description: "Name of the main branch (e.g., master)."
@@ -235,7 +235,7 @@ inputs:
     default: "" 
   commit-prefix-builder:
     description: "Enable commit prefix generation."
-    default: ""
+    default: "branchName.replace(\"/\", \"-\");"
   reopen-issue-on-push:
     description: "Reopens a closed issue when changes are pushed to the branch associated with the issue."
     default: "true"

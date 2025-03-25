@@ -19,9 +19,7 @@ jobs:
       - name: Git Board - Pull Request
         uses: ./
         with:
-          project-urls: https://github.com/orgs/landamessenger/projects/2
-          commit-prefix-builder: |
-            branchName.replace("/", "-");
+          project-ids: 2
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}

@@ -18,10 +18,8 @@ jobs:
       - name: Git Board - Issue
         uses: ./
         with:
-          project-urls: https://github.com/orgs/landamessenger/projects/2
+          project-ids: 2
           hotfix-workflow: release_workflow.yml
-          commit-prefix-builder: |
-            branchName.replace("/", "-");
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
 
