@@ -53716,9 +53716,13 @@ ${changesDescription}
         return ignorePatterns.some(pattern => {
             // Convert glob pattern to regex
             const regexPattern = pattern
-                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters
-                .replace(/\*/g, '.*') // Convert * to regex wildcard
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
+                .replace(/\*/g, '.*') // Convert * to match anything
                 .replace(/\//g, '\\/'); // Escape forward slashes
+            // Allow pattern ending on /* to ignore also subdirectories and files inside
+            if (pattern.endsWith("/*")) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+            }
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
@@ -53738,10 +53742,13 @@ ${changesDescription}
     }
     async processChanges(changes, ignoreFiles, openaiApiKey, openaiModel) {
         let changesDescription = ``;
+        console.log(`Processing ${changes.length} changes`);
         for (const change of changes) {
             try {
+                console.log(`Processing changes for file ${change.filename}`);
                 const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
                 if (shouldIgnoreFile) {
+                    console.log(`File ${change.filename} should be ignored`);
                     continue;
                 }
                 const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
