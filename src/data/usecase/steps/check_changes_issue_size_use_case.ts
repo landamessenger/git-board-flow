@@ -4,6 +4,7 @@ import {Result} from "../../model/result";
 import * as core from '@actions/core';
 import { BranchRepository } from "../../repository/branch_repository";
 import { IssueRepository } from "../../repository/issue_repository";
+import { logError } from "../../utils/logger";
 
 export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckChangesIssueSizeUseCase';
@@ -58,7 +59,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                 );
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

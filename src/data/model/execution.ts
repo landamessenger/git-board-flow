@@ -24,8 +24,11 @@ import {incrementVersion} from "../utils/version_utils";
 import {SingleAction} from "./single_action";
 import {Ai} from "./ai";   
 import { SizeThresholds } from "./size_thresholds";
+import { logDebugInfo, setGlobalLoggerDebug } from "../utils/logger";
  
 export class Execution {
+    debug: boolean = false;
+
     /**
      * Every usage of this field should be checked.
      * PRs with no issue ID in the head branch won't have it.
@@ -151,6 +154,7 @@ export class Execution {
     }
 
     constructor(
+        debug: boolean,
         singleAction: SingleAction,
         commitPrefixBuilder: string,
         issue: Issue,
@@ -167,6 +171,7 @@ export class Execution {
         workflows: Workflows,
         projects: ProjectDetail[],
     ) {
+        this.debug = debug;
         this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
@@ -186,6 +191,8 @@ export class Execution {
     }
 
     setup = async () => {
+        setGlobalLoggerDebug(this.debug);
+        
         const issueRepository = new IssueRepository();
 
         /**
@@ -228,7 +235,7 @@ export class Execution {
         }
 
         this.previousConfiguration = await new ConfigurationHandler().get(this)
-        console.log(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
+        logDebugInfo(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
 
         /**
          * Get labels of issue
@@ -339,6 +346,6 @@ export class Execution {
 
         this.currentConfiguration.branchType = this.issueType
 
-        console.log(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
+        logDebugInfo(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
     }
 }

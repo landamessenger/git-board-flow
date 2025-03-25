@@ -4,6 +4,7 @@ import * as core from "@actions/core";
 import {Result} from "../../model/result";
 import {IssueRepository} from "../../repository/issue_repository";
 import {extractVersion} from "../../utils/content_utils";
+import { logError } from "../../utils/logger";
 
 export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'GetReleaseVersionUseCase';
@@ -77,7 +78,7 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
                 })
             );
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

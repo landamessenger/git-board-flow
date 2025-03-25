@@ -3,6 +3,7 @@ import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
 import {Result} from "../model/result";
 import * as core from '@actions/core';
+import { logError } from "../utils/logger";
 
 /**
  * Remove any branch created for this issue
@@ -66,7 +67,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                 }
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             results.push(
                 new Result({
                     id: this.taskId,

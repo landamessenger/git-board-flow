@@ -5,6 +5,7 @@ import {BranchRepository} from "../../repository/branch_repository";
 import {Result} from "../../model/result";
 import {ExecuteScriptUseCase} from "./execute_script_use_case";
 import {IssueRepository} from "../../repository/issue_repository";
+import { logError } from "../../utils/logger";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
@@ -312,7 +313,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
             return result;
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

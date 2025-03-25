@@ -28,9 +28,7 @@ jobs:
       - name: Git Board - Issue
         uses: landamessenger/git-board-flow@master
         with:
-          project-urls: https://github.com/orgs/landamessenger/projects/2
-          commit-prefix-builder: |
-            branchName.replace("/", "-");
+          project-ids: 1,2
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
 ```
@@ -82,7 +80,7 @@ Git Board Flow takes care of organizing your issues by automatically assigning n
           uses: landamessenger/git-board-flow@master
           with:
             github-token-personal: ${{ secrets.REPO_PAT }} // [!code highlight]
-            project-urls: https://github.com/orgs/landamessenger/projects/1, https://github.com/orgs/landamessenger/projects/2 // [!code highlight]
+            project-ids: 1, 2 // [!code highlight]
   ```
 </Card>
 

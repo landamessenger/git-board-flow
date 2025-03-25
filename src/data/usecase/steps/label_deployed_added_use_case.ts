@@ -2,6 +2,7 @@ import {ParamUseCase} from "../base/param_usecase";
 import {Execution} from "../../model/execution";
 import {Result} from "../../model/result";
 import * as core from '@actions/core';
+import { logError } from "../../utils/logger";
 
 export class DeployedAddedUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployedAddedUseCase';
@@ -48,7 +49,7 @@ export class DeployedAddedUseCase implements ParamUseCase<Execution, Result[]> {
                 )
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

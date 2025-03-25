@@ -6,6 +6,7 @@ import {Execution} from "../model/execution";
 import {getLatestVersion} from "../utils/version_utils";
 import { Labels } from '../model/labels';
 import { SizeThresholds } from '../model/size_thresholds';
+import { logDebugInfo, logError } from '../utils/logger';
 
 export class BranchRepository {
 
@@ -122,7 +123,7 @@ export class BranchRepository {
             core.info(`Managing branches`);
 
             const branches = await this.getListOfBranches(owner, repository, token)
-            console.log(JSON.stringify(branches, null, 2));
+            logDebugInfo(JSON.stringify(branches, null, 2));
 
             if (hotfixBranch === undefined && isHotfix) {
                 result.push(
@@ -226,7 +227,7 @@ export class BranchRepository {
                 )
             )
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: 'branch_repository',
