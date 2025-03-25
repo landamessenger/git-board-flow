@@ -39,6 +39,45 @@ The following parameters can be configured in the workflow:
 - `release-label`: Label to manage release branches (default: "release")
 - `feature-label`: Label to manage feature branches (default: "feature")
 
+#### Size Labels
+- `size-xxl-label`: Label to indicate a task of size XXL (default: "size xxl")
+- `size-xl-label`: Label to indicate a task of size XL (default: "size xl")
+- `size-l-label`: Label to indicate a task of size L (default: "size l")
+- `size-m-label`: Label to indicate a task of size M (default: "size m")
+- `size-s-label`: Label to indicate a task of size S (default: "size s")
+- `size-xs-label`: Label to indicate a task of size XS (default: "size xs")
+
+#### Size Thresholds
+##### XXL Thresholds
+- `size-xxl-threshold-lines`: Threshold for size XXL in lines (default: "1000")
+- `size-xxl-threshold-files`: Threshold for size XXL in files (default: "20")
+- `size-xxl-threshold-commits`: Threshold for size XXL in commits (default: "10")
+
+##### XL Thresholds
+- `size-xl-threshold-lines`: Threshold for size XL in lines (default: "500")
+- `size-xl-threshold-files`: Threshold for size XL in files (default: "10")
+- `size-xl-threshold-commits`: Threshold for size XL in commits (default: "5")
+
+##### L Thresholds
+- `size-l-threshold-lines`: Threshold for size L in lines (default: "250")
+- `size-l-threshold-files`: Threshold for size L in files (default: "5")
+- `size-l-threshold-commits`: Threshold for size L in commits (default: "3")
+
+##### M Thresholds
+- `size-m-threshold-lines`: Threshold for size M in lines (default: "100")
+- `size-m-threshold-files`: Threshold for size M in files (default: "3")
+- `size-m-threshold-commits`: Threshold for size M in commits (default: "2")
+
+##### S Thresholds
+- `size-s-threshold-lines`: Threshold for size S in lines (default: "50")
+- `size-s-threshold-files`: Threshold for size S in files (default: "2")
+- `size-s-threshold-commits`: Threshold for size S in commits (default: "1")
+
+##### XS Thresholds
+- `size-xs-threshold-lines`: Threshold for size XS in lines (default: "25")
+- `size-xs-threshold-files`: Threshold for size XS in files (default: "1")
+- `size-xs-threshold-commits`: Threshold for size XS in commits (default: "1")
+
 #### Branch Naming Conventions
 - `docs-tree`: Naming convention for docs branches (default: "docs")
 - `chore-tree`: Naming convention for chore branches (default: "chore")
@@ -48,7 +87,7 @@ The following parameters can be configured in the workflow:
 - `release-tree`: Naming convention for release branches (default: "release")
 
 #### Issue Management
-- `project-urls`: Comma-separated list of project URLs to link issues and pull requests
+- `project-ids`: Comma-separated list of project IDs to link issues and pull requests
 - `emoji-labeled-title`: Enable titles with emojis based on issue labels (default: "true")
 - `reopen-issue-on-push`: Reopens a closed issue when changes are pushed to the branch (default: "true")
 - `desired-assignees-count`: Number of assignees desired for the issue (default: "1", max: 10)
@@ -97,7 +136,7 @@ The following parameters can be configured in the workflow:
 - `release-workflow`: Release workflow for running release deploys (default: "release_workflow.yml")
 - `hotfix-workflow`: Hotfix workflow for running hotfix deploys (default: "hotfix_workflow.yml")
 - `merge-timeout`: Timeout for the merge workflow in seconds (default: "600")
-- `commit-prefix-builder`: Enable commit prefix generation
+- `commit-prefix-builder`: Enable commit prefix generation (default: "branchName.replace(\"/\", \"-\");")
 
 
 
