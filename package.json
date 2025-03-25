@@ -1,6 +1,6 @@
 {
   "name": "git-board-flow",
-  "version": "1.0.45",
+  "version": "1.0.46",
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "dist/index.js",
   "scripts": {
