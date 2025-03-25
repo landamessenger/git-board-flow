@@ -1,3 +1,5 @@
+import { logError } from "../utils/logger";
+
 const deployedAction = 'deployed_action'
 
 export class SingleAction {
@@ -22,8 +24,8 @@ export class SingleAction {
             this.currentSingleActionIssue = parseInt(currentSingleActionIssue)
             validIssueNumber = true;
         } catch (error) {
-            console.error(error)
-            console.error(`Issue ${currentSingleActionIssue} is not a number.`)
+            logError(`Issue ${currentSingleActionIssue} is not a number.`)
+            logError(error)
         }
         this.currentSingleAction = currentSingleAction;
         this.enabledSingleAction = this.currentSingleAction.length > 0;

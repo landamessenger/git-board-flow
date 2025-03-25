@@ -2,6 +2,7 @@ import * as github from "@actions/github";
 import * as core from "@actions/core";
 import {Milestone} from "../model/milestone";
 import {Labels} from "../model/labels";
+import { logError } from "../utils/logger";
 
 export class IssueRepository {
 
@@ -224,7 +225,7 @@ export class IssueRepository {
                 body: description,
             });
         } catch (error) {
-            console.error(`Error updating issue description: ${error}`);
+            logError(`Error updating issue description: ${error}`);
             throw error;
         }
     }
@@ -371,7 +372,7 @@ export class IssueRepository {
 
             return issue.title;
         } catch (error) {
-            console.error(`Failed to fetch the issue title: ${error}`);
+            logError(`Failed to fetch the issue title: ${error}`);
             return undefined;
         }
     };

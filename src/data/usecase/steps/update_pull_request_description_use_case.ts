@@ -6,6 +6,7 @@ import { AiRepository } from "../../repository/ai_repository";
 import { PullRequestRepository } from "../../repository/pull_request_repository";
 import { ProjectRepository } from "../../repository/project_repository";
 import { IssueRepository } from "../../repository/issue_repository";
+import { logError } from "../../utils/logger";
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
     private aiRepository = new AiRepository();
@@ -116,7 +117,7 @@ ${changesDescription}
             );
             
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result(
                     {
@@ -138,14 +139,20 @@ ${changesDescription}
         return ignorePatterns.some(pattern => {
             // Convert glob pattern to regex
             const regexPattern = pattern
-                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters
-                .replace(/\*/g, '.*') // Convert * to regex wildcard
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
+                .replace(/\*/g, '.*') // Convert * to match anything
                 .replace(/\//g, '\\/'); // Escape forward slashes
-            
+    
+            // Allow pattern ending on /* to ignore also subdirectories and files inside
+            if (pattern.endsWith("/*")) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+            }
+    
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
     }
+    
 
     private splitPatchIntoSections(patch: string): string[] {
         if (!patch) return [];
@@ -177,18 +184,20 @@ ${changesDescription}
         openaiModel: string
     ): Promise<string> {
         let changesDescription = ``;
-        
+        console.log(`Processing ${changes.length} changes`);
         for (const change of changes) {
             try {
+                console.log(`Processing changes for file ${change.filename}`);
                 const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
                 if (shouldIgnoreFile) {
+                    console.log(`File ${change.filename} should be ignored`);
                     continue;
                 }
 
                 const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
                 changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
             } catch (error) {
-                console.error(error);
+                logError(error);
                 throw new Error(`Error processing file ${change.filename}: ${error}`);
             }
         }

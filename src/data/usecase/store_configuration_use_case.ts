@@ -2,6 +2,7 @@ import {ParamUseCase} from "./base/param_usecase";
 import {Execution} from "../model/execution";
 import * as core from '@actions/core';
 import {ConfigurationHandler} from "../manager/description/configuration_handler";
+import { logError } from "../utils/logger";
 
 /**
  * Store las configuration in the description
@@ -17,7 +18,7 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
                 param
             )
         } catch (error) {
-            console.error(error);
+            logError(error);
         }
     }
 }

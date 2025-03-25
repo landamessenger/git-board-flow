@@ -4,6 +4,7 @@ import {Result} from "../../model/result";
 import * as core from '@actions/core';
 import { BranchRepository } from "../../repository/branch_repository";
 import { IssueRepository } from "../../repository/issue_repository";
+import { logError } from "../../utils/logger";
 
 export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckChangesPullRequestSizeUseCase';
@@ -50,7 +51,7 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                 );
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

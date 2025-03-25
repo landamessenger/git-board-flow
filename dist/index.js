@@ -47384,6 +47384,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ContentInterface = void 0;
 const core = __importStar(__nccwpck_require__(2186));
+const logger_1 = __nccwpck_require__(1517);
 class ContentInterface {
     constructor() {
         this.getContent = (description) => {
@@ -47397,7 +47398,7 @@ class ContentInterface {
                 return description.split(this.startPattern)[1].split(this.endPattern)[0];
             }
             catch (error) {
-                core.error(`Error reading issue configuration: ${error}`);
+                (0, logger_1.logError)(`Error reading issue configuration: ${error}`);
                 throw error;
             }
         };
@@ -47432,7 +47433,7 @@ class ContentInterface {
                 return this._updateContent(description, content);
             }
             catch (error) {
-                console.error(`Error updating issue description: ${error}`);
+                (0, logger_1.logError)(`Error updating issue description: ${error}`);
                 return undefined;
             }
         };
@@ -47925,6 +47926,7 @@ const get_release_version_use_case_1 = __nccwpck_require__(9816);
 const get_release_type_use_case_1 = __nccwpck_require__(6790);
 const branch_repository_1 = __nccwpck_require__(7701);
 const version_utils_1 = __nccwpck_require__(8202);
+const logger_1 = __nccwpck_require__(1517);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -47981,7 +47983,8 @@ class Execution {
     get commit() {
         return new commit_1.Commit();
     }
-    constructor(singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, projects) {
+    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, projects) {
+        this.debug = false;
         /**
          * Every usage of this field should be checked.
          * PRs with no issue ID in the head branch won't have it.
@@ -47991,6 +47994,7 @@ class Execution {
         this.issueNumber = -1;
         this.commitPrefixBuilderParams = {};
         this.setup = async () => {
+            (0, logger_1.setGlobalLoggerDebug)(this.debug);
             const issueRepository = new issue_repository_1.IssueRepository();
             /**
              * Set the issue number
@@ -48019,7 +48023,7 @@ class Execution {
                 this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
             }
             this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
-            console.log(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
+            (0, logger_1.logDebugInfo)(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
             /**
              * Get labels of issue
              */
@@ -48115,8 +48119,9 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             this.currentConfiguration.branchType = this.issueType;
-            console.log(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
+            (0, logger_1.logDebugInfo)(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
         };
+        this.debug = debug;
         this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
@@ -48579,12 +48584,13 @@ exports.Result = Result;
 /***/ }),
 
 /***/ 8024:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SingleAction = void 0;
+const logger_1 = __nccwpck_require__(1517);
 const deployedAction = 'deployed_action';
 class SingleAction {
     get isDeployedAction() {
@@ -48601,8 +48607,8 @@ class SingleAction {
             validIssueNumber = true;
         }
         catch (error) {
-            console.error(error);
-            console.error(`Issue ${currentSingleActionIssue} is not a number.`);
+            (0, logger_1.logError)(`Issue ${currentSingleActionIssue} is not a number.`);
+            (0, logger_1.logError)(error);
         }
         this.currentSingleAction = currentSingleAction;
         this.enabledSingleAction = this.currentSingleAction.length > 0;
@@ -48815,6 +48821,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const result_1 = __nccwpck_require__(7305);
 const version_utils_1 = __nccwpck_require__(8202);
+const logger_1 = __nccwpck_require__(1517);
 class BranchRepository {
     constructor() {
         this.fetchRemoteBranches = async () => {
@@ -48913,7 +48920,7 @@ class BranchRepository {
             try {
                 core.info(`Managing branches`);
                 const branches = await this.getListOfBranches(owner, repository, token);
-                console.log(JSON.stringify(branches, null, 2));
+                (0, logger_1.logDebugInfo)(JSON.stringify(branches, null, 2));
                 if (hotfixBranch === undefined && isHotfix) {
                     result.push(new result_1.Result({
                         id: 'branch_repository',
@@ -48990,7 +48997,7 @@ class BranchRepository {
                 result.push(...await this.createLinkedBranch(owner, repository, baseBranchName, newBranchName, issueNumber, undefined, token));
             }
             catch (error) {
-                console.error(error);
+                (0, logger_1.logError)(error);
                 result.push(new result_1.Result({
                     id: 'branch_repository',
                     success: false,
@@ -49479,6 +49486,7 @@ exports.IssueRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
 const milestone_1 = __nccwpck_require__(2298);
+const logger_1 = __nccwpck_require__(1517);
 class IssueRepository {
     constructor() {
         this.updateTitleIssueFormat = async (owner, repository, version, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
@@ -49673,7 +49681,7 @@ class IssueRepository {
                 });
             }
             catch (error) {
-                console.error(`Error updating issue description: ${error}`);
+                (0, logger_1.logError)(`Error updating issue description: ${error}`);
                 throw error;
             }
         };
@@ -49780,7 +49788,7 @@ class IssueRepository {
                 return issue.title;
             }
             catch (error) {
-                console.error(`Failed to fetch the issue title: ${error}`);
+                (0, logger_1.logError)(`Failed to fetch the issue title: ${error}`);
                 return undefined;
             }
         };
@@ -50343,6 +50351,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
+const logger_1 = __nccwpck_require__(1517);
 class DeployedActionUseCase {
     constructor() {
         this.taskId = 'DeployedActionUseCase';
@@ -50402,7 +50411,7 @@ class DeployedActionUseCase {
             return result;
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -50463,6 +50472,7 @@ const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
 const check_changes_issue_size_use_case_1 = __nccwpck_require__(6555);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(7687);
+const logger_1 = __nccwpck_require__(1517);
 class CommitCheckUseCase {
     constructor() {
         this.taskId = 'CommitCheckUseCase';
@@ -50482,7 +50492,7 @@ class CommitCheckUseCase {
             results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -50654,6 +50664,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const result_1 = __nccwpck_require__(7305);
 const list_utils_1 = __nccwpck_require__(834);
 const core = __importStar(__nccwpck_require__(2186));
+const logger_1 = __nccwpck_require__(1517);
 /**
  * Publish the resume of actions
  */
@@ -50807,7 +50818,7 @@ ${footer}
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             param.currentConfiguration.results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -50875,6 +50886,7 @@ const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
 const update_title_use_case_1 = __nccwpck_require__(8411);
 const update_pull_request_description_use_case_1 = __nccwpck_require__(1977);
 const check_changes_pull_request_size_use_case_1 = __nccwpck_require__(6875);
+const logger_1 = __nccwpck_require__(1517);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
@@ -50942,7 +50954,7 @@ class PullRequestLinkUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51004,6 +51016,7 @@ exports.RemoveIssueBranchesUseCase = void 0;
 const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
+const logger_1 = __nccwpck_require__(1517);
 /**
  * Remove any branch created for this issue
  */
@@ -51051,7 +51064,7 @@ class RemoveIssueBranchesUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51113,6 +51126,7 @@ exports.SingleActionUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
 const deployed_action_use_case_1 = __nccwpck_require__(9814);
+const logger_1 = __nccwpck_require__(1517);
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -51130,7 +51144,7 @@ class SingleActionUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51193,6 +51207,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(1517);
 class AssignMemberToIssueUseCase {
     constructor() {
         this.taskId = 'AssignMemberToIssueUseCase';
@@ -51285,7 +51300,7 @@ class AssignMemberToIssueUseCase {
             return result;
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51347,6 +51362,7 @@ const project_repository_1 = __nccwpck_require__(7917);
 const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const logger_1 = __nccwpck_require__(1517);
 class AssignReviewersToIssueUseCase {
     constructor() {
         this.taskId = 'AssignReviewersToIssueUseCase';
@@ -51407,7 +51423,7 @@ class AssignReviewersToIssueUseCase {
             return result;
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51470,6 +51486,7 @@ const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(1517);
 class CheckChangesIssueSizeUseCase {
     constructor() {
         this.taskId = 'CheckChangesIssueSizeUseCase';
@@ -51503,7 +51520,7 @@ class CheckChangesIssueSizeUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51568,6 +51585,7 @@ const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(1517);
 class CheckChangesPullRequestSizeUseCase {
     constructor() {
         this.taskId = 'CheckChangesPullRequestSizeUseCase';
@@ -51595,7 +51613,7 @@ class CheckChangesPullRequestSizeUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51659,6 +51677,7 @@ exports.CheckPermissionsUseCase = void 0;
 const project_repository_1 = __nccwpck_require__(7917);
 const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(1517);
 class CheckPermissionsUseCase {
     constructor() {
         this.taskId = 'CheckPermissionsUseCase';
@@ -51712,7 +51731,7 @@ class CheckPermissionsUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51957,6 +51976,7 @@ exports.ExecuteScriptUseCase = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const isolated_vm_1 = __importDefault(__nccwpck_require__(4290));
+const logger_1 = __nccwpck_require__(1517);
 class ExecuteScriptUseCase {
     constructor() {
         this.taskId = 'ExecuteScriptUseCase';
@@ -51991,7 +52011,7 @@ class ExecuteScriptUseCase {
             }));
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52052,6 +52072,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const content_utils_1 = __nccwpck_require__(4799);
+const logger_1 = __nccwpck_require__(1517);
 class GetHotfixVersionUseCase {
     constructor() {
         this.taskId = 'GetHotfixVersionUseCase';
@@ -52121,7 +52142,7 @@ class GetHotfixVersionUseCase {
             }));
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52182,6 +52203,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const content_utils_1 = __nccwpck_require__(4799);
+const logger_1 = __nccwpck_require__(1517);
 class GetReleaseTypeUseCase {
     constructor() {
         this.taskId = 'GetReleaseTypeUseCase';
@@ -52240,7 +52262,7 @@ class GetReleaseTypeUseCase {
             }));
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52301,6 +52323,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const content_utils_1 = __nccwpck_require__(4799);
+const logger_1 = __nccwpck_require__(1517);
 class GetReleaseVersionUseCase {
     constructor() {
         this.taskId = 'GetReleaseVersionUseCase';
@@ -52358,7 +52381,7 @@ class GetReleaseVersionUseCase {
             }));
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52419,6 +52442,7 @@ const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
 const branch_repository_1 = __nccwpck_require__(7701);
 const content_utils_1 = __nccwpck_require__(4799);
+const logger_1 = __nccwpck_require__(1517);
 class DeployAddedUseCase {
     constructor() {
         this.taskId = 'DeployAddedUseCase';
@@ -52502,7 +52526,7 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52565,6 +52589,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DeployedAddedUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
+const logger_1 = __nccwpck_require__(1517);
 class DeployedAddedUseCase {
     constructor() {
         this.taskId = 'DeployedAddedUseCase';
@@ -52607,7 +52632,7 @@ class DeployedAddedUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52672,6 +52697,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(1517);
 class LinkIssueProjectUseCase {
     constructor() {
         this.taskId = 'LinkIssueProjectUseCase';
@@ -52716,7 +52742,7 @@ class LinkIssueProjectUseCase {
             return result;
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52779,6 +52805,7 @@ const result_1 = __nccwpck_require__(7305);
 const github = __importStar(__nccwpck_require__(5438));
 const pull_request_repository_1 = __nccwpck_require__(634);
 const core = __importStar(__nccwpck_require__(2186));
+const logger_1 = __nccwpck_require__(1517);
 class LinkPullRequestIssueUseCase {
     constructor() {
         this.taskId = 'LinkPullRequestIssueUseCase';
@@ -52850,7 +52877,7 @@ class LinkPullRequestIssueUseCase {
             }
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52913,6 +52940,7 @@ const project_repository_1 = __nccwpck_require__(7917);
 const core_1 = __nccwpck_require__(2186);
 const result_1 = __nccwpck_require__(7305);
 const core = __importStar(__nccwpck_require__(2186));
+const logger_1 = __nccwpck_require__(1517);
 class LinkPullRequestProjectUseCase {
     constructor() {
         this.taskId = 'LinkPullRequestProjectUseCase';
@@ -52951,7 +52979,7 @@ class LinkPullRequestProjectUseCase {
             return result;
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -53015,6 +53043,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const issue_repository_1 = __nccwpck_require__(57);
 const list_utils_1 = __nccwpck_require__(834);
 const execute_script_use_case_1 = __nccwpck_require__(8057);
+const logger_1 = __nccwpck_require__(1517);
 class NotifyNewCommitOnIssueUseCase {
     constructor() {
         this.taskId = 'NotifyNewCommitOnIssueUseCase';
@@ -53119,7 +53148,7 @@ ${this.separator}
             await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -53185,6 +53214,7 @@ const branch_repository_1 = __nccwpck_require__(7701);
 const result_1 = __nccwpck_require__(7305);
 const execute_script_use_case_1 = __nccwpck_require__(8057);
 const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(1517);
 class PrepareBranchesUseCase {
     constructor() {
         this.taskId = 'PrepareBranchesUseCase';
@@ -53417,7 +53447,7 @@ class PrepareBranchesUseCase {
             return result;
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -53632,6 +53662,7 @@ const ai_repository_1 = __nccwpck_require__(8307);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const project_repository_1 = __nccwpck_require__(7917);
 const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(1517);
 class UpdatePullRequestDescriptionUseCase {
     constructor() {
         this.taskId = 'UpdatePullRequestDescriptionUseCase';
@@ -53700,7 +53731,7 @@ ${changesDescription}
             }));
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -53716,9 +53747,13 @@ ${changesDescription}
         return ignorePatterns.some(pattern => {
             // Convert glob pattern to regex
             const regexPattern = pattern
-                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters
-                .replace(/\*/g, '.*') // Convert * to regex wildcard
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
+                .replace(/\*/g, '.*') // Convert * to match anything
                 .replace(/\//g, '\\/'); // Escape forward slashes
+            // Allow pattern ending on /* to ignore also subdirectories and files inside
+            if (pattern.endsWith("/*")) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+            }
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
@@ -53738,17 +53773,20 @@ ${changesDescription}
     }
     async processChanges(changes, ignoreFiles, openaiApiKey, openaiModel) {
         let changesDescription = ``;
+        console.log(`Processing ${changes.length} changes`);
         for (const change of changes) {
             try {
+                console.log(`Processing changes for file ${change.filename}`);
                 const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
                 if (shouldIgnoreFile) {
+                    console.log(`File ${change.filename} should be ignored`);
                     continue;
                 }
                 const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
                 changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
             }
             catch (error) {
-                console.error(error);
+                (0, logger_1.logError)(error);
                 throw new Error(`Error processing file ${change.filename}: ${error}`);
             }
         }
@@ -53965,6 +54003,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.StoreConfigurationUseCase = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const configuration_handler_1 = __nccwpck_require__(3264);
+const logger_1 = __nccwpck_require__(1517);
 /**
  * Store las configuration in the description
  */
@@ -53979,7 +54018,7 @@ class StoreConfigurationUseCase {
             await this.handler.update(param);
         }
         catch (error) {
-            console.error(error);
+            (0, logger_1.logError)(error);
         }
     }
 }
@@ -54088,6 +54127,85 @@ const getRandomElement = (list) => {
     return list[randomIndex];
 };
 exports.getRandomElement = getRandomElement;
+
+
+/***/ }),
+
+/***/ 1517:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
+exports.logInfo = logInfo;
+exports.logWarning = logWarning;
+exports.logError = logError;
+exports.logDebugInfo = logDebugInfo;
+exports.logDebugWarning = logDebugWarning;
+exports.logDebugError = logDebugError;
+const core = __importStar(__nccwpck_require__(2186));
+let loggerDebug = false;
+function setGlobalLoggerDebug(debug) {
+    loggerDebug = debug;
+}
+function logInfo(message) {
+    core.info(message);
+}
+function logWarning(message) {
+    core.warning(message);
+}
+function logError(message) {
+    core.error(message.toString());
+}
+function logDebugInfo(message) {
+    if (loggerDebug) {
+        core.info(message);
+    }
+}
+function logDebugWarning(message) {
+    if (loggerDebug) {
+        core.warning(message);
+    }
+}
+function logDebugError(message) {
+    if (loggerDebug) {
+        core.error(message.toString());
+    }
+}
 
 
 /***/ }),
@@ -54493,6 +54611,10 @@ const DEFAULT_IMAGE_CONFIG = {
 async function run() {
     const projectRepository = new project_repository_1.ProjectRepository();
     /**
+     * Debug
+     */
+    const debug = core.getInput('debug') == 'true';
+    /**
      * Single action
      */
     const singleAction = core.getInput('single-action');
@@ -54787,7 +54909,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
     await execution.setup();
     if (execution.issueNumber === -1) {
         core.info(`Issue number not found. Skipping.`);

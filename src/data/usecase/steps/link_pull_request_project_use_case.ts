@@ -4,6 +4,7 @@ import {ProjectRepository} from "../../repository/project_repository";
 import {error} from "@actions/core";
 import {Result} from "../../model/result";
 import * as core from '@actions/core';
+import { logError } from "../../utils/logger";
 
 export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'LinkPullRequestProjectUseCase';
@@ -57,7 +58,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
             }
             return result;
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

@@ -4,6 +4,7 @@ import {Result} from "../../model/result";
 import * as core from '@actions/core';
 import {BranchRepository} from "../../repository/branch_repository";
 import {injectJsonAsMarkdownBlock} from "../../utils/content_utils";
+import { logError } from "../../utils/logger";
 
 export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployAddedUseCase';
@@ -109,7 +110,7 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}\``
                 )
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

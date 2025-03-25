@@ -3,6 +3,7 @@ import {Execution} from "../../model/execution";
 import * as core from "@actions/core";
 import {Result} from "../../model/result";
 import ivm from 'isolated-vm';
+import { logError } from "../../utils/logger";
 
 export class ExecuteScriptUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ExecuteScriptUseCase';
@@ -45,7 +46,7 @@ export class ExecuteScriptUseCase implements ParamUseCase<Execution, Result[]> {
                 })
             )
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

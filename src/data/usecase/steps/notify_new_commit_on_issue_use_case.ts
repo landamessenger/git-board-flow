@@ -5,6 +5,7 @@ import * as core from '@actions/core';
 import { IssueRepository } from "../../repository/issue_repository";
 import { getRandomElement } from "../../utils/list_utils";
 import { ExecuteScriptUseCase } from "./execute_script_use_case";
+import { logError } from "../../utils/logger";
 
 export class NotifyNewCommitOnIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'NotifyNewCommitOnIssueUseCase';
@@ -132,7 +133,7 @@ ${this.separator}
                 param.tokens.token,
             )
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

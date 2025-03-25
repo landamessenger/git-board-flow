@@ -4,6 +4,7 @@ import {IssueRepository} from "../../repository/issue_repository";
 import * as core from "@actions/core";
 import {Result} from "../../model/result";
 import {BranchRepository} from "../../repository/branch_repository";
+import { logError } from "../../utils/logger";
 
 export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployedActionUseCase';
@@ -116,7 +117,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
             
             return result;
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,
