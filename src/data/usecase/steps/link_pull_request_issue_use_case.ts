@@ -6,6 +6,7 @@ import {Result} from "../../model/result";
 import * as github from "@actions/github";
 import {PullRequestRepository} from "../../repository/pull_request_repository";
 import * as core from '@actions/core';
+import { logError } from "../../utils/logger";
 
 export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'LinkPullRequestIssueUseCase';
@@ -121,7 +122,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                 return result;
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

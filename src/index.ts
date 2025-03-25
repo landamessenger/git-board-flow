@@ -204,6 +204,11 @@ async function run(): Promise<void> {
     const projectRepository = new ProjectRepository();
 
     /**
+     * Debug
+     */
+    const debug = core.getInput('debug') == 'true'
+
+    /**
      * Single action
      */
     const singleAction = core.getInput('single-action');
@@ -555,6 +560,7 @@ async function run(): Promise<void> {
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
 
     const execution = new Execution(
+        debug,
         new SingleAction(
             singleAction,
             singleActionIssue,

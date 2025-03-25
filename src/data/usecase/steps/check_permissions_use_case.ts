@@ -3,6 +3,7 @@ import {Execution} from "../../model/execution";
 import {ProjectRepository} from "../../repository/project_repository";
 import * as core from "@actions/core";
 import {Result} from "../../model/result";
+import { logError } from "../../utils/logger";
 
 export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckPermissionsUseCase';
@@ -70,7 +71,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
                 );
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

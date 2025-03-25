@@ -6,6 +6,7 @@ import {Result} from "../../model/result";
 import {MarkdownContentHotfixHandler} from "../../manager/description/markdown_content_hotfix_handler";
 import {IssueRepository} from "../../repository/issue_repository";
 import {extractVersion} from "../../utils/content_utils";
+import { logError } from "../../utils/logger";
 
 export class GetHotfixVersionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'GetHotfixVersionUseCase';
@@ -92,7 +93,7 @@ export class GetHotfixVersionUseCase implements ParamUseCase<Execution, Result[]
                 })
             );
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

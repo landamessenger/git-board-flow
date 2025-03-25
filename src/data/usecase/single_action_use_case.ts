@@ -3,6 +3,7 @@ import {Execution} from "../model/execution";
 import {Result} from "../model/result";
 import * as core from '@actions/core';
 import {DeployedActionUseCase} from "./actions/deployed_action_use_case";
+import { logError } from "../utils/logger";
 
 export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'SingleActionUseCase';
@@ -21,7 +22,7 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 results.push(...await new DeployedActionUseCase().invoke(param));
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             results.push(
                 new Result({
                     id: this.taskId,

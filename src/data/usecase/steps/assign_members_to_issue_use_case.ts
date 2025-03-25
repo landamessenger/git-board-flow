@@ -4,6 +4,7 @@ import {IssueRepository} from "../../repository/issue_repository";
 import {ProjectRepository} from "../../repository/project_repository";
 import * as core from "@actions/core";
 import {Result} from "../../model/result";
+import { logError } from "../../utils/logger";
 
 export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'AssignMemberToIssueUseCase';
@@ -150,7 +151,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
 
             return result;
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result({
                     id: this.taskId,

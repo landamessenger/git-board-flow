@@ -4,6 +4,7 @@ import {Execution} from "../model/execution";
 import {Result} from "../model/result";
 import {getRandomElement} from "../utils/list_utils";
 import * as core from '@actions/core';
+import { logError } from "../utils/logger";
 
 /**
  * Publish the resume of actions
@@ -168,7 +169,7 @@ ${footer}
                 )
             }
         } catch (error) {
-            console.error(error);
+            logError(error);
             param.currentConfiguration.results.push(
                 new Result({
                     id: this.taskId,

@@ -6,6 +6,7 @@ import { AiRepository } from "../../repository/ai_repository";
 import { PullRequestRepository } from "../../repository/pull_request_repository";
 import { ProjectRepository } from "../../repository/project_repository";
 import { IssueRepository } from "../../repository/issue_repository";
+import { logError } from "../../utils/logger";
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
     private aiRepository = new AiRepository();
@@ -116,7 +117,7 @@ ${changesDescription}
             );
             
         } catch (error) {
-            console.error(error);
+            logError(error);
             result.push(
                 new Result(
                     {
@@ -196,7 +197,7 @@ ${changesDescription}
                 const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
                 changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
             } catch (error) {
-                console.error(error);
+                logError(error);
                 throw new Error(`Error processing file ${change.filename}: ${error}`);
             }
         }

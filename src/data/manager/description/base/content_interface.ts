@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { logError } from "../../../utils/logger";
 
 export abstract class ContentInterface {
     abstract get id(): string
@@ -34,7 +35,7 @@ export abstract class ContentInterface {
 
             return description.split(this.startPattern)[1].split(this.endPattern)[0]
         } catch (error) {
-            core.error(`Error reading issue configuration: ${error}`);
+            logError(`Error reading issue configuration: ${error}`);
             throw error;
         }
     }
@@ -75,7 +76,7 @@ export abstract class ContentInterface {
 
             return this._updateContent(description, content);
         } catch (error) {
-            console.error(`Error updating issue description: ${error}`);
+            logError(`Error updating issue description: ${error}`);
             return undefined;
         }
     }
