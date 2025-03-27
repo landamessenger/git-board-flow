@@ -200,7 +200,8 @@ ${section}`;
         const response = await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
 
         try {
-            const patchSummary: PatchSummary = JSON.parse(response);
+            const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+            const patchSummary: PatchSummary = JSON.parse(cleanResponse);
             return patchSummary;
         } catch (error) {
             logDebugError(`Response: ${response}`);
