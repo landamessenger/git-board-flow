@@ -52865,7 +52865,8 @@ ${changesDescription}
 ${section}`;
         const response = await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
         try {
-            const patchSummary = JSON.parse(response);
+            const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+            const patchSummary = JSON.parse(cleanResponse);
             return patchSummary;
         }
         catch (error) {
