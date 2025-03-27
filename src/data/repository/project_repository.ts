@@ -1,6 +1,6 @@
 import * as github from "@actions/github";
-import * as core from "@actions/core";
-import {ProjectDetail} from "../model/project_detail";
+import { ProjectDetail } from "../model/project_detail";
+import { logDebugInfo, logError } from "../utils/logger";
 
 export class ProjectRepository {
     getProjectDetail = async (projectUrl: string, token: string) => {
