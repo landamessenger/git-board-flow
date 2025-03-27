@@ -190,6 +190,14 @@ ${section}`;
         return await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
     }
 
+    private isLargeChange(change: { additions: number; deletions: number; patch?: string }): boolean {
+        // Consider changes large if:
+        // 1. Total changes (additions + deletions) are more than 500 lines
+        // 2. Or if there are more than 250 additions or deletions
+        const totalChanges = change.additions + change.deletions;
+        return totalChanges > 500 || change.additions > 250 || change.deletions > 250;
+    }
+
     private async processChanges(
         changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[],
         ignoreFiles: string[],
@@ -207,7 +215,15 @@ ${section}`;
                     continue;
                 }
 
-                const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
+                let fileDescription: string;
+                if (this.isLargeChange(change)) {
+                    logDebugInfo(`File ${change.filename} has large changes, processing by sections`);
+                    fileDescription = await this.processFileBySections(change, openaiApiKey, openaiModel);
+                } else {
+                    logDebugInfo(`File ${change.filename} has moderate changes, processing as whole`);
+                    fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
+                }
+                
                 changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
             } catch (error) {
                 logError(error);
@@ -216,6 +232,35 @@ ${section}`;
         }
 
         return changesDescription;
+    }
+
+    private async processFileBySections(
+        change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
+        openaiApiKey: string,
+        openaiModel: string
+    ): Promise<string> {
+        if (!change.patch) {
+            return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+        }
+
+        const patchSections = this.splitPatchIntoSections(change.patch);
+        logDebugInfo(`Processing ${patchSections.length} sections for file ${change.filename}`);
+
+        const sectionDescriptions = await Promise.all(
+            patchSections.map((section, index) => 
+                this.processPatchSection(
+                    section,
+                    `${change.filename} (section ${index + 1}/${patchSections.length})`,
+                    change.status,
+                    change.additions,
+                    change.deletions,
+                    openaiApiKey,
+                    openaiModel
+                )
+            )
+        );
+
+        return sectionDescriptions.map(desc => `- ${desc}`).join('\n  ');
     }
 
     private async processFile(
