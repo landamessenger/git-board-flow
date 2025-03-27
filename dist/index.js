@@ -52905,12 +52905,12 @@ ${section}`;
         for (const [directory, files] of Object.entries(groupedFiles)) {
             if (directory === 'root') {
                 // Files in root directory
-                description += files.map(file => this.formatFileChanges(file)).join('\n\n');
+                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
             }
             else {
                 // Files in subdirectories
                 description += `### ${directory}\n\n`;
-                description += files.map(file => this.formatFileChanges(file)).join('\n\n');
+                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
             }
         }
         return description;
