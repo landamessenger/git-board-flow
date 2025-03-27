@@ -52869,6 +52869,7 @@ ${section}`;
             return patchSummary;
         }
         catch (error) {
+            (0, logger_1.logDebugError)(`Response: ${response}`);
             (0, logger_1.logError)(`Error parsing JSON response: ${error}`);
             return undefined;
         }
