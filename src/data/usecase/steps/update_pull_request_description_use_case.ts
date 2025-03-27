@@ -98,8 +98,6 @@ ${issueDescription}`;
 
 ${currentDescription}
 
-## What files were changed?
-
 ${changesDescription}
 `,
                 param.tokens.token
@@ -310,6 +308,8 @@ ${section}`;
             output += '**Changes:**\n';
             output += file.changes.map(change => `- ${change}`).join('\n');
         }
+
+        output += `--- \n\n`;
 
         return output;
     }
