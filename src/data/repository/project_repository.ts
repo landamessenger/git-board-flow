@@ -79,9 +79,15 @@ export class ProjectRepository {
     }
   `;
 
+        logDebugInfo(`Query: ${query}`);
+        logDebugInfo(`Project ID: ${project.id}`);
+        logDebugInfo(`Content ID: ${contentId}`);
+
         const result: any = await octokit.graphql(query, {
             projectId: project.id,
         });
+
+        logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
 
         const items = result.node.items.nodes;
         return items.some(
