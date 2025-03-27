@@ -169,15 +169,25 @@ ${changesDescription}
         openaiApiKey: string,
         openaiModel: string
     ): Promise<string> {
-        const filePrompt = `Summarize the changes in the following code patch. Focus on what was modified, added, or removed. 
+        const filePrompt = `Summarize the following code patch with a structured format. 
 
-- Avoid generic phrases like "this file" or "this section."
-- Start directly with the main changes.
-- If specific code elements are mentioned, format them as:
-  \`\`\`language
-  [code snippet]
+### Guidelines:
+- Use the format: \`<file_path>\`: <high-level change summary>
+- Provide a bullet-pointed list of key modifications.
+- Use inline code formatting (\`backticks\`) for method names, variables, and small code elements.
+- When including code snippets, format them as:
+  \`\`\`<language>
+  [code here]
   \`\`\`
-- Keep it concise but informative.
+- Keep it concise and avoid redundant phrases.
+
+### Output format:
+\`\`\`
+- \`<file_path>\`: <short description of changes>
+  - <Key change 1>
+  - <Key change 2>
+  - ...
+\`\`\`
 
 ### Metadata:
 - **Filename:** ${filename}
