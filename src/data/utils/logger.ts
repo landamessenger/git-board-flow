@@ -7,7 +7,7 @@ export function setGlobalLoggerDebug(debug: boolean) {
 }
 
 export function logInfo(message: string) {
-    logDebugInfo(message);
+    core.info(message);
 }
 
 export function logWarning(message: string) {
@@ -15,18 +15,18 @@ export function logWarning(message: string) {
 }
 
 export function logError(message: any) {
-    logError(message.toString());
+    core.error(message.toString());
 }
 
 export function logDebugInfo(message: string) {
     if (loggerDebug) {
-        logDebugInfo(message);
+        logInfo(message);
     }
 }
 
 export function logDebugWarning(message: string) {
     if (loggerDebug) {
-        core.warning(message);
+        logWarning(message);
     }
 }
 
