@@ -1,12 +1,12 @@
+import { PatchSummary } from "../../../graph/ai_responses";
 import { Execution } from "../../model/execution";
 import { Result } from "../../model/result";
 import { AiRepository } from "../../repository/ai_repository";
 import { IssueRepository } from "../../repository/issue_repository";
 import { ProjectRepository } from "../../repository/project_repository";
 import { PullRequestRepository } from "../../repository/pull_request_repository";
-import { logDebugInfo, logError } from "../../utils/logger";
+import { logDebugError, logDebugInfo, logError } from "../../utils/logger";
 import { ParamUseCase } from "../base/param_usecase";
-import { PatchSummary } from "../../../graph/ai_responses";
 
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
@@ -203,6 +203,7 @@ ${section}`;
             const patchSummary: PatchSummary = JSON.parse(response);
             return patchSummary;
         } catch (error) {
+            logDebugError(`Response: ${response}`);
             logError(`Error parsing JSON response: ${error}`);
             return undefined;
         }
