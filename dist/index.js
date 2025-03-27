@@ -53207,22 +53207,22 @@ function setGlobalLoggerDebug(debug) {
     loggerDebug = debug;
 }
 function logInfo(message) {
-    logDebugInfo(message);
+    core.info(message);
 }
 function logWarning(message) {
     core.warning(message);
 }
 function logError(message) {
-    logError(message.toString());
+    core.error(message.toString());
 }
 function logDebugInfo(message) {
     if (loggerDebug) {
-        logDebugInfo(message);
+        logInfo(message);
     }
 }
 function logDebugWarning(message) {
     if (loggerDebug) {
-        core.warning(message);
+        logWarning(message);
     }
 }
 function logDebugError(message) {
