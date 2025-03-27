@@ -169,34 +169,39 @@ ${changesDescription}
         openaiApiKey: string,
         openaiModel: string
     ): Promise<string> {
-        const filePrompt = `Summarize the following code patch with a structured format. 
+        const filePrompt = `Summarize the following code patch using the specified format. 
 
-### Guidelines:
-- Use the format: \`<file_path>\`: <high-level change summary>
-- Provide a bullet-pointed list of key modifications.
-- Use inline code formatting (\`backticks\`) for method names, variables, and small code elements.
+### **Guidelines**:
+- Each file must be listed **only once**.
+- Use the format: \`<file_path>\`: <high-level change summary>.
+- List key modifications as bullet points.
+- Use **inline code formatting** (\`backticks\`) for method names, variables, and small code elements.
 - When including code snippets, format them as:
-  \`\`\`<language>
-  [code here]
-  \`\`\`
-- Keep it concise and avoid redundant phrases.
+    \`\`\`<language>
+    [code here]
+    \`\`\`
+- Avoid redundant file names in bullet points.
 
-### Output format:
-\`\`\`
-- \`<file_path>\`: <short description of changes>
-  - <Key change 1>
-  - <Key change 2>
-  - ...
+### **Output Format Example**:
+\`\`\`markdown
+- \`src/utils/logger.ts\`: Refactored logging system for better error handling.
+    - Replaced \`console.error\` with \`logError\`.
+    - Added support for async logging.
+    - Removed unused function \`debugLog\`.
+
+- \`src/services/api.ts\`: Improved API request handling.
+    - Added a retry mechanism for failed requests.
+    - Updated \`fetchData\` to accept custom headers.
 \`\`\`
 
-### Metadata:
+### **Metadata**:
 - **Filename:** ${filename}
 - **Status:** ${status}
 - **Changes:** +${additions} / -${deletions}
 
-### Patch:
+### **Patch**:
 ${section}`;
-
+        
         return await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
     }
 
