@@ -49904,11 +49904,15 @@ class ProjectRepository {
         };
         this.isContentLinked = async (project, contentId, token) => {
             const octokit = github.getOctokit(token);
-            const query = `
-    query($projectId: ID!) {
+            let hasNextPage = true;
+            let endCursor = null;
+            let allItems = [];
+            while (hasNextPage) {
+                const query = `
+    query($projectId: ID!, $after: String) {
       node(id: $projectId) {
         ... on ProjectV2 {
-          items(first: 100) {
+          items(first: 100, after: $after) {
             nodes {
               content {
                 ... on PullRequest {
@@ -49919,20 +49923,30 @@ class ProjectRepository {
                 }
               }
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
         }
       }
     }
   `;
-            (0, logger_1.logDebugInfo)(`Query: ${query}`);
-            (0, logger_1.logDebugInfo)(`Project ID: ${project.id}`);
-            (0, logger_1.logDebugInfo)(`Content ID: ${contentId}`);
-            const result = await octokit.graphql(query, {
-                projectId: project.id,
-            });
-            (0, logger_1.logDebugInfo)(`Result: ${JSON.stringify(result, null, 2)}`);
-            const items = result.node.items.nodes;
-            return items.some((item) => item.content && item.content.id === contentId);
+                (0, logger_1.logDebugInfo)(`Query: ${query}`);
+                (0, logger_1.logDebugInfo)(`Project ID: ${project.id}`);
+                (0, logger_1.logDebugInfo)(`Content ID: ${contentId}`);
+                (0, logger_1.logDebugInfo)(`After cursor: ${endCursor}`);
+                const result = await octokit.graphql(query, {
+                    projectId: project.id,
+                    after: endCursor,
+                });
+                (0, logger_1.logDebugInfo)(`Result: ${JSON.stringify(result, null, 2)}`);
+                const items = result.node.items.nodes;
+                allItems = allItems.concat(items);
+                hasNextPage = result.node.items.pageInfo.hasNextPage;
+                endCursor = result.node.items.pageInfo.endCursor;
+            }
+            return allItems.some((item) => item.content && item.content.id === contentId);
         };
         this.linkContentId = async (project, contentId, token) => {
             const alreadyLinked = await this.isContentLinked(project, contentId, token);
