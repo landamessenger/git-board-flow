@@ -52819,11 +52819,23 @@ ${changesDescription}
         return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
     }
     async processPatchSection(section, filename, status, additions, deletions, openaiApiKey, openaiModel) {
-        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section". Try to start the explanation with what was changed directly and highlight with \`\`\`language [new_line] [code here]\`\`\` any piece of code mentioned):\n\n` +
-            `File: ${filename}\n` +
-            `Status: ${status}\n` +
-            `Changes: +${additions} -${deletions}\n` +
-            `Patch section:\n${section}`;
+        const filePrompt = `Summarize the changes in the following code patch. Focus on what was modified, added, or removed. 
+
+- Avoid generic phrases like "this file" or "this section."
+- Start directly with the main changes.
+- If specific code elements are mentioned, format them as:
+  \`\`\`language
+  [code snippet]
+  \`\`\`
+- Keep it concise but informative.
+
+### Metadata:
+- **Filename:** ${filename}
+- **Status:** ${status}
+- **Changes:** +${additions} / -${deletions}
+
+### Patch:
+${section}`;
         return await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
     }
     async processChanges(changes, ignoreFiles, openaiApiKey, openaiModel) {
