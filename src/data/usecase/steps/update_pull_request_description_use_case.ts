@@ -6,6 +6,7 @@ import { ProjectRepository } from "../../repository/project_repository";
 import { PullRequestRepository } from "../../repository/pull_request_repository";
 import { logDebugInfo, logError } from "../../utils/logger";
 import { ParamUseCase } from "../base/param_usecase";
+import { PatchSummary } from "../../../graph/ai_responses";
 
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
@@ -168,30 +169,26 @@ ${changesDescription}
         deletions: number,
         openaiApiKey: string,
         openaiModel: string
-    ): Promise<string> {
-        const filePrompt = `Summarize the following code patch using the specified format. 
+    ): Promise<PatchSummary | undefined> {
+        const filePrompt = `Summarize the following code patch in JSON format.
 
 ### **Guidelines**:
-- Each file must be listed **only once**.
-- Use the format: \`<file_path>\`: <high-level change summary>.
-- List key modifications as bullet points.
-- Use **inline code formatting** (\`backticks\`) for method names, variables, and small code elements.
-- When including code snippets, format them as:
-    \`\`\`<language>
-    [code here]
-    \`\`\`
-- Avoid redundant file names in bullet points.
+- Output must be a **valid JSON** object.
+- Each file should be listed **only once**.
+- Provide a high-level summary and a list of key changes.
+- Use **camelCase** for keys.
 
 ### **Output Format Example**:
-\`\`\`markdown
-- \`src/utils/logger.ts\`: Refactored logging system for better error handling.
-    - Replaced \`console.error\` with \`logError\`.
-    - Added support for async logging.
-    - Removed unused function \`debugLog\`.
-
-- \`src/services/api.ts\`: Improved API request handling.
-    - Added a retry mechanism for failed requests.
-    - Updated \`fetchData\` to accept custom headers.
+\`\`\`json
+{
+    "filePath": "src/utils/logger.ts",
+    "summary": "Refactored logging system for better error handling.",
+    "changes": [
+        "Replaced \`console.error\` with \`logError\`.",
+        "Added support for async logging.",
+        "Removed unused function \`debugLog\`."
+    ]
+}
 \`\`\`
 
 ### **Metadata**:
@@ -202,7 +199,15 @@ ${changesDescription}
 ### **Patch**:
 ${section}`;
         
-        return await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
+        const response = await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
+
+        try {
+            const patchSummary: PatchSummary = JSON.parse(response);
+            return patchSummary;
+        } catch (error) {
+            logError(`Error parsing JSON response: ${error}`);
+            return undefined;
+        }
     }
 
     private isLargeChange(change: { additions: number; deletions: number; patch?: string }): boolean {
@@ -219,8 +224,8 @@ ${section}`;
         openaiApiKey: string,
         openaiModel: string
     ): Promise<string> {
-        let changesDescription = ``;
         logDebugInfo(`Processing ${changes.length} changes`);
+        const fileDescriptions: PatchSummary[] = [];
         for (const change of changes) {
             try {
                 logDebugInfo(`Processing changes for file ${change.filename}`);
@@ -230,32 +235,92 @@ ${section}`;
                     continue;
                 }
 
-                let fileDescription: string;
                 if (this.isLargeChange(change)) {
                     logDebugInfo(`File ${change.filename} has large changes, processing by sections`);
-                    fileDescription = await this.processFileBySections(change, openaiApiKey, openaiModel);
+                    fileDescriptions.push(...await this.processFileBySections(change, openaiApiKey, openaiModel));
                 } else {
                     logDebugInfo(`File ${change.filename} has moderate changes, processing as whole`);
-                    fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
+                    fileDescriptions.push(...await this.processFile(change, openaiApiKey, openaiModel));
                 }
-                
-                changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
             } catch (error) {
                 logError(error);
                 throw new Error(`Error processing file ${change.filename}: ${error}`);
             }
         }
 
-        return changesDescription;
+        // Group files by directory
+        const groupedFiles = this.groupFilesByDirectory(fileDescriptions);
+        
+        // Generate a structured description
+        let description = '';
+        
+        // Add summary section if there are files
+        if (fileDescriptions.length > 0) {
+            description += '## Summary of Changes\n\n';
+            description += fileDescriptions.map(file => 
+                `- **${file.filePath}**: ${file.summary}`
+            ).join('\n');
+            description += '\n\n';
+        }
+
+        // Add detailed changes section
+        description += '## Detailed Changes\n\n';
+        
+        // Process each directory group
+        for (const [directory, files] of Object.entries(groupedFiles)) {
+            if (directory === 'root') {
+                // Files in root directory
+                description += files.map(file => this.formatFileChanges(file)).join('\n\n');
+            } else {
+                // Files in subdirectories
+                description += `### ${directory}\n\n`;
+                description += files.map(file => this.formatFileChanges(file)).join('\n\n');
+            }
+        }
+
+        return description;
+    }
+
+    private groupFilesByDirectory(files: PatchSummary[]): { [key: string]: PatchSummary[] } {
+        const groups: { [key: string]: PatchSummary[] } = {
+            root: []
+        };
+
+        files.forEach(file => {
+            const pathParts = file.filePath.split('/');
+            if (pathParts.length > 1) {
+                const directory = pathParts.slice(0, -1).join('/');
+                if (!groups[directory]) {
+                    groups[directory] = [];
+                }
+                groups[directory].push(file);
+            } else {
+                groups.root.push(file);
+            }
+        });
+
+        return groups;
+    }
+
+    private formatFileChanges(file: PatchSummary): string {
+        let output = `#### \`${file.filePath}\`\n\n`;
+        output += `${file.summary}\n\n`;
+        
+        if (file.changes.length > 0) {
+            output += '**Changes:**\n';
+            output += file.changes.map(change => `- ${change}`).join('\n');
+        }
+
+        return output;
     }
 
     private async processFileBySections(
         change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
         openaiApiKey: string,
         openaiModel: string
-    ): Promise<string> {
+    ): Promise<PatchSummary[]> {
         if (!change.patch) {
-            return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+            return [];
         }
 
         const patchSections = this.splitPatchIntoSections(change.patch);
@@ -275,16 +340,16 @@ ${section}`;
             )
         );
 
-        return sectionDescriptions.map(desc => `- ${desc}`).join('\n  ');
+        return sectionDescriptions.filter((desc: PatchSummary | undefined) => desc !== undefined);
     }
 
     private async processFile(
         change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
         openaiApiKey: string,
         openaiModel: string
-    ): Promise<string> {
+    ): Promise<PatchSummary[]> {
         if (!change.patch) {
-            return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+            return [];
         }
 
         const patchSections = this.splitPatchIntoSections(change.patch);
@@ -301,6 +366,6 @@ ${section}`;
                 )
             )
         );
-        return sectionDescriptions.map(desc => `- ${desc}`).join('\n  ');
+        return sectionDescriptions.filter((desc: PatchSummary | undefined) => desc !== undefined);
     }
 }
