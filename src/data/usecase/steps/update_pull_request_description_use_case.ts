@@ -248,16 +248,19 @@ ${section}`;
             }
         }
 
+        // Merge PatchSummary objects for the same file
+        const mergedFileDescriptions = this.mergePatchSummaries(fileDescriptions);
+
         // Group files by directory
-        const groupedFiles = this.groupFilesByDirectory(fileDescriptions);
+        const groupedFiles = this.groupFilesByDirectory(mergedFileDescriptions);
         
         // Generate a structured description
         let description = '';
         
         // Add summary section if there are files
-        if (fileDescriptions.length > 0) {
+        if (mergedFileDescriptions.length > 0) {
             description += '## Summary of Changes\n\n';
-            description += fileDescriptions.map(file => 
+            description += mergedFileDescriptions.map(file => 
                 `- **${file.filePath}**: ${file.summary}`
             ).join('\n');
             description += '\n\n';
@@ -369,5 +372,27 @@ ${section}`;
             )
         );
         return sectionDescriptions.filter((desc: PatchSummary | undefined) => desc !== undefined);
+    }
+
+    private mergePatchSummaries(summaries: PatchSummary[]): PatchSummary[] {
+        const mergedMap = new Map<string, PatchSummary>();
+
+        for (const summary of summaries) {
+            const existing = mergedMap.get(summary.filePath);
+            if (existing) {
+                // Merge with existing summary
+                existing.summary = `${existing.summary}\n${summary.summary}`;
+                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
+            } else {
+                // Create new entry
+                mergedMap.set(summary.filePath, {
+                    filePath: summary.filePath,
+                    summary: summary.summary,
+                    changes: [...summary.changes]
+                });
+            }
+        }
+
+        return Array.from(mergedMap.values());
     }
 }
