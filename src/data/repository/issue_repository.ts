@@ -1,8 +1,8 @@
-import * as github from "@actions/github";
 import * as core from "@actions/core";
-import {Milestone} from "../model/milestone";
-import {Labels} from "../model/labels";
-import { logError } from "../utils/logger";
+import * as github from "@actions/github";
+import { Labels } from "../model/labels";
+import { Milestone } from "../model/milestone";
+import { logDebugInfo, logError } from "../utils/logger";
 
 export class IssueRepository {
 
@@ -78,7 +78,7 @@ export class IssueRepository {
                     title: formattedTitle,
                 });
 
-                core.info(`Issue title updated to: ${formattedTitle}`);
+                logDebugInfo(`Issue title updated to: ${formattedTitle}`);
                 return formattedTitle;
             }
 
@@ -158,7 +158,7 @@ export class IssueRepository {
                     title: formattedTitle,
                 });
 
-                core.info(`Issue title updated to: ${formattedTitle}`);
+                logDebugInfo(`Issue title updated to: ${formattedTitle}`);
                 return formattedTitle;
             }
 
@@ -197,7 +197,7 @@ export class IssueRepository {
                     title: sanitizedTitle,
                 });
 
-                core.info(`Issue title updated to: ${sanitizedTitle}`);
+                logDebugInfo(`Issue title updated to: ${sanitizedTitle}`);
                 return sanitizedTitle;
             }
 
@@ -248,7 +248,7 @@ export class IssueRepository {
             });
             return issue.body ?? '';
         } catch (error) {
-            core.error(`Error reading pull request configuration: ${error}`);
+            logError(`Error reading pull request configuration: ${error}`);
             return undefined
         }
     }
@@ -277,7 +277,7 @@ export class IssueRepository {
         });
 
         const issueId = issueResult.repository.issue.id;
-        core.info(`Fetched issue ID: ${issueId}`);
+        logDebugInfo(`Fetched issue ID: ${issueId}`);
 
         return issueId;
     }
@@ -483,7 +483,7 @@ export class IssueRepository {
             body: comment,
         });
 
-        core.info(`Comment added to Issue ${issueNumber}.`);
+        logDebugInfo(`Comment added to Issue ${issueNumber}.`);
     }
 
     closeIssue = async (
@@ -499,7 +499,7 @@ export class IssueRepository {
             issue_number: issueNumber,
         });
 
-        core.info(`Issue #${issueNumber} state: ${issue.state}`);
+        logDebugInfo(`Issue #${issueNumber} state: ${issue.state}`);
 
         if (issue.state === 'open') {
             await octokit.rest.issues.update({
@@ -508,10 +508,10 @@ export class IssueRepository {
                 issue_number: issueNumber,
                 state: 'closed',
             });
-            core.info(`Issue #${issueNumber} has been closed.`);
+            logDebugInfo(`Issue #${issueNumber} has been closed.`);
             return true;
         } else {
-            core.info(`Issue #${issueNumber} is already closed.`);
+            logDebugInfo(`Issue #${issueNumber} is already closed.`);
             return false;
         }
     }
@@ -529,7 +529,7 @@ export class IssueRepository {
             issue_number: issueNumber,
         });
 
-        core.info(`Issue #${issueNumber} state: ${issue.state}`);
+        logDebugInfo(`Issue #${issueNumber} state: ${issue.state}`);
 
         if (issue.state === 'closed') {
             await octokit.rest.issues.update({
@@ -538,10 +538,10 @@ export class IssueRepository {
                 issue_number: issueNumber,
                 state: 'open',
             });
-            core.info(`Issue #${issueNumber} has been re-opened.`);
+            logDebugInfo(`Issue #${issueNumber} has been re-opened.`);
             return true;
         } else {
-            core.info(`Issue #${issueNumber} is already opened.`);
+            logDebugInfo(`Issue #${issueNumber} is already opened.`);
             return false;
         }
     }
@@ -567,7 +567,7 @@ export class IssueRepository {
             }
             return assignees.map((assignee) => assignee.login);
         } catch (error) {
-            core.error(`Error getting members of issue: ${error}.`);
+            logError(`Error getting members of issue: ${error}.`);
             return [];
         }
     };
@@ -583,7 +583,7 @@ export class IssueRepository {
 
         try {
             if (members.length === 0) {
-                core.info(`No members provided for assignment. Skipping operation.`);
+                logDebugInfo(`No members provided for assignment. Skipping operation.`);
                 return [];
             }
 
@@ -597,7 +597,7 @@ export class IssueRepository {
             const updatedAssignees = updatedIssue.assignees || [];
             return updatedAssignees.map((assignee) => assignee.login);
         } catch (error) {
-            core.error(`Error assigning members to issue: ${error}.`);
+            logError(`Error assigning members to issue: ${error}.`);
             return [];
         }
     };

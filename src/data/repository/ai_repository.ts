@@ -1,10 +1,10 @@
-import * as core from '@actions/core';
 import OpenAI from 'openai';
+import { logDebugInfo, logError } from '../utils/logger';
 
 export class AiRepository {
     askChatGPT = async (prompt: string, apiKey: string, model: string = 'gpt-3.5-turbo'): Promise<string> => {
         try {
-            core.info(`Sending prompt to ChatGPT: ${prompt}`);
+            logDebugInfo(`Sending prompt to ChatGPT: ${prompt}`);
             
             const openai = new OpenAI({
                 apiKey: apiKey
@@ -21,10 +21,10 @@ export class AiRepository {
                 throw new Error('No response received from ChatGPT');
             }
 
-            core.info('Successfully received response from ChatGPT');
+            logDebugInfo('Successfully received response from ChatGPT');
             return response;
         } catch (error) {
-            core.error(`Error querying ChatGPT: ${error}`);
+            logError(`Error querying ChatGPT: ${error}`);
             throw error;
         }
     }

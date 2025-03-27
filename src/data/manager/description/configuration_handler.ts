@@ -1,7 +1,7 @@
-import {Config} from "../../model/config";
-import * as core from "@actions/core";
-import {IssueContentInterface} from "./base/issue_content_interface";
-import {Execution} from "../../model/execution";
+import { Config } from "../../model/config";
+import { Execution } from "../../model/execution";
+import { logError } from "../../utils/logger";
+import { IssueContentInterface } from "./base/issue_content_interface";
 
 export class ConfigurationHandler extends IssueContentInterface {
     get id(): string {
@@ -16,7 +16,7 @@ export class ConfigurationHandler extends IssueContentInterface {
         try {
             return await this.internalUpdate(execution, JSON.stringify(execution.currentConfiguration, null, 4))
         } catch (error) {
-            core.error(`Error updating issue description: ${error}`);
+            logError(`Error updating issue description: ${error}`);
             return undefined;
         }
     }
@@ -30,7 +30,7 @@ export class ConfigurationHandler extends IssueContentInterface {
             const branchConfig = JSON.parse(config);
             return new Config(branchConfig);
         } catch (error) {
-            core.error(`Error reading issue configuration: ${error}`);
+            logError(`Error reading issue configuration: ${error}`);
             throw error;
         }
     }

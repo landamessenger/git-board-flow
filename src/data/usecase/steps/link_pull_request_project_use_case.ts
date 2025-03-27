@@ -1,17 +1,16 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {ProjectRepository} from "../../repository/project_repository";
-import {error} from "@actions/core";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
-import { logError } from "../../utils/logger";
+import { error } from "@actions/core";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { ProjectRepository } from "../../repository/project_repository";
+import { logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'LinkPullRequestProjectUseCase';
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
 

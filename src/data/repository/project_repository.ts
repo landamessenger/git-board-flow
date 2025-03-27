@@ -37,9 +37,9 @@ export class ProjectRepository {
             throw new Error(`Project not found: ${projectUrl}`);
         }
 
-        core.info(`Project ID: ${projectData.id}`);
-        core.info(`Project Title: ${projectData.title}`);
-        core.info(`Project URL: ${projectData.url}`);
+        logDebugInfo(`Project ID: ${projectData.id}`);
+        logDebugInfo(`Project Title: ${projectData.title}`);
+        logDebugInfo(`Project URL: ${projectData.url}`);
 
         return new ProjectDetail({
             id: projectData.id,
@@ -92,7 +92,7 @@ export class ProjectRepository {
     linkContentId = async (project: ProjectDetail, contentId: string, token: string) => {
         const alreadyLinked = await this.isContentLinked(project, contentId, token);
         if (alreadyLinked) {
-            core.info(`Content ${contentId} is already linked to project ${project.id}.`);
+            logDebugInfo(`Content ${contentId} is already linked to project ${project.id}.`);
             return false;
         }
 
@@ -112,7 +112,7 @@ export class ProjectRepository {
             contentId: contentId,
         });
 
-        core.info(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
+        logDebugInfo(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
 
         return true;
     }
@@ -135,7 +135,7 @@ export class ProjectRepository {
             });
 
             if (teams.length === 0) {
-                core.info(`${organization} doesn't have any team.`);
+                logDebugInfo(`${organization} doesn't have any team.`);
                 return [];
             }
 
@@ -153,12 +153,12 @@ export class ProjectRepository {
             const availableMembers = allMembers.filter((member) => !currentMembers.includes(member));
 
             if (availableMembers.length === 0) {
-                core.info(`No available members to assign for organization ${organization}.`);
+                logDebugInfo(`No available members to assign for organization ${organization}.`);
                 return [];
             }
 
             if (membersToAdd >= availableMembers.length) {
-                core.info(
+                logDebugInfo(
                     `Requested size (${membersToAdd}) exceeds available members (${availableMembers.length}). Returning all available members.`
                 );
                 return availableMembers;
@@ -167,7 +167,7 @@ export class ProjectRepository {
             const shuffled = availableMembers.sort(() => Math.random() - 0.5);
             return shuffled.slice(0, membersToAdd);
         } catch (error) {
-            core.error(`Error getting random members: ${error}.`);
+            logError(`Error getting random members: ${error}.`);
         }
         return [];
     };
@@ -184,7 +184,7 @@ export class ProjectRepository {
             });
 
             if (teams.length === 0) {
-                core.info(`${organization} doesn't have any team.`);
+                logDebugInfo(`${organization} doesn't have any team.`);
                 return [];
             }
 
@@ -200,7 +200,7 @@ export class ProjectRepository {
 
             return Array.from(membersSet);
         } catch (error) {
-            core.error(`Error getting all members: ${error}.`);
+            logError(`Error getting all members: ${error}.`);
         }
         return [];
     };

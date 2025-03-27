@@ -1,15 +1,15 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {IssueRepository} from "../../repository/issue_repository";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { IssueRepository } from "../../repository/issue_repository";
+import { logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class CloseNotAllowedIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CloseNotAllowedIssueUseCase';
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {

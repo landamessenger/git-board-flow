@@ -1,7 +1,7 @@
-import * as core from "@actions/core";
+import { logDebugInfo } from "./logger";
 
 export const incrementVersion = (version: string, releaseType: string): string => {
-    core.info(`Incrementing version ${version}.`)
+    logDebugInfo(`Incrementing version ${version}.`)
     const versionParts = version.split('.').map(Number);
 
     if (versionParts.length !== 3) {

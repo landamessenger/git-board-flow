@@ -1,19 +1,18 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class DeployedAddedUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployedAddedUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deployed) {
-                core.info(`Deploy complete.`)
+                logDebugInfo(`Deploy complete.`)
                 if (param.release.active && param.release.branch !== undefined) {
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     result.push(

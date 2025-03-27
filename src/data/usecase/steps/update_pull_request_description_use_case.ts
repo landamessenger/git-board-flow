@@ -1,20 +1,21 @@
-import * as core from "@actions/core";
 import { Execution } from "../../model/execution";
 import { Result } from "../../model/result";
-import { ParamUseCase } from "../base/param_usecase";
 import { AiRepository } from "../../repository/ai_repository";
-import { PullRequestRepository } from "../../repository/pull_request_repository";
-import { ProjectRepository } from "../../repository/project_repository";
 import { IssueRepository } from "../../repository/issue_repository";
-import { logError } from "../../utils/logger";
+import { ProjectRepository } from "../../repository/project_repository";
+import { PullRequestRepository } from "../../repository/pull_request_repository";
+import { logDebugInfo, logError } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
+
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
     private aiRepository = new AiRepository();
     private pullRequestRepository = new PullRequestRepository();
     private issueRepository = new IssueRepository();
     private projectRepository = new ProjectRepository();
+    
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logDebugInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
 
@@ -184,13 +185,13 @@ ${changesDescription}
         openaiModel: string
     ): Promise<string> {
         let changesDescription = ``;
-        console.log(`Processing ${changes.length} changes`);
+        logDebugInfo(`Processing ${changes.length} changes`);
         for (const change of changes) {
             try {
-                console.log(`Processing changes for file ${change.filename}`);
+                logDebugInfo(`Processing changes for file ${change.filename}`);
                 const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
                 if (shouldIgnoreFile) {
-                    console.log(`File ${change.filename} should be ignored`);
+                    logDebugInfo(`File ${change.filename} should be ignored`);
                     continue;
                 }
 

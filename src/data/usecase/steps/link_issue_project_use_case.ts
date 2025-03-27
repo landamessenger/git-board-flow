@@ -1,10 +1,9 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {IssueRepository} from "../../repository/issue_repository";
-import {ProjectRepository} from "../../repository/project_repository";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { IssueRepository } from "../../repository/issue_repository";
+import { ProjectRepository } from "../../repository/project_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'LinkIssueProjectUseCase';
@@ -12,7 +11,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
 
@@ -24,7 +23,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                 param.tokens.tokenPat,
             )
 
-            core.info(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
+            logDebugInfo(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
 
             for (const project of param.projects) {
                 if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {

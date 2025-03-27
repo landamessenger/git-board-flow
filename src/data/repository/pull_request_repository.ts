@@ -1,5 +1,6 @@
 import * as github from "@actions/github";
 import * as core from "@actions/core";
+import { logDebugInfo, logError } from "../utils/logger";
 
 export class PullRequestRepository {
 
@@ -23,7 +24,7 @@ export class PullRequestRepository {
             base: branch,
         });
 
-        core.info(`Changed base branch to ${branch}`);
+        logDebugInfo(`Changed base branch to ${branch}`);
     }
 
     updateDescription = async (
@@ -41,7 +42,7 @@ export class PullRequestRepository {
             body: description,
         });
 
-        core.info(`Updated PR #${pullRequestNumber} description with: ${description}`);
+        logDebugInfo(`Updated PR #${pullRequestNumber} description with: ${description}`);
     }
 
     getCurrentReviewers = async (
@@ -61,7 +62,7 @@ export class PullRequestRepository {
 
             return data.users.map((user) => user.login);
         } catch (error) {
-            core.error(`Error getting reviewers of PR: ${error}.`);
+            logError(`Error getting reviewers of PR: ${error}.`);
             return [];
         }
     };
@@ -77,7 +78,7 @@ export class PullRequestRepository {
 
         try {
             if (reviewers.length === 0) {
-                core.info(`No reviewers provided for addition. Skipping operation.`);
+                logDebugInfo(`No reviewers provided for addition. Skipping operation.`);
                 return [];
             }
 
@@ -91,7 +92,7 @@ export class PullRequestRepository {
             const addedReviewers = data.requested_reviewers || [];
             return addedReviewers.map((reviewer) => reviewer.login);
         } catch (error) {
-            core.error(`Error adding reviewers to pull request: ${error}.`);
+            logError(`Error adding reviewers to pull request: ${error}.`);
             return [];
         }
     };
@@ -116,7 +117,7 @@ export class PullRequestRepository {
                 status: file.status
             }));
         } catch (error) {
-            core.error(`Error getting changed files from pull request: ${error}.`);
+            logError(`Error getting changed files from pull request: ${error}.`);
             return [];
         }
     };
@@ -150,7 +151,7 @@ export class PullRequestRepository {
                 patch: file.patch || ''
             }));
         } catch (error) {
-            core.error(`Error getting pull request changes: ${error}.`);
+            logError(`Error getting pull request changes: ${error}.`);
             return [];
         }
     };
