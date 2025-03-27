@@ -52772,8 +52772,6 @@ ${issueDescription}`;
 
 ${currentDescription}
 
-## What files were changed?
-
 ${changesDescription}
 `, param.tokens.token);
             result.push(new result_1.Result({
@@ -52941,6 +52939,7 @@ ${section}`;
             output += '**Changes:**\n';
             output += file.changes.map(change => `- ${change}`).join('\n');
         }
+        output += `--- \n\n`;
         return output;
     }
     async processFileBySections(change, openaiApiKey, openaiModel) {
