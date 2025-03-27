@@ -57,12 +57,16 @@ export class ProjectRepository {
         token: string
     ): Promise<boolean> => {
         const octokit = github.getOctokit(token);
+        let hasNextPage = true;
+        let endCursor: string | null = null;
+        let allItems: any[] = [];
 
-        const query = `
-    query($projectId: ID!) {
+        while (hasNextPage) {
+            const query = `
+    query($projectId: ID!, $after: String) {
       node(id: $projectId) {
         ... on ProjectV2 {
-          items(first: 100) {
+          items(first: 100, after: $after) {
             nodes {
               content {
                 ... on PullRequest {
@@ -73,24 +77,36 @@ export class ProjectRepository {
                 }
               }
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
         }
       }
     }
   `;
 
-        logDebugInfo(`Query: ${query}`);
-        logDebugInfo(`Project ID: ${project.id}`);
-        logDebugInfo(`Content ID: ${contentId}`);
+            logDebugInfo(`Query: ${query}`);
+            logDebugInfo(`Project ID: ${project.id}`);
+            logDebugInfo(`Content ID: ${contentId}`);
+            logDebugInfo(`After cursor: ${endCursor}`);
 
-        const result: any = await octokit.graphql(query, {
-            projectId: project.id,
-        });
+            const result: any = await octokit.graphql(query, {
+                projectId: project.id,
+                after: endCursor,
+            });
 
-        logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
+            logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
 
-        const items = result.node.items.nodes;
-        return items.some(
+            const items = result.node.items.nodes;
+            allItems = allItems.concat(items);
+
+            hasNextPage = result.node.items.pageInfo.hasNextPage;
+            endCursor = result.node.items.pageInfo.endCursor;
+        }
+
+        return allItems.some(
             (item: any) => item.content && item.content.id === contentId
         );
     };
