@@ -52939,7 +52939,7 @@ ${section}`;
             output += '**Changes:**\n';
             output += file.changes.map(change => `- ${change}`).join('\n');
         }
-        output += `--- \n\n`;
+        output += `\n\n--- \n\n`;
         return output;
     }
     async processFileBySections(change, openaiApiKey, openaiModel) {
