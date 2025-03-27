@@ -52841,7 +52841,8 @@ ${changesDescription}
 - Output must be a **valid JSON** object.
 - Each file should be listed **only once**.
 - Provide a high-level summary and a list of key changes.
-- Use **camelCase** for keys.
+- Pay attention to the file names, don't make mistakes with uppercase, lowercase, or underscores.
+- Be careful when composing the response JSON, don't make mistakes with unnecessary commas.
 
 ### **Output Format Example**:
 \`\`\`json
