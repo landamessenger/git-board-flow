@@ -251,13 +251,17 @@ export class ProjectRepository {
             ... on ProjectV2 {
               fields(first: 20) {
                 nodes {
-                  id
-                  name
                   ... on ProjectV2SingleSelectField {
+                    id
+                    name
                     options {
                       id
                       name
                     }
+                  }
+                  ... on ProjectV2Field {
+                    id
+                    name
                   }
                 }
               }
@@ -269,13 +273,13 @@ export class ProjectRepository {
     
         const sizeField = fieldResult.node.fields.nodes.find((f: any) => f.name === "Size");
         if (!sizeField) {
-            console.error(`Field 'Size' not found in the project.`);
+            logError(`Field 'Size' not found in the project.`);
             return false;
         }
     
         const sizeOption = sizeField.options.find((opt: any) => opt.name === sizeLabel);
         if (!sizeOption) {
-            console.error(`Size option '${sizeLabel}' not found.`);
+            logError(`Size option '${sizeLabel}' not found.`);
             return false;
         }
     
