@@ -1,17 +1,16 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
-import {IssueRepository} from "../../repository/issue_repository";
-import {extractVersion} from "../../utils/content_utils";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { IssueRepository } from "../../repository/issue_repository";
+import { extractVersion } from "../../utils/content_utils";
+import { logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'GetReleaseVersionUseCase';
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`);
+        logInfo(`Executing ${this.taskId}.`);
 
         const result: Result[] = [];
 

@@ -1,17 +1,17 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
 import { BranchRepository } from "../../repository/branch_repository";
 import { IssueRepository } from "../../repository/issue_repository";
-import { logError } from "../../utils/logger";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckChangesPullRequestSizeUseCase';
     private branchRepository = new BranchRepository();
     private issueRepository = new IssueRepository();
+    
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
@@ -25,8 +25,15 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                 param.tokens.tokenPat,
             )
 
-            if (param.labels.sizedLabel !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+            logDebugInfo(`Size: ${size}`);
+            logDebugInfo(`Reason: ${reason}`);
+            logDebugInfo(`Labels: ${param.labels.sizedLabelOnPullRequest}`);
+
+            if (param.labels.sizedLabelOnPullRequest !== size) {
+                /**
+                 * Even if this is for pull reuqets, we are getting the issue labels for having a mirror of the issue labels on the pull request.
+                 */
+                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
 
                 await this.issueRepository.setLabels(
@@ -37,7 +44,8 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                     param.tokens.token,
                 )
 
-                console.log(`Updated labels on pull request #${param.pullRequest.number}:`, labelNames);
+                logDebugInfo(`Updated labels on pull request #${param.pullRequest.number}:`);
+                logDebugInfo(`Labels: ${labelNames}`);
 
                 result.push(
                     new Result({

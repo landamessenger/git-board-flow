@@ -1,20 +1,22 @@
-import * as core from "@actions/core";
+import { PatchSummary } from "../../../graph/ai_responses";
 import { Execution } from "../../model/execution";
 import { Result } from "../../model/result";
-import { ParamUseCase } from "../base/param_usecase";
 import { AiRepository } from "../../repository/ai_repository";
-import { PullRequestRepository } from "../../repository/pull_request_repository";
-import { ProjectRepository } from "../../repository/project_repository";
 import { IssueRepository } from "../../repository/issue_repository";
-import { logError } from "../../utils/logger";
+import { ProjectRepository } from "../../repository/project_repository";
+import { PullRequestRepository } from "../../repository/pull_request_repository";
+import { logDebugError, logDebugInfo, logError } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
+
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
     private aiRepository = new AiRepository();
     private pullRequestRepository = new PullRequestRepository();
     private issueRepository = new IssueRepository();
     private projectRepository = new ProjectRepository();
+
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logDebugInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
 
@@ -96,8 +98,6 @@ ${issueDescription}`;
 
 ${currentDescription}
 
-## What files were changed?
-
 ${changesDescription}
 `,
                 param.tokens.token
@@ -167,14 +167,56 @@ ${changesDescription}
         deletions: number,
         openaiApiKey: string,
         openaiModel: string
-    ): Promise<string> {
-        const filePrompt = `Do a summary of the changes in this file section (no titles, just a text description, avoid to use the file name or expressions like "this file" or "this section". Try to start the explanation with what was changed directly and highlight with \`\`\`language [new_line] [code here]\`\`\` any piece of code mentioned):\n\n` +
-            `File: ${filename}\n` +
-            `Status: ${status}\n` +
-            `Changes: +${additions} -${deletions}\n` +
-            `Patch section:\n${section}`;
+    ): Promise<PatchSummary | undefined> {
+        const filePrompt = `Summarize the following code patch in JSON format.
 
-        return await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
+### **Guidelines**:
+- Output must be a **valid JSON** object.
+- Each file should be listed **only once**.
+- Provide a high-level summary and a list of key changes.
+- Pay attention to the file names, don't make mistakes with uppercase, lowercase, or underscores.
+- Be careful when composing the response JSON, don't make mistakes with unnecessary commas.
+
+### **Output Format Example**:
+\`\`\`json
+{
+    "filePath": "src/utils/logger.ts",
+    "summary": "Refactored logging system for better error handling.",
+    "changes": [
+        "Replaced \`console.error\` with \`logError\`.",
+        "Added support for async logging.",
+        "Removed unused function \`debugLog\`."
+    ]
+}
+\`\`\`
+
+### **Metadata**:
+- **Filename:** ${filename}
+- **Status:** ${status}
+- **Changes:** +${additions} / -${deletions}
+
+### **Patch**:
+${section}`;
+        
+        const response = await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
+
+        try {
+            const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+            const patchSummary: PatchSummary = JSON.parse(cleanResponse);
+            return patchSummary;
+        } catch (error) {
+            logDebugError(`Response: ${response}`);
+            logError(`Error parsing JSON response: ${error}`);
+            return undefined;
+        }
+    }
+
+    private isLargeChange(change: { additions: number; deletions: number; patch?: string }): boolean {
+        // Consider changes large if:
+        // 1. Total changes (additions + deletions) are more than 500 lines
+        // 2. Or if there are more than 250 additions or deletions
+        const totalChanges = change.additions + change.deletions;
+        return totalChanges > 500 || change.additions > 250 || change.deletions > 250;
     }
 
     private async processChanges(
@@ -183,35 +225,137 @@ ${changesDescription}
         openaiApiKey: string,
         openaiModel: string
     ): Promise<string> {
-        let changesDescription = ``;
-        console.log(`Processing ${changes.length} changes`);
+        logDebugInfo(`Processing ${changes.length} changes`);
+        const fileDescriptions: PatchSummary[] = [];
         for (const change of changes) {
             try {
-                console.log(`Processing changes for file ${change.filename}`);
+                logDebugInfo(`Processing changes for file ${change.filename}`);
                 const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
                 if (shouldIgnoreFile) {
-                    console.log(`File ${change.filename} should be ignored`);
+                    logDebugInfo(`File ${change.filename} should be ignored`);
                     continue;
                 }
 
-                const fileDescription = await this.processFile(change, openaiApiKey, openaiModel);
-                changesDescription += `- \`${change.filename}\`:\n  ${fileDescription}\n\n`;
+                if (this.isLargeChange(change)) {
+                    logDebugInfo(`File ${change.filename} has large changes, processing by sections`);
+                    fileDescriptions.push(...await this.processFileBySections(change, openaiApiKey, openaiModel));
+                } else {
+                    logDebugInfo(`File ${change.filename} has moderate changes, processing as whole`);
+                    fileDescriptions.push(...await this.processFile(change, openaiApiKey, openaiModel));
+                }
             } catch (error) {
                 logError(error);
                 throw new Error(`Error processing file ${change.filename}: ${error}`);
             }
         }
 
-        return changesDescription;
+        // Merge PatchSummary objects for the same file
+        const mergedFileDescriptions = this.mergePatchSummaries(fileDescriptions);
+
+        // Group files by directory
+        const groupedFiles = this.groupFilesByDirectory(mergedFileDescriptions);
+        
+        // Generate a structured description
+        let description = '';
+        
+        // Add summary section if there are files
+        if (mergedFileDescriptions.length > 0) {
+            description += '## Summary of Changes\n\n';
+            description += mergedFileDescriptions.map(file => 
+                `- **${file.filePath}**: ${file.summary}`
+            ).join('\n');
+            description += '\n\n';
+        }
+
+        // Add detailed changes section
+        description += '## Detailed Changes\n\n';
+        
+        // Process each directory group
+        for (const [directory, files] of Object.entries(groupedFiles)) {
+            if (directory === 'root') {
+                // Files in root directory
+                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
+            } else {
+                // Files in subdirectories
+                description += `### ${directory}\n\n`;
+                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
+            }
+        }
+
+        return description;
+    }
+
+    private groupFilesByDirectory(files: PatchSummary[]): { [key: string]: PatchSummary[] } {
+        const groups: { [key: string]: PatchSummary[] } = {
+            root: []
+        };
+
+        files.forEach(file => {
+            const pathParts = file.filePath.split('/');
+            if (pathParts.length > 1) {
+                const directory = pathParts.slice(0, -1).join('/');
+                if (!groups[directory]) {
+                    groups[directory] = [];
+                }
+                groups[directory].push(file);
+            } else {
+                groups.root.push(file);
+            }
+        });
+
+        return groups;
+    }
+
+    private formatFileChanges(file: PatchSummary): string {
+        let output = `#### \`${file.filePath}\`\n\n`;
+        output += `${file.summary}\n\n`;
+        
+        if (file.changes.length > 0) {
+            output += '**Changes:**\n';
+            output += file.changes.map(change => `- ${change}`).join('\n');
+        }
+
+        output += `\n\n--- \n\n`;
+
+        return output;
+    }
+
+    private async processFileBySections(
+        change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
+        openaiApiKey: string,
+        openaiModel: string
+    ): Promise<PatchSummary[]> {
+        if (!change.patch) {
+            return [];
+        }
+
+        const patchSections = this.splitPatchIntoSections(change.patch);
+        logDebugInfo(`Processing ${patchSections.length} sections for file ${change.filename}`);
+
+        const sectionDescriptions = await Promise.all(
+            patchSections.map((section, index) => 
+                this.processPatchSection(
+                    section,
+                    `${change.filename} (section ${index + 1}/${patchSections.length})`,
+                    change.status,
+                    change.additions,
+                    change.deletions,
+                    openaiApiKey,
+                    openaiModel
+                )
+            )
+        );
+
+        return sectionDescriptions.filter((desc: PatchSummary | undefined) => desc !== undefined);
     }
 
     private async processFile(
         change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
         openaiApiKey: string,
         openaiModel: string
-    ): Promise<string> {
+    ): Promise<PatchSummary[]> {
         if (!change.patch) {
-            return `File was ${change.status} (${change.additions} additions, ${change.deletions} deletions)`;
+            return [];
         }
 
         const patchSections = this.splitPatchIntoSections(change.patch);
@@ -228,6 +372,28 @@ ${changesDescription}
                 )
             )
         );
-        return sectionDescriptions.map(desc => `- ${desc}`).join('\n  ');
+        return sectionDescriptions.filter((desc: PatchSummary | undefined) => desc !== undefined);
+    }
+
+    private mergePatchSummaries(summaries: PatchSummary[]): PatchSummary[] {
+        const mergedMap = new Map<string, PatchSummary>();
+
+        for (const summary of summaries) {
+            const existing = mergedMap.get(summary.filePath);
+            if (existing) {
+                // Merge with existing summary
+                existing.summary = `${existing.summary}\n${summary.summary}`;
+                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
+            } else {
+                // Create new entry
+                mergedMap.set(summary.filePath, {
+                    filePath: summary.filePath,
+                    summary: summary.summary,
+                    changes: [...summary.changes]
+                });
+            }
+        }
+
+        return Array.from(mergedMap.values());
     }
 }

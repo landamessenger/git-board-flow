@@ -1,9 +1,8 @@
-import {BranchRepository} from "../repository/branch_repository";
-import {ParamUseCase} from "./base/param_usecase";
-import {Execution} from "../model/execution";
-import {Result} from "../model/result";
-import * as core from '@actions/core';
-import { logError } from "../utils/logger";
+import { Execution } from "../model/execution";
+import { Result } from "../model/result";
+import { BranchRepository } from "../repository/branch_repository";
+import { logDebugInfo, logError, logInfo } from "../utils/logger";
+import { ParamUseCase } from "./base/param_usecase";
 
 /**
  * Remove any branch created for this issue
@@ -13,7 +12,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const results: Result[] = []
         try {
@@ -26,11 +25,11 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
             );
 
             for (const type of branchTypes) {
-                core.info(`Checking branch type ${type}`)
+                logDebugInfo(`Checking branch type ${type}`)
 
                 let branchName = '';
                 const prefix = `${type}/${param.issueNumber}-`;
-                core.info(`Checking prefix ${prefix}`)
+                logDebugInfo(`Checking prefix ${prefix}`)
 
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                 if (!matchingBranch) continue;

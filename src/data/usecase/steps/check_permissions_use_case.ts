@@ -1,16 +1,15 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {ProjectRepository} from "../../repository/project_repository";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { ProjectRepository } from "../../repository/project_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckPermissionsUseCase';
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`);
+        logInfo(`Executing ${this.taskId}.`);
 
         const result: Result[] = [];
 
@@ -18,7 +17,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
          * If a release/hotfix issue was opened, check if author is a member of the project.
          */
         if (!param.issue.opened) {
-            core.info(`Ignoring permission checking. Issue state is not 'opened'.`)
+            logDebugInfo(`Ignoring permission checking. Issue state is not 'opened'.`)
             result.push(
                 new Result({
                     id: this.taskId,
@@ -41,7 +40,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
                 && currentProjectMembers.indexOf(creator) > -1;
 
             if (param.labels.isMandatoryBranchedLabel) {
-                core.info(`Ignoring permission checking. Issue doesn't require mandatory branch.`)
+                logDebugInfo(`Ignoring permission checking. Issue doesn't require mandatory branch.`)
                 if (creatorIsTeamMember) {
                     result.push(
                         new Result({
@@ -61,7 +60,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
                     );
                 }
             } else {
-                core.info(`Ignoring permission checking. Issue doesn't require mandatory branch.`)
+                logDebugInfo(`Ignoring permission checking. Issue doesn't require mandatory branch.`)
                 result.push(
                     new Result({
                         id: this.taskId,

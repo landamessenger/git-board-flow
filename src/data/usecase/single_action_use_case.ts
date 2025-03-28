@@ -1,20 +1,19 @@
-import {ParamUseCase} from "./base/param_usecase";
-import {Execution} from "../model/execution";
-import {Result} from "../model/result";
-import * as core from '@actions/core';
-import {DeployedActionUseCase} from "./actions/deployed_action_use_case";
-import { logError } from "../utils/logger";
+import { Execution } from "../model/execution";
+import { Result } from "../model/result";
+import { logDebugInfo, logError, logInfo } from "../utils/logger";
+import { DeployedActionUseCase } from "./actions/deployed_action_use_case";
+import { ParamUseCase } from "./base/param_usecase";
 
 export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'SingleActionUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const results: Result[] = []
         try {
             if (!param.singleAction.validSingleAction) {
-                core.info(`Not a valid single action: ${param.singleAction.currentSingleAction}`);
+                logDebugInfo(`Not a valid single action: ${param.singleAction.currentSingleAction}`);
                 return results;
             }
 

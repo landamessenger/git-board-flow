@@ -1,6 +1,6 @@
-import * as core from "@actions/core";
-import {IssueContentInterface} from "./base/issue_content_interface";
-import {Execution} from "../../model/execution";
+import { Execution } from "../../model/execution";
+import { logError } from "../../utils/logger";
+import { IssueContentInterface } from "./base/issue_content_interface";
 
 export class MarkdownContentHotfixHandler extends IssueContentInterface {
     get id(): string {
@@ -15,7 +15,7 @@ export class MarkdownContentHotfixHandler extends IssueContentInterface {
         try {
             return await this.internalUpdate(execution, content)
         } catch (error) {
-            core.error(`Error updating issue content: ${error}`);
+            logError(`Error updating issue content: ${error}`);
             return undefined;
         }
     }
@@ -28,7 +28,7 @@ export class MarkdownContentHotfixHandler extends IssueContentInterface {
             }
             return content;
         } catch (error) {
-            core.error(`Error reading issue content: ${error}`);
+            logError(`Error reading issue content: ${error}`);
             throw error;
         }
     }

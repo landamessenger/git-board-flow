@@ -1,6 +1,6 @@
 import * as github from "@actions/github";
-import * as core from "@actions/core";
-import {ProjectDetail} from "../model/project_detail";
+import { ProjectDetail } from "../model/project_detail";
+import { logDebugInfo, logError } from "../utils/logger";
 
 export class ProjectRepository {
     getProjectDetail = async (projectUrl: string, token: string) => {
@@ -37,9 +37,9 @@ export class ProjectRepository {
             throw new Error(`Project not found: ${projectUrl}`);
         }
 
-        core.info(`Project ID: ${projectData.id}`);
-        core.info(`Project Title: ${projectData.title}`);
-        core.info(`Project URL: ${projectData.url}`);
+        logDebugInfo(`Project ID: ${projectData.id}`);
+        logDebugInfo(`Project Title: ${projectData.title}`);
+        logDebugInfo(`Project URL: ${projectData.url}`);
 
         return new ProjectDetail({
             id: projectData.id,
@@ -57,12 +57,16 @@ export class ProjectRepository {
         token: string
     ): Promise<boolean> => {
         const octokit = github.getOctokit(token);
+        let hasNextPage = true;
+        let endCursor: string | null = null;
+        let allItems: any[] = [];
 
-        const query = `
-    query($projectId: ID!) {
+        while (hasNextPage) {
+            const query = `
+    query($projectId: ID!, $after: String) {
       node(id: $projectId) {
         ... on ProjectV2 {
-          items(first: 100) {
+          items(first: 100, after: $after) {
             nodes {
               content {
                 ... on PullRequest {
@@ -73,18 +77,36 @@ export class ProjectRepository {
                 }
               }
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
         }
       }
     }
   `;
 
-        const result: any = await octokit.graphql(query, {
-            projectId: project.id,
-        });
+            logDebugInfo(`Query: ${query}`);
+            logDebugInfo(`Project ID: ${project.id}`);
+            logDebugInfo(`Content ID: ${contentId}`);
+            logDebugInfo(`After cursor: ${endCursor}`);
 
-        const items = result.node.items.nodes;
-        return items.some(
+            const result: any = await octokit.graphql(query, {
+                projectId: project.id,
+                after: endCursor,
+            });
+
+            logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
+
+            const items = result.node.items.nodes;
+            allItems = allItems.concat(items);
+
+            hasNextPage = result.node.items.pageInfo.hasNextPage;
+            endCursor = result.node.items.pageInfo.endCursor;
+        }
+
+        return allItems.some(
             (item: any) => item.content && item.content.id === contentId
         );
     };
@@ -92,7 +114,7 @@ export class ProjectRepository {
     linkContentId = async (project: ProjectDetail, contentId: string, token: string) => {
         const alreadyLinked = await this.isContentLinked(project, contentId, token);
         if (alreadyLinked) {
-            core.info(`Content ${contentId} is already linked to project ${project.id}.`);
+            logDebugInfo(`Content ${contentId} is already linked to project ${project.id}.`);
             return false;
         }
 
@@ -112,7 +134,7 @@ export class ProjectRepository {
             contentId: contentId,
         });
 
-        core.info(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
+        logDebugInfo(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
 
         return true;
     }
@@ -135,7 +157,7 @@ export class ProjectRepository {
             });
 
             if (teams.length === 0) {
-                core.info(`${organization} doesn't have any team.`);
+                logDebugInfo(`${organization} doesn't have any team.`);
                 return [];
             }
 
@@ -153,12 +175,12 @@ export class ProjectRepository {
             const availableMembers = allMembers.filter((member) => !currentMembers.includes(member));
 
             if (availableMembers.length === 0) {
-                core.info(`No available members to assign for organization ${organization}.`);
+                logDebugInfo(`No available members to assign for organization ${organization}.`);
                 return [];
             }
 
             if (membersToAdd >= availableMembers.length) {
-                core.info(
+                logDebugInfo(
                     `Requested size (${membersToAdd}) exceeds available members (${availableMembers.length}). Returning all available members.`
                 );
                 return availableMembers;
@@ -167,7 +189,7 @@ export class ProjectRepository {
             const shuffled = availableMembers.sort(() => Math.random() - 0.5);
             return shuffled.slice(0, membersToAdd);
         } catch (error) {
-            core.error(`Error getting random members: ${error}.`);
+            logError(`Error getting random members: ${error}.`);
         }
         return [];
     };
@@ -184,7 +206,7 @@ export class ProjectRepository {
             });
 
             if (teams.length === 0) {
-                core.info(`${organization} doesn't have any team.`);
+                logDebugInfo(`${organization} doesn't have any team.`);
                 return [];
             }
 
@@ -200,7 +222,7 @@ export class ProjectRepository {
 
             return Array.from(membersSet);
         } catch (error) {
-            core.error(`Error getting all members: ${error}.`);
+            logError(`Error getting all members: ${error}.`);
         }
         return [];
     };

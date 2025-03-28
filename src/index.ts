@@ -1,29 +1,30 @@
 import * as core from '@actions/core';
 import * as github from "@actions/github";
-import {PullRequestLinkUseCase} from "./data/usecase/pull_request_link_use_case";
-import {IssueLinkUseCase} from "./data/usecase/issue_link_use_case";
-import {ProjectRepository} from "./data/repository/project_repository";
-import {ProjectDetail} from "./data/model/project_detail";
-import {Execution} from "./data/model/execution";
-import {Tokens} from "./data/model/tokens";
-import {Labels} from "./data/model/labels";
-import {Branches} from "./data/model/branches";
-import {Hotfix} from "./data/model/hotfix";
-import {Result} from "./data/model/result";
-import {PublishResultUseCase} from "./data/usecase/publish_resume_use_case";
-import {StoreConfigurationUseCase} from "./data/usecase/store_configuration_use_case";
-import {Images} from "./data/model/images";
-import {CommitCheckUseCase} from "./data/usecase/commit_check_use_case";
-import {Emoji} from "./data/model/emoji";
-import {Issue} from "./data/model/issue";
-import {PullRequest} from "./data/model/pull_request";
-import {Workflows} from "./data/model/workflows";
-import {Release} from "./data/model/release";
-import {SingleAction} from "./data/model/single_action";
-import {SingleActionUseCase} from "./data/usecase/single_action_use_case";
 import { Ai } from './data/model/ai';
+import { Branches } from "./data/model/branches";
+import { Emoji } from "./data/model/emoji";
+import { Execution } from "./data/model/execution";
+import { Hotfix } from "./data/model/hotfix";
+import { Images } from "./data/model/images";
+import { Issue } from "./data/model/issue";
+import { Labels } from "./data/model/labels";
+import { ProjectDetail } from "./data/model/project_detail";
+import { PullRequest } from "./data/model/pull_request";
+import { Release } from "./data/model/release";
+import { Result } from "./data/model/result";
+import { SingleAction } from "./data/model/single_action";
 import { SizeThreshold } from './data/model/size_threshold';
 import { SizeThresholds } from './data/model/size_thresholds';
+import { Tokens } from "./data/model/tokens";
+import { Workflows } from "./data/model/workflows";
+import { ProjectRepository } from "./data/repository/project_repository";
+import { CommitCheckUseCase } from "./data/usecase/commit_check_use_case";
+import { IssueLinkUseCase } from "./data/usecase/issue_link_use_case";
+import { PublishResultUseCase } from "./data/usecase/publish_resume_use_case";
+import { PullRequestLinkUseCase } from "./data/usecase/pull_request_link_use_case";
+import { SingleActionUseCase } from "./data/usecase/single_action_use_case";
+import { StoreConfigurationUseCase } from "./data/usecase/store_configuration_use_case";
+import { logInfo } from './data/utils/logger';
 
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -691,7 +692,7 @@ async function run(): Promise<void> {
     await execution.setup();
 
     if (execution.issueNumber === -1) {
-        core.info(`Issue number not found. Skipping.`);
+        logInfo(`Issue number not found. Skipping.`);
         return;
     }
 

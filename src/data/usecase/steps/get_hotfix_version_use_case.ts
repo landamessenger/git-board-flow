@@ -1,19 +1,16 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {ProjectRepository} from "../../repository/project_repository";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
-import {MarkdownContentHotfixHandler} from "../../manager/description/markdown_content_hotfix_handler";
-import {IssueRepository} from "../../repository/issue_repository";
-import {extractVersion} from "../../utils/content_utils";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { IssueRepository } from "../../repository/issue_repository";
+import { extractVersion } from "../../utils/content_utils";
+import { logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class GetHotfixVersionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'GetHotfixVersionUseCase';
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`);
+        logInfo(`Executing ${this.taskId}.`);
 
         const result: Result[] = [];
 

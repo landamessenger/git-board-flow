@@ -2,6 +2,9 @@ name: "Git Board Flow"
 description: "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology."
 author: "Landa Messenger"
 inputs:
+  debug:
+    description: "Enable debug mode."
+    default: "false"
   single-action:
     description: "Launch single actions."
     default: ""

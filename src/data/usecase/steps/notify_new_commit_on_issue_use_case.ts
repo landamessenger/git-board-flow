@@ -1,11 +1,10 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
 import { IssueRepository } from "../../repository/issue_repository";
 import { getRandomElement } from "../../utils/list_utils";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 import { ExecuteScriptUseCase } from "./execute_script_use_case";
-import { logError } from "../../utils/logger";
 
 export class NotifyNewCommitOnIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'NotifyNewCommitOnIssueUseCase';
@@ -16,7 +15,7 @@ export class NotifyNewCommitOnIssueUseCase implements ParamUseCase<Execution, Re
     private separator = '------------------------------------------------------'
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
@@ -30,7 +29,7 @@ export class NotifyNewCommitOnIssueUseCase implements ParamUseCase<Execution, Re
                 const executor = new ExecuteScriptUseCase();
                 const prefixResult = await executor.invoke(param);
                 commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
-                core.info(`Commit prefix: ${commitPrefix}`);
+                logDebugInfo(`Commit prefix: ${commitPrefix}`);
             }
 
             let title = ''
