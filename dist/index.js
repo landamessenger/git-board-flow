@@ -48235,6 +48235,9 @@ class Labels {
     get isMaintenance() {
         return this.currentIssueLabels.includes(this.maintenance);
     }
+    get sizeLabels() {
+        return [this.sizeXxl, this.sizeXl, this.sizeL, this.sizeM, this.sizeS, this.sizeXs];
+    }
     get isSizeXxl() {
         return this.currentIssueLabels.includes(this.sizeXxl);
     }
@@ -48253,7 +48256,7 @@ class Labels {
     get isSizeXs() {
         return this.currentIssueLabels.includes(this.sizeXs);
     }
-    get sizedLabel() {
+    get sizedLabelOnIssue() {
         if (this.currentIssueLabels.includes(this.sizeXxl)) {
             return this.sizeXxl;
         }
@@ -48274,8 +48277,32 @@ class Labels {
         }
         return undefined;
     }
-    get isSized() {
-        return this.sizedLabel !== undefined;
+    get sizedLabelOnPullRequest() {
+        if (this.currentPullRequestLabels.includes(this.sizeXxl)) {
+            return this.sizeXxl;
+        }
+        else if (this.currentPullRequestLabels.includes(this.sizeXl)) {
+            return this.sizeXl;
+        }
+        else if (this.currentPullRequestLabels.includes(this.sizeL)) {
+            return this.sizeL;
+        }
+        else if (this.currentPullRequestLabels.includes(this.sizeM)) {
+            return this.sizeM;
+        }
+        else if (this.currentPullRequestLabels.includes(this.sizeS)) {
+            return this.sizeS;
+        }
+        else if (this.currentPullRequestLabels.includes(this.sizeXs)) {
+            return this.sizeXs;
+        }
+        return undefined;
+    }
+    get isIssueSized() {
+        return this.sizedLabelOnIssue !== undefined;
+    }
+    get isPullRequestSized() {
+        return this.sizedLabelOnPullRequest !== undefined;
     }
     constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, documentation, chore, maintenance, sizeXxl, sizeXl, sizeL, sizeM, sizeS, sizeXs) {
         this.currentIssueLabels = [];
@@ -51051,8 +51078,11 @@ class CheckChangesIssueSizeUseCase {
             const headBranch = param.commit.branch;
             const baseBranch = param.currentConfiguration.parentBranch;
             const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.tokenPat);
-            if (param.labels.sizedLabel !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+            (0, logger_1.logDebugInfo)(`Size: ${size}`);
+            (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
+            (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnIssue}`);
+            if (param.labels.sizedLabelOnIssue !== size) {
+                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
                 await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
                 (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.issueNumber}:`);
@@ -51111,8 +51141,14 @@ class CheckChangesPullRequestSizeUseCase {
         const result = [];
         try {
             const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
-            if (param.labels.sizedLabel !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+            (0, logger_1.logDebugInfo)(`Size: ${size}`);
+            (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
+            (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnPullRequest}`);
+            if (param.labels.sizedLabelOnPullRequest !== size) {
+                /**
+                 * Even if this is for pull reuqets, we are getting the issue labels for having a mirror of the issue labels on the pull request.
+                 */
+                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
                 await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.token);
                 (0, logger_1.logDebugInfo)(`Updated labels on pull request #${param.pullRequest.number}:`);
@@ -56945,7 +56981,9 @@ __exportStar(__nccwpck_require__(1749), exports);
  */
 const shims = __nccwpck_require__(4437);
 const auto = __nccwpck_require__(3506);
-if (!shims.kind) shims.setShims(auto.getRuntime(), { auto: true });
+exports.init = () => {
+  if (!shims.kind) shims.setShims(auto.getRuntime(), { auto: true });
+};
 for (const property of Object.keys(shims)) {
   Object.defineProperty(exports, property, {
     get() {
@@ -56953,6 +56991,8 @@ for (const property of Object.keys(shims)) {
     },
   });
 }
+
+exports.init();
 
 
 /***/ }),
@@ -57377,6 +57417,8 @@ const version_1 = __nccwpck_require__(6417);
 const streaming_1 = __nccwpck_require__(884);
 const error_1 = __nccwpck_require__(8905);
 const index_1 = __nccwpck_require__(6678);
+// try running side effects outside of _shims/index to workaround https://github.com/vercel/next.js/issues/76881
+(0, index_1.init)();
 const uploads_1 = __nccwpck_require__(6800);
 var uploads_2 = __nccwpck_require__(6800);
 Object.defineProperty(exports, "maybeMultipartFormRequestOptions", ({ enumerable: true, get: function () { return uploads_2.maybeMultipartFormRequestOptions; } }));
@@ -62216,7 +62258,12 @@ const resource_1 = __nccwpck_require__(9593);
 const Core = __importStar(__nccwpck_require__(1798));
 class Transcriptions extends resource_1.APIResource {
     create(body, options) {
-        return this._client.post('/audio/transcriptions', Core.multipartFormRequestOptions({ body, ...options, __metadata: { model: body.model } }));
+        return this._client.post('/audio/transcriptions', Core.multipartFormRequestOptions({
+            body,
+            ...options,
+            stream: body.stream ?? false,
+            __metadata: { model: body.model },
+        }));
     }
 }
 exports.Transcriptions = Transcriptions;
@@ -64507,6 +64554,7 @@ const index_1 = __nccwpck_require__(6678);
 const error_1 = __nccwpck_require__(8905);
 const line_1 = __nccwpck_require__(5407);
 const stream_utils_1 = __nccwpck_require__(5295);
+const core_1 = __nccwpck_require__(1798);
 const error_2 = __nccwpck_require__(8905);
 class Stream {
     constructor(iterator, controller) {
@@ -64529,7 +64577,9 @@ class Stream {
                         done = true;
                         continue;
                     }
-                    if (sse.event === null || sse.event.startsWith('response.')) {
+                    if (sse.event === null ||
+                        sse.event.startsWith('response.') ||
+                        sse.event.startsWith('transcript.')) {
                         let data;
                         try {
                             data = JSON.parse(sse.data);
@@ -64540,7 +64590,7 @@ class Stream {
                             throw e;
                         }
                         if (data && data.error) {
-                            throw new error_2.APIError(undefined, data.error, undefined, undefined);
+                            throw new error_2.APIError(undefined, data.error, undefined, (0, core_1.createResponseHeaders)(response.headers));
                         }
                         yield data;
                     }
@@ -64970,7 +65020,7 @@ const addFormValue = async (form, key, value) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
-exports.VERSION = '4.89.1'; // x-release-please-version
+exports.VERSION = '4.90.0'; // x-release-please-version
 //# sourceMappingURL=version.js.map
 
 /***/ }),
