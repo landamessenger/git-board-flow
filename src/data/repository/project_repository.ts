@@ -59,30 +59,35 @@ export class ProjectRepository {
       token: string
     ): Promise<string | undefined> => {
       const octokit = github.getOctokit(token);
-  
+    
       // Buscar el ID de la issue o pull request en el repositorio
       const issueOrPrQuery = `
       query($owner: String!, $repo: String!, $number: Int!) {
         repository(owner: $owner, name: $repo) {
           issueOrPullRequest: issueOrPullRequest(number: $number) {
-            id
+            ... on Issue {
+              id
+            }
+            ... on PullRequest {
+              id
+            }
           }
         }
       }`;
-  
+    
       const issueOrPrResult: any = await octokit.graphql(issueOrPrQuery, {
-          owner,
-          repo,
-          number: issueOrPullRequestNumber
+        owner,
+        repo,
+        number: issueOrPullRequestNumber
       });
-  
+    
       if (!issueOrPrResult.repository.issueOrPullRequest) {
-          console.error(`Issue or PR #${issueOrPullRequestNumber} not found.`);
-          return undefined;
+        console.error(`Issue or PR #${issueOrPullRequestNumber} not found.`);
+        return undefined;
       }
-  
+    
       const contentId = issueOrPrResult.repository.issueOrPullRequest.id;
-  
+    
       // Buscar el ID del item en el proyecto
       const projectQuery = `
       query($projectId: ID!) {
@@ -104,17 +109,18 @@ export class ProjectRepository {
           }
         }
       }`;
-  
+    
       const projectResult: any = await octokit.graphql(projectQuery, {
-          projectId: project.id
+        projectId: project.id
       });
-  
+    
       const projectItem = projectResult.node.items.nodes.find(
-          (item: any) => item.content && item.content.id === contentId
+        (item: any) => item.content && item.content.id === contentId
       );
-  
+    
       return projectItem ? projectItem.id : undefined;
-  };  
+    };
+     
     
     isContentLinked = async (
         project: ProjectDetail,
