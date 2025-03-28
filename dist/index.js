@@ -50172,54 +50172,63 @@ class ProjectRepository {
                 (0, logger_1.logError)(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
                 return false;
             }
+            (0, logger_1.logDebugInfo)(`Project ID: ${project.id}`);
+            (0, logger_1.logDebugInfo)(`Issue or Pull Request Number: ${issueOrPullRequestNumber}`);
+            (0, logger_1.logDebugInfo)(`Content ID: ${contentId}`);
+            (0, logger_1.logDebugInfo)(`Column Name: ${columnName}`);
             const octokit = github.getOctokit(token);
             // Get the field ID of the "Status" field in the project
             const fieldQuery = `
-        query($projectId: ID!) {
-          node(id: $projectId) {
-            ... on ProjectV2 {
-              fields(first: 20) {
-                nodes {
-                  id
-                  name
-                  ... on ProjectV2SingleSelectField {
-                    options {
-                      id
-                      name
-                    }
+      query($projectId: ID!) {
+        node(id: $projectId) {
+          ... on ProjectV2 {
+            fields(first: 20) {
+              nodes {
+                id
+                name
+                ... on ProjectV2SingleSelectField {
+                  options {
+                    id
+                    name
                   }
                 }
               }
             }
           }
-        }`;
+        }
+      }`;
             const fieldResult = await octokit.graphql(fieldQuery, { projectId: project.id });
-            const statusField = fieldResult.node.fields.nodes.find((f) => f.name === "Status");
+            if (!fieldResult.node || !fieldResult.node.fields) {
+                (0, logger_1.logError)(`Failed to fetch fields for project.`);
+                return false;
+            }
+            // Filtrar solo los campos que son del tipo ProjectV2SingleSelectField
+            const statusField = fieldResult.node.fields.nodes.find((f) => f.name === "Status" && f.options);
             if (!statusField) {
-                console.error(`Field 'Status' not found in the project.`);
+                (0, logger_1.logError)(`Field 'Status' not found or is not a single-select field.`);
                 return false;
             }
             const columnOption = statusField.options.find((opt) => opt.name === columnName);
             if (!columnOption) {
-                console.error(`Option '${columnName}' not found.`);
+                (0, logger_1.logError)(`Option '${columnName}' not found.`);
                 return false;
             }
             // Assign the option status to the issue
             const mutation = `
-        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-          updateProjectV2ItemFieldValue(
-            input: {
-              projectId: $projectId,
-              itemId: $itemId,
-              fieldId: $fieldId,
-              value: { singleSelectOptionId: $optionId }
-            }
-          ) {
-            projectV2Item {
-              id
-            }
+      mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+        updateProjectV2ItemFieldValue(
+          input: {
+            projectId: $projectId,
+            itemId: $itemId,
+            fieldId: $fieldId,
+            value: { singleSelectOptionId: $optionId }
           }
-        }`;
+        ) {
+          projectV2Item {
+            id
+          }
+        }
+      }`;
             const mutationResult = await octokit.graphql(mutation, {
                 projectId: project.id,
                 itemId: contentId,
