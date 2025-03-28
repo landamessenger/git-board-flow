@@ -49972,7 +49972,12 @@ class ProjectRepository {
       query($owner: String!, $repo: String!, $number: Int!) {
         repository(owner: $owner, name: $repo) {
           issueOrPullRequest: issueOrPullRequest(number: $number) {
-            id
+            ... on Issue {
+              id
+            }
+            ... on PullRequest {
+              id
+            }
           }
         }
       }`;
