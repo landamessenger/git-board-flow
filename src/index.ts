@@ -9,6 +9,7 @@ import { Images } from "./data/model/images";
 import { Issue } from "./data/model/issue";
 import { Labels } from "./data/model/labels";
 import { ProjectDetail } from "./data/model/project_detail";
+import { Projects } from './data/model/projects';
 import { PullRequest } from "./data/model/pull_request";
 import { Release } from "./data/model/release";
 import { Result } from "./data/model/result";
@@ -249,6 +250,11 @@ async function run(): Promise<void> {
         const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat)
         projects.push(detail)
     }
+
+    const projectColumnIssueCreated = core.getInput('project-column-issue-created')
+    const projectColumnPullRequestCreated = core.getInput('project-column-pull-request-created')
+    const projectColumnIssueInProgress = core.getInput('project-column-issue-in-progress')
+    const projectColumnPullRequestInProgress = core.getInput('project-column-pull-request-in-progress')
 
     /**
      * Images
@@ -686,7 +692,13 @@ async function run(): Promise<void> {
             releaseWorkflow,
             hotfixWorkflow,
         ),
-        projects
+        new Projects(
+            projects,
+            projectColumnIssueCreated,
+            projectColumnPullRequestCreated,
+            projectColumnIssueInProgress,
+            projectColumnPullRequestInProgress,
+        ),
     )
 
     await execution.setup();

@@ -140,6 +140,18 @@ inputs:
   project-ids:
     description: "Comma-separated list of project IDs to link issues and pull requests."
     default: ""
+  project-column-issue-created:
+    description: "Name of the project column for new issues."
+    default: "Todo"
+  project-column-pull-request-created:
+    description: "Name of the project column for new pull requests."
+    default: "In Progress"
+  project-column-issue-in-progress:
+    description: "Name of the project column for in progress issues."
+    default: "In Progress"
+  project-column-pull-request-in-progress:
+    description: "Name of the project column for in progress pull requests."
+    default: "In Progress"
   main-branch:
     description: "Name of the main branch (e.g., master)."
     default: "master"

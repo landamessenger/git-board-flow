@@ -15,44 +15,65 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
         const result: Result[] = []
 
         try {
-            for (const project of param.projects) {
-                const actionDone = await this.projectRepository.linkContentId(
+            for (const project of param.project.getProjects()) {
+                let currentProject = await this.projectRepository.getProjectDetail(
+                    project.url,
+                    param.tokens.tokenPat,
+                )
+
+                if (currentProject === undefined) {
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
+                            ]
+                        })
+                    )
+                    continue;
+                }
+
+                let actionDone = await this.projectRepository.linkContentId(
                     project,
                     param.pullRequest.id,
                     param.tokens.tokenPat
                 )
-                if (actionDone) {
 
-                    let currentProject = await this.projectRepository.getProjectDetail(
-                        project.url,
+                if (actionDone) {
+                    actionDone = await this.projectRepository.moveIssueToColumn(
+                        project,
+                        param.owner,
+                        param.repo,
+                        param.pullRequest.number,
+                        param.project.getProjectColumnPullRequestCreated(),
                         param.tokens.tokenPat,
                     )
 
-                    if (currentProject === undefined) {
+                    if (actionDone) {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column ${param.project.getProjectColumnPullRequestCreated()}.`,
+                                ],
+                            })
+                        )
+                    } else {
                         result.push(
                             new Result({
                                 id: this.taskId,
                                 success: false,
                                 executed: true,
                                 steps: [
-                                    `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
-                                ]
+                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column ${param.project.getProjectColumnPullRequestCreated()}.`,
+                                ],
                             })
                         )
-                        continue;
                     }
-
-                    result.push(
-                        new Result({
-                            id: this.taskId,
-                            success: true,
-                            executed: true,
-                            steps: [
-                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
-                            ],
-                            error: error,
-                        })
-                    )
                 }
             }
             return result;

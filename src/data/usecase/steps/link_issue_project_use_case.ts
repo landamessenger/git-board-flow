@@ -25,7 +25,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
 
             logDebugInfo(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
 
-            for (const project of param.projects) {
+            for (const project of param.project.getProjects()) {
                 if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
                     continue;
                 }
@@ -56,18 +56,40 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                     param.tokens.token,
                 )
 
-                const actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
+                let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
                 if (actionDone) {
-                    result.push(
-                        new Result({
-                            id: this.taskId,
-                            success: true,
-                            executed: true,
-                            steps: [
-                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
-                            ]
-                        })
+                    actionDone = await this.projectRepository.moveIssueToColumn(
+                        project,
+                        param.owner,
+                        param.repo,
+                        param.issue.number,
+                        param.project.getProjectColumnIssueCreated(),
+                        param.tokens.tokenPat,
                     )
+
+                    if (actionDone) {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: true,
+                                executed: true,
+                                steps: [
+                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column ${param.project.getProjectColumnIssueCreated()}.`,
+                                ]
+                            })
+                        )
+                    } else {
+                        result.push(
+                            new Result({
+                                id: this.taskId,
+                                success: false,
+                                executed: true,
+                                steps: [
+                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column ${param.project.getProjectColumnIssueCreated()}.`,
+                                ]
+                            })
+                        )
+                    }
                 }
             }
 
