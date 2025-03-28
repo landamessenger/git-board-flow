@@ -60,7 +60,7 @@ export class ProjectRepository {
     ): Promise<string | undefined> => {
       const octokit = github.getOctokit(token);
     
-      // Buscar el ID de la issue o pull request en el repositorio
+      // Search for the issue or pull request ID in the repository
       const issueOrPrQuery = `
       query($owner: String!, $repo: String!, $number: Int!) {
         repository(owner: $owner, name: $repo) {
@@ -88,39 +88,57 @@ export class ProjectRepository {
     
       const contentId = issueOrPrResult.repository.issueOrPullRequest.id;
     
-      // Buscar el ID del item en el proyecto
-      const projectQuery = `
-      query($projectId: ID!) {
-        node(id: $projectId) {
-          ... on ProjectV2 {
-            items(first: 100) {
-              nodes {
-                id
-                content {
-                  ... on Issue {
-                    id
-                  }
-                  ... on PullRequest {
-                    id
+      // Search for the item ID in the project with pagination
+      let cursor: string | null = null;
+      let projectItemId: string | undefined = undefined;
+    
+      do {
+        const projectQuery = `
+        query($projectId: ID!, $cursor: String) {
+          node(id: $projectId) {
+            ... on ProjectV2 {
+              items(first: 100, after: $cursor) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+                nodes {
+                  id
+                  content {
+                    ... on Issue {
+                      id
+                    }
+                    ... on PullRequest {
+                      id
+                    }
                   }
                 }
               }
             }
           }
+        }`;
+    
+        const projectResult: any = await octokit.graphql(projectQuery, {
+          projectId: project.id,
+          cursor
+        });
+    
+        const items = projectResult.node.items.nodes;
+        const foundItem = items.find((item: any) => item.content?.id === contentId);
+    
+        if (foundItem) {
+          projectItemId = foundItem.id;
+          break;
         }
-      }`;
     
-      const projectResult: any = await octokit.graphql(projectQuery, {
-        projectId: project.id
-      });
+        cursor = projectResult.node.items.pageInfo.hasNextPage
+          ? projectResult.node.items.pageInfo.endCursor
+          : null;
     
-      const projectItem = projectResult.node.items.nodes.find(
-        (item: any) => item.content && item.content.id === contentId
-      );
+      } while (cursor);
     
-      return projectItem ? projectItem.id : undefined;
+      return projectItemId;
     };
-     
     
     isContentLinked = async (
         project: ProjectDetail,
