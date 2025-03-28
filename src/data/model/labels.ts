@@ -90,6 +90,10 @@ export class Labels {
         return this.currentIssueLabels.includes(this.maintenance);
     }
 
+    get sizeLabels(): string[] {
+        return [this.sizeXxl, this.sizeXl, this.sizeL, this.sizeM, this.sizeS, this.sizeXs];
+    }
+
     get isSizeXxl(): boolean {
         return this.currentIssueLabels.includes(this.sizeXxl);
     }
@@ -114,7 +118,7 @@ export class Labels {
         return this.currentIssueLabels.includes(this.sizeXs);
     }
 
-    get sizedLabel(): string | undefined {
+    get sizedLabelOnIssue(): string | undefined {
         if (this.currentIssueLabels.includes(this.sizeXxl)) {
             return this.sizeXxl;
         } else if (this.currentIssueLabels.includes(this.sizeXl)) {
@@ -131,8 +135,29 @@ export class Labels {
         return undefined;
     }
 
-    get isSized(): boolean {
-        return this.sizedLabel !== undefined;
+    get sizedLabelOnPullRequest(): string | undefined {
+        if (this.currentPullRequestLabels.includes(this.sizeXxl)) {
+            return this.sizeXxl;
+        } else if (this.currentPullRequestLabels.includes(this.sizeXl)) {
+            return this.sizeXl;
+        } else if (this.currentPullRequestLabels.includes(this.sizeL)) {
+            return this.sizeL;
+        } else if (this.currentPullRequestLabels.includes(this.sizeM)) {
+            return this.sizeM;
+        } else if (this.currentPullRequestLabels.includes(this.sizeS)) {
+            return this.sizeS;
+        } else if (this.currentPullRequestLabels.includes(this.sizeXs)) {
+            return this.sizeXs;
+        }
+        return undefined;
+    }
+
+    get isIssueSized(): boolean {
+        return this.sizedLabelOnIssue !== undefined;
+    }
+
+    get isPullRequestSized(): boolean {
+        return this.sizedLabelOnPullRequest !== undefined;
     }
 
     constructor(

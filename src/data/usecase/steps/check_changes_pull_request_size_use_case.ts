@@ -25,8 +25,15 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                 param.tokens.tokenPat,
             )
 
-            if (param.labels.sizedLabel !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+            logDebugInfo(`Size: ${size}`);
+            logDebugInfo(`Reason: ${reason}`);
+            logDebugInfo(`Labels: ${param.labels.sizedLabelOnPullRequest}`);
+
+            if (param.labels.sizedLabelOnPullRequest !== size) {
+                /**
+                 * Even if this is for pull reuqets, we are getting the issue labels for having a mirror of the issue labels on the pull request.
+                 */
+                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
 
                 await this.issueRepository.setLabels(

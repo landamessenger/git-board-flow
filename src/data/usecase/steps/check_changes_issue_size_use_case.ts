@@ -33,8 +33,12 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                 param.tokens.tokenPat,
             )
 
-            if (param.labels.sizedLabel !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+            logDebugInfo(`Size: ${size}`);
+            logDebugInfo(`Reason: ${reason}`);
+            logDebugInfo(`Labels: ${param.labels.sizedLabelOnIssue}`);
+
+            if (param.labels.sizedLabelOnIssue !== size) {
+                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
 
                 await this.issueRepository.setLabels(
