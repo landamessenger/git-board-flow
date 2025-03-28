@@ -50101,7 +50101,7 @@ class ProjectRepository {
                 projectId: project.id,
                 contentId: contentId,
             });
-            (0, logger_1.logDebugInfo)(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
+            (0, logger_1.logDebugInfo)(`Linked ${contentId} with id ${linkResult.addProjectV2ItemById.item.id} to project ${project.id}`);
             return true;
         };
         this.setTaskSize = async (project, owner, repo, issueOrPullRequestNumber, sizeLabel, token) => {
@@ -50184,9 +50184,9 @@ class ProjectRepository {
           ... on ProjectV2 {
             fields(first: 20) {
               nodes {
-                id
-                name
                 ... on ProjectV2SingleSelectField {
+                  id
+                  name
                   options {
                     id
                     name
@@ -50202,8 +50202,7 @@ class ProjectRepository {
                 (0, logger_1.logError)(`Failed to fetch fields for project.`);
                 return false;
             }
-            // Filtrar solo los campos que son del tipo ProjectV2SingleSelectField
-            const statusField = fieldResult.node.fields.nodes.find((f) => f.name === "Status" && f.options);
+            const statusField = fieldResult.node.fields.nodes.find((f) => f.name === "Status");
             if (!statusField) {
                 (0, logger_1.logError)(`Field 'Status' not found or is not a single-select field.`);
                 return false;
