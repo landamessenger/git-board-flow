@@ -62,7 +62,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column ${param.project.getProjectColumnPullRequestCreated()}.`,
+                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                                 ],
                             })
                         )
@@ -73,7 +73,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                                 success: false,
                                 executed: true,
                                 steps: [
-                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column ${param.project.getProjectColumnPullRequestCreated()}.`,
+                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                                 ],
                             })
                         )

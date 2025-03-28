@@ -23,7 +23,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
             const headBranch = param.commit.branch;
             const baseBranch = param.currentConfiguration.parentBranch;
 
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(
                 param.owner,
                 param.repo,
                 headBranch,
@@ -34,6 +34,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
             )
 
             logDebugInfo(`Size: ${size}`);
+            logDebugInfo(`Github Size: ${githubSize}`);
             logDebugInfo(`Reason: ${reason}`);
             logDebugInfo(`Labels: ${param.labels.sizedLabelOnIssue}`);
 

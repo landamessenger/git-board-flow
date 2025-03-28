@@ -743,39 +743,47 @@ This PR merges **${head}** into **${base}**.
             const totalCommits = headBranchChanges.totalCommits;
 
             let sizeCategory: string;
+            let githubSize: string;
             let sizeReason: string;
             if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
                 sizeCategory = labels.sizeXxl;
+                githubSize = `XL`;
                 sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
                             totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
                             `More than ${sizeThresholds.xxl.commits} commits`;
             } else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
                 sizeCategory = labels.sizeXl;
+                githubSize = `XL`;
                 sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
                             totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
                             `More than ${sizeThresholds.xl.commits} commits`;
             } else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
                 sizeCategory = labels.sizeL;
+                githubSize = `L`;
                 sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
                             totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
                             `More than ${sizeThresholds.l.commits} commits`;
             } else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
                 sizeCategory = labels.sizeM;
+                githubSize = `M`;
                 sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
                             totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
                             `More than ${sizeThresholds.m.commits} commits`;
             } else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
                 sizeCategory = labels.sizeS;
+                githubSize = `S`;
                 sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
                             totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
                             `More than ${sizeThresholds.s.commits} commits`;
             } else {
                 sizeCategory = labels.sizeXs;
+                githubSize = `XS`;
                 sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
             }
             
             return {
                 size: sizeCategory,
+                githubSize: githubSize,
                 reason: sizeReason
             }
         } catch (error) {

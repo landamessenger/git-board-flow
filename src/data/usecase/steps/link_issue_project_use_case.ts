@@ -58,6 +58,10 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
 
                 let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
                 if (actionDone) {
+                    /**
+                     * Wait for 10 seconds to ensure the issue is linked to the project
+                     */
+                    await new Promise(resolve => setTimeout(resolve, 10000));
                     actionDone = await this.projectRepository.moveIssueToColumn(
                         project,
                         param.owner,
@@ -74,7 +78,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column ${param.project.getProjectColumnIssueCreated()}.`,
+                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                                 ]
                             })
                         )
@@ -85,7 +89,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                                 success: false,
                                 executed: true,
                                 steps: [
-                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column ${param.project.getProjectColumnIssueCreated()}.`,
+                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                                 ]
                             })
                         )
