@@ -503,6 +503,10 @@ async function run(): Promise<void> {
     const documentationLabel = core.getInput('documentation-label');
     const choreLabel = core.getInput('chore-label');
     const maintenanceLabel = core.getInput('maintenance-label');
+    const priorityHighLabel = core.getInput('priority-high-label');
+    const priorityMediumLabel = core.getInput('priority-medium-label');
+    const priorityLowLabel = core.getInput('priority-low-label');
+    const priorityNoneLabel = core.getInput('priority-none-label');
     const sizeXxlLabel = core.getInput('size-xxl-label');
     const sizeXlLabel = core.getInput('size-xl-label');
     const sizeLLabel = core.getInput('size-l-label');
@@ -637,6 +641,10 @@ async function run(): Promise<void> {
             documentationLabel,
             choreLabel,
             maintenanceLabel,
+            priorityHighLabel,
+            priorityMediumLabel,
+            priorityLowLabel,
+            priorityNoneLabel,
             sizeXxlLabel,
             sizeXlLabel,
             sizeLLabel,

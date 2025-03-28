@@ -1,7 +1,7 @@
 name: 🔧 Chore Task
 description: Suggest a maintenance or internal improvement task
 title: "<YOUR TITLE HERE>"
-labels: ["chore", "maintenance"]
+labels: ["chore", "maintenance", "priority: low"]
 body:
   - type: checkboxes
     attributes:
