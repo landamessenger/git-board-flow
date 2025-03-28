@@ -47814,19 +47814,19 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Execution = void 0;
-const issue_repository_1 = __nccwpck_require__(57);
 const github = __importStar(__nccwpck_require__(5438));
-const label_utils_1 = __nccwpck_require__(6093);
-const title_utils_1 = __nccwpck_require__(6212);
-const config_1 = __nccwpck_require__(1106);
-const commit_1 = __nccwpck_require__(3993);
 const configuration_handler_1 = __nccwpck_require__(3264);
-const get_hotfix_version_use_case_1 = __nccwpck_require__(6933);
-const get_release_version_use_case_1 = __nccwpck_require__(9816);
-const get_release_type_use_case_1 = __nccwpck_require__(6790);
 const branch_repository_1 = __nccwpck_require__(7701);
-const version_utils_1 = __nccwpck_require__(8202);
+const issue_repository_1 = __nccwpck_require__(57);
+const get_hotfix_version_use_case_1 = __nccwpck_require__(6933);
+const get_release_type_use_case_1 = __nccwpck_require__(6790);
+const get_release_version_use_case_1 = __nccwpck_require__(9816);
+const label_utils_1 = __nccwpck_require__(6093);
 const logger_1 = __nccwpck_require__(1517);
+const title_utils_1 = __nccwpck_require__(6212);
+const version_utils_1 = __nccwpck_require__(8202);
+const commit_1 = __nccwpck_require__(3993);
+const config_1 = __nccwpck_require__(1106);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -47883,7 +47883,7 @@ class Execution {
     get commit() {
         return new commit_1.Commit();
     }
-    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, projects) {
+    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, project) {
         this.debug = false;
         /**
          * Every usage of this field should be checked.
@@ -48035,7 +48035,7 @@ class Execution {
         this.branches = branches;
         this.release = release;
         this.hotfix = hotfix;
-        this.projects = projects;
+        this.project = project;
         this.workflows = workflows;
         this.currentConfiguration = new config_1.Config({});
     }
@@ -48238,24 +48238,6 @@ class Labels {
     get sizeLabels() {
         return [this.sizeXxl, this.sizeXl, this.sizeL, this.sizeM, this.sizeS, this.sizeXs];
     }
-    get isSizeXxl() {
-        return this.currentIssueLabels.includes(this.sizeXxl);
-    }
-    get isSizeXl() {
-        return this.currentIssueLabels.includes(this.sizeXl);
-    }
-    get isSizeL() {
-        return this.currentIssueLabels.includes(this.sizeL);
-    }
-    get isSizeM() {
-        return this.currentIssueLabels.includes(this.sizeM);
-    }
-    get isSizeS() {
-        return this.currentIssueLabels.includes(this.sizeS);
-    }
-    get isSizeXs() {
-        return this.currentIssueLabels.includes(this.sizeXs);
-    }
     get sizedLabelOnIssue() {
         if (this.currentIssueLabels.includes(this.sizeXxl)) {
             return this.sizeXxl;
@@ -48304,7 +48286,46 @@ class Labels {
     get isPullRequestSized() {
         return this.sizedLabelOnPullRequest !== undefined;
     }
-    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, documentation, chore, maintenance, sizeXxl, sizeXl, sizeL, sizeM, sizeS, sizeXs) {
+    get priorityLabels() {
+        return [this.priorityHigh, this.priorityMedium, this.priorityLow, this.priorityNone];
+    }
+    get priorityLabelOnIssue() {
+        if (this.currentIssueLabels.includes(this.priorityHigh)) {
+            return this.priorityHigh;
+        }
+        else if (this.currentIssueLabels.includes(this.priorityMedium)) {
+            return this.priorityMedium;
+        }
+        else if (this.currentIssueLabels.includes(this.priorityLow)) {
+            return this.priorityLow;
+        }
+        else if (this.currentIssueLabels.includes(this.priorityNone)) {
+            return this.priorityNone;
+        }
+        return undefined;
+    }
+    get priorityLabelOnPullRequest() {
+        if (this.currentPullRequestLabels.includes(this.priorityHigh)) {
+            return this.priorityHigh;
+        }
+        else if (this.currentPullRequestLabels.includes(this.priorityMedium)) {
+            return this.priorityMedium;
+        }
+        else if (this.currentPullRequestLabels.includes(this.priorityLow)) {
+            return this.priorityLow;
+        }
+        else if (this.currentPullRequestLabels.includes(this.priorityNone)) {
+            return this.priorityNone;
+        }
+        return undefined;
+    }
+    get isIssuePrioritized() {
+        return this.priorityLabelOnIssue !== undefined && this.priorityLabelOnIssue !== this.priorityNone;
+    }
+    get isPullRequestPrioritized() {
+        return this.priorityLabelOnPullRequest !== undefined && this.priorityLabelOnPullRequest !== this.priorityNone;
+    }
+    constructor(branchManagementLauncherLabel, bug, bugfix, hotfix, enhancement, feature, release, question, help, deploy, deployed, docs, documentation, chore, maintenance, priorityHigh, priorityMedium, priorityLow, priorityNone, sizeXxl, sizeXl, sizeL, sizeM, sizeS, sizeXs) {
         this.currentIssueLabels = [];
         this.currentPullRequestLabels = [];
         this.branchManagementLauncherLabel = branchManagementLauncherLabel;
@@ -48328,6 +48349,10 @@ class Labels {
         this.sizeM = sizeM;
         this.sizeS = sizeS;
         this.sizeXs = sizeXs;
+        this.priorityHigh = priorityHigh;
+        this.priorityMedium = priorityMedium;
+        this.priorityLow = priorityLow;
+        this.priorityNone = priorityNone;
     }
 }
 exports.Labels = Labels;
@@ -48372,6 +48397,42 @@ class ProjectDetail {
     }
 }
 exports.ProjectDetail = ProjectDetail;
+
+
+/***/ }),
+
+/***/ 1938:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Projects = void 0;
+class Projects {
+    constructor(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress) {
+        this.projects = projects;
+        this.projectColumnIssueCreated = projectColumnIssueCreated;
+        this.projectColumnPullRequestCreated = projectColumnPullRequestCreated;
+        this.projectColumnIssueInProgress = projectColumnIssueInProgress;
+        this.projectColumnPullRequestInProgress = projectColumnPullRequestInProgress;
+    }
+    getProjects() {
+        return this.projects;
+    }
+    getProjectColumnIssueCreated() {
+        return this.projectColumnIssueCreated;
+    }
+    getProjectColumnPullRequestCreated() {
+        return this.projectColumnPullRequestCreated;
+    }
+    getProjectColumnIssueInProgress() {
+        return this.projectColumnIssueInProgress;
+    }
+    getProjectColumnPullRequestInProgress() {
+        return this.projectColumnPullRequestInProgress;
+    }
+}
+exports.Projects = Projects;
 
 
 /***/ }),
@@ -49285,43 +49346,51 @@ This PR merges **${head}** into **${base}**.
                 const totalFiles = headBranchChanges.files.length;
                 const totalCommits = headBranchChanges.totalCommits;
                 let sizeCategory;
+                let githubSize;
                 let sizeReason;
                 if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
                     sizeCategory = labels.sizeXxl;
+                    githubSize = `XL`;
                     sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
                         totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
                             `More than ${sizeThresholds.xxl.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
                     sizeCategory = labels.sizeXl;
+                    githubSize = `XL`;
                     sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
                         totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
                             `More than ${sizeThresholds.xl.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
                     sizeCategory = labels.sizeL;
+                    githubSize = `L`;
                     sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
                         totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
                             `More than ${sizeThresholds.l.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
                     sizeCategory = labels.sizeM;
+                    githubSize = `M`;
                     sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
                         totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
                             `More than ${sizeThresholds.m.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
                     sizeCategory = labels.sizeS;
+                    githubSize = `S`;
                     sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
                         totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
                             `More than ${sizeThresholds.s.commits} commits`;
                 }
                 else {
                     sizeCategory = labels.sizeXs;
+                    githubSize = `XS`;
                     sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
                 }
                 return {
                     size: sizeCategory,
+                    githubSize: githubSize,
                     reason: sizeReason
                 };
             }
@@ -49929,6 +49998,76 @@ class ProjectRepository {
                 number: parseInt(projectNumber, 10),
             });
         };
+        this.getContentId = async (project, owner, repo, issueOrPullRequestNumber, token) => {
+            const octokit = github.getOctokit(token);
+            // Search for the issue or pull request ID in the repository
+            const issueOrPrQuery = `
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issueOrPullRequest: issueOrPullRequest(number: $number) {
+            ... on Issue {
+              id
+            }
+            ... on PullRequest {
+              id
+            }
+          }
+        }
+      }`;
+            const issueOrPrResult = await octokit.graphql(issueOrPrQuery, {
+                owner,
+                repo,
+                number: issueOrPullRequestNumber
+            });
+            if (!issueOrPrResult.repository.issueOrPullRequest) {
+                console.error(`Issue or PR #${issueOrPullRequestNumber} not found.`);
+                return undefined;
+            }
+            const contentId = issueOrPrResult.repository.issueOrPullRequest.id;
+            // Search for the item ID in the project with pagination
+            let cursor = null;
+            let projectItemId = undefined;
+            do {
+                const projectQuery = `
+        query($projectId: ID!, $cursor: String) {
+          node(id: $projectId) {
+            ... on ProjectV2 {
+              items(first: 100, after: $cursor) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+                nodes {
+                  id
+                  content {
+                    ... on Issue {
+                      id
+                    }
+                    ... on PullRequest {
+                      id
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }`;
+                const projectResult = await octokit.graphql(projectQuery, {
+                    projectId: project.id,
+                    cursor
+                });
+                const items = projectResult.node.items.nodes;
+                const foundItem = items.find((item) => item.content?.id === contentId);
+                if (foundItem) {
+                    projectItemId = foundItem.id;
+                    break;
+                }
+                cursor = projectResult.node.items.pageInfo.hasNextPage
+                    ? projectResult.node.items.pageInfo.endCursor
+                    : null;
+            } while (cursor);
+            return projectItemId;
+        };
         this.isContentLinked = async (project, contentId, token) => {
             const octokit = github.getOctokit(token);
             let hasNextPage = true;
@@ -49995,8 +50134,144 @@ class ProjectRepository {
                 projectId: project.id,
                 contentId: contentId,
             });
-            (0, logger_1.logDebugInfo)(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
+            (0, logger_1.logDebugInfo)(`Linked ${contentId} with id ${linkResult.addProjectV2ItemById.item.id} to project ${project.id}`);
             return true;
+        };
+        this.setTaskSize = async (project, owner, repo, issueOrPullRequestNumber, sizeLabel, token) => {
+            const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
+            if (!contentId) {
+                (0, logger_1.logError)(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
+                return false;
+            }
+            const octokit = github.getOctokit(token);
+            // Get the field ID of the "Size" field in the project
+            const fieldQuery = `
+        query($projectId: ID!) {
+          node(id: $projectId) {
+            ... on ProjectV2 {
+              fields(first: 20) {
+                nodes {
+                  ... on ProjectV2SingleSelectField {
+                    id
+                    name
+                    options {
+                      id
+                      name
+                    }
+                  }
+                  ... on ProjectV2Field {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }`;
+            const fieldResult = await octokit.graphql(fieldQuery, { projectId: project.id });
+            const sizeField = fieldResult.node.fields.nodes.find((f) => f.name === "Size");
+            if (!sizeField) {
+                (0, logger_1.logError)(`Field 'Size' not found in the project.`);
+                return false;
+            }
+            const sizeOption = sizeField.options.find((opt) => opt.name === sizeLabel);
+            if (!sizeOption) {
+                (0, logger_1.logError)(`Size option '${sizeLabel}' not found.`);
+                return false;
+            }
+            // Assign the size to the issue
+            const mutation = `
+        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+          updateProjectV2ItemFieldValue(
+            input: {
+              projectId: $projectId,
+              itemId: $itemId,
+              fieldId: $fieldId,
+              value: { singleSelectOptionId: $optionId }
+            }
+          ) {
+            projectV2Item {
+              id
+            }
+          }
+        }`;
+            const mutationResult = await octokit.graphql(mutation, {
+                projectId: project.id,
+                itemId: contentId,
+                fieldId: sizeField.id,
+                optionId: sizeOption.id
+            });
+            return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
+        };
+        this.moveIssueToColumn = async (project, owner, repo, issueOrPullRequestNumber, columnName, token) => {
+            const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
+            if (!contentId) {
+                (0, logger_1.logError)(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
+                return false;
+            }
+            (0, logger_1.logDebugInfo)(`Project ID: ${project.id}`);
+            (0, logger_1.logDebugInfo)(`Issue or Pull Request Number: ${issueOrPullRequestNumber}`);
+            (0, logger_1.logDebugInfo)(`Content ID: ${contentId}`);
+            (0, logger_1.logDebugInfo)(`Column Name: ${columnName}`);
+            const octokit = github.getOctokit(token);
+            // Get the field ID of the "Status" field in the project
+            const fieldQuery = `
+      query($projectId: ID!) {
+        node(id: $projectId) {
+          ... on ProjectV2 {
+            fields(first: 20) {
+              nodes {
+                ... on ProjectV2SingleSelectField {
+                  id
+                  name
+                  options {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`;
+            const fieldResult = await octokit.graphql(fieldQuery, { projectId: project.id });
+            if (!fieldResult.node || !fieldResult.node.fields) {
+                (0, logger_1.logError)(`Failed to fetch fields for project.`);
+                return false;
+            }
+            const statusField = fieldResult.node.fields.nodes.find((f) => f.name === "Status");
+            if (!statusField) {
+                (0, logger_1.logError)(`Field 'Status' not found or is not a single-select field.`);
+                return false;
+            }
+            const columnOption = statusField.options.find((opt) => opt.name === columnName);
+            if (!columnOption) {
+                (0, logger_1.logError)(`Option '${columnName}' not found.`);
+                return false;
+            }
+            // Assign the option status to the issue
+            const mutation = `
+      mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+        updateProjectV2ItemFieldValue(
+          input: {
+            projectId: $projectId,
+            itemId: $itemId,
+            fieldId: $fieldId,
+            value: { singleSelectOptionId: $optionId }
+          }
+        ) {
+          projectV2Item {
+            id
+          }
+        }
+      }`;
+            const mutationResult = await octokit.graphql(mutation, {
+                projectId: project.id,
+                itemId: contentId,
+                fieldId: statusField.id,
+                optionId: columnOption.id
+            });
+            return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
         };
         this.getRandomMembers = async (organization, membersToAdd, currentMembers, token) => {
             if (membersToAdd === 0) {
@@ -51060,12 +51335,14 @@ exports.CheckChangesIssueSizeUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(1517);
 class CheckChangesIssueSizeUseCase {
     constructor() {
         this.taskId = 'CheckChangesIssueSizeUseCase';
         this.branchRepository = new branch_repository_1.BranchRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
@@ -51077,14 +51354,18 @@ class CheckChangesIssueSizeUseCase {
             }
             const headBranch = param.commit.branch;
             const baseBranch = param.currentConfiguration.parentBranch;
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.tokenPat);
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`Size: ${size}`);
+            (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
             (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
             (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnIssue}`);
             if (param.labels.sizedLabelOnIssue !== size) {
                 const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
                 await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
+                for (const project of param.project.getProjects()) {
+                    await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.issueNumber, githubSize, param.tokens.tokenPat);
+                }
                 (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.issueNumber}:`);
                 (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
                 result.push(new result_1.Result({
@@ -51129,19 +51410,22 @@ exports.CheckChangesPullRequestSizeUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(1517);
 class CheckChangesPullRequestSizeUseCase {
     constructor() {
         this.taskId = 'CheckChangesPullRequestSizeUseCase';
         this.branchRepository = new branch_repository_1.BranchRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`Size: ${size}`);
+            (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
             (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
             (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnPullRequest}`);
             if (param.labels.sizedLabelOnPullRequest !== size) {
@@ -51151,6 +51435,9 @@ class CheckChangesPullRequestSizeUseCase {
                 const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
                 await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.token);
+                for (const project of param.project.getProjects()) {
+                    await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.pullRequest.number, githubSize, param.tokens.tokenPat);
+                }
                 (0, logger_1.logDebugInfo)(`Updated labels on pull request #${param.pullRequest.number}:`);
                 (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
                 result.push(new result_1.Result({
@@ -51923,7 +52210,7 @@ class LinkIssueProjectUseCase {
         try {
             const projects = await this.issueRepository.fetchIssueProjects(param.owner, param.repo, param.issue.number, param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
-            for (const project of param.projects) {
+            for (const project of param.project.getProjects()) {
                 if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
                     continue;
                 }
@@ -51940,16 +52227,33 @@ class LinkIssueProjectUseCase {
                     continue;
                 }
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
-                const actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
+                let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
                 if (actionDone) {
-                    result.push(new result_1.Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
-                        ]
-                    }));
+                    /**
+                     * Wait for 10 seconds to ensure the issue is linked to the project
+                     */
+                    await new Promise(resolve => setTimeout(resolve, 10000));
+                    actionDone = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.issue.number, param.project.getProjectColumnIssueCreated(), param.tokens.tokenPat);
+                    if (actionDone) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                            ]
+                        }));
+                    }
+                    else {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                            ]
+                        }));
+                    }
                 }
             }
             return result;
@@ -52115,7 +52419,6 @@ exports.LinkPullRequestIssueUseCase = LinkPullRequestIssueUseCase;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.LinkPullRequestProjectUseCase = void 0;
-const core_1 = __nccwpck_require__(2186);
 const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(1517);
@@ -52128,30 +52431,46 @@ class LinkPullRequestProjectUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            for (const project of param.projects) {
-                const actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
+            for (const project of param.project.getProjects()) {
+                let currentProject = await this.projectRepository.getProjectDetail(project.url, param.tokens.tokenPat);
+                if (currentProject === undefined) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
+                        ]
+                    }));
+                    continue;
+                }
+                let actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
                 if (actionDone) {
-                    let currentProject = await this.projectRepository.getProjectDetail(project.url, param.tokens.tokenPat);
-                    if (currentProject === undefined) {
+                    /**
+                     * Wait for 10 seconds to ensure the pull request is linked to the project
+                     */
+                    await new Promise(resolve => setTimeout(resolve, 10000));
+                    actionDone = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.pullRequest.number, param.project.getProjectColumnPullRequestCreated(), param.tokens.tokenPat);
+                    if (actionDone) {
+                        result.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                            ],
+                        }));
+                    }
+                    else {
                         result.push(new result_1.Result({
                             id: this.taskId,
                             success: false,
                             executed: true,
                             steps: [
-                                `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
-                            ]
+                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                            ],
                         }));
-                        continue;
                     }
-                    result.push(new result_1.Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}).`,
-                        ],
-                        error: core_1.error,
-                    }));
                 }
             }
             return result;
@@ -53525,6 +53844,7 @@ const hotfix_1 = __nccwpck_require__(7341);
 const images_1 = __nccwpck_require__(1721);
 const issue_1 = __nccwpck_require__(2632);
 const labels_1 = __nccwpck_require__(818);
+const projects_1 = __nccwpck_require__(1938);
 const pull_request_1 = __nccwpck_require__(4179);
 const release_1 = __nccwpck_require__(2551);
 const single_action_1 = __nccwpck_require__(8024);
@@ -53756,6 +54076,10 @@ async function run() {
         const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat);
         projects.push(detail);
     }
+    const projectColumnIssueCreated = core.getInput('project-column-issue-created');
+    const projectColumnPullRequestCreated = core.getInput('project-column-pull-request-created');
+    const projectColumnIssueInProgress = core.getInput('project-column-issue-in-progress');
+    const projectColumnPullRequestInProgress = core.getInput('project-column-pull-request-in-progress');
     /**
      * Images
      */
@@ -53958,6 +54282,10 @@ async function run() {
     const documentationLabel = core.getInput('documentation-label');
     const choreLabel = core.getInput('chore-label');
     const maintenanceLabel = core.getInput('maintenance-label');
+    const priorityHighLabel = core.getInput('priority-high-label');
+    const priorityMediumLabel = core.getInput('priority-medium-label');
+    const priorityLowLabel = core.getInput('priority-low-label');
+    const priorityNoneLabel = core.getInput('priority-none-label');
     const sizeXxlLabel = core.getInput('size-xxl-label');
     const sizeXlLabel = core.getInput('size-xl-label');
     const sizeLLabel = core.getInput('size-l-label');
@@ -54015,7 +54343,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), projects);
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, tokenPat), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
     await execution.setup();
     if (execution.issueNumber === -1) {
         (0, logger_1.logInfo)(`Issue number not found. Skipping.`);

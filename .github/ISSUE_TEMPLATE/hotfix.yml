@@ -2,7 +2,7 @@ name: 🔥 Hotfix Issue
 
 description: Request a new hotfix for git-board-flow (only team members)
 title: "<YOUR TITLE HERE>"
-labels: [ "hotfix", "branched" ]
+labels: [ "hotfix", "branched", "priority: high" ]
 body:
   - type: markdown
     attributes:

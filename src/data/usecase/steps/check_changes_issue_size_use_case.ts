@@ -2,6 +2,7 @@ import { Execution } from "../../model/execution";
 import { Result } from "../../model/result";
 import { BranchRepository } from "../../repository/branch_repository";
 import { IssueRepository } from "../../repository/issue_repository";
+import { ProjectRepository } from "../../repository/project_repository";
 import { logDebugInfo, logError, logInfo } from "../../utils/logger";
 import { ParamUseCase } from "../base/param_usecase";
 
@@ -9,7 +10,8 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
     taskId: string = 'CheckChangesIssueSizeUseCase';
     private branchRepository = new BranchRepository();
     private issueRepository = new IssueRepository();
-    
+    private projectRepository = new ProjectRepository();
+
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
 
@@ -23,7 +25,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
             const headBranch = param.commit.branch;
             const baseBranch = param.currentConfiguration.parentBranch;
 
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(
                 param.owner,
                 param.repo,
                 headBranch,
@@ -34,6 +36,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
             )
 
             logDebugInfo(`Size: ${size}`);
+            logDebugInfo(`Github Size: ${githubSize}`);
             logDebugInfo(`Reason: ${reason}`);
             logDebugInfo(`Labels: ${param.labels.sizedLabelOnIssue}`);
 
@@ -48,6 +51,17 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                     labelNames,
                     param.tokens.token,
                 )
+
+                for (const project of param.project.getProjects()) {
+                    await this.projectRepository.setTaskSize(
+                        project,
+                        param.owner,
+                        param.repo,
+                        param.issueNumber,
+                        githubSize,
+                        param.tokens.tokenPat,
+                    )
+                }
 
                 logDebugInfo(`Updated labels on issue #${param.issueNumber}:`);
                 logDebugInfo(`Labels: ${labelNames}`);

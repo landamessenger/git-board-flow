@@ -22,6 +22,11 @@ export class Labels {
     sizeM: string;
     sizeS: string;
     sizeXs: string;
+
+    priorityHigh: string;
+    priorityMedium: string;
+    priorityLow: string;
+    priorityNone: string;
     
     currentIssueLabels: string[] = [];
     currentPullRequestLabels: string[] = [];
@@ -94,30 +99,6 @@ export class Labels {
         return [this.sizeXxl, this.sizeXl, this.sizeL, this.sizeM, this.sizeS, this.sizeXs];
     }
 
-    get isSizeXxl(): boolean {
-        return this.currentIssueLabels.includes(this.sizeXxl);
-    }
-
-    get isSizeXl(): boolean {
-        return this.currentIssueLabels.includes(this.sizeXl);
-    }
-
-    get isSizeL(): boolean {
-        return this.currentIssueLabels.includes(this.sizeL);
-    }
-
-    get isSizeM(): boolean {
-        return this.currentIssueLabels.includes(this.sizeM);
-    }
-
-    get isSizeS(): boolean {
-        return this.currentIssueLabels.includes(this.sizeS);
-    }
-
-    get isSizeXs(): boolean {
-        return this.currentIssueLabels.includes(this.sizeXs);
-    }
-
     get sizedLabelOnIssue(): string | undefined {
         if (this.currentIssueLabels.includes(this.sizeXxl)) {
             return this.sizeXxl;
@@ -160,6 +141,44 @@ export class Labels {
         return this.sizedLabelOnPullRequest !== undefined;
     }
 
+    get priorityLabels(): string[] {
+        return [this.priorityHigh, this.priorityMedium, this.priorityLow, this.priorityNone];
+    }
+
+    get priorityLabelOnIssue(): string | undefined {
+        if (this.currentIssueLabels.includes(this.priorityHigh)) {
+            return this.priorityHigh;
+        } else if (this.currentIssueLabels.includes(this.priorityMedium)) {
+            return this.priorityMedium;
+        } else if (this.currentIssueLabels.includes(this.priorityLow)) {
+            return this.priorityLow;
+        } else if (this.currentIssueLabels.includes(this.priorityNone)) {
+            return this.priorityNone;
+        }
+        return undefined;
+    }
+
+    get priorityLabelOnPullRequest(): string | undefined {
+        if (this.currentPullRequestLabels.includes(this.priorityHigh)) {
+            return this.priorityHigh;
+        } else if (this.currentPullRequestLabels.includes(this.priorityMedium)) {
+            return this.priorityMedium;
+        } else if (this.currentPullRequestLabels.includes(this.priorityLow)) {
+            return this.priorityLow;
+        } else if (this.currentPullRequestLabels.includes(this.priorityNone)) {
+            return this.priorityNone;
+        }
+        return undefined;
+    }
+
+    get isIssuePrioritized(): boolean {
+        return this.priorityLabelOnIssue !== undefined && this.priorityLabelOnIssue !== this.priorityNone;
+    }
+
+    get isPullRequestPrioritized(): boolean {
+        return this.priorityLabelOnPullRequest !== undefined && this.priorityLabelOnPullRequest !== this.priorityNone;
+    }
+
     constructor(
         branchManagementLauncherLabel: string,
         bug: string,
@@ -176,6 +195,10 @@ export class Labels {
         documentation: string,
         chore: string,
         maintenance: string,
+        priorityHigh: string,
+        priorityMedium: string,
+        priorityLow: string,
+        priorityNone: string,
         sizeXxl: string,
         sizeXl: string,
         sizeL: string,
@@ -204,5 +227,9 @@ export class Labels {
         this.sizeM = sizeM;
         this.sizeS = sizeS;
         this.sizeXs = sizeXs;
+        this.priorityHigh = priorityHigh;
+        this.priorityMedium = priorityMedium;
+        this.priorityLow = priorityLow;
+        this.priorityNone = priorityNone;
     }
 }

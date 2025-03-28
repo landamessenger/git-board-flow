@@ -1,7 +1,7 @@
 name: ✨ Feature Request
 description: Propose an idea or improvement for git-board-flow
 title: "<YOUR TITLE HERE>"
-labels: ["enhancement", "feature"]
+labels: ["enhancement", "feature", "priority: low"]
 body:
   - type: checkboxes
     attributes:

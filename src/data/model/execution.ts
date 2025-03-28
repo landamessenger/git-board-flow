@@ -1,30 +1,30 @@
-import {ProjectDetail} from "./project_detail";
-import {Tokens} from "./tokens";
-import {Labels} from "./labels";
-import {Branches} from "./branches";
-import {Hotfix} from "./hotfix";
-import {IssueRepository} from "../repository/issue_repository";
 import * as github from "@actions/github";
-import {branchesForManagement, typesForIssue} from "../utils/label_utils";
-import {Issue} from "./issue";
-import {PullRequest} from "./pull_request";
-import {extractIssueNumberFromBranch, extractIssueNumberFromPush} from "../utils/title_utils";
-import {Config} from "./config";
-import {Images} from "./images";
-import {Commit} from "./commit";
-import {Emoji} from "./emoji";
-import {ConfigurationHandler} from "../manager/description/configuration_handler";
-import {Workflows} from "./workflows";
-import {Release} from "./release";
-import {GetHotfixVersionUseCase} from "../usecase/steps/get_hotfix_version_use_case";
-import {GetReleaseVersionUseCase} from "../usecase/steps/get_release_version_use_case";
-import {GetReleaseTypeUseCase} from "../usecase/steps/get_release_type_use_case";
-import {BranchRepository} from "../repository/branch_repository";
-import {incrementVersion} from "../utils/version_utils";
-import {SingleAction} from "./single_action";
-import {Ai} from "./ai";   
-import { SizeThresholds } from "./size_thresholds";
+import { ConfigurationHandler } from "../manager/description/configuration_handler";
+import { BranchRepository } from "../repository/branch_repository";
+import { IssueRepository } from "../repository/issue_repository";
+import { GetHotfixVersionUseCase } from "../usecase/steps/get_hotfix_version_use_case";
+import { GetReleaseTypeUseCase } from "../usecase/steps/get_release_type_use_case";
+import { GetReleaseVersionUseCase } from "../usecase/steps/get_release_version_use_case";
+import { branchesForManagement, typesForIssue } from "../utils/label_utils";
 import { logDebugInfo, setGlobalLoggerDebug } from "../utils/logger";
+import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../utils/title_utils";
+import { incrementVersion } from "../utils/version_utils";
+import { Ai } from "./ai";
+import { Branches } from "./branches";
+import { Commit } from "./commit";
+import { Config } from "./config";
+import { Emoji } from "./emoji";
+import { Hotfix } from "./hotfix";
+import { Images } from "./images";
+import { Issue } from "./issue";
+import { Labels } from "./labels";
+import { Projects } from "./projects";
+import { PullRequest } from "./pull_request";
+import { Release } from "./release";
+import { SingleAction } from "./single_action";
+import { SizeThresholds } from "./size_thresholds";
+import { Tokens } from "./tokens";
+import { Workflows } from "./workflows";
  
 export class Execution {
     debug: boolean = false;
@@ -51,7 +51,7 @@ export class Execution {
     issue: Issue;
     pullRequest: PullRequest;
     workflows: Workflows;
-    projects: ProjectDetail[];
+    project: Projects;
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
 
@@ -169,7 +169,7 @@ export class Execution {
         release: Release,
         hotfix: Hotfix,
         workflows: Workflows,
-        projects: ProjectDetail[],
+        project: Projects,
     ) {
         this.debug = debug;
         this.singleAction = singleAction;
@@ -185,7 +185,7 @@ export class Execution {
         this.branches = branches;
         this.release = release;
         this.hotfix = hotfix;
-        this.projects = projects;
+        this.project = project;
         this.workflows = workflows;
         this.currentConfiguration = new Config({});
     }
