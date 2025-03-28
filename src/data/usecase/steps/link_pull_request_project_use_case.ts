@@ -42,6 +42,10 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                 )
 
                 if (actionDone) {
+                    /**
+                     * Wait for 10 seconds to ensure the pull request is linked to the project
+                     */
+                    await new Promise(resolve => setTimeout(resolve, 10000));
                     actionDone = await this.projectRepository.moveIssueToColumn(
                         project,
                         param.owner,
