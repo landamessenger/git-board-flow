@@ -50126,13 +50126,17 @@ class ProjectRepository {
             ... on ProjectV2 {
               fields(first: 20) {
                 nodes {
-                  id
-                  name
                   ... on ProjectV2SingleSelectField {
+                    id
+                    name
                     options {
                       id
                       name
                     }
+                  }
+                  ... on ProjectV2Field {
+                    id
+                    name
                   }
                 }
               }
@@ -50142,12 +50146,12 @@ class ProjectRepository {
             const fieldResult = await octokit.graphql(fieldQuery, { projectId: project.id });
             const sizeField = fieldResult.node.fields.nodes.find((f) => f.name === "Size");
             if (!sizeField) {
-                console.error(`Field 'Size' not found in the project.`);
+                (0, logger_1.logError)(`Field 'Size' not found in the project.`);
                 return false;
             }
             const sizeOption = sizeField.options.find((opt) => opt.name === sizeLabel);
             if (!sizeOption) {
-                console.error(`Size option '${sizeLabel}' not found.`);
+                (0, logger_1.logError)(`Size option '${sizeLabel}' not found.`);
                 return false;
             }
             // Assign the size to the issue
