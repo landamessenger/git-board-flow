@@ -49321,43 +49321,51 @@ This PR merges **${head}** into **${base}**.
                 const totalFiles = headBranchChanges.files.length;
                 const totalCommits = headBranchChanges.totalCommits;
                 let sizeCategory;
+                let githubSize;
                 let sizeReason;
                 if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
                     sizeCategory = labels.sizeXxl;
+                    githubSize = `XL`;
                     sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
                         totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
                             `More than ${sizeThresholds.xxl.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
                     sizeCategory = labels.sizeXl;
+                    githubSize = `XL`;
                     sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
                         totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
                             `More than ${sizeThresholds.xl.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
                     sizeCategory = labels.sizeL;
+                    githubSize = `L`;
                     sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
                         totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
                             `More than ${sizeThresholds.l.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
                     sizeCategory = labels.sizeM;
+                    githubSize = `M`;
                     sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
                         totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
                             `More than ${sizeThresholds.m.commits} commits`;
                 }
                 else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
                     sizeCategory = labels.sizeS;
+                    githubSize = `S`;
                     sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
                         totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
                             `More than ${sizeThresholds.s.commits} commits`;
                 }
                 else {
                     sizeCategory = labels.sizeXs;
+                    githubSize = `XS`;
                     sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
                 }
                 return {
                     size: sizeCategory,
+                    githubSize: githubSize,
                     reason: sizeReason
                 };
             }
@@ -51315,8 +51323,9 @@ class CheckChangesIssueSizeUseCase {
             }
             const headBranch = param.commit.branch;
             const baseBranch = param.currentConfiguration.parentBranch;
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.tokenPat);
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`Size: ${size}`);
+            (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
             (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
             (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnIssue}`);
             if (param.labels.sizedLabelOnIssue !== size) {
@@ -51367,19 +51376,22 @@ exports.CheckChangesPullRequestSizeUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(1517);
 class CheckChangesPullRequestSizeUseCase {
     constructor() {
         this.taskId = 'CheckChangesPullRequestSizeUseCase';
         this.branchRepository = new branch_repository_1.BranchRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`Size: ${size}`);
+            (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
             (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
             (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnPullRequest}`);
             if (param.labels.sizedLabelOnPullRequest !== size) {
@@ -51389,6 +51401,9 @@ class CheckChangesPullRequestSizeUseCase {
                 const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
                 await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.token);
+                for (const project of param.project.getProjects()) {
+                    await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.pullRequest.number, githubSize, param.tokens.tokenPat);
+                }
                 (0, logger_1.logDebugInfo)(`Updated labels on pull request #${param.pullRequest.number}:`);
                 (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
                 result.push(new result_1.Result({
@@ -52180,6 +52195,10 @@ class LinkIssueProjectUseCase {
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
                 let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
                 if (actionDone) {
+                    /**
+                     * Wait for 10 seconds to ensure the issue is linked to the project
+                     */
+                    await new Promise(resolve => setTimeout(resolve, 10000));
                     actionDone = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.issue.number, param.project.getProjectColumnIssueCreated(), param.tokens.tokenPat);
                     if (actionDone) {
                         result.push(new result_1.Result({
@@ -52187,7 +52206,7 @@ class LinkIssueProjectUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column ${param.project.getProjectColumnIssueCreated()}.`,
+                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                             ]
                         }));
                     }
@@ -52197,7 +52216,7 @@ class LinkIssueProjectUseCase {
                             success: false,
                             executed: true,
                             steps: [
-                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column ${param.project.getProjectColumnIssueCreated()}.`,
+                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                             ]
                         }));
                     }
@@ -52404,7 +52423,7 @@ class LinkPullRequestProjectUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column ${param.project.getProjectColumnPullRequestCreated()}.`,
+                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                             ],
                         }));
                     }
@@ -52414,7 +52433,7 @@ class LinkPullRequestProjectUseCase {
                             success: false,
                             executed: true,
                             steps: [
-                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column ${param.project.getProjectColumnPullRequestCreated()}.`,
+                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                             ],
                         }));
                     }
