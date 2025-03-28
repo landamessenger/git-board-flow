@@ -49967,7 +49967,7 @@ class ProjectRepository {
         };
         this.getContentId = async (project, owner, repo, issueOrPullRequestNumber, token) => {
             const octokit = github.getOctokit(token);
-            // Buscar el ID de la issue o pull request en el repositorio
+            // Search for the issue or pull request ID in the repository
             const issueOrPrQuery = `
       query($owner: String!, $repo: String!, $number: Int!) {
         repository(owner: $owner, name: $repo) {
@@ -49991,32 +49991,49 @@ class ProjectRepository {
                 return undefined;
             }
             const contentId = issueOrPrResult.repository.issueOrPullRequest.id;
-            // Buscar el ID del item en el proyecto
-            const projectQuery = `
-      query($projectId: ID!) {
-        node(id: $projectId) {
-          ... on ProjectV2 {
-            items(first: 100) {
-              nodes {
-                id
-                content {
-                  ... on Issue {
-                    id
-                  }
-                  ... on PullRequest {
-                    id
+            // Search for the item ID in the project with pagination
+            let cursor = null;
+            let projectItemId = undefined;
+            do {
+                const projectQuery = `
+        query($projectId: ID!, $cursor: String) {
+          node(id: $projectId) {
+            ... on ProjectV2 {
+              items(first: 100, after: $cursor) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+                nodes {
+                  id
+                  content {
+                    ... on Issue {
+                      id
+                    }
+                    ... on PullRequest {
+                      id
+                    }
                   }
                 }
               }
             }
           }
-        }
-      }`;
-            const projectResult = await octokit.graphql(projectQuery, {
-                projectId: project.id
-            });
-            const projectItem = projectResult.node.items.nodes.find((item) => item.content && item.content.id === contentId);
-            return projectItem ? projectItem.id : undefined;
+        }`;
+                const projectResult = await octokit.graphql(projectQuery, {
+                    projectId: project.id,
+                    cursor
+                });
+                const items = projectResult.node.items.nodes;
+                const foundItem = items.find((item) => item.content?.id === contentId);
+                if (foundItem) {
+                    projectItemId = foundItem.id;
+                    break;
+                }
+                cursor = projectResult.node.items.pageInfo.hasNextPage
+                    ? projectResult.node.items.pageInfo.endCursor
+                    : null;
+            } while (cursor);
+            return projectItemId;
         };
         this.isContentLinked = async (project, contentId, token) => {
             const octokit = github.getOctokit(token);
