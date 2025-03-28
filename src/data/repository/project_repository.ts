@@ -223,7 +223,7 @@ export class ProjectRepository {
             contentId: contentId,
         });
 
-        logDebugInfo(`Linked ${contentId} to organization project: ${linkResult.addProjectV2ItemById.item.id}`);
+        logDebugInfo(`Linked ${contentId} with id ${linkResult.addProjectV2ItemById.item.id} to project ${project.id}`);
 
         return true;
     }
@@ -334,9 +334,9 @@ export class ProjectRepository {
           ... on ProjectV2 {
             fields(first: 20) {
               nodes {
-                id
-                name
                 ... on ProjectV2SingleSelectField {
+                  id
+                  name
                   options {
                     id
                     name
@@ -355,9 +355,8 @@ export class ProjectRepository {
           return false;
       }
   
-      // Filtrar solo los campos que son del tipo ProjectV2SingleSelectField
       const statusField = fieldResult.node.fields.nodes.find(
-          (f: any) => f.name === "Status" && f.options
+          (f: any) => f.name === "Status"
       );
   
       if (!statusField) {
