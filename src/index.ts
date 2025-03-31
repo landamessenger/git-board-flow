@@ -245,9 +245,8 @@ async function run(): Promise<void> {
         .filter(id => id.length > 0);
 
     const projects: ProjectDetail[] = []
-    for (const projectId of projectIds) {
-        const projectUrl = `https://github.com/orgs/${github.context.repo.owner}/projects/${projectId}`
-        const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat)
+    for (const projectId of projectIds) {        
+        const detail = await projectRepository.getProjectDetail(projectId, tokenPat)
         projects.push(detail)
     }
 
