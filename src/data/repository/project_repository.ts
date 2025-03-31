@@ -399,7 +399,90 @@ export class ProjectRepository {
       });
   
       return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
-    };  
+    };
+    
+    setTaskPriority = async (
+        project: ProjectDetail,
+        owner: string,
+        repo: string,
+        issueOrPullRequestNumber: number,
+        priorityLabel: string,
+        token: string
+    ): Promise<boolean> => {
+        const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
+        if (!contentId) {
+            logError(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
+            return false; 
+        }
+
+        const octokit = github.getOctokit(token);
+
+        // Get the field ID of the "Priority" field in the project
+        const fieldQuery = `
+        query($projectId: ID!) {
+          node(id: $projectId) {
+            ... on ProjectV2 {
+              fields(first: 20) {
+                nodes { 
+                  ... on ProjectV2SingleSelectField {
+                    id
+                    name
+                    options {
+                      id
+                      name  
+                    }
+                  }
+                }
+              }
+            }
+          }         
+        }`;
+
+        const fieldResult: any = await octokit.graphql(fieldQuery, { projectId: project.id });
+
+        const priorityField = fieldResult.node.fields.nodes.find(
+            (f: any) => f.name === "Priority"
+        );
+
+        if (!priorityField) {
+            logError(`Field 'Priority' not found or is not a single-select field.`);
+            return false;
+        }
+
+        const priorityOption = priorityField.options.find(
+            (opt: any) => opt.name === priorityLabel
+        );
+
+        if (!priorityOption) {
+            logError(`Option '${priorityLabel}' not found.`);
+            return false;
+        }
+
+        const mutation = `
+        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+          updateProjectV2ItemFieldValue(  
+            input: {
+              projectId: $projectId,
+              itemId: $itemId,
+              fieldId: $fieldId,
+              value: { singleSelectOptionId: $optionId }
+            }
+          ) {
+            projectV2Item {
+              id
+            }
+          }
+        }`;
+
+        const mutationResult: any = await octokit.graphql(mutation, {
+            projectId: project.id,
+            itemId: contentId,
+            fieldId: priorityField.id,
+            optionId: priorityOption.id
+        });
+
+        return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
+    };
 
     getRandomMembers = async (
         organization: string,

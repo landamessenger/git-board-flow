@@ -158,6 +158,12 @@ export class Labels {
         return undefined;
     }
 
+    get priorityLabelOnIssueProcessable(): boolean {
+        return this.currentIssueLabels.includes(this.priorityHigh) ||
+               this.currentIssueLabels.includes(this.priorityMedium) ||
+               this.currentIssueLabels.includes(this.priorityLow);
+    }
+
     get priorityLabelOnPullRequest(): string | undefined {
         if (this.currentPullRequestLabels.includes(this.priorityHigh)) {
             return this.priorityHigh;
@@ -169,6 +175,12 @@ export class Labels {
             return this.priorityNone;
         }
         return undefined;
+    }
+
+    get priorityLabelOnPullRequestProcessable(): boolean {
+        return this.currentPullRequestLabels.includes(this.priorityHigh) ||
+               this.currentPullRequestLabels.includes(this.priorityMedium) ||
+               this.currentPullRequestLabels.includes(this.priorityLow);
     }
 
     get isIssuePrioritized(): boolean {

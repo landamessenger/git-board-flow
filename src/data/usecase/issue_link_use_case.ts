@@ -5,6 +5,7 @@ import { ParamUseCase } from "./base/param_usecase";
 import { RemoveIssueBranchesUseCase } from "./remove_issue_branches_use_case";
 import { AssignMemberToIssueUseCase } from "./steps/assign_members_to_issue_use_case";
 import { CheckPermissionsUseCase } from "./steps/check_permissions_use_case";
+import { CheckPriorityIssueSizeUseCase } from "./steps/check_priority_issue_size_use_case";
 import { CloseNotAllowedIssueUseCase } from "./steps/close_not_allowed_issue_use_case";
 import { DeployAddedUseCase } from "./steps/label_deploy_added_use_case";
 import { DeployedAddedUseCase } from "./steps/label_deployed_added_use_case";
@@ -39,14 +40,19 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
         results.push(...await new AssignMemberToIssueUseCase().invoke(param));
 
         /**
+         * Update title
+         */
+        results.push(...await new UpdateTitleUseCase().invoke(param));
+
+        /**
          * Link issue to project
          */
         results.push(...await new LinkIssueProjectUseCase().invoke(param));
 
         /**
-         * Update title
+         * Check priority issue size
          */
-        results.push(...await new UpdateTitleUseCase().invoke(param));
+        results.push(...await new CheckPriorityIssueSizeUseCase().invoke(param));
 
         /**
          * Prepare branches

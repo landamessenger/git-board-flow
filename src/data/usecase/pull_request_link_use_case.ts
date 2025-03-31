@@ -5,6 +5,7 @@ import { ParamUseCase } from "./base/param_usecase";
 import { AssignMemberToIssueUseCase } from "./steps/assign_members_to_issue_use_case";
 import { AssignReviewersToIssueUseCase } from "./steps/assign_reviewers_to_issue_use_case";
 import { CheckChangesPullRequestSizeUseCase } from "./steps/check_changes_pull_request_size_use_case";
+import { CheckPriorityPullRequestSizeUseCase } from "./steps/check_priority_pull_request_size_use_case";
 import { CloseIssueAfterMergingUseCase } from "./steps/close_issue_after_merging_use_case";
 import { LinkPullRequestIssueUseCase } from "./steps/link_pull_request_issue_use_case";
 import { LinkPullRequestProjectUseCase } from "./steps/link_pull_request_project_use_case";
@@ -48,6 +49,11 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                  * Link Pull Request to issue
                  */
                 results.push(...await new LinkPullRequestIssueUseCase().invoke(param));
+
+                /**
+                 * Check priority pull request size
+                 */
+                results.push(...await new CheckPriorityPullRequestSizeUseCase().invoke(param));
 
                 /**
                  * Check changes size
