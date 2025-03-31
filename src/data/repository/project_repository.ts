@@ -247,6 +247,8 @@ export class ProjectRepository {
             return false; 
         }
 
+        logDebugInfo(`Content ID: ${contentId}`);
+
         const octokit = github.getOctokit(token);
 
         // Get the field ID and current value
@@ -291,9 +293,13 @@ export class ProjectRepository {
             projectId: project.id
         });
 
+        logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
+
         const targetField = fieldResult.node.fields.nodes.find(
             (f: any) => f.name === fieldName
         );
+
+        logDebugInfo(`Target field: ${JSON.stringify(targetField, null, 2)}`);
 
         if (!targetField) {
             logError(`Field '${fieldName}' not found or is not a single-select field.`);
@@ -304,6 +310,8 @@ export class ProjectRepository {
             (opt: any) => opt.name === fieldValue
         );
 
+        logDebugInfo(`Target option: ${JSON.stringify(targetOption, null, 2)}`);
+
         if (!targetOption) {
             logError(`Option '${fieldValue}' not found for field '${fieldName}'.`);
             return false;
@@ -312,6 +320,7 @@ export class ProjectRepository {
         // Check current value
         const currentItem = fieldResult.node.items.nodes.find((item: any) => item.id === contentId);
         if (currentItem) {
+            logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
             const currentFieldValue = currentItem.fieldValues.nodes.find(
                 (value: any) => value.field?.name === fieldName
             );
@@ -320,7 +329,13 @@ export class ProjectRepository {
                 logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
                 return false;
             }
+        } else {
+            logError(`Current item ${fieldName} not found for issue or pull request #${issueOrPullRequestNumber}.`);
+            return false;
         }
+
+        logDebugInfo(`Target field ID: ${targetField.id}`);
+        logDebugInfo(`Target option ID: ${targetOption.id}`);
 
         const mutation = `
         mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
