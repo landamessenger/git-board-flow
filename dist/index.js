@@ -50160,7 +50160,7 @@ class ProjectRepository {
             const octokit = github.getOctokit(token);
             // Get the field ID and current value
             const fieldQuery = `
-        query($projectId: ID!) {
+        query($projectId: ID!, $after: String) {
           node(id: $projectId) {
             ... on ProjectV2 {
               fields(first: 20) {
@@ -50175,7 +50175,11 @@ class ProjectRepository {
                   }
                 }
               }
-              items(first: 100) {
+              items(first: 100, after: $after) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
                 nodes {
                   id
                   fieldValues(first: 20) {
@@ -50195,11 +50199,15 @@ class ProjectRepository {
             }
           }         
         }`;
-            const fieldResult = await octokit.graphql(fieldQuery, {
-                projectId: project.id
+            let hasNextPage = true;
+            let endCursor = null;
+            let currentItem = null;
+            // Get the field and option information from the first page
+            const initialFieldResult = await octokit.graphql(fieldQuery, {
+                projectId: project.id,
+                after: null
             });
-            (0, logger_1.logDebugInfo)(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
-            const targetField = fieldResult.node.fields.nodes.find((f) => f.name === fieldName);
+            const targetField = initialFieldResult.node.fields.nodes.find((f) => f.name === fieldName);
             (0, logger_1.logDebugInfo)(`Target field: ${JSON.stringify(targetField, null, 2)}`);
             if (!targetField) {
                 (0, logger_1.logError)(`Field '${fieldName}' not found or is not a single-select field.`);
@@ -50211,19 +50219,26 @@ class ProjectRepository {
                 (0, logger_1.logError)(`Option '${fieldValue}' not found for field '${fieldName}'.`);
                 return false;
             }
-            // Check current value
-            const currentItem = fieldResult.node.items.nodes.find((item) => item.id === contentId);
-            if (currentItem) {
-                (0, logger_1.logDebugInfo)(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
-                const currentFieldValue = currentItem.fieldValues.nodes.find((value) => value.field?.name === fieldName);
-                if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
-                    (0, logger_1.logDebugInfo)(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
-                    return false;
+            // Now search for the item through all pages
+            while (hasNextPage) {
+                const fieldResult = await octokit.graphql(fieldQuery, {
+                    projectId: project.id,
+                    after: endCursor
+                });
+                (0, logger_1.logDebugInfo)(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
+                // Check current value in current page
+                currentItem = fieldResult.node.items.nodes.find((item) => item.id === contentId);
+                if (currentItem) {
+                    (0, logger_1.logDebugInfo)(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
+                    const currentFieldValue = currentItem.fieldValues.nodes.find((value) => value.field?.name === fieldName);
+                    if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
+                        (0, logger_1.logDebugInfo)(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
+                        return false;
+                    }
+                    break; // Found the item, no need to continue pagination
                 }
-            }
-            else {
-                (0, logger_1.logError)(`Current item ${fieldName} not found for issue or pull request #${issueOrPullRequestNumber}.`);
-                return false;
+                hasNextPage = fieldResult.node.items.pageInfo.hasNextPage;
+                endCursor = fieldResult.node.items.pageInfo.endCursor;
             }
             (0, logger_1.logDebugInfo)(`Target field ID: ${targetField.id}`);
             (0, logger_1.logDebugInfo)(`Target option ID: ${targetOption.id}`);
