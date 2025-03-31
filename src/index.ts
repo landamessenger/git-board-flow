@@ -9,6 +9,7 @@ import { Images } from "./data/model/images";
 import { Issue } from "./data/model/issue";
 import { Labels } from "./data/model/labels";
 import { ProjectDetail } from "./data/model/project_detail";
+import { Projects } from './data/model/projects';
 import { PullRequest } from "./data/model/pull_request";
 import { Release } from "./data/model/release";
 import { Result } from "./data/model/result";
@@ -244,11 +245,15 @@ async function run(): Promise<void> {
         .filter(id => id.length > 0);
 
     const projects: ProjectDetail[] = []
-    for (const projectId of projectIds) {
-        const projectUrl = `https://github.com/orgs/${github.context.repo.owner}/projects/${projectId}`
-        const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat)
+    for (const projectId of projectIds) {        
+        const detail = await projectRepository.getProjectDetail(projectId, tokenPat)
         projects.push(detail)
     }
+
+    const projectColumnIssueCreated = core.getInput('project-column-issue-created')
+    const projectColumnPullRequestCreated = core.getInput('project-column-pull-request-created')
+    const projectColumnIssueInProgress = core.getInput('project-column-issue-in-progress')
+    const projectColumnPullRequestInProgress = core.getInput('project-column-pull-request-in-progress')
 
     /**
      * Images
@@ -497,6 +502,10 @@ async function run(): Promise<void> {
     const documentationLabel = core.getInput('documentation-label');
     const choreLabel = core.getInput('chore-label');
     const maintenanceLabel = core.getInput('maintenance-label');
+    const priorityHighLabel = core.getInput('priority-high-label');
+    const priorityMediumLabel = core.getInput('priority-medium-label');
+    const priorityLowLabel = core.getInput('priority-low-label');
+    const priorityNoneLabel = core.getInput('priority-none-label');
     const sizeXxlLabel = core.getInput('size-xxl-label');
     const sizeXlLabel = core.getInput('size-xl-label');
     const sizeLLabel = core.getInput('size-l-label');
@@ -631,6 +640,10 @@ async function run(): Promise<void> {
             documentationLabel,
             choreLabel,
             maintenanceLabel,
+            priorityHighLabel,
+            priorityMediumLabel,
+            priorityLowLabel,
+            priorityNoneLabel,
             sizeXxlLabel,
             sizeXlLabel,
             sizeLLabel,
@@ -686,7 +699,13 @@ async function run(): Promise<void> {
             releaseWorkflow,
             hotfixWorkflow,
         ),
-        projects
+        new Projects(
+            projects,
+            projectColumnIssueCreated,
+            projectColumnPullRequestCreated,
+            projectColumnIssueInProgress,
+            projectColumnPullRequestInProgress,
+        ),
     )
 
     await execution.setup();
