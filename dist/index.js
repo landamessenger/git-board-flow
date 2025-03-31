@@ -48304,6 +48304,11 @@ class Labels {
         }
         return undefined;
     }
+    get priorityLabelOnIssueProcessable() {
+        return this.currentIssueLabels.includes(this.priorityHigh) ||
+            this.currentIssueLabels.includes(this.priorityMedium) ||
+            this.currentIssueLabels.includes(this.priorityLow);
+    }
     get priorityLabelOnPullRequest() {
         if (this.currentPullRequestLabels.includes(this.priorityHigh)) {
             return this.priorityHigh;
@@ -48318,6 +48323,11 @@ class Labels {
             return this.priorityNone;
         }
         return undefined;
+    }
+    get priorityLabelOnPullRequestProcessable() {
+        return this.currentPullRequestLabels.includes(this.priorityHigh) ||
+            this.currentPullRequestLabels.includes(this.priorityMedium) ||
+            this.currentPullRequestLabels.includes(this.priorityLow);
     }
     get isIssuePrioritized() {
         return this.priorityLabelOnIssue !== undefined && this.priorityLabelOnIssue !== this.priorityNone;
@@ -50273,6 +50283,67 @@ class ProjectRepository {
             });
             return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
         };
+        this.setTaskPriority = async (project, owner, repo, issueOrPullRequestNumber, priorityLabel, token) => {
+            const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
+            if (!contentId) {
+                (0, logger_1.logError)(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
+                return false;
+            }
+            const octokit = github.getOctokit(token);
+            // Get the field ID of the "Priority" field in the project
+            const fieldQuery = `
+        query($projectId: ID!) {
+          node(id: $projectId) {
+            ... on ProjectV2 {
+              fields(first: 20) {
+                nodes { 
+                  ... on ProjectV2SingleSelectField {
+                    id
+                    name
+                    options {
+                      id
+                      name  
+                    }
+                  }
+                }
+              }
+            }
+          }         
+        }`;
+            const fieldResult = await octokit.graphql(fieldQuery, { projectId: project.id });
+            const priorityField = fieldResult.node.fields.nodes.find((f) => f.name === "Priority");
+            if (!priorityField) {
+                (0, logger_1.logError)(`Field 'Priority' not found or is not a single-select field.`);
+                return false;
+            }
+            const priorityOption = priorityField.options.find((opt) => opt.name === priorityLabel);
+            if (!priorityOption) {
+                (0, logger_1.logError)(`Option '${priorityLabel}' not found.`);
+                return false;
+            }
+            const mutation = `
+        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+          updateProjectV2ItemFieldValue(  
+            input: {
+              projectId: $projectId,
+              itemId: $itemId,
+              fieldId: $fieldId,
+              value: { singleSelectOptionId: $optionId }
+            }
+          ) {
+            projectV2Item {
+              id
+            }
+          }
+        }`;
+            const mutationResult = await octokit.graphql(mutation, {
+                projectId: project.id,
+                itemId: contentId,
+                fieldId: priorityField.id,
+                optionId: priorityOption.id
+            });
+            return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
+        };
         this.getRandomMembers = async (organization, membersToAdd, currentMembers, token) => {
             if (membersToAdd === 0) {
                 return [];
@@ -50642,6 +50713,7 @@ const logger_1 = __nccwpck_require__(1517);
 const remove_issue_branches_use_case_1 = __nccwpck_require__(2041);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const check_permissions_use_case_1 = __nccwpck_require__(9901);
+const check_priority_issue_size_use_case_1 = __nccwpck_require__(189);
 const close_not_allowed_issue_use_case_1 = __nccwpck_require__(5717);
 const label_deploy_added_use_case_1 = __nccwpck_require__(6636);
 const label_deployed_added_use_case_1 = __nccwpck_require__(2477);
@@ -50671,13 +50743,17 @@ class IssueLinkUseCase {
          */
         results.push(...await new assign_members_to_issue_use_case_1.AssignMemberToIssueUseCase().invoke(param));
         /**
+         * Update title
+         */
+        results.push(...await new update_title_use_case_1.UpdateTitleUseCase().invoke(param));
+        /**
          * Link issue to project
          */
         results.push(...await new link_issue_project_use_case_1.LinkIssueProjectUseCase().invoke(param));
         /**
-         * Update title
+         * Check priority issue size
          */
-        results.push(...await new update_title_use_case_1.UpdateTitleUseCase().invoke(param));
+        results.push(...await new check_priority_issue_size_use_case_1.CheckPriorityIssueSizeUseCase().invoke(param));
         /**
          * Prepare branches
          */
@@ -50901,6 +50977,7 @@ const logger_1 = __nccwpck_require__(1517);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
 const check_changes_pull_request_size_use_case_1 = __nccwpck_require__(6875);
+const check_priority_pull_request_size_use_case_1 = __nccwpck_require__(5528);
 const close_issue_after_merging_use_case_1 = __nccwpck_require__(1672);
 const link_pull_request_issue_use_case_1 = __nccwpck_require__(768);
 const link_pull_request_project_use_case_1 = __nccwpck_require__(5154);
@@ -50939,6 +51016,10 @@ class PullRequestLinkUseCase {
                  * Link Pull Request to issue
                  */
                 results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
+                /**
+                 * Check priority pull request size
+                 */
+                results.push(...await new check_priority_pull_request_size_use_case_1.CheckPriorityPullRequestSizeUseCase().invoke(param));
                 /**
                  * Check changes size
                  */
@@ -51548,6 +51629,170 @@ class CheckPermissionsUseCase {
     }
 }
 exports.CheckPermissionsUseCase = CheckPermissionsUseCase;
+
+
+/***/ }),
+
+/***/ 189:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckPriorityIssueSizeUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const project_repository_1 = __nccwpck_require__(7917);
+const logger_1 = __nccwpck_require__(1517);
+class CheckPriorityIssueSizeUseCase {
+    constructor() {
+        this.taskId = 'CheckPriorityIssueSizeUseCase';
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            const priority = param.labels.priorityLabelOnIssue;
+            if (!param.labels.priorityLabelOnIssueProcessable || param.project.getProjects().length === 0) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return result;
+            }
+            let priorityLabel = ``;
+            if (priority === param.labels.priorityHigh) {
+                priorityLabel = `P0`;
+            }
+            else if (priority === param.labels.priorityMedium) {
+                priorityLabel = `P1`;
+            }
+            else if (priority === param.labels.priorityLow) {
+                priorityLabel = `P2`;
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return result;
+            }
+            (0, logger_1.logDebugInfo)(`Priority: ${priority}`);
+            (0, logger_1.logDebugInfo)(`Github Priority Label: ${priorityLabel}`);
+            for (const project of param.project.getProjects()) {
+                await this.projectRepository.setTaskPriority(project, param.owner, param.repo, param.issueNumber, priorityLabel, param.tokens.tokenPat);
+            }
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [
+                    `Priority issue size checked and set to \`${priorityLabel}\`.`,
+                ],
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to check the priority of the issue, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.CheckPriorityIssueSizeUseCase = CheckPriorityIssueSizeUseCase;
+
+
+/***/ }),
+
+/***/ 5528:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckPriorityPullRequestSizeUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const project_repository_1 = __nccwpck_require__(7917);
+const logger_1 = __nccwpck_require__(1517);
+class CheckPriorityPullRequestSizeUseCase {
+    constructor() {
+        this.taskId = 'CheckPriorityPullRequestSizeUseCase';
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            const priority = param.labels.priorityLabelOnIssue;
+            if (!param.labels.priorityLabelOnIssueProcessable || param.project.getProjects().length === 0) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return result;
+            }
+            let priorityLabel = ``;
+            if (priority === param.labels.priorityHigh) {
+                priorityLabel = `P0`;
+            }
+            else if (priority === param.labels.priorityMedium) {
+                priorityLabel = `P1`;
+            }
+            else if (priority === param.labels.priorityLow) {
+                priorityLabel = `P2`;
+            }
+            else {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return result;
+            }
+            (0, logger_1.logDebugInfo)(`Priority: ${priority}`);
+            (0, logger_1.logDebugInfo)(`Github Priority Label: ${priorityLabel}`);
+            for (const project of param.project.getProjects()) {
+                await this.projectRepository.setTaskPriority(project, param.owner, param.repo, param.pullRequest.number, priorityLabel, param.tokens.tokenPat);
+            }
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [
+                    `Priority pull request size checked and set to \`${priorityLabel}\`.`,
+                ],
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to check the priority of the issue, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.CheckPriorityPullRequestSizeUseCase = CheckPriorityPullRequestSizeUseCase;
 
 
 /***/ }),
@@ -57740,7 +57985,7 @@ var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (
 };
 var _AbstractPage_client;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isObj = exports.toBase64 = exports.getHeader = exports.getRequiredHeader = exports.isHeadersProtocol = exports.isRunningInBrowser = exports.debug = exports.hasOwn = exports.isEmptyObj = exports.maybeCoerceBoolean = exports.maybeCoerceFloat = exports.maybeCoerceInteger = exports.coerceBoolean = exports.coerceFloat = exports.coerceInteger = exports.readEnv = exports.ensurePresent = exports.castToError = exports.sleep = exports.safeJSON = exports.isRequestOptions = exports.createResponseHeaders = exports.PagePromise = exports.AbstractPage = exports.APIClient = exports.APIPromise = exports.createForm = exports.multipartFormRequestOptions = exports.maybeMultipartFormRequestOptions = void 0;
+exports.isObj = exports.toFloat32Array = exports.toBase64 = exports.getHeader = exports.getRequiredHeader = exports.isHeadersProtocol = exports.isRunningInBrowser = exports.debug = exports.hasOwn = exports.isEmptyObj = exports.maybeCoerceBoolean = exports.maybeCoerceFloat = exports.maybeCoerceInteger = exports.coerceBoolean = exports.coerceFloat = exports.coerceInteger = exports.readEnv = exports.ensurePresent = exports.castToError = exports.sleep = exports.safeJSON = exports.isRequestOptions = exports.createResponseHeaders = exports.PagePromise = exports.AbstractPage = exports.APIClient = exports.APIPromise = exports.createForm = exports.multipartFormRequestOptions = exports.maybeMultipartFormRequestOptions = void 0;
 const version_1 = __nccwpck_require__(6417);
 const streaming_1 = __nccwpck_require__(884);
 const error_1 = __nccwpck_require__(8905);
@@ -58688,6 +58933,28 @@ const toBase64 = (str) => {
     throw new error_1.OpenAIError('Cannot generate b64 string; Expected `Buffer` or `btoa` to be defined');
 };
 exports.toBase64 = toBase64;
+/**
+ * Converts a Base64 encoded string to a Float32Array.
+ * @param base64Str - The Base64 encoded string.
+ * @returns An Array of numbers interpreted as Float32 values.
+ */
+const toFloat32Array = (base64Str) => {
+    if (typeof Buffer !== 'undefined') {
+        // for Node.js environment
+        return Array.from(new Float32Array(Buffer.from(base64Str, 'base64').buffer));
+    }
+    else {
+        // for legacy web platform APIs
+        const binaryStr = atob(base64Str);
+        const len = binaryStr.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+        }
+        return Array.from(new Float32Array(bytes.buffer));
+    }
+};
+exports.toFloat32Array = toFloat32Array;
 function isObj(obj) {
     return obj != null && typeof obj === 'object' && !Array.isArray(obj);
 }
@@ -63676,20 +63943,75 @@ exports.Completions = Completions;
 /***/ }),
 
 /***/ 8064:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
 // File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Embeddings = void 0;
 const resource_1 = __nccwpck_require__(9593);
+const Core = __importStar(__nccwpck_require__(1798));
 class Embeddings extends resource_1.APIResource {
     /**
      * Creates an embedding vector representing the input text.
      */
     create(body, options) {
-        return this._client.post('/embeddings', { body, ...options });
+        const hasUserProvidedEncodingFormat = !!body.encoding_format;
+        // No encoding_format specified, defaulting to base64 for performance reasons
+        // See https://github.com/openai/openai-node/pull/1312
+        let encoding_format = hasUserProvidedEncodingFormat ? body.encoding_format : 'base64';
+        if (hasUserProvidedEncodingFormat) {
+            Core.debug('Request', 'User defined encoding_format:', body.encoding_format);
+        }
+        const response = this._client.post('/embeddings', {
+            body: {
+                ...body,
+                encoding_format: encoding_format,
+            },
+            ...options,
+        });
+        // if the user specified an encoding_format, return the response as-is
+        if (hasUserProvidedEncodingFormat) {
+            return response;
+        }
+        // in this stage, we are sure the user did not specify an encoding_format
+        // and we defaulted to base64 for performance reasons
+        // we are sure then that the response is base64 encoded, let's decode it
+        // the returned result will be a float32 array since this is OpenAI API's default encoding
+        Core.debug('response', 'Decoding base64 embeddings to float32 array');
+        return response._thenUnwrap((response) => {
+            if (response && response.data) {
+                response.data.forEach((embeddingBase64Obj) => {
+                    const embeddingBase64Str = embeddingBase64Obj.embedding;
+                    embeddingBase64Obj.embedding = Core.toFloat32Array(embeddingBase64Str);
+                });
+            }
+            return response;
+        });
     }
 }
 exports.Embeddings = Embeddings;
@@ -65348,7 +65670,7 @@ const addFormValue = async (form, key, value) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
-exports.VERSION = '4.90.0'; // x-release-please-version
+exports.VERSION = '4.91.0'; // x-release-please-version
 //# sourceMappingURL=version.js.map
 
 /***/ }),
