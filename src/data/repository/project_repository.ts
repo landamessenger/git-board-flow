@@ -253,7 +253,7 @@ export class ProjectRepository {
 
         // Get the field ID and current value
         const fieldQuery = `
-        query($projectId: ID!) {
+        query($projectId: ID!, $after: String) {
           node(id: $projectId) {
             ... on ProjectV2 {
               fields(first: 20) {
@@ -268,7 +268,11 @@ export class ProjectRepository {
                   }
                 }
               }
-              items(first: 100) {
+              items(first: 100, after: $after) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
                 nodes {
                   id
                   fieldValues(first: 20) {
@@ -289,13 +293,17 @@ export class ProjectRepository {
           }         
         }`;
 
-        const fieldResult: any = await octokit.graphql(fieldQuery, { 
-            projectId: project.id
+        let hasNextPage = true;
+        let endCursor: string | null = null;
+        let currentItem: any = null;
+
+        // Get the field and option information from the first page
+        const initialFieldResult: any = await octokit.graphql(fieldQuery, { 
+            projectId: project.id,
+            after: null
         });
 
-        logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
-
-        const targetField = fieldResult.node.fields.nodes.find(
+        const targetField = initialFieldResult.node.fields.nodes.find(
             (f: any) => f.name === fieldName
         );
 
@@ -317,21 +325,32 @@ export class ProjectRepository {
             return false;
         }
 
-        // Check current value
-        const currentItem = fieldResult.node.items.nodes.find((item: any) => item.id === contentId);
-        if (currentItem) {
-            logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
-            const currentFieldValue = currentItem.fieldValues.nodes.find(
-                (value: any) => value.field?.name === fieldName
-            );
-            
-            if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
-                logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
-                return false;
+        // Now search for the item through all pages
+        while (hasNextPage) {
+            const fieldResult: any = await octokit.graphql(fieldQuery, { 
+                projectId: project.id,
+                after: endCursor
+            });
+
+            logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
+
+            // Check current value in current page
+            currentItem = fieldResult.node.items.nodes.find((item: any) => item.id === contentId);
+            if (currentItem) {
+                logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
+                const currentFieldValue = currentItem.fieldValues.nodes.find(
+                    (value: any) => value.field?.name === fieldName
+                );
+                
+                if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
+                    logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
+                    return false;
+                }
+                break; // Found the item, no need to continue pagination
             }
-        } else {
-            logError(`Current item ${fieldName} not found for issue or pull request #${issueOrPullRequestNumber}.`);
-            return false;
+
+            hasNextPage = fieldResult.node.items.pageInfo.hasNextPage;
+            endCursor = fieldResult.node.items.pageInfo.endCursor;
         }
 
         logDebugInfo(`Target field ID: ${targetField.id}`);
