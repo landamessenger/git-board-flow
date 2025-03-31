@@ -49969,6 +49969,9 @@ const project_detail_1 = __nccwpck_require__(3765);
 const logger_1 = __nccwpck_require__(1517);
 class ProjectRepository {
     constructor() {
+        this.priorityLabel = "Priority";
+        this.sizeLabel = "Size";
+        this.statusLabel = "Status";
         this.getProjectDetail = async (projectUrl, token) => {
             const octokit = github.getOctokit(token);
             const projectMatch = projectUrl.match(/\/(?<ownerType>orgs|users)\/(?<ownerName>[^/]+)\/projects\/(?<projectNumber>\d+)/);
@@ -50156,7 +50159,7 @@ class ProjectRepository {
             const octokit = github.getOctokit(token);
             // Get the field ID and current value
             const fieldQuery = `
-        query($projectId: ID!, $itemId: ID!) {
+        query($projectId: ID!) {
           node(id: $projectId) {
             ... on ProjectV2 {
               fields(first: 20) {
@@ -50192,8 +50195,7 @@ class ProjectRepository {
           }         
         }`;
             const fieldResult = await octokit.graphql(fieldQuery, {
-                projectId: project.id,
-                itemId: contentId
+                projectId: project.id
             });
             const targetField = fieldResult.node.fields.nodes.find((f) => f.name === fieldName);
             if (!targetField) {
@@ -50237,9 +50239,9 @@ class ProjectRepository {
             });
             return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
         };
-        this.setTaskPriority = async (project, owner, repo, issueOrPullRequestNumber, priorityLabel, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, "Priority", priorityLabel, token);
-        this.setTaskSize = async (project, owner, repo, issueOrPullRequestNumber, sizeLabel, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, "Size", sizeLabel, token);
-        this.moveIssueToColumn = async (project, owner, repo, issueOrPullRequestNumber, columnName, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, "Status", columnName, token);
+        this.setTaskPriority = async (project, owner, repo, issueOrPullRequestNumber, priorityLabel, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, this.priorityLabel, priorityLabel, token);
+        this.setTaskSize = async (project, owner, repo, issueOrPullRequestNumber, sizeLabel, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, this.sizeLabel, sizeLabel, token);
+        this.moveIssueToColumn = async (project, owner, repo, issueOrPullRequestNumber, columnName, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, this.statusLabel, columnName, token);
         this.getRandomMembers = async (organization, membersToAdd, currentMembers, token) => {
             if (membersToAdd === 0) {
                 return [];
@@ -51578,16 +51580,18 @@ class CheckPriorityIssueSizeUseCase {
             (0, logger_1.logDebugInfo)(`Priority: ${priority}`);
             (0, logger_1.logDebugInfo)(`Github Priority Label: ${priorityLabel}`);
             for (const project of param.project.getProjects()) {
-                await this.projectRepository.setTaskPriority(project, param.owner, param.repo, param.issueNumber, priorityLabel, param.tokens.tokenPat);
+                const success = await this.projectRepository.setTaskPriority(project, param.owner, param.repo, param.issueNumber, priorityLabel, param.tokens.tokenPat);
+                if (success) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Priority set to \`${priorityLabel}\` in [${project.title}](https://github.com/${param.owner}/${param.repo}/projects/${project.id}).`,
+                        ],
+                    }));
+                }
             }
-            result.push(new result_1.Result({
-                id: this.taskId,
-                success: true,
-                executed: true,
-                steps: [
-                    `Priority issue size checked and set to \`${priorityLabel}\`.`,
-                ],
-            }));
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -51660,16 +51664,18 @@ class CheckPriorityPullRequestSizeUseCase {
             (0, logger_1.logDebugInfo)(`Priority: ${priority}`);
             (0, logger_1.logDebugInfo)(`Github Priority Label: ${priorityLabel}`);
             for (const project of param.project.getProjects()) {
-                await this.projectRepository.setTaskPriority(project, param.owner, param.repo, param.pullRequest.number, priorityLabel, param.tokens.tokenPat);
+                const success = await this.projectRepository.setTaskPriority(project, param.owner, param.repo, param.pullRequest.number, priorityLabel, param.tokens.tokenPat);
+                if (success) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Priority set to \`${priorityLabel}\` in [${project.title}](https://github.com/${param.owner}/${param.repo}/projects/${project.id}).`,
+                        ],
+                    }));
+                }
             }
-            result.push(new result_1.Result({
-                id: this.taskId,
-                success: true,
-                executed: true,
-                steps: [
-                    `Priority pull request size checked and set to \`${priorityLabel}\`.`,
-                ],
-            }));
         }
         catch (error) {
             (0, logger_1.logError)(error);
