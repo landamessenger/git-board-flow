@@ -49696,46 +49696,6 @@ class IssueRepository {
             (0, logger_1.logDebugInfo)(`Fetched issue ID: ${issueId}`);
             return issueId;
         };
-        this.fetchIssueProjects = async (owner, repo, issueNumber, token) => {
-            try {
-                const octokit = github.getOctokit(token);
-                const query = `
-            query($owner: String!, $repo: String!, $issueNumber: Int!) {
-              repository(owner: $owner, name: $repo) {
-                issue(number: $issueNumber) {
-                  projectItems(first: 10) {
-                    nodes {
-                      id
-                      project {
-                        id
-                        title
-                        url
-                      }
-                    }
-                  }
-                }
-              }
-            }
-        `;
-                const response = await octokit.graphql(query, {
-                    owner,
-                    repo,
-                    issueNumber,
-                });
-                return response.repository.issue.projectItems.nodes.map((item) => ({
-                    id: item.id,
-                    project: {
-                        id: item.project.id,
-                        title: item.project.title,
-                        url: item.project.url,
-                    },
-                }));
-            }
-            catch (error) {
-                core.setFailed(`Error fetching issue projects: ${error}`);
-                throw error;
-            }
-        };
         this.getMilestone = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
@@ -52420,24 +52380,7 @@ class LinkIssueProjectUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const projects = await this.issueRepository.fetchIssueProjects(param.owner, param.repo, param.issue.number, param.tokens.tokenPat);
-            (0, logger_1.logDebugInfo)(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
             for (const project of param.project.getProjects()) {
-                if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
-                    continue;
-                }
-                let currentProject = await this.projectRepository.getProjectDetail(project.url, param.tokens.tokenPat);
-                if (currentProject === undefined) {
-                    result.push(new result_1.Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Tried to link the issue to [\`${project.url}\`](${project.url}) but there was a problem.`,
-                        ]
-                    }));
-                    continue;
-                }
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
                 let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat);
                 if (actionDone) {
@@ -52452,7 +52395,7 @@ class LinkIssueProjectUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                                `The issue was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                             ]
                         }));
                     }
@@ -52462,7 +52405,7 @@ class LinkIssueProjectUseCase {
                             success: false,
                             executed: true,
                             steps: [
-                                `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                                `The issue was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                             ]
                         }));
                     }
@@ -52644,18 +52587,6 @@ class LinkPullRequestProjectUseCase {
         const result = [];
         try {
             for (const project of param.project.getProjects()) {
-                let currentProject = await this.projectRepository.getProjectDetail(project.url, param.tokens.tokenPat);
-                if (currentProject === undefined) {
-                    result.push(new result_1.Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
-                        ]
-                    }));
-                    continue;
-                }
                 let actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.tokenPat);
                 if (actionDone) {
                     /**
@@ -52669,7 +52600,7 @@ class LinkPullRequestProjectUseCase {
                             success: true,
                             executed: true,
                             steps: [
-                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                                `The pull request was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                             ],
                         }));
                     }
@@ -52679,7 +52610,7 @@ class LinkPullRequestProjectUseCase {
                             success: false,
                             executed: true,
                             steps: [
-                                `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                                `The pull request was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                             ],
                         }));
                     }
