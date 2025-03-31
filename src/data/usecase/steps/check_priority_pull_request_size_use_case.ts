@@ -50,7 +50,7 @@ export class CheckPriorityPullRequestSizeUseCase implements ParamUseCase<Executi
             logDebugInfo(`Github Priority Label: ${priorityLabel}`);
 
             for (const project of param.project.getProjects()) {
-                await this.projectRepository.setTaskPriority(
+                const success = await this.projectRepository.setTaskPriority(
                     project,
                     param.owner,
                     param.repo,
@@ -58,18 +58,20 @@ export class CheckPriorityPullRequestSizeUseCase implements ParamUseCase<Executi
                     priorityLabel,
                     param.tokens.tokenPat,
                 );
-            }
 
-            result.push(
-                new Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Priority pull request size checked and set to \`${priorityLabel}\`.`,
-                    ],
-                })
-            );
+                if (success) {
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `Priority set to \`${priorityLabel}\` in [${project.title}](https://github.com/${param.owner}/${param.repo}/projects/${project.id}).`,
+                            ],
+                        })
+                    );
+                }
+            }
         } catch (error) {
             logError(error);
             result.push(

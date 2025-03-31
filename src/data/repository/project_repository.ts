@@ -3,6 +3,10 @@ import { ProjectDetail } from "../model/project_detail";
 import { logDebugInfo, logError } from "../utils/logger";
 
 export class ProjectRepository {
+  
+    private readonly priorityLabel = "Priority"  
+    private readonly sizeLabel = "Size"
+    private readonly statusLabel = "Status"
     getProjectDetail = async (projectUrl: string, token: string) => {
         const octokit = github.getOctokit(token);
         const projectMatch = projectUrl.match(/\/(?<ownerType>orgs|users)\/(?<ownerName>[^/]+)\/projects\/(?<projectNumber>\d+)/);
@@ -247,7 +251,7 @@ export class ProjectRepository {
 
         // Get the field ID and current value
         const fieldQuery = `
-        query($projectId: ID!, $itemId: ID!) {
+        query($projectId: ID!) {
           node(id: $projectId) {
             ... on ProjectV2 {
               fields(first: 20) {
@@ -284,8 +288,7 @@ export class ProjectRepository {
         }`;
 
         const fieldResult: any = await octokit.graphql(fieldQuery, { 
-            projectId: project.id,
-            itemId: contentId
+            projectId: project.id
         });
 
         const targetField = fieldResult.node.fields.nodes.find(
@@ -357,7 +360,7 @@ export class ProjectRepository {
         owner,
         repo,
         issueOrPullRequestNumber,
-        "Priority",
+        this.priorityLabel,
         priorityLabel,
         token
     );
@@ -374,7 +377,7 @@ export class ProjectRepository {
         owner,
         repo,
         issueOrPullRequestNumber,
-        "Size",
+        this.sizeLabel,
         sizeLabel,
         token
     );
@@ -391,7 +394,7 @@ export class ProjectRepository {
         owner,
         repo,
         issueOrPullRequestNumber,
-        "Status",
+        this.statusLabel,
         columnName,
         token
     );
