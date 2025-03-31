@@ -49972,44 +49972,67 @@ class ProjectRepository {
         this.priorityLabel = "Priority";
         this.sizeLabel = "Size";
         this.statusLabel = "Status";
-        this.getProjectDetail = async (projectUrl, token) => {
-            const octokit = github.getOctokit(token);
-            const projectMatch = projectUrl.match(/\/(?<ownerType>orgs|users)\/(?<ownerName>[^/]+)\/projects\/(?<projectNumber>\d+)/);
-            if (!projectMatch || !projectMatch.groups) {
-                throw new Error(`Invalid project URL: ${projectUrl}`);
+        /**
+         * Retrieves detailed information about a GitHub project
+         * @param projectId - The project number/ID
+         * @param token - GitHub authentication token
+         * @returns Promise<ProjectDetail> - The project details
+         * @throws {Error} If the project is not found or if there are authentication/network issues
+         */
+        this.getProjectDetail = async (projectId, token) => {
+            try {
+                // Validate projectId is a valid number
+                const projectNumber = parseInt(projectId, 10);
+                if (isNaN(projectNumber)) {
+                    throw new Error(`Invalid project ID: ${projectId}. Must be a valid number.`);
+                }
+                const octokit = github.getOctokit(token);
+                const { data: owner } = await octokit.rest.users.getByUsername({
+                    username: github.context.repo.owner
+                }).catch(error => {
+                    throw new Error(`Failed to get owner information: ${error.message}`);
+                });
+                const ownerType = owner.type === 'Organization' ? 'orgs' : 'users';
+                const projectUrl = `https://github.com/${ownerType}/${github.context.repo.owner}/projects/${projectId}`;
+                const ownerQueryField = ownerType === 'orgs' ? 'organization' : 'user';
+                const queryProject = `
+                query($ownerName: String!, $projectNumber: Int!) {
+                    ${ownerQueryField}(login: $ownerName) {
+                        projectV2(number: $projectNumber) {
+                            id
+                            title
+                            url
+                        }
+                    }
+                }
+            `;
+                const projectResult = await octokit.graphql(queryProject, {
+                    ownerName: github.context.repo.owner,
+                    projectNumber: projectNumber,
+                }).catch(error => {
+                    throw new Error(`Failed to fetch project data: ${error.message}`);
+                });
+                const projectData = projectResult[ownerQueryField]?.projectV2;
+                if (!projectData) {
+                    throw new Error(`Project not found: ${projectUrl}`);
+                }
+                (0, logger_1.logDebugInfo)(`Project ID: ${projectData.id}`);
+                (0, logger_1.logDebugInfo)(`Project Title: ${projectData.title}`);
+                (0, logger_1.logDebugInfo)(`Project URL: ${projectData.url}`);
+                return new project_detail_1.ProjectDetail({
+                    id: projectData.id,
+                    title: projectData.title,
+                    url: projectData.url,
+                    type: ownerQueryField,
+                    owner: github.context.repo.owner,
+                    number: projectNumber,
+                });
             }
-            const { ownerType, ownerName, projectNumber } = projectMatch.groups;
-            const ownerQueryField = ownerType === 'orgs' ? 'organization' : 'user';
-            const queryProject = `
-    query($ownerName: String!, $projectNumber: Int!) {
-      ${ownerQueryField}(login: $ownerName) {
-        projectV2(number: $projectNumber) {
-          id
-          title
-          url
-        }
-      }
-    }
-    `;
-            const projectResult = await octokit.graphql(queryProject, {
-                ownerName,
-                projectNumber: parseInt(projectNumber, 10),
-            });
-            const projectData = projectResult[ownerQueryField].projectV2;
-            if (!projectData) {
-                throw new Error(`Project not found: ${projectUrl}`);
+            catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                (0, logger_1.logError)(`Error in getProjectDetail: ${errorMessage}`);
+                throw error;
             }
-            (0, logger_1.logDebugInfo)(`Project ID: ${projectData.id}`);
-            (0, logger_1.logDebugInfo)(`Project Title: ${projectData.title}`);
-            (0, logger_1.logDebugInfo)(`Project URL: ${projectData.url}`);
-            return new project_detail_1.ProjectDetail({
-                id: projectData.id,
-                title: projectData.title,
-                url: projectData.url,
-                type: ownerQueryField,
-                owner: ownerName,
-                number: parseInt(projectNumber, 10),
-            });
         };
         this.getContentId = async (project, owner, repo, issueOrPullRequestNumber, token) => {
             const octokit = github.getOctokit(token);
@@ -54024,7 +54047,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
-const github = __importStar(__nccwpck_require__(5438));
 const ai_1 = __nccwpck_require__(4470);
 const branches_1 = __nccwpck_require__(5308);
 const emoji_1 = __nccwpck_require__(9463);
@@ -54261,8 +54283,7 @@ async function run() {
         .filter(id => id.length > 0);
     const projects = [];
     for (const projectId of projectIds) {
-        const projectUrl = `https://github.com/orgs/${github.context.repo.owner}/projects/${projectId}`;
-        const detail = await projectRepository.getProjectDetail(projectUrl, tokenPat);
+        const detail = await projectRepository.getProjectDetail(projectId, tokenPat);
         projects.push(detail);
     }
     const projectColumnIssueCreated = core.getInput('project-column-issue-created');
