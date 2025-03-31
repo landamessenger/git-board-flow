@@ -51356,6 +51356,14 @@ class CheckChangesIssueSizeUseCase {
                     ],
                 }));
             }
+            else {
+                (0, logger_1.logDebugInfo)(`The issue is already at the correct size.`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                }));
+            }
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -51426,6 +51434,14 @@ class CheckChangesPullRequestSizeUseCase {
                     steps: [
                         `${reason}, so the pull request was resized to ${size}.`,
                     ],
+                }));
+            }
+            else {
+                (0, logger_1.logDebugInfo)(`The pull request is already at the correct size.`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
                 }));
             }
         }
