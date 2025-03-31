@@ -228,185 +228,13 @@ export class ProjectRepository {
         return true;
     }
 
-    setTaskSize = async (
+    private setSingleSelectFieldValue = async (
         project: ProjectDetail,
         owner: string,
         repo: string,
         issueOrPullRequestNumber: number,
-        sizeLabel: string,
-        token: string
-    ): Promise<boolean> => {
-        const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
-        if (!contentId) {
-            logError(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
-            return false;
-        }
-
-        const octokit = github.getOctokit(token);
-    
-        // Get the field ID of the "Size" field in the project
-        const fieldQuery = `
-        query($projectId: ID!) {
-          node(id: $projectId) {
-            ... on ProjectV2 {
-              fields(first: 20) {
-                nodes {
-                  ... on ProjectV2SingleSelectField {
-                    id
-                    name
-                    options {
-                      id
-                      name
-                    }
-                  }
-                  ... on ProjectV2Field {
-                    id
-                    name
-                  }
-                }
-              }
-            }
-          }
-        }`;
-    
-        const fieldResult: any = await octokit.graphql(fieldQuery, { projectId: project.id });
-    
-        const sizeField = fieldResult.node.fields.nodes.find((f: any) => f.name === "Size");
-        if (!sizeField) {
-            logError(`Field 'Size' not found in the project.`);
-            return false;
-        }
-    
-        const sizeOption = sizeField.options.find((opt: any) => opt.name === sizeLabel);
-        if (!sizeOption) {
-            logError(`Size option '${sizeLabel}' not found.`);
-            return false;
-        }
-    
-        // Assign the size to the issue
-        const mutation = `
-        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-          updateProjectV2ItemFieldValue(
-            input: {
-              projectId: $projectId,
-              itemId: $itemId,
-              fieldId: $fieldId,
-              value: { singleSelectOptionId: $optionId }
-            }
-          ) {
-            projectV2Item {
-              id
-            }
-          }
-        }`;
-    
-        const mutationResult: any = await octokit.graphql(mutation, {
-            projectId: project.id,
-            itemId: contentId,
-            fieldId: sizeField.id,
-            optionId: sizeOption.id
-        });
-    
-        return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
-    }
-
-    moveIssueToColumn = async (
-      project: ProjectDetail,
-      owner: string,
-      repo: string,
-      issueOrPullRequestNumber: number,
-      columnName: string,
-      token: string
-  ): Promise<boolean> => {
-      const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
-      if (!contentId) {
-          logError(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
-          return false;
-      }
-  
-      logDebugInfo(`Project ID: ${project.id}`);
-      logDebugInfo(`Issue or Pull Request Number: ${issueOrPullRequestNumber}`);
-      logDebugInfo(`Content ID: ${contentId}`);
-      logDebugInfo(`Column Name: ${columnName}`);
-
-      const octokit = github.getOctokit(token);
-  
-      // Get the field ID of the "Status" field in the project
-      const fieldQuery = `
-      query($projectId: ID!) {
-        node(id: $projectId) {
-          ... on ProjectV2 {
-            fields(first: 20) {
-              nodes {
-                ... on ProjectV2SingleSelectField {
-                  id
-                  name
-                  options {
-                    id
-                    name
-                  }
-                }
-              }
-            }
-          }
-        }
-      }`;
-  
-      const fieldResult: any = await octokit.graphql(fieldQuery, { projectId: project.id });
-  
-      if (!fieldResult.node || !fieldResult.node.fields) {
-          logError(`Failed to fetch fields for project.`);
-          return false;
-      }
-  
-      const statusField = fieldResult.node.fields.nodes.find(
-          (f: any) => f.name === "Status"
-      );
-  
-      if (!statusField) {
-          logError(`Field 'Status' not found or is not a single-select field.`);
-          return false;
-      }
-  
-      const columnOption = statusField.options.find((opt: any) => opt.name === columnName);
-      if (!columnOption) {
-          logError(`Option '${columnName}' not found.`);
-          return false;
-      }
-  
-      // Assign the option status to the issue
-      const mutation = `
-      mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-        updateProjectV2ItemFieldValue(
-          input: {
-            projectId: $projectId,
-            itemId: $itemId,
-            fieldId: $fieldId,
-            value: { singleSelectOptionId: $optionId }
-          }
-        ) {
-          projectV2Item {
-            id
-          }
-        }
-      }`;
-  
-      const mutationResult: any = await octokit.graphql(mutation, {
-          projectId: project.id,
-          itemId: contentId,
-          fieldId: statusField.id,
-          optionId: columnOption.id
-      });
-  
-      return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
-    };
-    
-    setTaskPriority = async (
-        project: ProjectDetail,
-        owner: string,
-        repo: string,
-        issueOrPullRequestNumber: number,
-        priorityLabel: string,
+        fieldName: string,
+        fieldValue: string,
         token: string
     ): Promise<boolean> => {
         const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
@@ -417,9 +245,9 @@ export class ProjectRepository {
 
         const octokit = github.getOctokit(token);
 
-        // Get the field ID of the "Priority" field in the project
+        // Get the field ID and current value
         const fieldQuery = `
-        query($projectId: ID!) {
+        query($projectId: ID!, $itemId: ID!) {
           node(id: $projectId) {
             ... on ProjectV2 {
               fields(first: 20) {
@@ -434,28 +262,61 @@ export class ProjectRepository {
                   }
                 }
               }
+              items(first: 100) {
+                nodes {
+                  id
+                  fieldValues(first: 20) {
+                    nodes {
+                      ... on ProjectV2ItemFieldSingleSelectValue {
+                        field {
+                          ... on ProjectV2SingleSelectField {
+                            name
+                          }
+                        }
+                        optionId
+                      }
+                    }
+                  }
+                }
+              }
             }
           }         
         }`;
 
-        const fieldResult: any = await octokit.graphql(fieldQuery, { projectId: project.id });
+        const fieldResult: any = await octokit.graphql(fieldQuery, { 
+            projectId: project.id,
+            itemId: contentId
+        });
 
-        const priorityField = fieldResult.node.fields.nodes.find(
-            (f: any) => f.name === "Priority"
+        const targetField = fieldResult.node.fields.nodes.find(
+            (f: any) => f.name === fieldName
         );
 
-        if (!priorityField) {
-            logError(`Field 'Priority' not found or is not a single-select field.`);
+        if (!targetField) {
+            logError(`Field '${fieldName}' not found or is not a single-select field.`);
             return false;
         }
 
-        const priorityOption = priorityField.options.find(
-            (opt: any) => opt.name === priorityLabel
+        const targetOption = targetField.options.find(
+            (opt: any) => opt.name === fieldValue
         );
 
-        if (!priorityOption) {
-            logError(`Option '${priorityLabel}' not found.`);
+        if (!targetOption) {
+            logError(`Option '${fieldValue}' not found for field '${fieldName}'.`);
             return false;
+        }
+
+        // Check current value
+        const currentItem = fieldResult.node.items.nodes.find((item: any) => item.id === contentId);
+        if (currentItem) {
+            const currentFieldValue = currentItem.fieldValues.nodes.find(
+                (value: any) => value.field?.name === fieldName
+            );
+            
+            if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
+                logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
+                return false;
+            }
         }
 
         const mutation = `
@@ -477,12 +338,63 @@ export class ProjectRepository {
         const mutationResult: any = await octokit.graphql(mutation, {
             projectId: project.id,
             itemId: contentId,
-            fieldId: priorityField.id,
-            optionId: priorityOption.id
+            fieldId: targetField.id,
+            optionId: targetOption.id
         });
 
         return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
     };
+
+    setTaskPriority = async (
+        project: ProjectDetail,
+        owner: string,
+        repo: string,
+        issueOrPullRequestNumber: number,
+        priorityLabel: string,
+        token: string
+    ): Promise<boolean> => this.setSingleSelectFieldValue(
+        project,
+        owner,
+        repo,
+        issueOrPullRequestNumber,
+        "Priority",
+        priorityLabel,
+        token
+    );
+
+    setTaskSize = async (
+        project: ProjectDetail,
+        owner: string,
+        repo: string,
+        issueOrPullRequestNumber: number,
+        sizeLabel: string,
+        token: string
+    ): Promise<boolean> => this.setSingleSelectFieldValue(
+        project,
+        owner,
+        repo,
+        issueOrPullRequestNumber,
+        "Size",
+        sizeLabel,
+        token
+    );
+
+    moveIssueToColumn = async (
+        project: ProjectDetail,
+        owner: string,
+        repo: string,
+        issueOrPullRequestNumber: number,
+        columnName: string,
+        token: string
+    ): Promise<boolean> => this.setSingleSelectFieldValue(
+        project,
+        owner,
+        repo,
+        issueOrPullRequestNumber,
+        "Status",
+        columnName,
+        token
+    );
 
     getRandomMembers = async (
         organization: string,
