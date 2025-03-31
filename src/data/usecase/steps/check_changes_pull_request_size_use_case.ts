@@ -71,6 +71,15 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                         ],
                     })
                 );
+            } else {
+                logDebugInfo(`The pull request is already at the correct size.`);
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                    })
+                );
             }
         } catch (error) {
             logError(error);

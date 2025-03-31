@@ -76,6 +76,15 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                         ],
                     })
                 );
+            } else {
+                logDebugInfo(`The issue is already at the correct size.`);
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                    })
+                );
             }
         } catch (error) {
             logError(error);
