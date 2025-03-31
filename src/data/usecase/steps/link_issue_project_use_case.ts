@@ -2,7 +2,7 @@ import { Execution } from "../../model/execution";
 import { Result } from "../../model/result";
 import { IssueRepository } from "../../repository/issue_repository";
 import { ProjectRepository } from "../../repository/project_repository";
-import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { logError, logInfo } from "../../utils/logger";
 import { ParamUseCase } from "../base/param_usecase";
 
 export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]> {
@@ -16,39 +16,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
         const result: Result[] = []
 
         try {
-            const projects = await this.issueRepository.fetchIssueProjects(
-                param.owner,
-                param.repo,
-                param.issue.number,
-                param.tokens.tokenPat,
-            )
-
-            logDebugInfo(`Projects linked to issue #${param.issue.number}: ${JSON.stringify(projects)}`);
-
             for (const project of param.project.getProjects()) {
-                if (projects.map((value) => value.project.url).indexOf(project.url) > -1) {
-                    continue;
-                }
-
-                let currentProject = await this.projectRepository.getProjectDetail(
-                    project.url,
-                    param.tokens.tokenPat,
-                )
-
-                if (currentProject === undefined) {
-                    result.push(
-                        new Result({
-                            id: this.taskId,
-                            success: false,
-                            executed: true,
-                            steps: [
-                                `Tried to link the issue to [\`${project.url}\`](${project.url}) but there was a problem.`,
-                            ]
-                        })
-                    )
-                    continue;
-                }
-
                 const issueId = await this.issueRepository.getId(
                     param.owner,
                     param.repo,
@@ -78,7 +46,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                                    `The issue was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                                 ]
                             })
                         )
@@ -89,7 +57,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                                 success: false,
                                 executed: true,
                                 steps: [
-                                    `The issue was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                                    `The issue was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
                                 ]
                             })
                         )

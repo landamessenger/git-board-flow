@@ -1,4 +1,3 @@
-import { error } from "@actions/core";
 import { Execution } from "../../model/execution";
 import { Result } from "../../model/result";
 import { ProjectRepository } from "../../repository/project_repository";
@@ -16,25 +15,6 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
 
         try {
             for (const project of param.project.getProjects()) {
-                let currentProject = await this.projectRepository.getProjectDetail(
-                    project.url,
-                    param.tokens.tokenPat,
-                )
-
-                if (currentProject === undefined) {
-                    result.push(
-                        new Result({
-                            id: this.taskId,
-                            success: false,
-                            executed: true,
-                            steps: [
-                                `Tried to link the pull request to [\`${project.url}\`](${project.url}) but there was a problem.`,
-                            ]
-                        })
-                    )
-                    continue;
-                }
-
                 let actionDone = await this.projectRepository.linkContentId(
                     project,
                     param.pullRequest.id,
@@ -62,7 +42,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                                    `The pull request was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                                 ],
                             })
                         )
@@ -73,7 +53,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                                 success: false,
                                 executed: true,
                                 steps: [
-                                    `The pull request was linked to [**${currentProject?.title}**](${currentProject?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                                    `The pull request was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
                                 ],
                             })
                         )

@@ -282,54 +282,6 @@ export class IssueRepository {
         return issueId;
     }
 
-    fetchIssueProjects = async (
-        owner: string,
-        repo: string,
-        issueNumber: number,
-        token: string
-    ): Promise<ProjectItem[]> => {
-        try {
-            const octokit = github.getOctokit(token);
-
-            const query = `
-            query($owner: String!, $repo: String!, $issueNumber: Int!) {
-              repository(owner: $owner, name: $repo) {
-                issue(number: $issueNumber) {
-                  projectItems(first: 10) {
-                    nodes {
-                      id
-                      project {
-                        id
-                        title
-                        url
-                      }
-                    }
-                  }
-                }
-              }
-            }
-        `;
-
-            const response: IssueProjectsResponse = await octokit.graphql(query, {
-                owner,
-                repo,
-                issueNumber,
-            });
-
-            return response.repository.issue.projectItems.nodes.map((item) => ({
-                id: item.id,
-                project: {
-                    id: item.project.id,
-                    title: item.project.title,
-                    url: item.project.url,
-                },
-            }));
-        } catch (error) {
-            core.setFailed(`Error fetching issue projects: ${error}`);
-            throw error;
-        }
-    };
-
     getMilestone = async (
         owner: string,
         repository: string,
