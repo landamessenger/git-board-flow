@@ -1,11 +1,10 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {IssueRepository} from "../../repository/issue_repository";
-import {ProjectRepository} from "../../repository/project_repository";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
-import {PullRequestRepository} from "../../repository/pull_request_repository";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { IssueRepository } from "../../repository/issue_repository";
+import { ProjectRepository } from "../../repository/project_repository";
+import { PullRequestRepository } from "../../repository/pull_request_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'AssignReviewersToIssueUseCase';
@@ -14,7 +13,7 @@ export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Re
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const desiredReviewersCount = param.pullRequest.desiredReviewersCount
         const number = param.pullRequest.number
@@ -22,7 +21,7 @@ export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Re
         const result: Result[] = []
 
         try {
-            core.info(`#${number} needs ${desiredReviewersCount} reviewers.`)
+            logDebugInfo(`#${number} needs ${desiredReviewersCount} reviewers.`)
 
             const currentReviewers = await this.pullRequestRepository.getCurrentReviewers(
                 param.owner,
@@ -53,7 +52,7 @@ export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Re
             }
 
             const missingReviewers = desiredReviewersCount - currentReviewers.length
-            core.info(`#${number} needs ${missingReviewers} more reviewers.`)
+            logDebugInfo(`#${number} needs ${missingReviewers} more reviewers.`)
 
 
             const excludeForReview: string[] = []

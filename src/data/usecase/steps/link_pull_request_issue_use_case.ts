@@ -1,19 +1,16 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {ProjectRepository} from "../../repository/project_repository";
-import {error} from "@actions/core";
-import {Result} from "../../model/result";
 import * as github from "@actions/github";
-import {PullRequestRepository} from "../../repository/pull_request_repository";
-import * as core from '@actions/core';
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { PullRequestRepository } from "../../repository/pull_request_repository";
+import { logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'LinkPullRequestIssueUseCase';
     private pullRequestRepository = new PullRequestRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
 

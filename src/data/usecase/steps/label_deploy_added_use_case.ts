@@ -1,22 +1,21 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
-import {BranchRepository} from "../../repository/branch_repository";
-import {injectJsonAsMarkdownBlock} from "../../utils/content_utils";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { BranchRepository } from "../../repository/branch_repository";
+import { injectJsonAsMarkdownBlock } from "../../utils/content_utils";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployAddedUseCase';
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
-                core.info(`Deploying requested.`)
+                logDebugInfo(`Deploying requested.`)
                 if (param.release.active && param.release.branch !== undefined) {
                     const sanitizedTitle = param.issue.title
                         .replace(/\b\d+(\.\d+){2,}\b/g, '')

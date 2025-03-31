@@ -19,6 +19,7 @@ jobs:
       - name: Git Board - Pull Request
         uses: ./
         with:
+          debug: true
           project-ids: 2
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}

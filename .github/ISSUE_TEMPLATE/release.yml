@@ -1,7 +1,7 @@
 name: 🚀 Release Issue
 description: Request a new release for git-board-flow (only team members)
 title: "<YOUR TITLE HERE>"
-labels: ["release", "branched"]
+labels: ["release", "branched", "priority: medium"]
 body:
   - type: markdown
     attributes:

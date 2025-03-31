@@ -1,24 +1,24 @@
-import * as exec from '@actions/exec';
 import * as core from '@actions/core';
+import * as exec from '@actions/exec';
 import * as github from "@actions/github";
-import {Result} from "../model/result";
-import {Execution} from "../model/execution";
-import {getLatestVersion} from "../utils/version_utils";
+import { Execution } from "../model/execution";
 import { Labels } from '../model/labels';
+import { Result } from "../model/result";
 import { SizeThresholds } from '../model/size_thresholds';
 import { logDebugInfo, logError } from '../utils/logger';
+import { getLatestVersion } from "../utils/version_utils";
 
 export class BranchRepository {
 
     fetchRemoteBranches = async () => {
         try {
-            core.info('Fetching tags and forcing fetch...');
+            logDebugInfo('Fetching tags and forcing fetch...');
             await exec.exec('git', ['fetch', '--tags', '--force']);
 
-            core.info('Fetching all remote branches with verbose output...');
+            logDebugInfo('Fetching all remote branches with verbose output...');
             await exec.exec('git', ['fetch', '--all', '-v']);
 
-            core.info('Successfully fetched all remote branches.');
+            logDebugInfo('Successfully fetched all remote branches.');
         } catch (error) {
             core.setFailed(`Error fetching remote branches: ${error}`);
         }
@@ -26,7 +26,7 @@ export class BranchRepository {
 
     getLatestTag = async () => {
         try {
-            core.info('Fetching the latest tag...');
+            logDebugInfo('Fetching the latest tag...');
             await exec.exec('git', ['fetch', '--tags']);
 
             const tags: string[] = [];
@@ -44,10 +44,10 @@ export class BranchRepository {
 
             if (validTags.length > 0) {
                 const latestTag = getLatestVersion(validTags);
-                core.info(`Latest tag: ${latestTag}`);
+                logDebugInfo(`Latest tag: ${latestTag}`);
                 return latestTag;
             } else {
-                core.info('No valid tags found.');
+                logDebugInfo('No valid tags found.');
                 return undefined;
             }
         } catch (error) {
@@ -70,7 +70,7 @@ export class BranchRepository {
                 tagVersion = `v${latestTag}`;
             }
 
-            core.info(`Fetching commit hash for the tag: ${tagVersion}`);
+            logDebugInfo(`Fetching commit hash for the tag: ${tagVersion}`);
             let commitOid = '';
             await exec.exec('git', ['rev-list', '-n', '1', tagVersion], {
                 listeners: {
@@ -81,7 +81,7 @@ export class BranchRepository {
             });
 
             if (commitOid) {
-                core.info(`Commit tag: ${commitOid}`);
+                logDebugInfo(`Commit tag: ${commitOid}`);
                 return commitOid;
             } else {
                 core.setFailed('No commit found for the tag');
@@ -120,7 +120,7 @@ export class BranchRepository {
     ): Promise<Result[]> => {
         const result: Result[] = []
         try {
-            core.info(`Managing branches`);
+            logDebugInfo(`Managing branches`);
 
             const branches = await this.getListOfBranches(owner, repository, token)
             logDebugInfo(JSON.stringify(branches, null, 2));
@@ -171,7 +171,7 @@ export class BranchRepository {
                 /**
                  * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
                  */
-                core.info(`Searching for branches related to issue #${issueNumber}...`);
+                logDebugInfo(`Searching for branches related to issue #${issueNumber}...`);
 
                 const {data} = await octokit.rest.repos.listBranches({
                     owner: owner,
@@ -186,12 +186,12 @@ export class BranchRepository {
 
                         if (matchingBranch) {
                             baseBranchName = matchingBranch.name;
-                            core.info(`Found previous issue branch: ${baseBranchName}`);
+                            logDebugInfo(`Found previous issue branch: ${baseBranchName}`);
                             // TODO replacedBranchName = baseBranchName
                             break;
                         }
                     } catch (error) {
-                        core.error(`Error while listing branches: ${error}`);
+                        logError(`Error while listing branches: ${error}`);
                         result.push(
                             new Result({
                                 id: 'branch_repository',
@@ -211,9 +211,9 @@ export class BranchRepository {
 
             param.currentConfiguration.parentBranch = baseBranchName
             
-            core.info(`============================================================================================`);
-            core.info(`Base branch: ${baseBranchName}`);
-            core.info(`New branch: ${newBranchName}`);
+            logDebugInfo(`============================================================================================`);
+            logDebugInfo(`Base branch: ${baseBranchName}`);
+            logDebugInfo(`New branch: ${newBranchName}`);
 
             result.push(
                 ...await this.createLinkedBranch(
@@ -280,7 +280,7 @@ export class BranchRepository {
     ): Promise<Result[]> => {
         const result: Result[] = []
         try {
-            core.info(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`)
+            logDebugInfo(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`)
 
             let ref = `heads/${baseBranchName}`
             if (baseBranchName.indexOf('tags/') > -1) {
@@ -310,14 +310,14 @@ export class BranchRepository {
                 issueNumber: issueNumber
             });
 
-            core.info(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`)
+            logDebugInfo(`Repository information retrieved: ${JSON.stringify(repository?.ref)}`)
 
             const repositoryId: string | undefined = repository?.id ?? undefined;
             const issueId: string | undefined = repository?.issue?.id ?? undefined;
             const branchOid: string | undefined = oid ?? repository?.ref?.target?.oid ?? undefined;
 
             if (repositoryId === undefined || issueNumber === undefined || branchOid === undefined) {
-                core.error(`Error searching repository "${baseBranchName}": id: ${repositoryId}, oid: ${branchOid}), issue #${issueNumber}`);
+                logError(`Error searching repository "${baseBranchName}": id: ${repositoryId}, oid: ${branchOid}), issue #${issueNumber}`);
                 result.push(
                     new Result({
                         id: 'branch_repository',
@@ -331,7 +331,7 @@ export class BranchRepository {
                 return result;
             }
 
-            core.info(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
+            logDebugInfo(`Linking branch "${newBranchName}" (oid: ${branchOid}) to issue #${issueNumber}`);
 
             const mutationResponse = await octokit.graphql<LinkedBranchResponse>(`
                 mutation($issueId: ID!, $name: String!, $repositoryId: ID!, $oid: GitObjectID!) {
@@ -356,7 +356,7 @@ export class BranchRepository {
                 oid: branchOid,
             });
 
-            core.info(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch?.linkedBranch)}`);
+            logDebugInfo(`Linked branch: ${JSON.stringify(mutationResponse.createLinkedBranch?.linkedBranch)}`);
 
             const baseBranchUrl = `https://github.com/${owner}/${repo}/tree/${baseBranchName}`;
             const newBranchUrl = `https://github.com/${owner}/${repo}/tree/${newBranchName}`;
@@ -374,7 +374,7 @@ export class BranchRepository {
                 })
             )
         } catch (error) {
-            core.error(`Error Linking branch "${error}"`);
+            logError(`Error Linking branch "${error}"`);
             result.push(
                 new Result({
                     id: 'branch_repository',
@@ -407,7 +407,7 @@ export class BranchRepository {
                 ref,
             });
 
-            core.info(`Branch found: ${data.ref}`);
+            logDebugInfo(`Branch found: ${data.ref}`);
 
             await octokit.rest.git.deleteRef({
                 owner: owner,
@@ -415,11 +415,11 @@ export class BranchRepository {
                 ref,
             });
 
-            core.info(`Successfully deleted branch: ${branch}`);
+            logDebugInfo(`Successfully deleted branch: ${branch}`);
 
             return true;
         } catch (error) {
-            core.error(`Error processing branch ${branch}: ${error}`);
+            logError(`Error processing branch ${branch}: ${error}`);
             throw error;
         }
     }
@@ -483,7 +483,7 @@ export class BranchRepository {
         try {
             const octokit = github.getOctokit(token);
             const octokitPAT = github.getOctokit(tokenPAT);
-            core.info(`Creating merge from ${head} into ${base}`);
+            logDebugInfo(`Creating merge from ${head} into ${base}`);
             
             // Build PR body with commit list
             const prBody = `🚀 Automated Merge  
@@ -502,7 +502,7 @@ This PR merges **${head}** into **${base}**.
                 body: prBody,
             });
 
-            core.info(`Pull request #${pullRequest.number} created, getting commits...`);
+            logDebugInfo(`Pull request #${pullRequest.number} created, getting commits...`);
 
             // Get all commits in the PR
             const { data: commits } = await octokitPAT.rest.pulls.listCommits({
@@ -513,7 +513,7 @@ This PR merges **${head}** into **${base}**.
 
             const commitMessages = commits.map(commit => commit.commit.message);
             
-            core.info(`Found ${commitMessages.length} commits in PR`);
+            logDebugInfo(`Found ${commitMessages.length} commits in PR`);
 
             // Update PR with commit list and footer
             await octokitPAT.rest.pulls.update({
@@ -545,8 +545,8 @@ This PR merges **${head}** into **${base}**.
                         ref: head
                     });
 
-                    core.info(`Combined status state: ${commitStatus.state}`);
-                    core.info(`Number of check runs: ${checkRuns.check_runs.length}`);
+                    logDebugInfo(`Combined status state: ${commitStatus.state}`);
+                    logDebugInfo(`Number of check runs: ${checkRuns.check_runs.length}`);
 
                     // If there are check runs, prioritize those over status checks
                     if (checkRuns.check_runs.length > 0) {
@@ -556,7 +556,7 @@ This PR merges **${head}** into **${base}**.
 
                         if (pendingCheckRuns.length === 0) {
                             checksCompleted = true;
-                            core.info('All check runs have completed.');
+                            logDebugInfo('All check runs have completed.');
 
                             // Verify if all checks passed
                             const failedChecks = checkRuns.check_runs.filter(
@@ -567,9 +567,9 @@ This PR merges **${head}** into **${base}**.
                                 throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
                             }
                         } else {
-                            core.info(`Waiting for ${pendingCheckRuns.length} check runs to complete:`);
+                            logDebugInfo(`Waiting for ${pendingCheckRuns.length} check runs to complete:`);
                             pendingCheckRuns.forEach(check => {
-                                core.info(`  - ${check.name} (Status: ${check.status})`);
+                                logDebugInfo(`  - ${check.name} (Status: ${check.status})`);
                             });
                             await new Promise(resolve => setTimeout(resolve, iteration * 1000));
                             attempts++;
@@ -578,17 +578,17 @@ This PR merges **${head}** into **${base}**.
                     } else {
                         // Fall back to status checks if no check runs exist
                         const pendingChecks = commitStatus.statuses.filter(status => {
-                            core.info(`Status check: ${status.context} (State: ${status.state})`);
+                            logDebugInfo(`Status check: ${status.context} (State: ${status.state})`);
                             return status.state === 'pending';
                         });
 
                         if (pendingChecks.length === 0) {
                             checksCompleted = true;
-                            core.info('All status checks have completed.');
+                            logDebugInfo('All status checks have completed.');
                         } else {
-                            core.info(`Waiting for ${pendingChecks.length} status checks to complete:`);
+                            logDebugInfo(`Waiting for ${pendingChecks.length} status checks to complete:`);
                             pendingChecks.forEach(check => {
-                                core.info(`  - ${check.context} (State: ${check.state})`);
+                                logDebugInfo(`  - ${check.context} (State: ${check.state})`);
                             });
                             await new Promise(resolve => setTimeout(resolve, iteration * 1000));
                             attempts++;
@@ -621,7 +621,7 @@ This PR merges **${head}** into **${base}**.
                 })
             );
         } catch (error) {
-            core.error(`Error in PR workflow: ${error}`);
+            logError(`Error in PR workflow: ${error}`);
             
             // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
             try {
@@ -646,7 +646,7 @@ This PR merges **${head}** into **${base}**.
                 );
                 return result;
             } catch (directMergeError) {
-                core.error(`Error in direct merge attempt: ${directMergeError}`);
+                logError(`Error in direct merge attempt: ${directMergeError}`);
                 result.push(
                     new Result({
                         id: 'branch_repository',
@@ -688,7 +688,7 @@ This PR merges **${head}** into **${base}**.
         const octokit = github.getOctokit(token);
 
         try {
-            core.info(`Comparing branches: ${head} with ${base}`);
+            logDebugInfo(`Comparing branches: ${head} with ${base}`);
             
             let headRef = `heads/${head}`
             if (head.indexOf('tags/') > -1) {
@@ -730,7 +730,7 @@ This PR merges **${head}** into **${base}**.
                 }))
             };
         } catch (error) {
-            core.error(`Error comparing branches: ${error}`);
+            logError(`Error comparing branches: ${error}`);
             throw error;
         }
     }
@@ -758,43 +758,51 @@ This PR merges **${head}** into **${base}**.
             const totalCommits = headBranchChanges.totalCommits;
 
             let sizeCategory: string;
+            let githubSize: string;
             let sizeReason: string;
             if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
                 sizeCategory = labels.sizeXxl;
+                githubSize = `XL`;
                 sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
                             totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
                             `More than ${sizeThresholds.xxl.commits} commits`;
             } else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
                 sizeCategory = labels.sizeXl;
+                githubSize = `XL`;
                 sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
                             totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
                             `More than ${sizeThresholds.xl.commits} commits`;
             } else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
                 sizeCategory = labels.sizeL;
+                githubSize = `L`;
                 sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
                             totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
                             `More than ${sizeThresholds.l.commits} commits`;
             } else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
                 sizeCategory = labels.sizeM;
+                githubSize = `M`;
                 sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
                             totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
                             `More than ${sizeThresholds.m.commits} commits`;
             } else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
                 sizeCategory = labels.sizeS;
+                githubSize = `S`;
                 sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
                             totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
                             `More than ${sizeThresholds.s.commits} commits`;
             } else {
                 sizeCategory = labels.sizeXs;
+                githubSize = `XS`;
                 sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
             }
             
             return {
                 size: sizeCategory,
+                githubSize: githubSize,
                 reason: sizeReason
             }
         } catch (error) {
-            core.error(`Error comparing branches: ${error}`);
+            logError(`Error comparing branches: ${error}`);
             throw error;
         }
     }

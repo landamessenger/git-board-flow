@@ -1,10 +1,9 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {IssueRepository} from "../../repository/issue_repository";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
-import {BranchRepository} from "../../repository/branch_repository";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { BranchRepository } from "../../repository/branch_repository";
+import { IssueRepository } from "../../repository/issue_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployedActionUseCase';
@@ -12,7 +11,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`);
+        logInfo(`Executing ${this.taskId}.`);
 
         const result: Result[] = [];
 
@@ -56,7 +55,8 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                 param.tokens.token,
             )
 
-            console.log(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`, labelNames);
+            logDebugInfo(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`);
+            logDebugInfo(`Labels: ${labelNames}`);
 
             result.push(
                 new Result({

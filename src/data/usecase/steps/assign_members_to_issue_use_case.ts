@@ -1,10 +1,9 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {IssueRepository} from "../../repository/issue_repository";
-import {ProjectRepository} from "../../repository/project_repository";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { IssueRepository } from "../../repository/issue_repository";
+import { ProjectRepository } from "../../repository/project_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'AssignMemberToIssueUseCase';
@@ -12,7 +11,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`);
+        logInfo(`Executing ${this.taskId}.`);
 
         const desiredAssigneesCount = param.isIssue ?
             param.issue.desiredAssigneesCount : param.pullRequest.desiredAssigneesCount;
@@ -21,7 +20,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
         const result: Result[] = [];
 
         try {
-            core.info(`#${number} needs ${desiredAssigneesCount} assignees.`);
+            logDebugInfo(`#${number} needs ${desiredAssigneesCount} assignees.`);
 
             const currentProjectMembers = await this.projectRepository.getAllMembers(
                 param.owner,
@@ -59,7 +58,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                     [creator],
                     param.tokens.token,
                 );
-                core.info(`Assigned PR creator @${creator} to #${number}.`);
+                logDebugInfo(`Assigned PR creator @${creator} to #${number}.`);
                 result.push(
                     new Result({
                         id: this.taskId,
@@ -78,7 +77,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                     [creator],
                     param.tokens.token,
                 );
-                core.info(`Assigned Issue creator @${creator} to #${number}.`);
+                logDebugInfo(`Assigned Issue creator @${creator} to #${number}.`);
                 result.push(
                     new Result({
                         id: this.taskId,

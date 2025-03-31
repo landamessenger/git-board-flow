@@ -1,15 +1,14 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import * as core from "@actions/core";
-import {Result} from "../../model/result";
 import ivm from 'isolated-vm';
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class ExecuteScriptUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ExecuteScriptUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
 
@@ -28,11 +27,11 @@ export class ExecuteScriptUseCase implements ParamUseCase<Execution, Result[]> {
                 await jail.set(key, p, {copy: true});
             }
 
-            core.info('Executing script in isolated VM...');
+            logDebugInfo('Executing script in isolated VM...');
             const scriptResult = await context.eval(param.commitPrefixBuilder, {
                 timeout: 1000,
             });
-            core.info(`Script result: ${scriptResult}`);
+            logDebugInfo(`Script result: ${scriptResult}`);
 
             result.push(
                 new Result({

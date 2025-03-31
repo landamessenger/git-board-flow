@@ -1,7 +1,7 @@
-import * as core from "@actions/core";
-import {ContentInterface} from "./content_interface";
-import {IssueRepository} from "../../../repository/issue_repository";
-import {Execution} from "../../../model/execution";
+import { Execution } from "../../../model/execution";
+import { IssueRepository } from "../../../repository/issue_repository";
+import { logError } from "../../../utils/logger";
+import { ContentInterface } from "./content_interface";
 
 export abstract class IssueContentInterface extends ContentInterface {
     private issueRepository = new IssueRepository();
@@ -30,7 +30,7 @@ export abstract class IssueContentInterface extends ContentInterface {
 
             return this.getContent(description)
         } catch (error) {
-            core.error(`Error reading issue configuration: ${error}`);
+            logError(`Error reading issue configuration: ${error}`);
             throw error;
         }
     }
@@ -72,7 +72,7 @@ export abstract class IssueContentInterface extends ContentInterface {
 
             return updated
         } catch (error) {
-            core.error(`Error reading issue configuration: ${error}`);
+            logError(`Error reading issue configuration: ${error}`);
             throw error;
         }
     }

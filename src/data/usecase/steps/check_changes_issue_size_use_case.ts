@@ -1,29 +1,31 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
 import { BranchRepository } from "../../repository/branch_repository";
 import { IssueRepository } from "../../repository/issue_repository";
-import { logError } from "../../utils/logger";
+import { ProjectRepository } from "../../repository/project_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckChangesIssueSizeUseCase';
     private branchRepository = new BranchRepository();
     private issueRepository = new IssueRepository();
+    private projectRepository = new ProjectRepository();
+
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
             if (param.currentConfiguration.parentBranch === undefined) {
-                core.info(`Parent branch is undefined.`)
+                logDebugInfo(`Parent branch is undefined.`)
                 return result;
             }
 
             const headBranch = param.commit.branch;
             const baseBranch = param.currentConfiguration.parentBranch;
 
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(
                 param.owner,
                 param.repo,
                 headBranch,
@@ -33,8 +35,13 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                 param.tokens.tokenPat,
             )
 
-            if (param.labels.sizedLabel !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+            logDebugInfo(`Size: ${size}`);
+            logDebugInfo(`Github Size: ${githubSize}`);
+            logDebugInfo(`Reason: ${reason}`);
+            logDebugInfo(`Labels: ${param.labels.sizedLabelOnIssue}`);
+
+            if (param.labels.sizedLabelOnIssue !== size) {
+                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
 
                 await this.issueRepository.setLabels(
@@ -45,7 +52,19 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                     param.tokens.token,
                 )
 
-                console.log(`Updated labels on issue #${param.issueNumber}:`, labelNames);
+                for (const project of param.project.getProjects()) {
+                    await this.projectRepository.setTaskSize(
+                        project,
+                        param.owner,
+                        param.repo,
+                        param.issueNumber,
+                        githubSize,
+                        param.tokens.tokenPat,
+                    )
+                }
+
+                logDebugInfo(`Updated labels on issue #${param.issueNumber}:`);
+                logDebugInfo(`Labels: ${labelNames}`);
 
                 result.push(
                     new Result({
@@ -55,6 +74,15 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                         steps: [
                             `${reason}, so the issue was resized to ${size}.`,
                         ],
+                    })
+                );
+            } else {
+                logDebugInfo(`The issue is already at the correct size.`);
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
                     })
                 );
             }

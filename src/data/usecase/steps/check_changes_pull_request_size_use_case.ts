@@ -1,21 +1,23 @@
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {Result} from "../../model/result";
-import * as core from '@actions/core';
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
 import { BranchRepository } from "../../repository/branch_repository";
 import { IssueRepository } from "../../repository/issue_repository";
-import { logError } from "../../utils/logger";
+import { ProjectRepository } from "../../repository/project_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckChangesPullRequestSizeUseCase';
     private branchRepository = new BranchRepository();
     private issueRepository = new IssueRepository();
+    private projectRepository = new ProjectRepository();
+
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
-            const { size, reason } = await this.branchRepository.getSizeCategoryAndReason(
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(
                 param.owner,
                 param.repo,
                 param.pullRequest.head,
@@ -25,8 +27,16 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                 param.tokens.tokenPat,
             )
 
-            if (param.labels.sizedLabel !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.sizedLabel);
+            logDebugInfo(`Size: ${size}`);
+            logDebugInfo(`Github Size: ${githubSize}`);
+            logDebugInfo(`Reason: ${reason}`);
+            logDebugInfo(`Labels: ${param.labels.sizedLabelOnPullRequest}`);
+
+            if (param.labels.sizedLabelOnPullRequest !== size) {
+                /**
+                 * Even if this is for pull reuqets, we are getting the issue labels for having a mirror of the issue labels on the pull request.
+                 */
+                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
 
                 await this.issueRepository.setLabels(
@@ -37,7 +47,19 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                     param.tokens.token,
                 )
 
-                console.log(`Updated labels on pull request #${param.pullRequest.number}:`, labelNames);
+                for (const project of param.project.getProjects()) {
+                    await this.projectRepository.setTaskSize(
+                        project,
+                        param.owner,
+                        param.repo,
+                        param.pullRequest.number,
+                        githubSize,
+                        param.tokens.tokenPat,
+                    )
+                }
+
+                logDebugInfo(`Updated labels on pull request #${param.pullRequest.number}:`);
+                logDebugInfo(`Labels: ${labelNames}`);
 
                 result.push(
                     new Result({
@@ -47,6 +69,15 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                         steps: [
                             `${reason}, so the pull request was resized to ${size}.`,
                         ],
+                    })
+                );
+            } else {
+                logDebugInfo(`The pull request is already at the correct size.`);
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
                     })
                 );
             }

@@ -1,4 +1,4 @@
-import {Execution} from "../model/execution";
+import { Execution } from "../model/execution";
 
 export const branchesForManagement = (
     params: Execution,

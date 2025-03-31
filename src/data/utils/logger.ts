@@ -20,18 +20,18 @@ export function logError(message: any) {
 
 export function logDebugInfo(message: string) {
     if (loggerDebug) {
-        core.info(message);
+        logInfo(message);
     }
 }
 
 export function logDebugWarning(message: string) {
     if (loggerDebug) {
-        core.warning(message);
+        logWarning(message);
     }
 }
 
 export function logDebugError(message: any) {
     if (loggerDebug) {
-        core.error(message.toString());
+        logError(message.toString());
     }
 }

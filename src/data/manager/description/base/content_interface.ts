@@ -1,4 +1,3 @@
-import * as core from "@actions/core";
 import { logError } from "../../../utils/logger";
 
 export abstract class ContentInterface {
@@ -51,7 +50,7 @@ export abstract class ContentInterface {
 
     private _updateContent = (description: string, content: string) => {
         if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
-            core.error(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
+            logError(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
             return undefined;
         }
 

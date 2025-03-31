@@ -1,19 +1,17 @@
 import * as core from "@actions/core";
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {BranchRepository} from "../../repository/branch_repository";
-import {Result} from "../../model/result";
-import {ExecuteScriptUseCase} from "./execute_script_use_case";
-import {IssueRepository} from "../../repository/issue_repository";
-import { logError } from "../../utils/logger";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { BranchRepository } from "../../repository/branch_repository";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
+import { ExecuteScriptUseCase } from "./execute_script_use_case";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
     private branchRepository = new BranchRepository();
-    private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
@@ -53,9 +51,9 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 param.repo,
                 param.tokens.token,
             )
-            core.info('Available branches:');
+            logDebugInfo('Available branches:');
             branches.forEach(branch => {
-                core.info(`- ${branch}`);
+                logDebugInfo(`- ${branch}`);
             });
 
             if (param.hotfix.active) {
@@ -65,8 +63,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     const tagUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.baseBranch}`;
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
 
-                    core.info(`Tag branch: ${param.hotfix.baseBranch}`);
-                    core.info(`Hotfix branch: ${param.hotfix.branch}`);
+                    logDebugInfo(`Tag branch: ${param.hotfix.baseBranch}`);
+                    logDebugInfo(`Hotfix branch: ${param.hotfix.branch}`);
 
                     param.currentConfiguration.parentBranch = param.hotfix.baseBranch
 
@@ -92,7 +90,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                     ],
                                 })
                             )
-                            core.info(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
+                            logDebugInfo(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
                         }
                     } else {
                         result.push(
@@ -123,7 +121,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 if (param.release.version !== undefined && param.release.branch !== undefined) {
                     param.currentConfiguration.releaseBranch = param.release.branch;
 
-                    core.info(`Release branch: ${param.release.branch}`);
+                    logDebugInfo(`Release branch: ${param.release.branch}`);
                     param.currentConfiguration.parentBranch = param.branches.development
 
                     const developmentUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.branches.development}`;
@@ -192,7 +190,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                     reminders: reminders,
                                 })
                             )
-                            core.info(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
+                            logDebugInfo(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
                         }
                     } else {
                         result.push(
@@ -224,7 +222,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 return result
             }
             
-            core.info(`Branch type: ${param.managementBranch}`);
+            logDebugInfo(`Branch type: ${param.managementBranch}`);
 
             const branchesResult = await this.branchRepository.manageBranches(
                 param,

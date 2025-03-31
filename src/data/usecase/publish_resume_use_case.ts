@@ -1,10 +1,9 @@
-import {IssueRepository} from "../repository/issue_repository";
-import {ParamUseCase} from "./base/param_usecase";
-import {Execution} from "../model/execution";
-import {Result} from "../model/result";
-import {getRandomElement} from "../utils/list_utils";
-import * as core from '@actions/core';
-import { logError } from "../utils/logger";
+import { Execution } from "../model/execution";
+import { Result } from "../model/result";
+import { IssueRepository } from "../repository/issue_repository";
+import { getRandomElement } from "../utils/list_utils";
+import { logError, logInfo } from "../utils/logger";
+import { ParamUseCase } from "./base/param_usecase";
 
 /**
  * Publish the resume of actions
@@ -14,7 +13,7 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<void> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         try {
             /**

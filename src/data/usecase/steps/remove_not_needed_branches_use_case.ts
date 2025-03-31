@@ -1,15 +1,16 @@
 import * as core from "@actions/core";
-import {ParamUseCase} from "../base/param_usecase";
-import {Execution} from "../../model/execution";
-import {BranchRepository} from "../../repository/branch_repository";
-import {Result} from "../../model/result";
+import { Execution } from "../../model/execution";
+import { Result } from "../../model/result";
+import { BranchRepository } from "../../repository/branch_repository";
+import { logError, logInfo } from "../../utils/logger";
+import { ParamUseCase } from "../base/param_usecase";
 
 export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'RemoveNotNeededBranchesUseCase';
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        core.info(`Executing ${this.taskId}.`)
+        logInfo(`Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {
@@ -70,7 +71,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                             })
                         )
                     } else {
-                        core.error(`Error deleting ${branchName}`);
+                        logError(`Error deleting ${branchName}`);
                         result.push(
                             new Result({
                                 id: this.taskId,
@@ -103,7 +104,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                                     })
                                 )
                             } else {
-                                core.error(`Error deleting ${branch}`);
+                                logError(`Error deleting ${branch}`);
                                 result.push(
                                     new Result({
                                         id: this.taskId,
