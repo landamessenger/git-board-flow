@@ -50156,6 +50156,7 @@ class ProjectRepository {
                 (0, logger_1.logError)(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
                 return false;
             }
+            (0, logger_1.logDebugInfo)(`Content ID: ${contentId}`);
             const octokit = github.getOctokit(token);
             // Get the field ID and current value
             const fieldQuery = `
@@ -50197,12 +50198,15 @@ class ProjectRepository {
             const fieldResult = await octokit.graphql(fieldQuery, {
                 projectId: project.id
             });
+            (0, logger_1.logDebugInfo)(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
             const targetField = fieldResult.node.fields.nodes.find((f) => f.name === fieldName);
+            (0, logger_1.logDebugInfo)(`Target field: ${JSON.stringify(targetField, null, 2)}`);
             if (!targetField) {
                 (0, logger_1.logError)(`Field '${fieldName}' not found or is not a single-select field.`);
                 return false;
             }
             const targetOption = targetField.options.find((opt) => opt.name === fieldValue);
+            (0, logger_1.logDebugInfo)(`Target option: ${JSON.stringify(targetOption, null, 2)}`);
             if (!targetOption) {
                 (0, logger_1.logError)(`Option '${fieldValue}' not found for field '${fieldName}'.`);
                 return false;
@@ -50210,12 +50214,19 @@ class ProjectRepository {
             // Check current value
             const currentItem = fieldResult.node.items.nodes.find((item) => item.id === contentId);
             if (currentItem) {
+                (0, logger_1.logDebugInfo)(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
                 const currentFieldValue = currentItem.fieldValues.nodes.find((value) => value.field?.name === fieldName);
                 if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
                     (0, logger_1.logDebugInfo)(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
                     return false;
                 }
             }
+            else {
+                (0, logger_1.logError)(`Current item ${fieldName} not found for issue or pull request #${issueOrPullRequestNumber}.`);
+                return false;
+            }
+            (0, logger_1.logDebugInfo)(`Target field ID: ${targetField.id}`);
+            (0, logger_1.logDebugInfo)(`Target option ID: ${targetOption.id}`);
             const mutation = `
         mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
           updateProjectV2ItemFieldValue(  
