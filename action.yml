@@ -76,22 +76,22 @@ inputs:
     default: "priority: low"
   size-xxl-label:
     description: "Label to indicate a task of size XXL."
-    default: "size: xxl"
+    default: "size: XXL"
   size-xl-label:
     description: "Label to indicate a task of size XL."
-    default: "size: xl"
+    default: "size: XL"
   size-l-label:
     description: "Label to indicate a task of size L."
-    default: "size: l"
+    default: "size: L"
   size-m-label:
     description: "Label to indicate a task of size M."
-    default: "size: m"
+    default: "size: M"
   size-s-label:
     description: "Label to indicate a task of size S."
-    default: "size: s"
+    default: "size: S"
   size-xs-label:
     description: "Label to indicate a task of size XS."
-    default: "size: xs"
+    default: "size: XS"
   size-xxl-threshold-lines:
     description: "Threshold for size XXL in lines."
     default: "1000"
