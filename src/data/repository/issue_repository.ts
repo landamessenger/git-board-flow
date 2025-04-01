@@ -585,38 +585,51 @@ export class IssueRepository {
             logDebugInfo(`Issue ID: ${issueId}`);
 
             // Use the known issue type ID
-            const issueTypeId = 'IT_kwDOA8wRO84AuWag';
+            //const issueTypeId = 'IT_kwDOA8wRO84AuWag';
 
-            logDebugInfo(`Using Issue Type ID: ${issueTypeId}`);
+            //logDebugInfo(`Using Issue Type ID: ${issueTypeId}`);
 
-            const updateQuery = `
-                mutation UpdateIssueType($input: UpdateIssueIssueTypeInput!) {
-                    updateIssueIssueType(input: $input) {
-                        issue {
-                            id
-                            issueType {
+            // Obtener el ID del tipo de incidencia
+            const { organization } = await octokit.graphql<{ organization: { issueTypes: { nodes: { id: string, name: string }[] } } }>(`
+                query ($owner: String!) {
+                    organization(login: $owner) {
+                        issueTypes(first: 10) {
+                            nodes {
                                 id
+                                name
                             }
                         }
                     }
                 }
-            `;
-
-            const updateVariables = {
-                input: {
-                    issueId,
-                    issueTypeId,
-                },
-            };
-
-            logDebugInfo(`Update Variables: ${JSON.stringify(updateVariables, null, 2)}`);
-
-            await octokit.graphql({
-                query: updateQuery,
-                variables: updateVariables,
+            `, {
+                owner,
             });
 
-            logDebugInfo(`Issue type updated to ${issueType} (${issueTypeId}) for issue #${issueNumber}`);
+            const issueTypeData = organization.issueTypes.nodes.find(type => type.name === issueType);
+
+            logDebugInfo(`Issue Type Data: ${JSON.stringify(issueTypeData, null, 2)}`);
+
+            if (!issueTypeData) {
+                throw new Error(`Issue type "${issueType}" not found.`);
+            }
+
+            // Actualizar el tipo de la incidencia
+            await octokit.graphql(`
+                mutation ($issueId: ID!, $issueTypeId: ID!) {
+                    updateIssueIssueType(input: {issueId: $issueId, issueTypeId: $issueTypeId}) {
+                        issue {
+                            id
+                            issueType {
+                                id
+                                name
+                            }
+                        }
+                    }
+                }
+            `, {
+                issueId,
+                issueTypeId: issueTypeData.id,
+            });
         } catch (error) {
             logError(`Failed to update issue type: ${error}`);
             throw error;
