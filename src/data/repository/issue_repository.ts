@@ -586,8 +586,8 @@ export class IssueRepository {
 
             // First query to get available issue types
             const issueTypesQuery = `
-                query GetIssueTypes($owner: String!, $repo: String!) {
-                    repository(owner: $owner, name: $repo) {
+                query GetIssueTypes($repositoryOwner: String!, $repositoryName: String!) {
+                    repository(owner: $repositoryOwner, name: $repositoryName) {
                         issueTypes(first: 100) {
                             nodes {
                                 id
@@ -612,8 +612,8 @@ export class IssueRepository {
             }
 
             const variables = {
-                owner: owner.trim(),
-                repo: repository.trim()
+                repositoryOwner: owner.trim(),
+                repositoryName: repository.trim()
             };
 
             logDebugInfo(`Query Variables: ${JSON.stringify(variables, null, 2)}`);
