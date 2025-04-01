@@ -49877,6 +49877,62 @@ class IssueRepository {
             });
             return issue.body ?? '';
         };
+        this.setIssueType = async (owner, repository, issueNumber, issueType, token) => {
+            try {
+                const issueId = await this.getId(owner, repository, issueNumber, token);
+                const octokit = github.getOctokit(token);
+                // First query to get available issue types
+                const issueTypesQuery = `
+                query GetIssueTypes($owner: String!, $repo: String!) {
+                    repository(owner: $owner, name: $repo) {
+                        issueTypes {
+                            id
+                            name
+                        }
+                    }
+                }
+            `;
+                const issueTypesResult = await octokit.graphql({
+                    query: issueTypesQuery,
+                    variables: {
+                        owner,
+                        repo: repository
+                    },
+                });
+                const issueTypes = issueTypesResult.repository.issueTypes;
+                const targetIssueType = issueTypes.find((type) => type.name.toLowerCase() === issueType.toLowerCase());
+                if (!targetIssueType) {
+                    throw new Error(`Issue type "${issueType}" not found in repository`);
+                }
+                const updateQuery = `
+                mutation UpdateIssueType($input: UpdateIssueIssueTypeInput!) {
+                    updateIssueIssueType(input: $input) {
+                        issue {
+                            id
+                            issueType {
+                                id
+                            }
+                        }
+                    }
+                }
+            `;
+                const variables = {
+                    input: {
+                        issueId,
+                        issueTypeId: targetIssueType.id,
+                    },
+                };
+                await octokit.graphql({
+                    query: updateQuery,
+                    variables,
+                });
+                (0, logger_1.logDebugInfo)(`Issue type updated to ${issueType} (${targetIssueType.id}) for issue #${issueNumber}`);
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Failed to update issue type: ${error}`);
+                throw error;
+            }
+        };
     }
 }
 exports.IssueRepository = IssueRepository;
@@ -50880,6 +50936,7 @@ exports.PublishResultUseCase = PublishResultUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestLinkUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
+const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(1517);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
@@ -50893,11 +50950,16 @@ const update_title_use_case_1 = __nccwpck_require__(8411);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const results = [];
         try {
+            /**
+             * Test
+             */
+            await this.issueRepository.setIssueType(param.owner, param.repo, 216, 'Task', param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`PR action ${param.pullRequest.action}`);
             (0, logger_1.logDebugInfo)(`PR isOpened ${param.pullRequest.isOpened}`);
             (0, logger_1.logDebugInfo)(`PR isMerged ${param.pullRequest.isMerged}`);
