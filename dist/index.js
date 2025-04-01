@@ -49881,13 +49881,16 @@ class IssueRepository {
             try {
                 const issueId = await this.getId(owner, repository, issueNumber, token);
                 const octokit = github.getOctokit(token);
+                (0, logger_1.logDebugInfo)(`Issue ID: ${issueId}`);
                 // First query to get available issue types
                 const issueTypesQuery = `
                 query GetIssueTypes($owner: String!, $repo: String!) {
                     repository(owner: $owner, name: $repo) {
-                        issueTypes {
-                            id
-                            name
+                        issueTypes(first: 100) {
+                            nodes {
+                                id
+                                name
+                            }
                         }
                     }
                 }
@@ -49899,8 +49902,10 @@ class IssueRepository {
                         repo: repository
                     },
                 });
-                const issueTypes = issueTypesResult.repository.issueTypes;
+                (0, logger_1.logDebugInfo)(`Issue Types Result: ${JSON.stringify(issueTypesResult, null, 2)}`);
+                const issueTypes = issueTypesResult.repository.issueTypes.nodes;
                 const targetIssueType = issueTypes.find((type) => type.name.toLowerCase() === issueType.toLowerCase());
+                (0, logger_1.logDebugInfo)(`Target Issue Type: ${JSON.stringify(targetIssueType, null, 2)}`);
                 if (!targetIssueType) {
                     throw new Error(`Issue type "${issueType}" not found in repository`);
                 }
@@ -49922,6 +49927,7 @@ class IssueRepository {
                         issueTypeId: targetIssueType.id,
                     },
                 };
+                (0, logger_1.logDebugInfo)(`Variables: ${JSON.stringify(variables, null, 2)}`);
                 await octokit.graphql({
                     query: updateQuery,
                     variables,
