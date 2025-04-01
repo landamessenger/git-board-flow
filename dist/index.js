@@ -49877,14 +49877,36 @@ class IssueRepository {
             });
             return issue.body ?? '';
         };
-        this.setIssueType = async (owner, repository, issueNumber, issueType, token) => {
+        this.setIssueType = async (owner, repository, issueNumber, labels, token) => {
             try {
+                let issueType = 'task';
+                if (labels.isHotfix) {
+                    issueType = 'task';
+                }
+                else if (labels.isRelease) {
+                    issueType = 'task';
+                }
+                else if ((labels.isDocs || labels.isDocumentation)) {
+                    issueType = 'task';
+                }
+                else if (labels.isChore || labels.isMaintenance) {
+                    issueType = 'task';
+                }
+                else if (labels.isBugfix || labels.isBug) {
+                    issueType = 'bug';
+                }
+                else if (labels.isFeature || labels.isEnhancement) {
+                    issueType = 'feature';
+                }
+                else if (labels.isHelp) {
+                    issueType = 'task';
+                }
+                else if (labels.isQuestion) {
+                    issueType = 'task';
+                }
                 const issueId = await this.getId(owner, repository, issueNumber, token);
                 const octokit = github.getOctokit(token);
-                (0, logger_1.logDebugInfo)(`Owner: ${owner}`);
-                (0, logger_1.logDebugInfo)(`Repository: ${repository}`);
-                (0, logger_1.logDebugInfo)(`Issue ID: ${issueId}`);
-                // Obtener el ID del tipo de incidencia
+                (0, logger_1.logDebugInfo)(`Setting issue type for issue ${issueNumber} to ${issueType}`);
                 const { organization } = await octokit.graphql(`
                 query ($owner: String!) {
                     organization(login: $owner) {
@@ -49896,15 +49918,11 @@ class IssueRepository {
                         }
                     }
                 }
-            `, {
-                    owner,
-                });
-                const issueTypeData = organization.issueTypes.nodes.find(type => type.name.toLocaleLowerCase() === issueType.toLocaleLowerCase());
-                (0, logger_1.logDebugInfo)(`Issue Type Data: ${JSON.stringify(issueTypeData, null, 2)}`);
+            `, { owner });
+                const issueTypeData = organization.issueTypes.nodes.find(type => type.name.toLowerCase() === issueType.toLowerCase());
                 if (!issueTypeData) {
-                    throw new Error(`Issue type "${issueType}" not found.`);
+                    throw new Error(`Issue type "${issueType}" not found in organization ${owner}`);
                 }
-                // Actualizar el tipo de la incidencia
                 await octokit.graphql(`
                 mutation ($issueId: ID!, $issueTypeId: ID!) {
                     updateIssueIssueType(input: {issueId: $issueId, issueTypeId: $issueTypeId}) {
@@ -49921,6 +49939,7 @@ class IssueRepository {
                     issueId,
                     issueTypeId: issueTypeData.id,
                 });
+                (0, logger_1.logDebugInfo)(`Successfully updated issue type to ${issueType}`);
             }
             catch (error) {
                 (0, logger_1.logError)(`Failed to update issue type: ${error}`);
@@ -50677,6 +50696,7 @@ const label_deployed_added_use_case_1 = __nccwpck_require__(2477);
 const link_issue_project_use_case_1 = __nccwpck_require__(1503);
 const prepare_branches_use_case_1 = __nccwpck_require__(9883);
 const remove_not_needed_branches_use_case_1 = __nccwpck_require__(9871);
+const update_issue_type_use_case_1 = __nccwpck_require__(8510);
 const update_title_use_case_1 = __nccwpck_require__(8411);
 class IssueLinkUseCase {
     constructor() {
@@ -50703,6 +50723,10 @@ class IssueLinkUseCase {
          * Update title
          */
         results.push(...await new update_title_use_case_1.UpdateTitleUseCase().invoke(param));
+        /**
+         * Update issue type
+         */
+        results.push(...await new update_issue_type_use_case_1.UpdateIssueTypeUseCase().invoke(param));
         /**
          * Link issue to project
          */
@@ -50930,7 +50954,6 @@ exports.PublishResultUseCase = PublishResultUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestLinkUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
-const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(1517);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3526);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(3208);
@@ -50944,16 +50967,11 @@ const update_title_use_case_1 = __nccwpck_require__(8411);
 class PullRequestLinkUseCase {
     constructor() {
         this.taskId = 'PullRequestLinkUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const results = [];
         try {
-            /**
-             * Test
-             */
-            await this.issueRepository.setIssueType(param.owner, param.repo, 216, 'bug', param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`PR action ${param.pullRequest.action}`);
             (0, logger_1.logDebugInfo)(`PR isOpened ${param.pullRequest.isOpened}`);
             (0, logger_1.logDebugInfo)(`PR isMerged ${param.pullRequest.isMerged}`);
@@ -53273,6 +53291,47 @@ class RemoveNotNeededBranchesUseCase {
     }
 }
 exports.RemoveNotNeededBranchesUseCase = RemoveNotNeededBranchesUseCase;
+
+
+/***/ }),
+
+/***/ 8510:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.UpdateIssueTypeUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(1517);
+class UpdateIssueTypeUseCase {
+    constructor() {
+        this.taskId = 'UpdateIssueTypeUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.tokens.token);
+        }
+        catch (error) {
+            (0, logger_1.logError)(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to update issue type, but there was a problem.`,
+                ],
+                error: error,
+            }));
+        }
+        return result;
+    }
+}
+exports.UpdateIssueTypeUseCase = UpdateIssueTypeUseCase;
 
 
 /***/ }),
