@@ -6,6 +6,10 @@ import { logDebugInfo, logError } from "../utils/logger";
 
 export class IssueRepository {
 
+    private readonly issueTypeTask = 'task'
+    private readonly issueTypeBug = 'bug'
+    private readonly issueTypeFeature = 'feature'
+
     updateTitleIssueFormat = async (
         owner: string,
         repository: string,
@@ -577,23 +581,23 @@ export class IssueRepository {
         token: string,
     ): Promise<void> => {
         try {
-            let issueType = 'task'
+            let issueType = this.issueTypeTask
             if (labels.isHotfix) {
-                issueType = 'task';
+                issueType = this.issueTypeTask;
             } else if (labels.isRelease) {
-                issueType = 'task';
+                issueType = this.issueTypeTask;
             } else if ((labels.isDocs || labels.isDocumentation)) {
-                issueType = 'task';
+                issueType = this.issueTypeTask;
             } else if (labels.isChore || labels.isMaintenance) {
-                issueType = 'task';
+                issueType = this.issueTypeTask;
             } else if (labels.isBugfix || labels.isBug) {
-                issueType = 'bug';
+                issueType = this.issueTypeBug;
             } else if (labels.isFeature || labels.isEnhancement) {
-                issueType = 'feature';
+                issueType = this.issueTypeFeature;
             } else if (labels.isHelp) {
-                issueType = 'task';
+                issueType = this.issueTypeTask;
             } else if (labels.isQuestion) {
-                issueType = 'task';
+                issueType = this.issueTypeTask;
             }
             const issueId = await this.getId(owner, repository, issueNumber, token);
             const octokit = github.getOctokit(token);
