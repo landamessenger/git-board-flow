@@ -49881,6 +49881,8 @@ class IssueRepository {
             try {
                 const issueId = await this.getId(owner, repository, issueNumber, token);
                 const octokit = github.getOctokit(token);
+                (0, logger_1.logDebugInfo)(`Owner: ${owner}`);
+                (0, logger_1.logDebugInfo)(`Repository: ${repository}`);
                 (0, logger_1.logDebugInfo)(`Issue ID: ${issueId}`);
                 // First query to get available issue types
                 const issueTypesQuery = `
@@ -49895,12 +49897,14 @@ class IssueRepository {
                     }
                 }
             `;
+                const variables = {
+                    owner: owner.trim(),
+                    repo: repository.trim()
+                };
+                (0, logger_1.logDebugInfo)(`Query Variables: ${JSON.stringify(variables, null, 2)}`);
                 const issueTypesResult = await octokit.graphql({
                     query: issueTypesQuery,
-                    variables: {
-                        owner,
-                        repo: repository
-                    },
+                    variables
                 });
                 (0, logger_1.logDebugInfo)(`Issue Types Result: ${JSON.stringify(issueTypesResult, null, 2)}`);
                 const issueTypes = issueTypesResult.repository.issueTypes.nodes;
@@ -49921,16 +49925,16 @@ class IssueRepository {
                     }
                 }
             `;
-                const variables = {
+                const updateVariables = {
                     input: {
                         issueId,
                         issueTypeId: targetIssueType.id,
                     },
                 };
-                (0, logger_1.logDebugInfo)(`Variables: ${JSON.stringify(variables, null, 2)}`);
+                (0, logger_1.logDebugInfo)(`Update Variables: ${JSON.stringify(updateVariables, null, 2)}`);
                 await octokit.graphql({
                     query: updateQuery,
-                    variables,
+                    variables: updateVariables,
                 });
                 (0, logger_1.logDebugInfo)(`Issue type updated to ${issueType} (${targetIssueType.id}) for issue #${issueNumber}`);
             }
