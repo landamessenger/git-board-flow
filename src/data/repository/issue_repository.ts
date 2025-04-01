@@ -580,6 +580,8 @@ export class IssueRepository {
             const issueId = await this.getId(owner, repository, issueNumber, token);
             const octokit = github.getOctokit(token);
 
+            logDebugInfo(`Owner: ${owner}`);
+            logDebugInfo(`Repository: ${repository}`);
             logDebugInfo(`Issue ID: ${issueId}`);
 
             // First query to get available issue types
@@ -609,12 +611,16 @@ export class IssueRepository {
                 };
             }
 
+            const variables = {
+                owner: owner.trim(),
+                repo: repository.trim()
+            };
+
+            logDebugInfo(`Query Variables: ${JSON.stringify(variables, null, 2)}`);
+
             const issueTypesResult = await octokit.graphql<IssueTypesResponse>({
                 query: issueTypesQuery,
-                variables: {
-                    owner,
-                    repo: repository
-                },
+                variables
             });
 
             logDebugInfo(`Issue Types Result: ${JSON.stringify(issueTypesResult, null, 2)}`);
@@ -641,18 +647,18 @@ export class IssueRepository {
                 }
             `;
 
-            const variables = {
+            const updateVariables = {
                 input: {
                     issueId,
                     issueTypeId: targetIssueType.id,
                 },
             };
 
-            logDebugInfo(`Variables: ${JSON.stringify(variables, null, 2)}`);
+            logDebugInfo(`Update Variables: ${JSON.stringify(updateVariables, null, 2)}`);
 
             await octokit.graphql({
                 query: updateQuery,
-                variables,
+                variables: updateVariables,
             });
 
             logDebugInfo(`Issue type updated to ${issueType} (${targetIssueType.id}) for issue #${issueNumber}`);
