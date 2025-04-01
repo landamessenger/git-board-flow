@@ -573,18 +573,33 @@ export class IssueRepository {
         owner: string,
         repository: string,
         issueNumber: number,
-        issueType: 'bug' | 'feature' | 'task',
+        labels: Labels,
         token: string,
     ): Promise<void> => {
         try {
+            let issueType = 'task'
+            if (labels.isHotfix) {
+                issueType = 'task';
+            } else if (labels.isRelease) {
+                issueType = 'task';
+            } else if ((labels.isDocs || labels.isDocumentation)) {
+                issueType = 'task';
+            } else if (labels.isChore || labels.isMaintenance) {
+                issueType = 'task';
+            } else if (labels.isBugfix || labels.isBug) {
+                issueType = 'bug';
+            } else if (labels.isFeature || labels.isEnhancement) {
+                issueType = 'feature';
+            } else if (labels.isHelp) {
+                issueType = 'task';
+            } else if (labels.isQuestion) {
+                issueType = 'task';
+            }
             const issueId = await this.getId(owner, repository, issueNumber, token);
             const octokit = github.getOctokit(token);
 
-            logDebugInfo(`Owner: ${owner}`);
-            logDebugInfo(`Repository: ${repository}`);
-            logDebugInfo(`Issue ID: ${issueId}`);
+            logDebugInfo(`Setting issue type for issue ${issueNumber} to ${issueType}`);
 
-            // Obtener el ID del tipo de incidencia
             const { organization } = await octokit.graphql<{ organization: { issueTypes: { nodes: { id: string, name: string }[] } } }>(`
                 query ($owner: String!) {
                     organization(login: $owner) {
@@ -596,19 +611,16 @@ export class IssueRepository {
                         }
                     }
                 }
-            `, {
-                owner,
-            });
+            `, { owner });
 
-            const issueTypeData = organization.issueTypes.nodes.find(type => type.name.toLocaleLowerCase() === issueType.toLocaleLowerCase());
-
-            logDebugInfo(`Issue Type Data: ${JSON.stringify(issueTypeData, null, 2)}`);
+            const issueTypeData = organization.issueTypes.nodes.find(type => 
+                type.name.toLowerCase() === issueType.toLowerCase()
+            );
 
             if (!issueTypeData) {
-                throw new Error(`Issue type "${issueType}" not found.`);
+                throw new Error(`Issue type "${issueType}" not found in organization ${owner}`);
             }
 
-            // Actualizar el tipo de la incidencia
             await octokit.graphql(`
                 mutation ($issueId: ID!, $issueTypeId: ID!) {
                     updateIssueIssueType(input: {issueId: $issueId, issueTypeId: $issueTypeId}) {
@@ -625,6 +637,8 @@ export class IssueRepository {
                 issueId,
                 issueTypeId: issueTypeData.id,
             });
+
+            logDebugInfo(`Successfully updated issue type to ${issueType}`);
         } catch (error) {
             logError(`Failed to update issue type: ${error}`);
             throw error;

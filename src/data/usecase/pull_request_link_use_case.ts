@@ -1,6 +1,5 @@
 import { Execution } from "../model/execution";
 import { Result } from "../model/result";
-import { IssueRepository } from "../repository/issue_repository";
 import { logDebugInfo, logError, logInfo } from "../utils/logger";
 import { ParamUseCase } from "./base/param_usecase";
 import { AssignMemberToIssueUseCase } from "./steps/assign_members_to_issue_use_case";
@@ -16,26 +15,11 @@ import { UpdateTitleUseCase } from "./steps/update_title_use_case";
 export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestLinkUseCase';
 
-    private issueRepository = new IssueRepository();
-
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
 
         const results: Result[] = []
         try {
-
-            /**
-             * Test
-             */
-            await this.issueRepository.setIssueType(
-                param.owner,
-                param.repo,
-                216,
-                'bug',
-                param.tokens.tokenPat
-            );
-
-
             logDebugInfo(`PR action ${param.pullRequest.action}`)
             logDebugInfo(`PR isOpened ${param.pullRequest.isOpened}`)
             logDebugInfo(`PR isMerged ${param.pullRequest.isMerged}`)
