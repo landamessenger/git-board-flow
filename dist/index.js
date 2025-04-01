@@ -49884,9 +49884,6 @@ class IssueRepository {
                 (0, logger_1.logDebugInfo)(`Owner: ${owner}`);
                 (0, logger_1.logDebugInfo)(`Repository: ${repository}`);
                 (0, logger_1.logDebugInfo)(`Issue ID: ${issueId}`);
-                // Use the known issue type ID
-                //const issueTypeId = 'IT_kwDOA8wRO84AuWag';
-                //logDebugInfo(`Using Issue Type ID: ${issueTypeId}`);
                 // Obtener el ID del tipo de incidencia
                 const { organization } = await octokit.graphql(`
                 query ($owner: String!) {
@@ -49902,7 +49899,7 @@ class IssueRepository {
             `, {
                     owner,
                 });
-                const issueTypeData = organization.issueTypes.nodes.find(type => type.name === issueType);
+                const issueTypeData = organization.issueTypes.nodes.find(type => type.name.toLocaleLowerCase() === issueType.toLocaleLowerCase());
                 (0, logger_1.logDebugInfo)(`Issue Type Data: ${JSON.stringify(issueTypeData, null, 2)}`);
                 if (!issueTypeData) {
                     throw new Error(`Issue type "${issueType}" not found.`);
@@ -50956,7 +50953,7 @@ class PullRequestLinkUseCase {
             /**
              * Test
              */
-            await this.issueRepository.setIssueType(param.owner, param.repo, 216, 'Task', param.tokens.tokenPat);
+            await this.issueRepository.setIssueType(param.owner, param.repo, 216, 'bug', param.tokens.tokenPat);
             (0, logger_1.logDebugInfo)(`PR action ${param.pullRequest.action}`);
             (0, logger_1.logDebugInfo)(`PR isOpened ${param.pullRequest.isOpened}`);
             (0, logger_1.logDebugInfo)(`PR isMerged ${param.pullRequest.isMerged}`);
