@@ -568,4 +568,85 @@ export class IssueRepository {
         });
         return issue.body ?? '';
     }
+
+    setIssueType = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        issueType: 'Bug' | 'Feature' | 'Task',
+        token: string,
+    ): Promise<void> => {
+        try {
+            const issueId = await this.getId(owner, repository, issueNumber, token);
+            const octokit = github.getOctokit(token);
+
+            // First query to get available issue types
+            const issueTypesQuery = `
+                query GetIssueTypes($owner: String!, $repo: String!) {
+                    repository(owner: $owner, name: $repo) {
+                        issueTypes {
+                            id
+                            name
+                        }
+                    }
+                }
+            `;
+
+            interface IssueType {
+                id: string;
+                name: string;
+            }
+
+            interface IssueTypesResponse {
+                repository: {
+                    issueTypes: IssueType[];
+                };
+            }
+
+            const issueTypesResult = await octokit.graphql<IssueTypesResponse>({
+                query: issueTypesQuery,
+                variables: {
+                    owner,
+                    repo: repository
+                },
+            });
+
+            const issueTypes = issueTypesResult.repository.issueTypes;
+            const targetIssueType = issueTypes.find((type: IssueType) => type.name.toLowerCase() === issueType.toLowerCase());
+
+            if (!targetIssueType) {
+                throw new Error(`Issue type "${issueType}" not found in repository`);
+            }
+
+            const updateQuery = `
+                mutation UpdateIssueType($input: UpdateIssueIssueTypeInput!) {
+                    updateIssueIssueType(input: $input) {
+                        issue {
+                            id
+                            issueType {
+                                id
+                            }
+                        }
+                    }
+                }
+            `;
+
+            const variables = {
+                input: {
+                    issueId,
+                    issueTypeId: targetIssueType.id,
+                },
+            };
+
+            await octokit.graphql({
+                query: updateQuery,
+                variables,
+            });
+
+            logDebugInfo(`Issue type updated to ${issueType} (${targetIssueType.id}) for issue #${issueNumber}`);
+        } catch (error) {
+            logError(`Failed to update issue type: ${error}`);
+            throw error;
+        }
+    }
 }
