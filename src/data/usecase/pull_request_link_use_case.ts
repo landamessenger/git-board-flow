@@ -31,7 +31,7 @@ export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]>
                 param.owner,
                 param.repo,
                 216,
-                'Task',
+                'bug',
                 param.tokens.tokenPat
             );
 

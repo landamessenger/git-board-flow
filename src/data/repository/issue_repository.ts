@@ -573,7 +573,7 @@ export class IssueRepository {
         owner: string,
         repository: string,
         issueNumber: number,
-        issueType: 'Bug' | 'Feature' | 'Task',
+        issueType: 'bug' | 'feature' | 'task',
         token: string,
     ): Promise<void> => {
         try {
@@ -583,11 +583,6 @@ export class IssueRepository {
             logDebugInfo(`Owner: ${owner}`);
             logDebugInfo(`Repository: ${repository}`);
             logDebugInfo(`Issue ID: ${issueId}`);
-
-            // Use the known issue type ID
-            //const issueTypeId = 'IT_kwDOA8wRO84AuWag';
-
-            //logDebugInfo(`Using Issue Type ID: ${issueTypeId}`);
 
             // Obtener el ID del tipo de incidencia
             const { organization } = await octokit.graphql<{ organization: { issueTypes: { nodes: { id: string, name: string }[] } } }>(`
@@ -605,7 +600,7 @@ export class IssueRepository {
                 owner,
             });
 
-            const issueTypeData = organization.issueTypes.nodes.find(type => type.name === issueType);
+            const issueTypeData = organization.issueTypes.nodes.find(type => type.name.toLocaleLowerCase() === issueType.toLocaleLowerCase());
 
             logDebugInfo(`Issue Type Data: ${JSON.stringify(issueTypeData, null, 2)}`);
 
