@@ -49884,35 +49884,9 @@ class IssueRepository {
                 (0, logger_1.logDebugInfo)(`Owner: ${owner}`);
                 (0, logger_1.logDebugInfo)(`Repository: ${repository}`);
                 (0, logger_1.logDebugInfo)(`Issue ID: ${issueId}`);
-                // First query to get available issue types
-                const issueTypesQuery = `
-                query GetIssueTypes($repositoryOwner: String!, $repositoryName: String!) {
-                    repository(owner: $repositoryOwner, name: $repositoryName) {
-                        issueTypes(first: 100) {
-                            nodes {
-                                id
-                                name
-                            }
-                        }
-                    }
-                }
-            `;
-                const variables = {
-                    repositoryOwner: owner.trim(),
-                    repositoryName: repository.trim()
-                };
-                (0, logger_1.logDebugInfo)(`Query Variables: ${JSON.stringify(variables, null, 2)}`);
-                const issueTypesResult = await octokit.graphql({
-                    query: issueTypesQuery,
-                    variables
-                });
-                (0, logger_1.logDebugInfo)(`Issue Types Result: ${JSON.stringify(issueTypesResult, null, 2)}`);
-                const issueTypes = issueTypesResult.repository.issueTypes.nodes;
-                const targetIssueType = issueTypes.find((type) => type.name.toLowerCase() === issueType.toLowerCase());
-                (0, logger_1.logDebugInfo)(`Target Issue Type: ${JSON.stringify(targetIssueType, null, 2)}`);
-                if (!targetIssueType) {
-                    throw new Error(`Issue type "${issueType}" not found in repository`);
-                }
+                // Use the known issue type ID
+                const issueTypeId = 'IT_kwDOA8wRO84AuWag';
+                (0, logger_1.logDebugInfo)(`Using Issue Type ID: ${issueTypeId}`);
                 const updateQuery = `
                 mutation UpdateIssueType($input: UpdateIssueIssueTypeInput!) {
                     updateIssueIssueType(input: $input) {
@@ -49928,7 +49902,7 @@ class IssueRepository {
                 const updateVariables = {
                     input: {
                         issueId,
-                        issueTypeId: targetIssueType.id,
+                        issueTypeId,
                     },
                 };
                 (0, logger_1.logDebugInfo)(`Update Variables: ${JSON.stringify(updateVariables, null, 2)}`);
@@ -49936,7 +49910,7 @@ class IssueRepository {
                     query: updateQuery,
                     variables: updateVariables,
                 });
-                (0, logger_1.logDebugInfo)(`Issue type updated to ${issueType} (${targetIssueType.id}) for issue #${issueNumber}`);
+                (0, logger_1.logDebugInfo)(`Issue type updated to ${issueType} (${issueTypeId}) for issue #${issueNumber}`);
             }
             catch (error) {
                 (0, logger_1.logError)(`Failed to update issue type: ${error}`);
