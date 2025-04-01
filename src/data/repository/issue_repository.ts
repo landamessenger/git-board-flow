@@ -6,6 +6,10 @@ import { logDebugInfo, logError } from "../utils/logger";
 
 export class IssueRepository {
 
+    private readonly issueTypeTask = 'task'
+    private readonly issueTypeBug = 'bug'
+    private readonly issueTypeFeature = 'feature'
+
     updateTitleIssueFormat = async (
         owner: string,
         repository: string,
@@ -567,5 +571,81 @@ export class IssueRepository {
             issue_number: issueNumber,
         });
         return issue.body ?? '';
+    }
+
+    setIssueType = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        labels: Labels,
+        token: string,
+    ): Promise<void> => {
+        try {
+            let issueType = this.issueTypeTask
+            if (labels.isHotfix) {
+                issueType = this.issueTypeTask;
+            } else if (labels.isRelease) {
+                issueType = this.issueTypeTask;
+            } else if ((labels.isDocs || labels.isDocumentation)) {
+                issueType = this.issueTypeTask;
+            } else if (labels.isChore || labels.isMaintenance) {
+                issueType = this.issueTypeTask;
+            } else if (labels.isBugfix || labels.isBug) {
+                issueType = this.issueTypeBug;
+            } else if (labels.isFeature || labels.isEnhancement) {
+                issueType = this.issueTypeFeature;
+            } else if (labels.isHelp) {
+                issueType = this.issueTypeTask;
+            } else if (labels.isQuestion) {
+                issueType = this.issueTypeTask;
+            }
+            const issueId = await this.getId(owner, repository, issueNumber, token);
+            const octokit = github.getOctokit(token);
+
+            logDebugInfo(`Setting issue type for issue ${issueNumber} to ${issueType}`);
+
+            const { organization } = await octokit.graphql<{ organization: { issueTypes: { nodes: { id: string, name: string }[] } } }>(`
+                query ($owner: String!) {
+                    organization(login: $owner) {
+                        issueTypes(first: 10) {
+                            nodes {
+                                id
+                                name
+                            }
+                        }
+                    }
+                }
+            `, { owner });
+
+            const issueTypeData = organization.issueTypes.nodes.find(type => 
+                type.name.toLowerCase() === issueType.toLowerCase()
+            );
+
+            if (!issueTypeData) {
+                throw new Error(`Issue type "${issueType}" not found in organization ${owner}`);
+            }
+
+            await octokit.graphql(`
+                mutation ($issueId: ID!, $issueTypeId: ID!) {
+                    updateIssueIssueType(input: {issueId: $issueId, issueTypeId: $issueTypeId}) {
+                        issue {
+                            id
+                            issueType {
+                                id
+                                name
+                            }
+                        }
+                    }
+                }
+            `, {
+                issueId,
+                issueTypeId: issueTypeData.id,
+            });
+
+            logDebugInfo(`Successfully updated issue type to ${issueType}`);
+        } catch (error) {
+            logError(`Failed to update issue type: ${error}`);
+            throw error;
+        }
     }
 }

@@ -12,6 +12,7 @@ import { DeployedAddedUseCase } from "./steps/label_deployed_added_use_case";
 import { LinkIssueProjectUseCase } from "./steps/link_issue_project_use_case";
 import { PrepareBranchesUseCase } from "./steps/prepare_branches_use_case";
 import { RemoveNotNeededBranchesUseCase } from "./steps/remove_not_needed_branches_use_case";
+import { UpdateIssueTypeUseCase } from "./steps/update_issue_type_use_case";
 import { UpdateTitleUseCase } from "./steps/update_title_use_case";
 
 export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
@@ -43,6 +44,11 @@ export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
          * Update title
          */
         results.push(...await new UpdateTitleUseCase().invoke(param));
+
+        /**
+         * Update issue type
+         */
+        results.push(...await new UpdateIssueTypeUseCase().invoke(param));
 
         /**
          * Link issue to project
