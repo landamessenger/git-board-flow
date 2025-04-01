@@ -580,13 +580,17 @@ export class IssueRepository {
             const issueId = await this.getId(owner, repository, issueNumber, token);
             const octokit = github.getOctokit(token);
 
+            logDebugInfo(`Issue ID: ${issueId}`);
+
             // First query to get available issue types
             const issueTypesQuery = `
                 query GetIssueTypes($owner: String!, $repo: String!) {
                     repository(owner: $owner, name: $repo) {
-                        issueTypes {
-                            id
-                            name
+                        issueTypes(first: 100) {
+                            nodes {
+                                id
+                                name
+                            }
                         }
                     }
                 }
@@ -599,7 +603,9 @@ export class IssueRepository {
 
             interface IssueTypesResponse {
                 repository: {
-                    issueTypes: IssueType[];
+                    issueTypes: {
+                        nodes: IssueType[];
+                    };
                 };
             }
 
@@ -611,8 +617,12 @@ export class IssueRepository {
                 },
             });
 
-            const issueTypes = issueTypesResult.repository.issueTypes;
+            logDebugInfo(`Issue Types Result: ${JSON.stringify(issueTypesResult, null, 2)}`);
+
+            const issueTypes = issueTypesResult.repository.issueTypes.nodes;
             const targetIssueType = issueTypes.find((type: IssueType) => type.name.toLowerCase() === issueType.toLowerCase());
+
+            logDebugInfo(`Target Issue Type: ${JSON.stringify(targetIssueType, null, 2)}`);
 
             if (!targetIssueType) {
                 throw new Error(`Issue type "${issueType}" not found in repository`);
@@ -637,6 +647,8 @@ export class IssueRepository {
                     issueTypeId: targetIssueType.id,
                 },
             };
+
+            logDebugInfo(`Variables: ${JSON.stringify(variables, null, 2)}`);
 
             await octokit.graphql({
                 query: updateQuery,
