@@ -37,11 +37,6 @@
           "title": "How To Use",
           "href": "/how-to-use",
           "icon": "list-check"
-        },
-        {
-          "title": "Features",
-          "href": "/features",
-          "icon": "lightbulb"
         }
       ]
     },
