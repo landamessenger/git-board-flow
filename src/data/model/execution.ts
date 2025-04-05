@@ -1,14 +1,15 @@
 import * as github from "@actions/github";
-import { ConfigurationHandler } from "../manager/description/configuration_handler";
+
+import { ConfigurationHandler } from "../../manager/description/configuration_handler";
+import { GetHotfixVersionUseCase } from "../../usecase/steps/get_hotfix_version_use_case";
+import { GetReleaseTypeUseCase } from "../../usecase/steps/get_release_type_use_case";
+import { GetReleaseVersionUseCase } from "../../usecase/steps/get_release_version_use_case";
+import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
+import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
+import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
+import { incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
 import { IssueRepository } from "../repository/issue_repository";
-import { GetHotfixVersionUseCase } from "../usecase/steps/get_hotfix_version_use_case";
-import { GetReleaseTypeUseCase } from "../usecase/steps/get_release_type_use_case";
-import { GetReleaseVersionUseCase } from "../usecase/steps/get_release_version_use_case";
-import { branchesForManagement, typesForIssue } from "../utils/label_utils";
-import { logDebugInfo, setGlobalLoggerDebug } from "../utils/logger";
-import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../utils/title_utils";
-import { incrementVersion } from "../utils/version_utils";
 import { Ai } from "./ai";
 import { Branches } from "./branches";
 import { Commit } from "./commit";

@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { logDebugInfo, logError } from '../utils/logger';
+import { logDebugInfo, logError } from '../../utils/logger';
 
 export class AiRepository {
     askChatGPT = async (prompt: string, apiKey: string, model: string = 'gpt-3.5-turbo'): Promise<string> => {
