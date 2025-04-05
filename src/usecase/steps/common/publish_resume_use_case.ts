@@ -148,7 +148,7 @@ ${footer}
                     param.repo,
                     param.singleAction.currentSingleActionIssue,
                     commentBody,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
             } else if (param.isIssue) {
                 await this.issueRepository.addComment(
@@ -156,7 +156,7 @@ ${footer}
                     param.repo,
                     param.issue.number,
                     commentBody,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
             } else if (param.isPullRequest) {
                 await this.issueRepository.addComment(
@@ -164,7 +164,7 @@ ${footer}
                     param.repo,
                     param.pullRequest.number,
                     commentBody,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
             }
         } catch (error) {

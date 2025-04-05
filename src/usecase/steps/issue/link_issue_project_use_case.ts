@@ -22,10 +22,10 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                     param.owner,
                     param.repo,
                     param.issue.number,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
 
-                let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.tokenPat)
+                let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.token)
                 if (actionDone) {
                     /**
                      * Wait for 10 seconds to ensure the issue is linked to the project
@@ -37,7 +37,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                         param.repo,
                         param.issue.number,
                         param.project.getProjectColumnIssueCreated(),
-                        param.tokens.tokenPat,
+                        param.tokens.token,
                     )
 
                     if (actionDone) {

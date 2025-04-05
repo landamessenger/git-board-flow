@@ -110,7 +110,7 @@ ${this.separator}
                     param.owner,
                     param.repo,
                     param.issueNumber,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
 
                 if (opened) {
@@ -119,7 +119,7 @@ ${this.separator}
                         param.repo,
                         param.issueNumber,
                         `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`,
-                        param.tokens.token,
+                        param.tokens.githubToken,
                     )
                 }
             }
@@ -129,7 +129,7 @@ ${this.separator}
                 param.repo,
                 param.issueNumber,
                 commentBody,
-                param.tokens.token,
+                param.tokens.githubToken,
             )
         } catch (error) {
             logError(error);

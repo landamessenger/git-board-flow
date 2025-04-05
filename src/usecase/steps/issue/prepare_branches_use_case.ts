@@ -50,7 +50,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             const branches = await this.branchRepository.getListOfBranches(
                 param.owner,
                 param.repo,
-                param.tokens.token,
+                param.tokens.githubToken,
             )
             logDebugInfo('Available branches:');
             branches.forEach(branch => {
@@ -77,7 +77,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             param.hotfix.branch,
                             param.issueNumber,
                             branchOid,
-                            param.tokens.tokenPat,
+                            param.tokens.token,
                         )
 
                         if (linkResult[linkResult.length - 1].success) {
@@ -137,7 +137,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             param.release.branch,
                             param.issueNumber,
                             undefined,
-                            param.tokens.tokenPat,
+                            param.tokens.token,
                         )
 
                         const lastAction = linkResult[linkResult.length - 1];
@@ -235,7 +235,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 param.branches.development,
                 param.hotfix?.branch,
                 param.hotfix.active,
-                param.tokens.tokenPat,
+                param.tokens.token,
             )
 
             result.push(

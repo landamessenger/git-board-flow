@@ -15,12 +15,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Issue
-        uses: ./
+      - uses: ./
         with:
           debug: true
           project-ids: 2
           hotfix-workflow: release_workflow.yml
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-token-personal: ${{ secrets.REPO_PAT }}
+          token: ${{ secrets.PAT }}
 

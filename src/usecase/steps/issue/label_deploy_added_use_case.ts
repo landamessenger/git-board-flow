@@ -44,7 +44,7 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
                         param.release.branch,
                         param.workflows.release,
                         parameters,
-                        param.tokens.tokenPat,
+                        param.tokens.token,
                     )
                     result.push(
                         new Result({
@@ -85,7 +85,7 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}`
                         param.hotfix.branch,
                         param.workflows.release,
                         parameters,
-                        param.tokens.tokenPat,
+                        param.tokens.token,
                     )
                     result.push(
                         new Result({

@@ -33,7 +33,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                 baseBranch,
                 param.sizeThresholds,
                 param.labels,
-                param.tokens.tokenPat,
+                param.tokens.token,
             )
 
             logDebugInfo(`Size: ${size}`);
@@ -50,7 +50,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                     param.repo,
                     param.issueNumber,
                     labelNames,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
 
                 for (const project of param.project.getProjects()) {
@@ -60,7 +60,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                         param.repo,
                         param.issueNumber,
                         githubSize,
-                        param.tokens.tokenPat,
+                        param.tokens.token,
                     )
                 }
 

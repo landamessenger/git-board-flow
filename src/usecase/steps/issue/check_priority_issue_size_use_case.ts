@@ -56,7 +56,7 @@ export class CheckPriorityIssueSizeUseCase implements ParamUseCase<Execution, Re
                     param.repo,
                     param.issueNumber,
                     priorityLabel,
-                    param.tokens.tokenPat,
+                    param.tokens.token,
                 );
 
                 if (success) {

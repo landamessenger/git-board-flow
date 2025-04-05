@@ -218,8 +218,7 @@ async function run(): Promise<void> {
     /**
      * Tokens
      */
-    const token = core.getInput('github-token', {required: true});
-    const tokenPat = core.getInput('github-token-personal', {required: true});
+    const token = core.getInput('token', {required: true});
 
     /**
      * AI
@@ -245,7 +244,7 @@ async function run(): Promise<void> {
 
     const projects: ProjectDetail[] = []
     for (const projectId of projectIds) {        
-        const detail = await projectRepository.getProjectDetail(projectId, tokenPat)
+        const detail = await projectRepository.getProjectDetail(projectId, token)
         projects.push(detail)
     }
 
@@ -615,7 +614,7 @@ async function run(): Promise<void> {
             imagesCommitDocs,
             imagesCommitChore,
         ),
-        new Tokens(token, tokenPat),
+        new Tokens(token),
         new Ai(
             openaiApiKey,
             openaiModel,

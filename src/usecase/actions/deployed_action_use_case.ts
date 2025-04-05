@@ -52,7 +52,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                 param.repo,
                 param.singleAction.currentSingleActionIssue,
                 labelNames,
-                param.tokens.token,
+                param.tokens.githubToken,
             )
 
             logDebugInfo(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`);
@@ -76,8 +76,8 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.currentConfiguration.releaseBranch,
                     param.branches.defaultBranch,
                     param.pullRequest.mergeTimeout,
+                    param.tokens.githubToken,
                     param.tokens.token,
-                    param.tokens.tokenPat,
                 );
                 result.push(...mergeToDefaultResult);
 
@@ -87,8 +87,8 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.currentConfiguration.releaseBranch,
                     param.branches.development,
                     param.pullRequest.mergeTimeout,
+                    param.tokens.githubToken,
                     param.tokens.token,
-                    param.tokens.tokenPat,
                 );
                 result.push(...mergeToDevelopResult);
             } else if (param.currentConfiguration.hotfixBranch) {
@@ -98,8 +98,8 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.currentConfiguration.hotfixBranch,
                     param.branches.defaultBranch,
                     param.pullRequest.mergeTimeout,
+                    param.tokens.githubToken,
                     param.tokens.token,
-                    param.tokens.tokenPat,
                 );
                 result.push(...mergeToDefaultResult);
 
@@ -109,8 +109,8 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.branches.defaultBranch,
                     param.branches.development,
                     param.pullRequest.mergeTimeout,
+                    param.tokens.githubToken,
                     param.tokens.token,
-                    param.tokens.tokenPat,
                 );
                 result.push(...mergeToDevelopResult);
             }

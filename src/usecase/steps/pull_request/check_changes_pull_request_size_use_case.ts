@@ -25,7 +25,7 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                 param.pullRequest.base,
                 param.sizeThresholds,
                 param.labels,
-                param.tokens.tokenPat,
+                param.tokens.token,
             )
 
             logDebugInfo(`Size: ${size}`);
@@ -45,7 +45,7 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                     param.repo,
                     param.pullRequest.number,
                     labelNames,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
 
                 for (const project of param.project.getProjects()) {
@@ -55,7 +55,7 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                         param.repo,
                         param.pullRequest.number,
                         githubSize,
-                        param.tokens.tokenPat,
+                        param.tokens.token,
                     )
                 }
 

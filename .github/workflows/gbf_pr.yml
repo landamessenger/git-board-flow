@@ -16,13 +16,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Pull Request
-        uses: ./
+      - uses: ./
         with:
           debug: true
           project-ids: 2
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-token-personal: ${{ secrets.REPO_PAT }}
+          token: ${{ secrets.PAT }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           ai-pull-request-description: true
           ai-ignore-files: dist/*

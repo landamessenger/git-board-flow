@@ -20,7 +20,7 @@ export class UpdateIssueTypeUseCase implements ParamUseCase<Execution, Result[]>
                 param.repo,
                 param.issueNumber,
                 param.labels,
-                param.tokens.token,
+                param.tokens.githubToken,
             );
         } catch (error) {
             logError(error);

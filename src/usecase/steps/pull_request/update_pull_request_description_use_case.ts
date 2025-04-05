@@ -27,7 +27,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.owner,
                 param.repo,
                 param.issueNumber,
-                param.tokens.token
+                param.tokens.githubToken
             );
 
             if (issueDescription.length === 0) {
@@ -46,7 +46,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 return result;
             }
 
-            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.tokenPat);
+            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.token);
             const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
                 && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
 
@@ -71,7 +71,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.owner,
                 param.repo,
                 prNumber,
-                param.tokens.token
+                param.tokens.githubToken
             );
 
             const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
@@ -101,7 +101,7 @@ ${currentDescription}
 
 ${changesDescription}
 `,
-                param.tokens.token
+                param.tokens.githubToken
             );
 
             result.push(

@@ -37,7 +37,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
             const branches = await this.branchRepository.getListOfBranches(
                 param.owner,
                 param.repo,
-                param.tokens.token,
+                param.tokens.githubToken,
             );
 
             const finalBranch = `${param.managementBranch}/${param.issueNumber}-${sanitizedTitle}`;
@@ -58,7 +58,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                         param.owner,
                         param.repo,
                         branchName,
-                        param.tokens.token,
+                        param.tokens.githubToken,
                     )
                     if (removed) {
                         result.push(
@@ -91,7 +91,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
                                 param.owner,
                                 param.repo,
                                 branch,
-                                param.tokens.token,
+                                param.tokens.githubToken,
                             )
                             if (removed) {
                                 result.push(

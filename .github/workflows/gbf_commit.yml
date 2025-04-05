@@ -11,15 +11,11 @@ jobs:
   git-board-commits:
     name: Git Board - Commit
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Git Board - Commit
-        uses: ./
+      - uses: ./
         with:
-          debug: true
           project-ids: 2
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-token-personal: ${{ secrets.REPO_PAT }}
+          token: ${{ secrets.PAT }}

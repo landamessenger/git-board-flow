@@ -42,7 +42,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
         try {
             const currentProjectMembers = await this.projectRepository.getAllMembers(
                 param.owner,
-                param.tokens.tokenPat,
+                param.tokens.token,
             )
 
             const creator = param.isIssue ? param.issue.creator : param.pullRequest.creator;

@@ -56,7 +56,7 @@ export class CheckPriorityPullRequestSizeUseCase implements ParamUseCase<Executi
                     param.repo,
                     param.pullRequest.number,
                     priorityLabel,
-                    param.tokens.tokenPat,
+                    param.tokens.token,
                 );
 
                 if (success) {

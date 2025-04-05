@@ -204,13 +204,13 @@ export class Execution {
                 this.owner,
                 this.repo,
                 this.singleAction.currentSingleActionIssue,
-                this.tokens.tokenPat,
+                this.tokens.token,
             )
             this.singleAction.isIssue = await issueRepository.isIssue(
                 this.owner,
                 this.repo,
                 this.singleAction.currentSingleActionIssue,
-                this.tokens.tokenPat,
+                this.tokens.token,
             )
 
             if (this.singleAction.isIssue) {
@@ -220,7 +220,7 @@ export class Execution {
                     this.owner,
                     this.repo,
                     this.singleAction.currentSingleActionIssue,
-                    this.tokens.tokenPat,
+                    this.tokens.token,
                 )
                 if (head === undefined) {
                     return
@@ -245,7 +245,7 @@ export class Execution {
             this.owner,
             this.repo,
             this.issueNumber,
-            this.tokens.token
+            this.tokens.githubToken
         );
 
         /**
@@ -339,7 +339,7 @@ export class Execution {
                 this.owner,
                 this.repo,
                 this.pullRequest.number,
-                this.tokens.token
+                this.tokens.githubToken
             );
             this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1

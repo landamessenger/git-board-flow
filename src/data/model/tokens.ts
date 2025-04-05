@@ -1,12 +1,17 @@
 export class Tokens {
     token: string;
-    tokenPat: string;
 
     constructor(
         token: string,
-        tokenPat: string,
     ) {
         this.token = token;
-        this.tokenPat = tokenPat;
+    }
+
+    get githubToken(): string {
+        const token = process.env.GITHUB_TOKEN;
+        if (!token) {
+            throw new Error('GITHUB_TOKEN environment variable is not set');
+        }
+        return token;
     }
 }

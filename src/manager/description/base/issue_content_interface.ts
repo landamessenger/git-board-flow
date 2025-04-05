@@ -25,7 +25,7 @@ export abstract class IssueContentInterface extends ContentInterface {
                 execution.owner,
                 execution.repo,
                 number,
-                execution.tokens.token,
+                execution.tokens.githubToken,
             )
 
             return this.getContent(description)
@@ -54,7 +54,7 @@ export abstract class IssueContentInterface extends ContentInterface {
                 execution.owner,
                 execution.repo,
                 number,
-                execution.tokens.token,
+                execution.tokens.githubToken,
             )
 
             const updated = this.updateContent(description, content)
@@ -67,7 +67,7 @@ export abstract class IssueContentInterface extends ContentInterface {
                 execution.repo,
                 number,
                 updated,
-                execution.tokens.token,
+                execution.tokens.githubToken,
             )
 
             return updated

@@ -36,7 +36,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                         param.issue.branchManagementAlways,
                         param.emoji.branchManagementEmoji,
                         param.labels,
-                        param.tokens.token,
+                        param.tokens.githubToken,
                     );
                     if (title) {
                         result.push(
@@ -73,7 +73,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                         param.owner,
                         param.repo,
                         param.issueNumber,
-                        param.tokens.tokenPat,
+                        param.tokens.token,
                     )
                     if (issueTitle === undefined) {
                         result.push(
@@ -98,7 +98,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                         false,
                         '',
                         param.labels,
-                        param.tokens.token,
+                        param.tokens.githubToken,
                     );
                     if (title) {
                         result.push(

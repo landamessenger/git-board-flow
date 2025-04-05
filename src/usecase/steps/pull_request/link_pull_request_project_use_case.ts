@@ -19,7 +19,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                 let actionDone = await this.projectRepository.linkContentId(
                     project,
                     param.pullRequest.id,
-                    param.tokens.tokenPat
+                    param.tokens.token
                 )
 
                 if (actionDone) {
@@ -33,7 +33,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                         param.repo,
                         param.pullRequest.number,
                         param.project.getProjectColumnPullRequestCreated(),
-                        param.tokens.tokenPat,
+                        param.tokens.token,
                     )
 
                     if (actionDone) {

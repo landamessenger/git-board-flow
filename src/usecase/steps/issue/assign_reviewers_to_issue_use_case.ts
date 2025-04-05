@@ -28,14 +28,14 @@ export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Re
                 param.owner,
                 param.repo,
                 number,
-                param.tokens.token,
+                param.tokens.githubToken,
             )
 
             const currentAssignees = await this.issueRepository.getCurrentAssignees(
                 param.owner,
                 param.repo,
                 number,
-                param.tokens.token,
+                param.tokens.githubToken,
             )
 
             if (currentReviewers.length >= desiredReviewersCount) {
@@ -65,7 +65,7 @@ export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Re
                 param.owner,
                 missingReviewers,
                 excludeForReview,
-                param.tokens.tokenPat,
+                param.tokens.token,
             )
 
             if (members.length === 0) {
@@ -87,7 +87,7 @@ export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Re
                 param.repo,
                 number,
                 members,
-                param.tokens.token,
+                param.tokens.githubToken,
             )
 
             for (const member of reviewersAdded) {

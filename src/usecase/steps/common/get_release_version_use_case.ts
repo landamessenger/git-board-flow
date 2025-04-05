@@ -39,7 +39,7 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
                 param.owner,
                 param.repo,
                 number,
-                param.tokens.token,
+                param.tokens.githubToken,
             )
 
             if (description === undefined) {

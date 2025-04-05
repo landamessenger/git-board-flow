@@ -27,7 +27,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                     param.repo,
                     param.pullRequest.number,
                     param.branches.defaultBranch,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
 
                 result.push(
@@ -52,7 +52,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                     param.repo,
                     param.pullRequest.number,
                     updatedBody,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 );
 
                 result.push(
@@ -79,7 +79,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                     param.repo,
                     param.pullRequest.number,
                     param.pullRequest.base,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
 
                 result.push(
@@ -103,7 +103,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
                     param.repo,
                     param.pullRequest.number,
                     updatedBody,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 );
 
                 result.push(

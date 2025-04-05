@@ -18,7 +18,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                 param.owner,
                 param.repo,
                 param.issueNumber,
-                param.tokens.token,
+                param.tokens.githubToken,
             );
             if (closed) {
                 await this.issueRepository.addComment(
@@ -26,7 +26,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                     param.repo,
                     param.issueNumber,
                     `This issue was closed after merging #${param.pullRequest.number}.`,
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 )
                 result.push(
                     new Result({

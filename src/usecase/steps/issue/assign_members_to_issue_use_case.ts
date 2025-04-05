@@ -25,14 +25,14 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
 
             const currentProjectMembers = await this.projectRepository.getAllMembers(
                 param.owner,
-                param.tokens.tokenPat,
+                param.tokens.token,
             )
 
             const currentMembers = await this.issueRepository.getCurrentAssignees(
                 param.owner,
                 param.repo,
                 number,
-                param.tokens.token,
+                param.tokens.githubToken,
             );
 
             let remainingAssignees = desiredAssigneesCount - currentMembers.length;
@@ -57,7 +57,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                     param.repo,
                     number,
                     [creator],
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 );
                 logDebugInfo(`Assigned PR creator @${creator} to #${number}.`);
                 result.push(
@@ -76,7 +76,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                     param.repo,
                     number,
                     [creator],
-                    param.tokens.token,
+                    param.tokens.githubToken,
                 );
                 logDebugInfo(`Assigned Issue creator @${creator} to #${number}.`);
                 result.push(
@@ -111,7 +111,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                 param.owner,
                 remainingAssignees,
                 currentMembers,
-                param.tokens.tokenPat,
+                param.tokens.token,
             );
 
             if (members.length === 0) {
@@ -131,7 +131,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                 param.repo,
                 number,
                 members,
-                param.tokens.token,
+                param.tokens.githubToken,
             );
 
             for (const member of membersAdded) {
