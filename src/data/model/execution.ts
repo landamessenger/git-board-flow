@@ -1,9 +1,9 @@
 import * as github from "@actions/github";
 
 import { ConfigurationHandler } from "../../manager/description/configuration_handler";
-import { GetHotfixVersionUseCase } from "../../usecase/steps/get_hotfix_version_use_case";
-import { GetReleaseTypeUseCase } from "../../usecase/steps/get_release_type_use_case";
-import { GetReleaseVersionUseCase } from "../../usecase/steps/get_release_version_use_case";
+import { GetHotfixVersionUseCase } from "../../usecase/steps/common/get_hotfix_version_use_case";
+import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_type_use_case";
+import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
 import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";

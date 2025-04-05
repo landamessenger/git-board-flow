@@ -18,12 +18,12 @@ import { SizeThresholds } from './data/model/size_thresholds';
 import { Tokens } from "./data/model/tokens";
 import { Workflows } from "./data/model/workflows";
 import { ProjectRepository } from "./data/repository/project_repository";
-import { CommitCheckUseCase } from "./usecase/commit_check_use_case";
-import { IssueLinkUseCase } from "./usecase/issue_link_use_case";
-import { PublishResultUseCase } from "./usecase/publish_resume_use_case";
-import { PullRequestLinkUseCase } from "./usecase/pull_request_link_use_case";
+import { CommitCheckUseCase } from "./usecase/commit_use_case";
+import { IssueLinkUseCase } from "./usecase/issue_use_case";
+import { PullRequestLinkUseCase } from "./usecase/pull_request_use_case";
 import { SingleActionUseCase } from "./usecase/single_action_use_case";
-import { StoreConfigurationUseCase } from "./usecase/store_configuration_use_case";
+import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
+import { StoreConfigurationUseCase } from "./usecase/steps/common/store_configuration_use_case";
 import { logInfo } from './utils/logger';
 
 const DEFAULT_IMAGE_CONFIG = {
