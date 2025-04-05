@@ -1,7 +1,7 @@
 import * as github from "@actions/github";
-import { ProjectResult } from "../../graph/project_result";
+import { logDebugInfo, logError } from "../../utils/logger";
+import { ProjectResult } from "../graph/project_result";
 import { ProjectDetail } from "../model/project_detail";
-import { logDebugInfo, logError } from "../utils/logger";
 
 export class ProjectRepository {
   

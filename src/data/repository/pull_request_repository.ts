@@ -1,6 +1,5 @@
 import * as github from "@actions/github";
-import * as core from "@actions/core";
-import { logDebugInfo, logError } from "../utils/logger";
+import { logDebugInfo, logError } from "../../utils/logger";
 
 export class PullRequestRepository {
 

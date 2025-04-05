@@ -1,4 +1,4 @@
-import { logError } from "../utils/logger";
+import { logError } from "../../utils/logger";
 
 const deployedAction = 'deployed_action'
 

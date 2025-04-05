@@ -1,8 +1,8 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
+import { logDebugInfo, logError } from "../../utils/logger";
 import { Labels } from "../model/labels";
 import { Milestone } from "../model/milestone";
-import { logDebugInfo, logError } from "../utils/logger";
 
 export class IssueRepository {
 

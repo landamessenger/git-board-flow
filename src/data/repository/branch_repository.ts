@@ -1,12 +1,12 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as github from "@actions/github";
+import { logDebugInfo, logError } from '../../utils/logger';
+import { getLatestVersion } from "../../utils/version_utils";
 import { Execution } from "../model/execution";
 import { Labels } from '../model/labels';
 import { Result } from "../model/result";
 import { SizeThresholds } from '../model/size_thresholds';
-import { logDebugInfo, logError } from '../utils/logger';
-import { getLatestVersion } from "../utils/version_utils";
 
 export class BranchRepository {
 

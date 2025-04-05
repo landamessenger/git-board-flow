@@ -1,0 +1,44 @@
+---
+title: How To Use
+description: Steps for setting up Git Board Flow in your repository
+---
+
+Follow these steps to set up Git Board Flow in your repository:
+
+<Steps>
+  <Step title="Configure Branch Structure">
+    Set up your repository's branch structure:
+    - **Primary Branch**: Default is `master` (or `main` for newer repositories)
+    - **Development Branch**: Default is `develop`
+    
+    You can customize these branch names in the configuration. These branches will serve as the foundation for your development workflow, where feature, bugfix, hotfix, release, docs and chore branches will be created from and merged back into.
+  </Step>
+
+  <Step title="Set Up Required Labels">
+    Configure the following essential labels in your repository:
+    - **Type Labels**: For categorizing issues (e.g., `feature`, `enhancement`, `bug`, `bugfix`, `hotfix`, `release`, `docs`, `documentation`, `chore`, `maintenance`)
+    - **Action Labels**: For perform different actions (e.g., `branched`, `deploy`, `deployed`)
+    - **Priority Labels**: For issue prioritization (e.g., `priority: high`, `priority: medium`, `priority: low`)
+    - **Size Labels**: For control task sizes (e.g., `size: XS`, `size: S`, `size: M`, `size: L`, `size: XL`, `size: XXL`)
+    
+    These labels will be used by the action to automate workflows and organize your tasks effectively.
+  </Step>
+
+  <Step title="Implement Issue Templates">
+    Create issue templates to standardize task creation:
+    - Define templates for different types of issues (features, bugs, docs, releases, hotfixes etc.)
+    - Include necessary sections like Description, Acceptance Criteria, and Technical Details
+    - Include predefined labels on these templates.
+    
+    The action will use these templates to automatically create appropriately named branches and set up tracking.
+  </Step>
+
+  <Step title="Install Git Board Flow">
+    Add the GitHub Action to your repository by creating a workflow file per section:
+    1. Configure the behavior on each push on `.github/workflows/gbf_commit.yml`
+    2. Configure the issues behavior on `.github/workflows/gbf_issue.yml`
+    3. Pull Request confuguration must be on `.github/workflows/gbf_pr.yml`
+    
+    These workflows will then automatically manage everything under the hood, creating branches, updating project boards, and maintaining the relationship between issues and code.
+  </Step>
+</Steps>
