@@ -3,7 +3,7 @@ title: Git-Board-Flow
 description: Streamline your GitHub workflow with automated branch management, issue tracking, and project integration. Enhance team collaboration and optimize your development process.
 ---
 
-> Github with super powers 🚀
+> This is "Github with super powers" 🚀
 
 **Git Board Flow** is designed with task management in mind, closely mirroring the approach used by Atlassian with Bitbucket and Jira. It leverages GitHub's project boards and issues as the foundation for task management at every stage of development.
 
@@ -12,3 +12,53 @@ The goal is to replicate the seamless integration of boards, tasks, and branches
 This repository itself utilizes this GitHub Action for task management. You can explore the various issues and pull requests as examples of how it functions in practice.
 
 Experience seamless project management, automated branch handling, and enhanced team collaboration. Start optimizing your development process today and take your Git workflow to the next level! ✨
+
+## Motivation
+
+I've always felt that while GitHub is an outstanding platform for code management, its issue tracking and project boards — despite their powerful capabilities — are often underused or overlooked. Many teams and individual developers tend to focus primarily on version control and pull requests, missing out on the full potential of these features for organizing and streamlining their workflows.
+
+This project was created with both large organizations and small teams in mind, as well as for individual developers who enjoy building their ideas as a hobby. Whether you're managing a complex project or just keeping track of your personal coding adventures, this GitHub Action aims to help you make the most of the tools GitHub already offers, enhancing productivity and bringing more structure to your development process.
+
+# How to use it
+
+Follow these steps to set up Git Board Flow in your repository:
+
+<Steps>
+  <Step title="1. Configure Branch Structure">
+    Set up your repository's branch structure:
+    - **Primary Branch**: Default is `master` (or `main` for newer repositories)
+    - **Development Branch**: Default is `develop`
+    
+    You can customize these branch names in the configuration. These branches will serve as the foundation for your development workflow, where feature branches will be created from and merged back into.
+  </Step>
+
+  <Step title="2. Set Up Required Labels">
+    Configure the following essential labels in your repository:
+    - **Type Labels**: For categorizing issues (e.g., `feature`, `bug`, `enhancement`)
+    - **Status Labels**: For tracking progress (e.g., `in-progress`, `ready-for-review`)
+    - **Priority Labels**: For issue prioritization (e.g., `high`, `medium`, `low`)
+    
+    These labels will be used by the action to automate workflows and organize your tasks effectively.
+  </Step>
+
+  <Step title="3. Implement Issue Templates">
+    Create issue templates to standardize task creation:
+    - Define templates for different types of issues (features, bugs, etc.)
+    - Include necessary sections like Description, Acceptance Criteria, and Technical Details
+    - Add labels and project board configurations
+    
+    The action will use these templates to automatically create appropriately named branches and set up tracking.
+  </Step>
+
+  <Step title="4. Install Git Board Flow">
+    Add the GitHub Action to your repository:
+    1. Create `.github/workflows/git-board-flow.yml`
+    2. Configure the action to trigger on:
+       - Issue creation and updates
+       - Pull request events
+       - Push events
+    3. Set up your custom configuration options
+    
+    The action will then automatically manage your workflow, creating branches, updating project boards, and maintaining the relationship between issues and code.
+  </Step>
+</Steps>

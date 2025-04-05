@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - '**'
+      - '!master'
+      - '!develop'
 
 jobs:
   git-board-commits:
@@ -18,5 +20,6 @@ jobs:
         uses: ./
         with:
           debug: true
+          project-ids: 2
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
