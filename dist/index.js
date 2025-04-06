@@ -47718,7 +47718,7 @@ class Execution {
             /**
              * Get labels of issue
              */
-            this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.githubToken);
+            this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
             /**
              * Contains release label
              */
@@ -47805,7 +47805,7 @@ class Execution {
                 }
             }
             else if (this.isPullRequest) {
-                this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.githubToken);
+                this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1;
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
@@ -48467,13 +48467,6 @@ class Tokens {
     constructor(token) {
         this.token = token;
     }
-    get githubToken() {
-        const token = process.env.GITHUB_TOKEN;
-        if (!token) {
-            throw new Error('GITHUB_TOKEN environment variable is not set');
-        }
-        return token;
-    }
 }
 exports.Tokens = Tokens;
 
@@ -48934,11 +48927,10 @@ class BranchRepository {
                 inputs: inputs
             });
         };
-        this.mergeBranch = async (owner, repository, head, base, timeout, token, tokenPAT) => {
+        this.mergeBranch = async (owner, repository, head, base, timeout, token) => {
             const result = [];
             try {
                 const octokit = github.getOctokit(token);
-                const octokitPAT = github.getOctokit(tokenPAT);
                 (0, logger_1.logDebugInfo)(`Creating merge from ${head} into ${base}`);
                 // Build PR body with commit list
                 const prBody = `🚀 Automated Merge  
@@ -48947,7 +48939,7 @@ This PR merges **${head}** into **${base}**.
 
 **Commits included:**`;
                 // We need PAT for creating PR to ensure it can trigger workflows
-                const { data: pullRequest } = await octokitPAT.rest.pulls.create({
+                const { data: pullRequest } = await octokit.rest.pulls.create({
                     owner: owner,
                     repo: repository,
                     head: head,
@@ -48957,7 +48949,7 @@ This PR merges **${head}** into **${base}**.
                 });
                 (0, logger_1.logDebugInfo)(`Pull request #${pullRequest.number} created, getting commits...`);
                 // Get all commits in the PR
-                const { data: commits } = await octokitPAT.rest.pulls.listCommits({
+                const { data: commits } = await octokit.rest.pulls.listCommits({
                     owner: owner,
                     repo: repository,
                     pull_number: pullRequest.number
@@ -48965,7 +48957,7 @@ This PR merges **${head}** into **${base}**.
                 const commitMessages = commits.map(commit => commit.commit.message);
                 (0, logger_1.logDebugInfo)(`Found ${commitMessages.length} commits in PR`);
                 // Update PR with commit list and footer
-                await octokitPAT.rest.pulls.update({
+                await octokit.rest.pulls.update({
                     owner: owner,
                     repo: repository,
                     pull_number: pullRequest.number,
@@ -49039,7 +49031,7 @@ This PR merges **${head}** into **${base}**.
                     }
                 }
                 // Need PAT for merging to ensure it can trigger subsequent workflows
-                await octokitPAT.rest.pulls.merge({
+                await octokit.rest.pulls.merge({
                     owner: owner,
                     repo: repository,
                     pull_number: pullRequest.number,
@@ -49059,8 +49051,8 @@ This PR merges **${head}** into **${base}**.
                 (0, logger_1.logError)(`Error in PR workflow: ${error}`);
                 // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
                 try {
-                    const octokitPAT = github.getOctokit(tokenPAT);
-                    await octokitPAT.rest.repos.merge({
+                    const octokit = github.getOctokit(token);
+                    await octokit.rest.repos.merge({
                         owner: owner,
                         repo: repository,
                         base: base,
@@ -51042,7 +51034,7 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 else {
                     return undefined;
                 }
-                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.githubToken);
+                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.token);
                 return this.getContent(description);
             }
             catch (error) {
@@ -51068,12 +51060,12 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
                 else {
                     return undefined;
                 }
-                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.githubToken);
+                const description = await this.issueRepository.getDescription(execution.owner, execution.repo, number, execution.tokens.token);
                 const updated = this.updateContent(description, content);
                 if (updated === undefined) {
                     return undefined;
                 }
-                await this.issueRepository.updateDescription(execution.owner, execution.repo, number, updated, execution.tokens.githubToken);
+                await this.issueRepository.updateDescription(execution.owner, execution.repo, number, updated, execution.tokens.token);
                 return updated;
             }
             catch (error) {
@@ -51182,7 +51174,7 @@ class DeployedActionUseCase {
             }
             const labelNames = param.labels.currentIssueLabels.filter(name => name !== param.labels.deploy);
             labelNames.push(param.labels.deployed);
-            await this.issueRepository.setLabels(param.owner, param.repo, param.singleAction.currentSingleActionIssue, labelNames, param.tokens.githubToken);
+            await this.issueRepository.setLabels(param.owner, param.repo, param.singleAction.currentSingleActionIssue, labelNames, param.tokens.token);
             (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`);
             (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
             result.push(new result_1.Result({
@@ -51194,15 +51186,15 @@ class DeployedActionUseCase {
                 ],
             }));
             if (param.currentConfiguration.releaseBranch) {
-                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.githubToken, param.tokens.token);
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDefaultResult);
-                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.githubToken, param.tokens.token);
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDevelopResult);
             }
             else if (param.currentConfiguration.hotfixBranch) {
-                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.hotfixBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.githubToken, param.tokens.token);
+                const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.hotfixBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDefaultResult);
-                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.githubToken, param.tokens.token);
+                const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDevelopResult);
             }
             return result;
@@ -51551,7 +51543,7 @@ class CheckChangesIssueSizeUseCase {
             if (param.labels.sizedLabelOnIssue !== size) {
                 const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
-                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.githubToken);
+                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
                 for (const project of param.project.getProjects()) {
                     await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.issueNumber, githubSize, param.tokens.token);
                 }
@@ -51705,12 +51697,12 @@ ${this.separator}
 `;
             }
             if (param.issue.reopenOnPush) {
-                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.issueNumber, param.tokens.githubToken);
+                const opened = await this.issueRepository.openIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
                 if (opened) {
-                    await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.githubToken);
+                    await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was re-opened after pushing new commits to the branch \`${branchName}\`.`, param.tokens.token);
                 }
             }
-            await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.githubToken);
+            await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -51926,7 +51918,7 @@ class GetHotfixVersionUseCase {
                 }));
                 return result;
             }
-            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.githubToken);
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.token);
             if (description === undefined) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -52023,7 +52015,7 @@ class GetReleaseTypeUseCase {
                 }));
                 return result;
             }
-            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.githubToken);
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.token);
             if (description === undefined) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -52109,7 +52101,7 @@ class GetReleaseVersionUseCase {
                 }));
                 return result;
             }
-            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.githubToken);
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.token);
             if (description === undefined) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -52309,13 +52301,13 @@ ${footer}
                 return;
             }
             if (param.isSingleAction) {
-                await this.issueRepository.addComment(param.owner, param.repo, param.singleAction.currentSingleActionIssue, commentBody, param.tokens.githubToken);
+                await this.issueRepository.addComment(param.owner, param.repo, param.singleAction.currentSingleActionIssue, commentBody, param.tokens.token);
             }
             else if (param.isIssue) {
-                await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.githubToken);
+                await this.issueRepository.addComment(param.owner, param.repo, param.issue.number, commentBody, param.tokens.token);
             }
             else if (param.isPullRequest) {
-                await this.issueRepository.addComment(param.owner, param.repo, param.pullRequest.number, commentBody, param.tokens.githubToken);
+                await this.issueRepository.addComment(param.owner, param.repo, param.pullRequest.number, commentBody, param.tokens.token);
             }
         }
         catch (error) {
@@ -52403,7 +52395,7 @@ class UpdateTitleUseCase {
                     else {
                         _title = param.issue.title;
                     }
-                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, _version, _title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.githubToken);
+                    const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, _version, _title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -52444,7 +52436,7 @@ class UpdateTitleUseCase {
                         }));
                         return result;
                     }
-                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, param.pullRequest.title, issueTitle, param.issueNumber, param.pullRequest.number, false, '', param.labels, param.tokens.githubToken);
+                    const title = await this.issueRepository.updateTitlePullRequestFormat(param.owner, param.repo, param.pullRequest.title, issueTitle, param.issueNumber, param.pullRequest.number, false, '', param.labels, param.tokens.token);
                     if (title) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -52517,7 +52509,7 @@ class AssignMemberToIssueUseCase {
         try {
             (0, logger_1.logDebugInfo)(`#${number} needs ${desiredAssigneesCount} assignees.`);
             const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.token);
-            const currentMembers = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.githubToken);
+            const currentMembers = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.token);
             let remainingAssignees = desiredAssigneesCount - currentMembers.length;
             const pullRequestCreatorIsTeamMember = param.isPullRequest
                 && param.pullRequest.creator.length > 0
@@ -52532,7 +52524,7 @@ class AssignMemberToIssueUseCase {
              */
             if (pullRequestCreatorIsTeamMember) {
                 const creator = param.pullRequest.creator;
-                await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, [creator], param.tokens.githubToken);
+                await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, [creator], param.tokens.token);
                 (0, logger_1.logDebugInfo)(`Assigned PR creator @${creator} to #${number}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -52544,7 +52536,7 @@ class AssignMemberToIssueUseCase {
             }
             else if (issueCreatorIsTeamMember) {
                 const creator = param.issue.creator;
-                await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, [creator], param.tokens.githubToken);
+                await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, [creator], param.tokens.token);
                 (0, logger_1.logDebugInfo)(`Assigned Issue creator @${creator} to #${number}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -52578,7 +52570,7 @@ class AssignMemberToIssueUseCase {
                 }));
                 return result;
             }
-            const membersAdded = await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, members, param.tokens.githubToken);
+            const membersAdded = await this.issueRepository.assignMembersToIssue(param.owner, param.repo, number, members, param.tokens.token);
             for (const member of membersAdded) {
                 if (members.includes(member)) {
                     result.push(new result_1.Result({
@@ -52637,8 +52629,8 @@ class AssignReviewersToIssueUseCase {
         const result = [];
         try {
             (0, logger_1.logDebugInfo)(`#${number} needs ${desiredReviewersCount} reviewers.`);
-            const currentReviewers = await this.pullRequestRepository.getCurrentReviewers(param.owner, param.repo, number, param.tokens.githubToken);
-            const currentAssignees = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.githubToken);
+            const currentReviewers = await this.pullRequestRepository.getCurrentReviewers(param.owner, param.repo, number, param.tokens.token);
+            const currentAssignees = await this.issueRepository.getCurrentAssignees(param.owner, param.repo, number, param.tokens.token);
             if (currentReviewers.length >= desiredReviewersCount) {
                 /**
                  * No more assignees needed
@@ -52668,7 +52660,7 @@ class AssignReviewersToIssueUseCase {
                 }));
                 return result;
             }
-            const reviewersAdded = await this.pullRequestRepository.addReviewersToPullRequest(param.owner, param.repo, number, members, param.tokens.githubToken);
+            const reviewersAdded = await this.pullRequestRepository.addReviewersToPullRequest(param.owner, param.repo, number, members, param.tokens.token);
             for (const member of reviewersAdded) {
                 if (members.indexOf(member) > -1)
                     result.push(new result_1.Result({
@@ -52805,9 +52797,9 @@ class CloseIssueAfterMergingUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.githubToken);
+            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
             if (closed) {
-                await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was closed after merging #${param.pullRequest.number}.`, param.tokens.githubToken);
+                await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was closed after merging #${param.pullRequest.number}.`, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -52863,9 +52855,9 @@ class CloseNotAllowedIssueUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.githubToken);
+            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
             if (closed) {
-                await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`, param.tokens.githubToken);
+                await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -53111,7 +53103,7 @@ class LinkIssueProjectUseCase {
         const result = [];
         try {
             for (const project of param.project.getProjects()) {
-                const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.githubToken);
+                const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
                 let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.token);
                 if (actionDone) {
                     /**
@@ -53242,7 +53234,7 @@ class PrepareBranchesUseCase {
                     `Take a coffee break while you work ☕.`
                 ]
             }));
-            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.githubToken);
+            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             (0, logger_1.logDebugInfo)('Available branches:');
             branches.forEach(branch => {
                 (0, logger_1.logDebugInfo)(`- ${branch}`);
@@ -53481,7 +53473,7 @@ class RemoveIssueBranchesUseCase {
         const results = [];
         try {
             const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
-            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.githubToken);
+            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             for (const type of branchTypes) {
                 (0, logger_1.logDebugInfo)(`Checking branch type ${type}`);
                 let branchName = '';
@@ -53491,7 +53483,7 @@ class RemoveIssueBranchesUseCase {
                 if (!matchingBranch)
                     continue;
                 branchName = matchingBranch;
-                const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branchName, param.tokens.githubToken);
+                const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branchName, param.tokens.token);
                 if (removed) {
                     results.push(new result_1.Result({
                         id: this.taskId,
@@ -53601,7 +53593,7 @@ class RemoveNotNeededBranchesUseCase {
                 return result;
             }
             const sanitizedTitle = this.branchRepository.formatBranchName(issueTitle, param.issueNumber);
-            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.githubToken);
+            const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             const finalBranch = `${param.managementBranch}/${param.issueNumber}-${sanitizedTitle}`;
             const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
             for (const type of branchTypes) {
@@ -53613,7 +53605,7 @@ class RemoveNotNeededBranchesUseCase {
                         continue;
                     }
                     branchName = matchingBranch;
-                    const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branchName, param.tokens.githubToken);
+                    const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branchName, param.tokens.token);
                     if (removed) {
                         result.push(new result_1.Result({
                             id: this.taskId,
@@ -53639,7 +53631,7 @@ class RemoveNotNeededBranchesUseCase {
                 else {
                     for (const branch of branches) {
                         if (branch.indexOf(prefix) > -1 && branch !== finalBranch) {
-                            const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branch, param.tokens.githubToken);
+                            const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branch, param.tokens.token);
                             if (removed) {
                                 result.push(new result_1.Result({
                                     id: this.taskId,
@@ -53704,7 +53696,7 @@ class UpdateIssueTypeUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.tokens.githubToken);
+            await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.tokens.token);
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -53760,7 +53752,7 @@ class CheckChangesPullRequestSizeUseCase {
                  */
                 const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
-                await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.githubToken);
+                await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.token);
                 for (const project of param.project.getProjects()) {
                     await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.pullRequest.number, githubSize, param.tokens.token);
                 }
@@ -53948,7 +53940,7 @@ class LinkPullRequestIssueUseCase {
                 /**
                  *  Set the primary/default branch
                  */
-                await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.branches.defaultBranch, param.tokens.githubToken);
+                await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.branches.defaultBranch, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -53962,7 +53954,7 @@ class LinkPullRequestIssueUseCase {
                  */
                 let prBody = param.pullRequest.body;
                 let updatedBody = `${prBody}\n\nResolves #${param.issueNumber}`;
-                await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.githubToken);
+                await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -53978,7 +53970,7 @@ class LinkPullRequestIssueUseCase {
                 /**
                  *  Restore the original branch
                  */
-                await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.pullRequest.base, param.tokens.githubToken);
+                await this.pullRequestRepository.updateBaseBranch(param.owner, param.repo, param.pullRequest.number, param.pullRequest.base, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -53992,7 +53984,7 @@ class LinkPullRequestIssueUseCase {
                  */
                 prBody = param.pullRequest.body;
                 updatedBody = prBody.replace(`\n\nResolves #${param.issueNumber}`, "");
-                await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.githubToken);
+                await this.pullRequestRepository.updateDescription(param.owner, param.repo, param.pullRequest.number, updatedBody, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -54121,7 +54113,7 @@ class UpdatePullRequestDescriptionUseCase {
         const result = [];
         try {
             const prNumber = param.pullRequest.number;
-            const issueDescription = await this.issueRepository.getIssueDescription(param.owner, param.repo, param.issueNumber, param.tokens.githubToken);
+            const issueDescription = await this.issueRepository.getIssueDescription(param.owner, param.repo, param.issueNumber, param.tokens.token);
             if (issueDescription.length === 0) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -54147,7 +54139,7 @@ class UpdatePullRequestDescriptionUseCase {
                 }));
                 return result;
             }
-            const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.githubToken);
+            const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
             const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
@@ -54163,7 +54155,7 @@ ${issueDescription}`;
 ${currentDescription}
 
 ${changesDescription}
-`, param.tokens.githubToken);
+`, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
