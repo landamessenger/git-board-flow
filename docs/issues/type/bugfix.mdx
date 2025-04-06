@@ -15,11 +15,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           bugfix-label: bugfix // [!code highlight]
 ```
@@ -34,11 +30,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           bugfix-tree: bugfix // [!code highlight]
 ```
@@ -64,11 +56,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           development-branch: develop // [!code highlight]
 ```
@@ -85,11 +73,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           images-issue-bugfix: url1, url2, url3 // [!code highlight]
 ```
