@@ -15,8 +15,8 @@ import { RemoveIssueBranchesUseCase } from "./steps/issue/remove_issue_branches_
 import { RemoveNotNeededBranchesUseCase } from "./steps/issue/remove_not_needed_branches_use_case";
 import { UpdateIssueTypeUseCase } from "./steps/issue/update_issue_type_use_case";
 
-export class IssueLinkUseCase implements ParamUseCase<Execution, Result[]> {
-    taskId: string = 'IssueLinkUseCase';
+export class IssueUseCase implements ParamUseCase<Execution, Result[]> {
+    taskId: string = 'IssueUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)

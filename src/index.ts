@@ -18,9 +18,9 @@ import { SizeThresholds } from './data/model/size_thresholds';
 import { Tokens } from "./data/model/tokens";
 import { Workflows } from "./data/model/workflows";
 import { ProjectRepository } from "./data/repository/project_repository";
-import { CommitCheckUseCase } from "./usecase/commit_use_case";
-import { IssueLinkUseCase } from "./usecase/issue_use_case";
-import { PullRequestLinkUseCase } from "./usecase/pull_request_use_case";
+import { CommitUseCase } from "./usecase/commit_use_case";
+import { IssueUseCase } from "./usecase/issue_use_case";
+import { PullRequestUseCase } from "./usecase/pull_request_use_case";
 import { SingleActionUseCase } from "./usecase/single_action_use_case";
 import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
 import { StoreConfigurationUseCase } from "./usecase/steps/common/store_configuration_use_case";
@@ -724,11 +724,11 @@ async function run(): Promise<void> {
         if (execution.isSingleAction) {
             results.push(...await new SingleActionUseCase().invoke(execution));
         } else if (execution.isIssue) {
-            results.push(...await new IssueLinkUseCase().invoke(execution));
+            results.push(...await new IssueUseCase().invoke(execution));
         } else if (execution.isPullRequest) {
-            results.push(...await new PullRequestLinkUseCase().invoke(execution));
+            results.push(...await new PullRequestUseCase().invoke(execution));
         } else if (execution.isPush) {
-            results.push(...await new CommitCheckUseCase().invoke(execution));
+            results.push(...await new CommitUseCase().invoke(execution));
         } else {
             core.setFailed(`Action not handled.`);
         }

@@ -5,6 +5,7 @@ import { BranchRepository } from "../../../data/repository/branch_repository";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
 import { ExecuteScriptUseCase } from "../common/execute_script_use_case";
+import { MoveIssueToInProgressUseCase } from "./move_issue_to_in_progress";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PrepareBranchesUseCase';
@@ -308,6 +309,9 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                         })
                     )
                 }
+
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                result.push(...await new MoveIssueToInProgressUseCase().invoke(param));
             }
 
             return result;

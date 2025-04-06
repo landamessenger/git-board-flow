@@ -12,8 +12,8 @@ import { LinkPullRequestIssueUseCase } from "./steps/pull_request/link_pull_requ
 import { LinkPullRequestProjectUseCase } from "./steps/pull_request/link_pull_request_project_use_case";
 import { UpdatePullRequestDescriptionUseCase } from "./steps/pull_request/update_pull_request_description_use_case";
 
-export class PullRequestLinkUseCase implements ParamUseCase<Execution, Result[]> {
-    taskId: string = 'PullRequestLinkUseCase';
+export class PullRequestUseCase implements ParamUseCase<Execution, Result[]> {
+    taskId: string = 'PullRequestUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)

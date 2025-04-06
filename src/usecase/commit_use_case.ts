@@ -5,8 +5,8 @@ import { ParamUseCase } from "./base/param_usecase";
 import { NotifyNewCommitOnIssueUseCase } from "./steps/commit/notify_new_commit_on_issue_use_case";
 import { CheckChangesIssueSizeUseCase } from "./steps/commit/check_changes_issue_size_use_case";
 
-export class CommitCheckUseCase implements ParamUseCase<Execution, Result[]> {
-    taskId: string = 'CommitCheckUseCase';
+export class CommitUseCase implements ParamUseCase<Execution, Result[]> {
+    taskId: string = 'CommitUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
