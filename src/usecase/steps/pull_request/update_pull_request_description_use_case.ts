@@ -27,7 +27,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.owner,
                 param.repo,
                 param.issueNumber,
-                param.tokens.githubToken
+                param.tokens.token
             );
 
             if (issueDescription.length === 0) {
@@ -71,7 +71,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.owner,
                 param.repo,
                 prNumber,
-                param.tokens.githubToken
+                param.tokens.token
             );
 
             const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
@@ -101,7 +101,7 @@ ${currentDescription}
 
 ${changesDescription}
 `,
-                param.tokens.githubToken
+                param.tokens.token
             );
 
             result.push(

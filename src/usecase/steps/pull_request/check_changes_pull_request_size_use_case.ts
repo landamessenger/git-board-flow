@@ -45,7 +45,7 @@ export class CheckChangesPullRequestSizeUseCase implements ParamUseCase<Executio
                     param.repo,
                     param.pullRequest.number,
                     labelNames,
-                    param.tokens.githubToken,
+                    param.tokens.token,
                 )
 
                 for (const project of param.project.getProjects()) {

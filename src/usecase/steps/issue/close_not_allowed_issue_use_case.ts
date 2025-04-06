@@ -18,7 +18,7 @@ export class CloseNotAllowedIssueUseCase implements ParamUseCase<Execution, Resu
                 param.owner,
                 param.repo,
                 param.issueNumber,
-                param.tokens.githubToken,
+                param.tokens.token,
             );
             if (closed) {
                 await this.issueRepository.addComment(
@@ -26,7 +26,7 @@ export class CloseNotAllowedIssueUseCase implements ParamUseCase<Execution, Resu
                     param.repo,
                     param.issueNumber,
                     `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`,
-                    param.tokens.githubToken,
+                    param.tokens.token,
                 )
                 result.push(
                     new Result({

@@ -50,7 +50,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                     param.repo,
                     param.issueNumber,
                     labelNames,
-                    param.tokens.githubToken,
+                    param.tokens.token,
                 )
 
                 for (const project of param.project.getProjects()) {

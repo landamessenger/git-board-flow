@@ -52,7 +52,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                 param.repo,
                 param.singleAction.currentSingleActionIssue,
                 labelNames,
-                param.tokens.githubToken,
+                param.tokens.token,
             )
 
             logDebugInfo(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`);
@@ -76,7 +76,6 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.currentConfiguration.releaseBranch,
                     param.branches.defaultBranch,
                     param.pullRequest.mergeTimeout,
-                    param.tokens.githubToken,
                     param.tokens.token,
                 );
                 result.push(...mergeToDefaultResult);
@@ -87,7 +86,6 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.currentConfiguration.releaseBranch,
                     param.branches.development,
                     param.pullRequest.mergeTimeout,
-                    param.tokens.githubToken,
                     param.tokens.token,
                 );
                 result.push(...mergeToDevelopResult);
@@ -98,7 +96,6 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.currentConfiguration.hotfixBranch,
                     param.branches.defaultBranch,
                     param.pullRequest.mergeTimeout,
-                    param.tokens.githubToken,
                     param.tokens.token,
                 );
                 result.push(...mergeToDefaultResult);
@@ -109,7 +106,6 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.branches.defaultBranch,
                     param.branches.development,
                     param.pullRequest.mergeTimeout,
-                    param.tokens.githubToken,
                     param.tokens.token,
                 );
                 result.push(...mergeToDevelopResult);

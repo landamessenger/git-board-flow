@@ -39,7 +39,7 @@ export class GetHotfixVersionUseCase implements ParamUseCase<Execution, Result[]
                 param.owner,
                 param.repo,
                 number,
-                param.tokens.githubToken,
+                param.tokens.token,
             )
 
             if (description === undefined) {

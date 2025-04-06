@@ -32,7 +32,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                 param.owner,
                 param.repo,
                 number,
-                param.tokens.githubToken,
+                param.tokens.token,
             );
 
             let remainingAssignees = desiredAssigneesCount - currentMembers.length;
@@ -57,7 +57,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                     param.repo,
                     number,
                     [creator],
-                    param.tokens.githubToken,
+                    param.tokens.token,
                 );
                 logDebugInfo(`Assigned PR creator @${creator} to #${number}.`);
                 result.push(
@@ -76,7 +76,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                     param.repo,
                     number,
                     [creator],
-                    param.tokens.githubToken,
+                    param.tokens.token,
                 );
                 logDebugInfo(`Assigned Issue creator @${creator} to #${number}.`);
                 result.push(
@@ -131,7 +131,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
                 param.repo,
                 number,
                 members,
-                param.tokens.githubToken,
+                param.tokens.token,
             );
 
             for (const member of membersAdded) {

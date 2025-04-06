@@ -22,7 +22,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                     param.owner,
                     param.repo,
                     param.issue.number,
-                    param.tokens.githubToken,
+                    param.tokens.token,
                 )
 
                 let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.token)

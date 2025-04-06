@@ -245,7 +245,7 @@ export class Execution {
             this.owner,
             this.repo,
             this.issueNumber,
-            this.tokens.githubToken
+            this.tokens.token
         );
 
         /**
@@ -339,7 +339,7 @@ export class Execution {
                 this.owner,
                 this.repo,
                 this.pullRequest.number,
-                this.tokens.githubToken
+                this.tokens.token
             );
             this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1

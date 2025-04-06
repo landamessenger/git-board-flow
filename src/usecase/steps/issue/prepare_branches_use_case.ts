@@ -50,7 +50,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             const branches = await this.branchRepository.getListOfBranches(
                 param.owner,
                 param.repo,
-                param.tokens.githubToken,
+                param.tokens.token,
             )
             logDebugInfo('Available branches:');
             branches.forEach(branch => {

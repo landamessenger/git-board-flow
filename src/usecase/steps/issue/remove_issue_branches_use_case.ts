@@ -21,7 +21,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
             const branches = await this.branchRepository.getListOfBranches(
                 param.owner,
                 param.repo,
-                param.tokens.githubToken,
+                param.tokens.token,
             );
 
             for (const type of branchTypes) {
@@ -38,7 +38,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                     param.owner,
                     param.repo,
                     branchName,
-                    param.tokens.githubToken,
+                    param.tokens.token,
                 );
                 if (removed) {
                     results.push(
