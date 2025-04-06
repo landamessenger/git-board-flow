@@ -47618,9 +47618,13 @@ const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
 const commit_1 = __nccwpck_require__(3993);
 const config_1 = __nccwpck_require__(1106);
+const project_repository_1 = __nccwpck_require__(7917);
 class Execution {
     get eventName() {
         return github.context.eventName;
+    }
+    get actor() {
+        return github.context.actor;
     }
     get isSingleAction() {
         return this.singleAction.enabledSingleAction;
@@ -47674,6 +47678,9 @@ class Execution {
     get commit() {
         return new commit_1.Commit();
     }
+    get runnedByToken() {
+        return this.tokenUser === this.actor;
+    }
     constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, project) {
         this.debug = false;
         /**
@@ -47687,6 +47694,11 @@ class Execution {
         this.setup = async () => {
             (0, logger_1.setGlobalLoggerDebug)(this.debug);
             const issueRepository = new issue_repository_1.IssueRepository();
+            const projectRepository = new project_repository_1.ProjectRepository();
+            this.tokenUser = await projectRepository.getUserFromToken(this.tokens.token);
+            if (!this.tokenUser) {
+                throw new Error('Failed to get user from token');
+            }
             /**
              * Set the issue number
              */
@@ -50179,6 +50191,11 @@ class ProjectRepository {
             }
             return [];
         };
+        this.getUserFromToken = async (token) => {
+            const octokit = github.getOctokit(token);
+            const { data: user } = await octokit.rest.users.getAuthenticated();
+            return user.login;
+        };
     }
 }
 exports.ProjectRepository = ProjectRepository;
@@ -50883,6 +50900,10 @@ async function run() {
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
     const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
     await execution.setup();
+    if (execution.runnedByToken) {
+        (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
+        return;
+    }
     if (execution.issueNumber === -1) {
         (0, logger_1.logInfo)(`Issue number not found. Skipping.`);
         return;
