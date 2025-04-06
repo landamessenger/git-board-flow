@@ -546,4 +546,10 @@ export class ProjectRepository {
         return [];
     };
 
+    getUserFromToken = async (token: string): Promise<string> => {
+        const octokit = github.getOctokit(token);
+        const {data: user} = await octokit.rest.users.getAuthenticated();
+        return user.login;
+    }
+
 }

@@ -26,6 +26,7 @@ import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Workflows } from "./workflows";
+import { ProjectRepository } from "../repository/project_repository";
  
 export class Execution {
     debug: boolean = false;
@@ -55,9 +56,14 @@ export class Execution {
     project: Projects;
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
+    tokenUser: string | undefined;
 
     get eventName(): string {
         return github.context.eventName;
+    }
+
+    get actor(): string {
+        return github.context.actor;
     }
 
     get isSingleAction(): boolean {
@@ -154,6 +160,10 @@ export class Execution {
         return new Commit();
     }
 
+    get runnedByToken(): boolean {
+        return this.tokenUser === this.actor;
+    }
+
     constructor(
         debug: boolean,
         singleAction: SingleAction,
@@ -195,6 +205,12 @@ export class Execution {
         setGlobalLoggerDebug(this.debug);
         
         const issueRepository = new IssueRepository();
+        const projectRepository = new ProjectRepository();
+
+        this.tokenUser = await projectRepository.getUserFromToken(this.tokens.token);
+        if (!this.tokenUser) {
+            throw new Error('Failed to get user from token');
+        }
 
         /**
          * Set the issue number

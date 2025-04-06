@@ -708,6 +708,11 @@ async function run(): Promise<void> {
 
     await execution.setup();
 
+    if (execution.runnedByToken) {
+        logInfo(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
+        return;
+    }
+
     if (execution.issueNumber === -1) {
         logInfo(`Issue number not found. Skipping.`);
         return;
