@@ -1,5 +1,4 @@
 import * as core from '@actions/core';
-import * as github from "@actions/github";
 import { Ai } from './data/model/ai';
 import { Branches } from "./data/model/branches";
 import { Emoji } from "./data/model/emoji";
@@ -19,13 +18,13 @@ import { SizeThresholds } from './data/model/size_thresholds';
 import { Tokens } from "./data/model/tokens";
 import { Workflows } from "./data/model/workflows";
 import { ProjectRepository } from "./data/repository/project_repository";
-import { CommitCheckUseCase } from "./data/usecase/commit_check_use_case";
-import { IssueLinkUseCase } from "./data/usecase/issue_link_use_case";
-import { PublishResultUseCase } from "./data/usecase/publish_resume_use_case";
-import { PullRequestLinkUseCase } from "./data/usecase/pull_request_link_use_case";
-import { SingleActionUseCase } from "./data/usecase/single_action_use_case";
-import { StoreConfigurationUseCase } from "./data/usecase/store_configuration_use_case";
-import { logInfo } from './data/utils/logger';
+import { CommitUseCase } from "./usecase/commit_use_case";
+import { IssueUseCase } from "./usecase/issue_use_case";
+import { PullRequestUseCase } from "./usecase/pull_request_use_case";
+import { SingleActionUseCase } from "./usecase/single_action_use_case";
+import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
+import { StoreConfigurationUseCase } from "./usecase/steps/common/store_configuration_use_case";
+import { logInfo } from './utils/logger';
 
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -219,8 +218,7 @@ async function run(): Promise<void> {
     /**
      * Tokens
      */
-    const token = core.getInput('github-token', {required: true});
-    const tokenPat = core.getInput('github-token-personal', {required: true});
+    const token = core.getInput('token', {required: true});
 
     /**
      * AI
@@ -246,7 +244,7 @@ async function run(): Promise<void> {
 
     const projects: ProjectDetail[] = []
     for (const projectId of projectIds) {        
-        const detail = await projectRepository.getProjectDetail(projectId, tokenPat)
+        const detail = await projectRepository.getProjectDetail(projectId, token)
         projects.push(detail)
     }
 
@@ -616,7 +614,7 @@ async function run(): Promise<void> {
             imagesCommitDocs,
             imagesCommitChore,
         ),
-        new Tokens(token, tokenPat),
+        new Tokens(token),
         new Ai(
             openaiApiKey,
             openaiModel,
@@ -710,6 +708,11 @@ async function run(): Promise<void> {
 
     await execution.setup();
 
+    if (execution.runnedByToken) {
+        logInfo(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
+        return;
+    }
+
     if (execution.issueNumber === -1) {
         logInfo(`Issue number not found. Skipping.`);
         return;
@@ -721,11 +724,11 @@ async function run(): Promise<void> {
         if (execution.isSingleAction) {
             results.push(...await new SingleActionUseCase().invoke(execution));
         } else if (execution.isIssue) {
-            results.push(...await new IssueLinkUseCase().invoke(execution));
+            results.push(...await new IssueUseCase().invoke(execution));
         } else if (execution.isPullRequest) {
-            results.push(...await new PullRequestLinkUseCase().invoke(execution));
+            results.push(...await new PullRequestUseCase().invoke(execution));
         } else if (execution.isPush) {
-            results.push(...await new CommitCheckUseCase().invoke(execution));
+            results.push(...await new CommitUseCase().invoke(execution));
         } else {
             core.setFailed(`Action not handled.`);
         }

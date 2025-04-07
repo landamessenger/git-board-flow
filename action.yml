@@ -278,11 +278,8 @@ inputs:
   merge-timeout:
     description: "The timeout for the merge workflow in seconds. If set to 0, the merge will not be timed out."
     default: "600"
-  github-token:
-    description: "GitHub token for branch and project operations within the repository scope."
-    required: true
-  github-token-personal:
-    description: "GitHub PAT for extended operations on commits, branches, and projects."
+  token:
+    description: "Fine-grained personal access token for branch and project operations"
     required: true
   openai-api-key:
     description: "OpenAI API key for AI operations."

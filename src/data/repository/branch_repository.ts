@@ -1,12 +1,12 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as github from "@actions/github";
+import { logDebugInfo, logError } from '../../utils/logger';
+import { getLatestVersion } from "../../utils/version_utils";
 import { Execution } from "../model/execution";
 import { Labels } from '../model/labels';
 import { Result } from "../model/result";
 import { SizeThresholds } from '../model/size_thresholds';
-import { logDebugInfo, logError } from '../utils/logger';
-import { getLatestVersion } from "../utils/version_utils";
 
 export class BranchRepository {
 
@@ -477,12 +477,10 @@ export class BranchRepository {
         base: string,
         timeout: number,
         token: string,
-        tokenPAT: string,
     ): Promise<Result[]> => {
         const result: Result[] = [];
         try {
             const octokit = github.getOctokit(token);
-            const octokitPAT = github.getOctokit(tokenPAT);
             logDebugInfo(`Creating merge from ${head} into ${base}`);
             
             // Build PR body with commit list
@@ -493,7 +491,7 @@ This PR merges **${head}** into **${base}**.
 **Commits included:**`;
 
             // We need PAT for creating PR to ensure it can trigger workflows
-            const { data: pullRequest } = await octokitPAT.rest.pulls.create({
+            const { data: pullRequest } = await octokit.rest.pulls.create({
                 owner: owner,
                 repo: repository,
                 head: head,
@@ -505,7 +503,7 @@ This PR merges **${head}** into **${base}**.
             logDebugInfo(`Pull request #${pullRequest.number} created, getting commits...`);
 
             // Get all commits in the PR
-            const { data: commits } = await octokitPAT.rest.pulls.listCommits({
+            const { data: commits } = await octokit.rest.pulls.listCommits({
                 owner: owner,
                 repo: repository,
                 pull_number: pullRequest.number
@@ -516,7 +514,7 @@ This PR merges **${head}** into **${base}**.
             logDebugInfo(`Found ${commitMessages.length} commits in PR`);
 
             // Update PR with commit list and footer
-            await octokitPAT.rest.pulls.update({
+            await octokit.rest.pulls.update({
                 owner: owner,
                 repo: repository,
                 pull_number: pullRequest.number,
@@ -602,7 +600,7 @@ This PR merges **${head}** into **${base}**.
             }
 
             // Need PAT for merging to ensure it can trigger subsequent workflows
-            await octokitPAT.rest.pulls.merge({
+            await octokit.rest.pulls.merge({
                 owner: owner,
                 repo: repository,
                 pull_number: pullRequest.number,
@@ -625,8 +623,8 @@ This PR merges **${head}** into **${base}**.
             
             // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
             try {
-                const octokitPAT = github.getOctokit(tokenPAT);
-                await octokitPAT.rest.repos.merge({
+                const octokit = github.getOctokit(token);
+                await octokit.rest.repos.merge({
                     owner: owner,
                     repo: repository,
                     base: base,

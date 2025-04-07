@@ -1,0 +1,26 @@
+name: Git Board Flow - Pull Request
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, labeled, unlabeled, closed, assigned, unassigned, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+
+jobs:
+  git-board-pull-requests:
+    name: Git Board - Pull Request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          debug: true
+          project-ids: 2
+          token: ${{ secrets.PAT }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          ai-pull-request-description: true
+          ai-ignore-files: dist/*
