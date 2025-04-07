@@ -47630,7 +47630,7 @@ class Execution {
         return this.singleAction.enabledSingleAction;
     }
     get isIssue() {
-        return this.eventName === 'issues' || this.singleAction.isIssue;
+        return this.issue.isIssue || this.issue.isIssueComment || this.singleAction.isIssue;
     }
     get isPullRequest() {
         return this.eventName === 'pull_request' || this.singleAction.isPullRequest;
@@ -47681,7 +47681,7 @@ class Execution {
     get runnedByToken() {
         return this.tokenUser === this.actor;
     }
-    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, sizeThresholds, branches, release, hotfix, workflows, project) {
+    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, locale, sizeThresholds, branches, release, hotfix, workflows, project) {
         this.debug = false;
         /**
          * Every usage of this field should be checked.
@@ -47835,6 +47835,7 @@ class Execution {
         this.emoji = emoji;
         this.labels = labels;
         this.issueTypes = issueTypes;
+        this.locale = locale;
         this.sizeThresholds = sizeThresholds;
         this.branches = branches;
         this.release = release;
@@ -47971,6 +47972,24 @@ class Issue {
     }
     get labelAdded() {
         return github.context.payload.label?.name;
+    }
+    get isIssue() {
+        return github.context.eventName === 'issues';
+    }
+    get isIssueComment() {
+        return github.context.eventName === 'issue_comment';
+    }
+    get commentId() {
+        return github.context.payload.comment?.id ?? -1;
+    }
+    get commentBody() {
+        return github.context.payload.comment?.body ?? '';
+    }
+    get commentAuthor() {
+        return github.context.payload.comment?.user.login ?? '';
+    }
+    get commentUrl() {
+        return github.context.payload.comment?.html_url ?? '';
     }
     constructor(branchManagementAlways, reopenOnPush, desiredAssigneesCount) {
         this.branchManagementAlways = branchManagementAlways;
@@ -48195,6 +48214,25 @@ class Labels {
     }
 }
 exports.Labels = Labels;
+
+
+/***/ }),
+
+/***/ 2152:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Locale = void 0;
+class Locale {
+    constructor(issue, pullRequest) {
+        this.issue = issue;
+        this.pullRequest = pullRequest;
+    }
+}
+exports.Locale = Locale;
+Locale.DEFAULT = 'en-US';
 
 
 /***/ }),
@@ -49623,6 +49661,16 @@ class IssueRepository {
             });
             (0, logger_1.logDebugInfo)(`Comment added to Issue ${issueNumber}.`);
         };
+        this.updateComment = async (owner, repository, issueNumber, commentId, comment, token) => {
+            const octokit = github.getOctokit(token);
+            await octokit.rest.issues.updateComment({
+                owner: owner,
+                repo: repository,
+                comment_id: commentId,
+                body: comment,
+            });
+            (0, logger_1.logDebugInfo)(`Comment ${commentId} updated in Issue ${issueNumber}.`);
+        };
         this.closeIssue = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
@@ -50454,6 +50502,7 @@ const execution_1 = __nccwpck_require__(7550);
 const hotfix_1 = __nccwpck_require__(7341);
 const images_1 = __nccwpck_require__(1721);
 const issue_1 = __nccwpck_require__(2632);
+const issue_types_1 = __nccwpck_require__(1975);
 const labels_1 = __nccwpck_require__(818);
 const projects_1 = __nccwpck_require__(1938);
 const pull_request_1 = __nccwpck_require__(4179);
@@ -50465,13 +50514,14 @@ const tokens_1 = __nccwpck_require__(3421);
 const workflows_1 = __nccwpck_require__(8553);
 const project_repository_1 = __nccwpck_require__(7917);
 const commit_use_case_1 = __nccwpck_require__(5016);
+const issue_comment_use_case_1 = __nccwpck_require__(854);
 const issue_use_case_1 = __nccwpck_require__(8675);
 const pull_request_use_case_1 = __nccwpck_require__(3478);
 const single_action_use_case_1 = __nccwpck_require__(6479);
 const publish_resume_use_case_1 = __nccwpck_require__(9813);
 const store_configuration_use_case_1 = __nccwpck_require__(9714);
 const logger_1 = __nccwpck_require__(8836);
-const issue_types_1 = __nccwpck_require__(1975);
+const locale_1 = __nccwpck_require__(2152);
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -50916,6 +50966,11 @@ async function run() {
     const issueTypeHelp = core.getInput('issue-type-help');
     const issueTypeTask = core.getInput('issue-type-task');
     /**
+     * Locale
+     */
+    const issueLocale = core.getInput('issues-locale') ?? locale_1.Locale.DEFAULT;
+    const pullRequestLocale = core.getInput('pull-requests-locale') ?? locale_1.Locale.DEFAULT;
+    /**
      * Size Thresholds
      */
     const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
@@ -50966,7 +51021,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeBug, issueTypeFeature, issueTypeDocumentation, issueTypeMaintenance, issueTypeHotfix, issueTypeRelease, issueTypeQuestion, issueTypeHelp), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeBug, issueTypeFeature, issueTypeDocumentation, issueTypeMaintenance, issueTypeHotfix, issueTypeRelease, issueTypeQuestion, issueTypeHelp), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
     await execution.setup();
     if (execution.runnedByToken) {
         (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
@@ -50982,7 +51037,12 @@ async function run() {
             results.push(...await new single_action_use_case_1.SingleActionUseCase().invoke(execution));
         }
         else if (execution.isIssue) {
-            results.push(...await new issue_use_case_1.IssueUseCase().invoke(execution));
+            if (execution.issue.isIssueComment) {
+                results.push(...await new issue_comment_use_case_1.IssueCommentUseCase().invoke(execution));
+            }
+            else {
+                results.push(...await new issue_use_case_1.IssueUseCase().invoke(execution));
+            }
         }
         else if (execution.isPullRequest) {
             results.push(...await new pull_request_use_case_1.PullRequestUseCase().invoke(execution));
@@ -51351,6 +51411,31 @@ class CommitUseCase {
     }
 }
 exports.CommitUseCase = CommitUseCase;
+
+
+/***/ }),
+
+/***/ 854:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueCommentUseCase = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const check_issue_comment_language_use_case_1 = __nccwpck_require__(465);
+class IssueCommentUseCase {
+    constructor() {
+        this.taskId = 'IssueCommentUseCase';
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        results.push(...await new check_issue_comment_language_use_case_1.CheckIssueCommentLanguageUseCase().invoke(param));
+        return results;
+    }
+}
+exports.IssueCommentUseCase = IssueCommentUseCase;
 
 
 /***/ }),
@@ -53865,6 +53950,74 @@ class UpdateIssueTypeUseCase {
     }
 }
 exports.UpdateIssueTypeUseCase = UpdateIssueTypeUseCase;
+
+
+/***/ }),
+
+/***/ 465:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckIssueCommentLanguageUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const ai_repository_1 = __nccwpck_require__(8307);
+const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(8836);
+class CheckIssueCommentLanguageUseCase {
+    constructor() {
+        this.taskId = 'CheckIssueCommentLanguageUseCase';
+        this.aiRepository = new ai_repository_1.AiRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        const commentBody = param.issue.commentBody;
+        if (commentBody.length === 0) {
+            return results;
+        }
+        const locale = param.locale.issue;
+        let prompt = `
+        You are a helpful assistant that checks if the text is written in ${locale}.
+        
+        Instructions:
+        1. Analyze the provided text
+        2. If the text is written in ${locale}, respond with exactly "done"
+        3. If the text is written in any other language, respond with exactly "must_translate"
+        4. Do not provide any explanation or additional text
+        
+        The text is: ${commentBody}
+        `;
+        let result = await this.aiRepository.askChatGPT(prompt, param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
+        if (result === "done") {
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+            }));
+            return results;
+        }
+        prompt = `
+        You are a helpful assistant that translates the text to ${locale}.
+        
+        Instructions:
+        1. Translate the text to ${locale}
+        2. Do not provide any explanation or additional text
+        3. Return the translated text only
+
+        The text is: ${commentBody}
+        `;
+        result = await this.aiRepository.askChatGPT(prompt, param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
+        const translatedCommentBody = `${result}
+> ${commentBody}
+`;
+        await this.issueRepository.updateComment(param.owner, param.repo, param.issue.number, param.issue.commentId, translatedCommentBody, param.tokens.token);
+        return results;
+    }
+}
+exports.CheckIssueCommentLanguageUseCase = CheckIssueCommentLanguageUseCase;
 
 
 /***/ }),
@@ -65846,7 +65999,7 @@ const addFormValue = async (form, key, value) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
-exports.VERSION = '4.92.0'; // x-release-please-version
+exports.VERSION = '4.92.1'; // x-release-please-version
 //# sourceMappingURL=version.js.map
 
 /***/ }),
