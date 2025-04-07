@@ -1,0 +1,21 @@
+name: Git Board Flow - Commit
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!master'
+      - '!develop'
+
+jobs:
+  git-board-commits:
+    name: Git Board - Commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          project-ids: 2
+          token: ${{ secrets.PAT }}

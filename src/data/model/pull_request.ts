@@ -45,6 +45,10 @@ export class PullRequest {
         return github.context.payload.pull_request?.merged ?? false;
     }
 
+    get opened(): boolean {
+        return ['opened', 'reopened'].includes(github.context.payload.action || '');
+    }
+
     get isOpened(): boolean {
         return github.context.payload.pull_request?.state === 'open'
             && this.action !== 'closed';

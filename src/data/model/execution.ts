@@ -1,14 +1,15 @@
 import * as github from "@actions/github";
-import { ConfigurationHandler } from "../manager/description/configuration_handler";
+
+import { ConfigurationHandler } from "../../manager/description/configuration_handler";
+import { GetHotfixVersionUseCase } from "../../usecase/steps/common/get_hotfix_version_use_case";
+import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_type_use_case";
+import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
+import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
+import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
+import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
+import { incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
 import { IssueRepository } from "../repository/issue_repository";
-import { GetHotfixVersionUseCase } from "../usecase/steps/get_hotfix_version_use_case";
-import { GetReleaseTypeUseCase } from "../usecase/steps/get_release_type_use_case";
-import { GetReleaseVersionUseCase } from "../usecase/steps/get_release_version_use_case";
-import { branchesForManagement, typesForIssue } from "../utils/label_utils";
-import { logDebugInfo, setGlobalLoggerDebug } from "../utils/logger";
-import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../utils/title_utils";
-import { incrementVersion } from "../utils/version_utils";
 import { Ai } from "./ai";
 import { Branches } from "./branches";
 import { Commit } from "./commit";
@@ -25,6 +26,7 @@ import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Workflows } from "./workflows";
+import { ProjectRepository } from "../repository/project_repository";
  
 export class Execution {
     debug: boolean = false;
@@ -54,9 +56,14 @@ export class Execution {
     project: Projects;
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
+    tokenUser: string | undefined;
 
     get eventName(): string {
         return github.context.eventName;
+    }
+
+    get actor(): string {
+        return github.context.actor;
     }
 
     get isSingleAction(): boolean {
@@ -153,6 +160,10 @@ export class Execution {
         return new Commit();
     }
 
+    get runnedByToken(): boolean {
+        return this.tokenUser === this.actor;
+    }
+
     constructor(
         debug: boolean,
         singleAction: SingleAction,
@@ -194,6 +205,12 @@ export class Execution {
         setGlobalLoggerDebug(this.debug);
         
         const issueRepository = new IssueRepository();
+        const projectRepository = new ProjectRepository();
+
+        this.tokenUser = await projectRepository.getUserFromToken(this.tokens.token);
+        if (!this.tokenUser) {
+            throw new Error('Failed to get user from token');
+        }
 
         /**
          * Set the issue number
@@ -203,13 +220,13 @@ export class Execution {
                 this.owner,
                 this.repo,
                 this.singleAction.currentSingleActionIssue,
-                this.tokens.tokenPat,
+                this.tokens.token,
             )
             this.singleAction.isIssue = await issueRepository.isIssue(
                 this.owner,
                 this.repo,
                 this.singleAction.currentSingleActionIssue,
-                this.tokens.tokenPat,
+                this.tokens.token,
             )
 
             if (this.singleAction.isIssue) {
@@ -219,7 +236,7 @@ export class Execution {
                     this.owner,
                     this.repo,
                     this.singleAction.currentSingleActionIssue,
-                    this.tokens.tokenPat,
+                    this.tokens.token,
                 )
                 if (head === undefined) {
                     return

@@ -1,7 +1,7 @@
 import * as github from "@actions/github";
-import { ProjectResult } from "../../graph/project_result";
+import { logDebugInfo, logError } from "../../utils/logger";
+import { ProjectResult } from "../graph/project_result";
 import { ProjectDetail } from "../model/project_detail";
-import { logDebugInfo, logError } from "../utils/logger";
 
 export class ProjectRepository {
   
@@ -545,5 +545,11 @@ export class ProjectRepository {
         }
         return [];
     };
+
+    getUserFromToken = async (token: string): Promise<string> => {
+        const octokit = github.getOctokit(token);
+        const {data: user} = await octokit.rest.users.getAuthenticated();
+        return user.login;
+    }
 
 }

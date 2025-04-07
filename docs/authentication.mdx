@@ -1,0 +1,101 @@
+---
+title: Authentication
+description: Securely authenticate your workflows using personal access tokens (PATs).
+---
+
+Git Board Flow requires a fine-grained personal access token to perform certain actions, such as creating branches, updating pull requests, or managing project boards.
+
+<Info>Originally, the workflow also made use of the GITHUB_TOKEN for some basic tasks executed within the workflow's scope. However, to simplify the configuration and maintain a single unified bot, the use of this token has been removed, leaving only the necessary PAT.</Info>
+
+<Steps>
+  <Step title="Who is the bot?">
+    Choose which account will be used to create your PAT. This account will act as your bot.
+    - For individual developers, it is recommended to use your own account as the bot.
+    - In organizations and enterprise accounts, it is better to use a separate, dedicated account. For example, this project belongs to [**landamessenger**](https://github.com/landamessenger), and the selected bot account is [**landa-bot**](https://github.com/landa-bot).
+  </Step>
+  
+  <Step title="Create the PAT">
+    Once you’ve selected the account that will act as the bot:
+    - Go to [**Settings**](https://github.com/settings/profile).
+    - Navigate to [**Developer settings**](https://github.com/settings/apps).
+    - Then go to **Personal access tokens**.
+    - In the left sidebar, select [**Fine-grained tokens**](https://github.com/settings/personal-access-tokens).
+    - Click the [**Generate new token**](https://github.com/settings/personal-access-tokens/new) button.
+    
+    Now you can start configuring your new token. Set a meaningful name and description to easily distinguish it from other tokens. This might seem redundant, but it helps reduce the risk of accidentally deleting the token.
+
+    Pay close attention to the **Resource owner** field:
+    - If your bot account does not belong to an organization (individual developer), you should keep your own account selected when creating the token (this is usually the default value, so you likely won’t need to change it).
+    - If your account belongs to an organization, make sure to select the organization that this token will operate under. 
+
+    In the **Repository access** section, you need to select the scope for which you want this token to operate. We recommend choosing **All repositories** to quickly configure Git Board Flow on any repository the bot account has access to.
+
+    Set these permissions for the repository:
+
+    - **Actions Access**: Read and write
+    - **Administration Access**: Read and write
+    - **Commit statuses Access**: Read and write
+    - **Contents Access**: Read and write
+    - **Issues Access**: Read and write
+    - **Metadata Access**: Read-only
+    - **Pull requests Access**: Read and write
+    - **Variables Access**: Read and write
+    - **Webhooks Access**: Read and write
+    - **Workflows Access**: Read and write
+
+    **If your bot belongs to an organization** set these permissions for the organization:
+
+    - **Custom repository roles Access**: Read-only
+    - **Members Access**: Read-only
+    - **Projects Access**: Admin
+    - **Self-hosted runners Access**: Read and write
+
+    Finally press the **Generate new token** button.
+
+    <Warning>Make sure to **copy the generated PAT**, as it will not be visible again.</Warning>
+  </Step>
+
+  <Step title="Create the secret">
+    It’s time to create a new Secret:
+
+    If your bot account does **not** belong to an organization (individual developer):
+    - Go to the repository where you want to implement Git Board Flow.
+    - Then, navigate to **Settings**.
+    - In the left sidebar, click on **Secrets and variables**, then **Actions**.
+    - Click **New repository secret**.
+    - Define a name for the secret and paste the previously created PAT in the **Secret** field.
+    - Finally, click **Add secret**.
+
+    If your bot account **does** belong to an organization:
+    - Go to the **Settings** of your organization.
+    - In the left sidebar, click on **Secrets and variables**, then **Actions**.
+    - Click **New organization secret**.
+    - Define a name for the secret and paste the previously created PAT in the **Secret** field.
+    - Select the **Repository access** level where you want this secret to be available. We recommend selecting **All repositories**.
+    - Finally, click **Add secret**.
+  </Step>
+  <Step title="Consume the token">
+    In each workflow that consumes Git Board Flow, make sure to pass the PAT you just created with the `token` property:
+
+    ```yml
+    name: Git Board Flow - Issue
+
+    on:
+      issues:
+        types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
+
+    jobs:
+      git-board-issues:
+        name: Git Board - Issue
+        runs-on: ubuntu-latest
+        steps:
+          - uses: landamessenger/git-board-flow@v1
+            with:
+              project-ids: 1,2
+              token: ${{ secrets.PAT }}
+    ```
+  </Step>
+</Steps>

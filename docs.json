@@ -34,9 +34,14 @@
           "icon": "rocket"
         },
         {
-          "title": "Features",
-          "href": "/features",
-          "icon": "lightbulb"
+          "title": "How To Use",
+          "href": "/how-to-use",
+          "icon": "list-check"
+        },
+        {
+          "title": "Authentication",
+          "href": "/authentication",
+          "icon": "key"
         }
       ]
     },

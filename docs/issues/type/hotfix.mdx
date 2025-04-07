@@ -50,11 +50,7 @@ This workflow ensures that critical fixes reach production quickly while maintai
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        - name: Git Board - Issue
-          uses: landamessenger/git-board-flow@master
+        - uses: landamessenger/git-board-flow@v1
           with:
             deploy-label: deploy // [!code highlight]
             hotfix-workflow: hotfix_workflow.yml // [!code highlight]
@@ -112,13 +108,12 @@ This workflow ensures that critical fixes reach production quickly while maintai
         // deploy logic here
 
         - name: Git Board - Deploy success notification
-          uses: landamessenger/git-board-flow@master
+          uses: landamessenger/git-board-flow@v1
           if: ${{ success() }}
           with:
             single-action: 'deployed_action'
             single-action-issue: '${{ github.event.inputs.issue }}'
-            github-token: ${{ secrets.GITHUB_TOKEN }}
-            github-token-personal: ${{ secrets.REPO_PAT }}
+            token: ${{ secrets.PAT }}
   ```
 </Card>
 
@@ -143,11 +138,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           hotfix-label: hotfix // [!code highlight]
 ```
@@ -162,11 +153,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           hotfix-tree: hotfix // [!code highlight]
 ```
@@ -192,11 +179,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           main-branch: master // [!code highlight]
 ```
@@ -213,11 +196,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           images-issue-hotfix: url1, url2, url3 // [!code highlight]
 ```

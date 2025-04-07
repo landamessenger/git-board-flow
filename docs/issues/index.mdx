@@ -22,15 +22,10 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Git Board - Issue
-        uses: landamessenger/git-board-flow@master
+      - uses: landamessenger/git-board-flow@v1
         with:
           project-ids: 1,2
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-token-personal: ${{ secrets.REPO_PAT }}
+          token: ${{ secrets.PAT }}
 ```
 
 ### Member Assignment
@@ -47,11 +42,7 @@ Git Board Flow rolls the dice for you by automatically assigning newly created i
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        - name: Git Board - Issue
-          uses: landamessenger/git-board-flow@master
+        - uses: landamessenger/git-board-flow@v1
           with:
             desired-assignees-count: 1 // [!code highlight]
   ```
@@ -73,13 +64,8 @@ Git Board Flow takes care of organizing your issues by automatically assigning n
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        - name: Git Board - Issue
-          uses: landamessenger/git-board-flow@master
+        - uses: landamessenger/git-board-flow@v1
           with:
-            github-token-personal: ${{ secrets.REPO_PAT }} // [!code highlight]
             project-ids: 1, 2 // [!code highlight]
   ```
 </Card>
@@ -102,11 +88,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        - name: Git Board - Issue
-          uses: landamessenger/git-board-flow@master
+        - uses: landamessenger/git-board-flow@v1
           with:
             branch-management-launcher-label: branched // [!code highlight]
   ```
@@ -123,11 +105,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout Repository
-          uses: actions/checkout@v4
-
-        - name: Git Board - Issue
-          uses: landamessenger/git-board-flow@master
+        - uses: landamessenger/git-board-flow@v1
           with:
             main-branch: master // [!code highlight]
             development-branch: develop // [!code highlight]
