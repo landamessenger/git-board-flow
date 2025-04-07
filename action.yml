@@ -188,6 +188,12 @@ inputs:
   issue-type-help:
     description: "Name of the issue type for help."
     default: "Help"
+  issues-locale:
+    description: "Locale of the issues."
+    default: "en-US"
+  pull-requests-locale:
+    description: "Locale of the pull requests."
+    default: "en-US"
   main-branch:
     description: "Name of the main branch (e.g., master)."
     default: "master"

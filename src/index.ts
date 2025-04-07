@@ -6,6 +6,7 @@ import { Execution } from "./data/model/execution";
 import { Hotfix } from "./data/model/hotfix";
 import { Images } from "./data/model/images";
 import { Issue } from "./data/model/issue";
+import { IssueTypes } from './data/model/issue_types';
 import { Labels } from "./data/model/labels";
 import { ProjectDetail } from "./data/model/project_detail";
 import { Projects } from './data/model/projects';
@@ -19,13 +20,14 @@ import { Tokens } from "./data/model/tokens";
 import { Workflows } from "./data/model/workflows";
 import { ProjectRepository } from "./data/repository/project_repository";
 import { CommitUseCase } from "./usecase/commit_use_case";
+import { IssueCommentUseCase } from './usecase/issue_comment_use_case';
 import { IssueUseCase } from "./usecase/issue_use_case";
 import { PullRequestUseCase } from "./usecase/pull_request_use_case";
 import { SingleActionUseCase } from "./usecase/single_action_use_case";
 import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
 import { StoreConfigurationUseCase } from "./usecase/steps/common/store_configuration_use_case";
 import { logInfo } from './utils/logger';
-import { IssueTypes } from './data/model/issue_types';
+import { Locale } from './data/model/locale';
 
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -527,6 +529,12 @@ async function run(): Promise<void> {
     const issueTypeTask = core.getInput('issue-type-task');
 
     /**
+     * Locale
+     */
+    const issueLocale = core.getInput('issues-locale') ?? Locale.DEFAULT;
+    const pullRequestLocale = core.getInput('pull-requests-locale') ?? Locale.DEFAULT;
+
+    /**
      * Size Thresholds
      */
     const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
@@ -675,6 +683,7 @@ async function run(): Promise<void> {
             issueTypeQuestion,
             issueTypeHelp,
         ),
+        new Locale(issueLocale, pullRequestLocale),
         new SizeThresholds(
             new SizeThreshold(
                 sizeXxlThresholdLines,
@@ -750,7 +759,11 @@ async function run(): Promise<void> {
         if (execution.isSingleAction) {
             results.push(...await new SingleActionUseCase().invoke(execution));
         } else if (execution.isIssue) {
-            results.push(...await new IssueUseCase().invoke(execution));
+            if (execution.issue.isIssueComment) {
+                results.push(...await new IssueCommentUseCase().invoke(execution));
+            } else {
+                results.push(...await new IssueUseCase().invoke(execution));
+            }
         } else if (execution.isPullRequest) {
             results.push(...await new PullRequestUseCase().invoke(execution));
         } else if (execution.isPush) {

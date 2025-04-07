@@ -37,6 +37,30 @@ export class Issue {
         return github.context.payload.label?.name;
     }
 
+    get isIssue(): boolean {
+        return github.context.eventName === 'issues';
+    }
+
+    get isIssueComment(): boolean {
+        return github.context.eventName === 'issue_comment';
+    }
+
+    get commentId(): number {
+        return github.context.payload.comment?.id ?? -1;
+    }
+
+    get commentBody(): string {
+        return github.context.payload.comment?.body ?? '';
+    }
+
+    get commentAuthor(): string {
+        return github.context.payload.comment?.user.login ?? '';
+    }
+
+    get commentUrl(): string {
+        return github.context.payload.comment?.html_url ?? '';
+    }
+
     constructor(
         branchManagementAlways: boolean,
         reopenOnPush: boolean,

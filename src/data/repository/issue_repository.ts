@@ -439,6 +439,25 @@ export class IssueRepository {
         logDebugInfo(`Comment added to Issue ${issueNumber}.`);
     }
 
+    updateComment = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        commentId: number,
+        comment: string,
+        token: string,
+    ) => {
+        const octokit = github.getOctokit(token);
+        await octokit.rest.issues.updateComment({
+            owner: owner,
+            repo: repository,
+            comment_id: commentId,
+            body: comment,
+        });
+
+        logDebugInfo(`Comment ${commentId} updated in Issue ${issueNumber}.`);
+    }
+
     closeIssue = async (
         owner: string,
         repository: string,
