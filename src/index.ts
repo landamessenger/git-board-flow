@@ -25,6 +25,7 @@ import { SingleActionUseCase } from "./usecase/single_action_use_case";
 import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
 import { StoreConfigurationUseCase } from "./usecase/steps/common/store_configuration_use_case";
 import { logInfo } from './utils/logger';
+import { IssueTypes } from './data/model/issue_types';
 
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -512,6 +513,20 @@ async function run(): Promise<void> {
     const sizeXsLabel = core.getInput('size-xs-label');
 
     /**
+     * Issue Types
+     */
+    const issueTypeBug = core.getInput('issue-type-bug');
+    const issueTypeHotfix = core.getInput('issue-type-hotfix');
+    const issueTypeEnhancement = core.getInput('issue-type-enhancement');
+    const issueTypeFeature = core.getInput('issue-type-feature');
+    const issueTypeDocumentation = core.getInput('issue-type-documentation');
+    const issueTypeMaintenance = core.getInput('issue-type-maintenance');
+    const issueTypeRelease = core.getInput('issue-type-release');
+    const issueTypeQuestion = core.getInput('issue-type-question');
+    const issueTypeHelp = core.getInput('issue-type-help');
+    const issueTypeTask = core.getInput('issue-type-task');
+
+    /**
      * Size Thresholds
      */
     const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
@@ -648,6 +663,17 @@ async function run(): Promise<void> {
             sizeMLabel,
             sizeSLabel,
             sizeXsLabel,
+        ),
+        new IssueTypes(
+            issueTypeTask,
+            issueTypeBug,
+            issueTypeFeature,
+            issueTypeDocumentation,
+            issueTypeMaintenance,
+            issueTypeHotfix,
+            issueTypeRelease,
+            issueTypeQuestion,
+            issueTypeHelp,
         ),
         new SizeThresholds(
             new SizeThreshold(

@@ -3,12 +3,9 @@ import * as github from "@actions/github";
 import { logDebugInfo, logError } from "../../utils/logger";
 import { Labels } from "../model/labels";
 import { Milestone } from "../model/milestone";
+import { IssueTypes } from "../model/issue_types";
 
 export class IssueRepository {
-
-    private readonly issueTypeTask = 'task'
-    private readonly issueTypeBug = 'bug'
-    private readonly issueTypeFeature = 'feature'
 
     updateTitleIssueFormat = async (
         owner: string,
@@ -578,35 +575,37 @@ export class IssueRepository {
         repository: string,
         issueNumber: number,
         labels: Labels,
+        issueTypes: IssueTypes,
         token: string,
     ): Promise<void> => {
         try {
-            let issueType = this.issueTypeTask
+            let issueType = issueTypes.task
             if (labels.isHotfix) {
-                issueType = this.issueTypeTask;
+                issueType = issueTypes.hotfix;
             } else if (labels.isRelease) {
-                issueType = this.issueTypeTask;
+                issueType = issueTypes.release;
             } else if ((labels.isDocs || labels.isDocumentation)) {
-                issueType = this.issueTypeTask;
+                issueType = issueTypes.documentation;
             } else if (labels.isChore || labels.isMaintenance) {
-                issueType = this.issueTypeTask;
+                issueType = issueTypes.maintenance;
             } else if (labels.isBugfix || labels.isBug) {
-                issueType = this.issueTypeBug;
+                issueType = issueTypes.bug;
             } else if (labels.isFeature || labels.isEnhancement) {
-                issueType = this.issueTypeFeature;
+                issueType = issueTypes.feature;
             } else if (labels.isHelp) {
-                issueType = this.issueTypeTask;
+                issueType = issueTypes.help;
             } else if (labels.isQuestion) {
-                issueType = this.issueTypeTask;
+                issueType = issueTypes.question;
             }
             const issueId = await this.getId(owner, repository, issueNumber, token);
             const octokit = github.getOctokit(token);
 
             logDebugInfo(`Setting issue type for issue ${issueNumber} to ${issueType}`);
 
-            const { organization } = await octokit.graphql<{ organization: { issueTypes: { nodes: { id: string, name: string }[] } } }>(`
+            const { organization } = await octokit.graphql<{ organization: { id: string, issueTypes: { nodes: { id: string, name: string }[] } } }>(`
                 query ($owner: String!) {
                     organization(login: $owner) {
+                        id
                         issueTypes(first: 10) {
                             nodes {
                                 id
@@ -621,8 +620,28 @@ export class IssueRepository {
                 type.name.toLowerCase() === issueType.toLowerCase()
             );
 
+            let issueTypeId;
             if (!issueTypeData) {
-                throw new Error(`Issue type "${issueType}" not found in organization ${owner}`);
+                logDebugInfo(`Issue type "${issueType}" not found in organization ${owner}. Creating it...`);
+                
+                // Create the issue type
+                const createIssueTypeResult = await octokit.graphql<{ createIssueType: { issueType: { id: string } } }>(`
+                    mutation ($owner: String!, $name: String!) {
+                        createIssueType(input: {organizationId: $owner, name: $name}) {
+                            issueType {
+                                id
+                            }
+                        }
+                    }
+                `, { 
+                    owner: organization.id, 
+                    name: issueType 
+                });
+                
+                issueTypeId = createIssueTypeResult.createIssueType.issueType.id;
+                logDebugInfo(`Created new issue type "${issueType}" with ID: ${issueTypeId}`);
+            } else {
+                issueTypeId = issueTypeData.id;
             }
 
             await octokit.graphql(`
@@ -639,7 +658,7 @@ export class IssueRepository {
                 }
             `, {
                 issueId,
-                issueTypeId: issueTypeData.id,
+                issueTypeId,
             });
 
             logDebugInfo(`Successfully updated issue type to ${issueType}`);

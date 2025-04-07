@@ -10,6 +10,7 @@ import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../
 import { incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
 import { IssueRepository } from "../repository/issue_repository";
+import { ProjectRepository } from "../repository/project_repository";
 import { Ai } from "./ai";
 import { Branches } from "./branches";
 import { Commit } from "./commit";
@@ -18,6 +19,7 @@ import { Emoji } from "./emoji";
 import { Hotfix } from "./hotfix";
 import { Images } from "./images";
 import { Issue } from "./issue";
+import { IssueTypes } from "./issue_types";
 import { Labels } from "./labels";
 import { Projects } from "./projects";
 import { PullRequest } from "./pull_request";
@@ -26,7 +28,6 @@ import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Workflows } from "./workflows";
-import { ProjectRepository } from "../repository/project_repository";
  
 export class Execution {
     debug: boolean = false;
@@ -46,6 +47,7 @@ export class Execution {
     tokens: Tokens;
     ai: Ai;
     labels: Labels;
+    issueTypes: IssueTypes;
     sizeThresholds: SizeThresholds;
     branches: Branches;
     release: Release;
@@ -175,6 +177,7 @@ export class Execution {
         tokens: Tokens,
         ai: Ai,
         labels: Labels,
+        issueTypes: IssueTypes,
         sizeThresholds: SizeThresholds,
         branches: Branches,
         release: Release,
@@ -192,6 +195,7 @@ export class Execution {
         this.ai = ai;
         this.emoji = emoji;
         this.labels = labels;
+        this.issueTypes = issueTypes;
         this.sizeThresholds = sizeThresholds;
         this.branches = branches;
         this.release = release;
