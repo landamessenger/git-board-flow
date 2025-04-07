@@ -47616,9 +47616,9 @@ const title_utils_1 = __nccwpck_require__(6676);
 const version_utils_1 = __nccwpck_require__(9887);
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
 const commit_1 = __nccwpck_require__(3993);
 const config_1 = __nccwpck_require__(1106);
-const project_repository_1 = __nccwpck_require__(7917);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -47681,7 +47681,7 @@ class Execution {
     get runnedByToken() {
         return this.tokenUser === this.actor;
     }
-    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, project) {
+    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, sizeThresholds, branches, release, hotfix, workflows, project) {
         this.debug = false;
         /**
          * Every usage of this field should be checked.
@@ -47834,6 +47834,7 @@ class Execution {
         this.ai = ai;
         this.emoji = emoji;
         this.labels = labels;
+        this.issueTypes = issueTypes;
         this.sizeThresholds = sizeThresholds;
         this.branches = branches;
         this.release = release;
@@ -47978,6 +47979,31 @@ class Issue {
     }
 }
 exports.Issue = Issue;
+
+
+/***/ }),
+
+/***/ 1975:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueTypes = void 0;
+class IssueTypes {
+    constructor(task, bug, feature, documentation, maintenance, hotfix, release, question, help) {
+        this.task = task;
+        this.bug = bug;
+        this.feature = feature;
+        this.documentation = documentation;
+        this.maintenance = maintenance;
+        this.hotfix = hotfix;
+        this.release = release;
+        this.question = question;
+        this.help = help;
+    }
+}
+exports.IssueTypes = IssueTypes;
 
 
 /***/ }),
@@ -49277,9 +49303,6 @@ const logger_1 = __nccwpck_require__(8836);
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
-        this.issueTypeTask = 'task';
-        this.issueTypeBug = 'bug';
-        this.issueTypeFeature = 'feature';
         this.updateTitleIssueFormat = async (owner, repository, version, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
@@ -49695,32 +49718,32 @@ class IssueRepository {
             });
             return issue.body ?? '';
         };
-        this.setIssueType = async (owner, repository, issueNumber, labels, token) => {
+        this.setIssueType = async (owner, repository, issueNumber, labels, issueTypes, token) => {
             try {
-                let issueType = this.issueTypeTask;
+                let issueType = issueTypes.task;
                 if (labels.isHotfix) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.hotfix;
                 }
                 else if (labels.isRelease) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.release;
                 }
                 else if ((labels.isDocs || labels.isDocumentation)) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.documentation;
                 }
                 else if (labels.isChore || labels.isMaintenance) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.maintenance;
                 }
                 else if (labels.isBugfix || labels.isBug) {
-                    issueType = this.issueTypeBug;
+                    issueType = issueTypes.bug;
                 }
                 else if (labels.isFeature || labels.isEnhancement) {
-                    issueType = this.issueTypeFeature;
+                    issueType = issueTypes.feature;
                 }
                 else if (labels.isHelp) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.help;
                 }
                 else if (labels.isQuestion) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.question;
                 }
                 const issueId = await this.getId(owner, repository, issueNumber, token);
                 const octokit = github.getOctokit(token);
@@ -49728,6 +49751,7 @@ class IssueRepository {
                 const { organization } = await octokit.graphql(`
                 query ($owner: String!) {
                     organization(login: $owner) {
+                        id
                         issueTypes(first: 10) {
                             nodes {
                                 id
@@ -49738,8 +49762,27 @@ class IssueRepository {
                 }
             `, { owner });
                 const issueTypeData = organization.issueTypes.nodes.find(type => type.name.toLowerCase() === issueType.toLowerCase());
+                let issueTypeId;
                 if (!issueTypeData) {
-                    throw new Error(`Issue type "${issueType}" not found in organization ${owner}`);
+                    (0, logger_1.logDebugInfo)(`Issue type "${issueType}" not found in organization ${owner}. Creating it...`);
+                    // Create the issue type
+                    const createIssueTypeResult = await octokit.graphql(`
+                    mutation ($owner: String!, $name: String!) {
+                        createIssueType(input: {organizationId: $owner, name: $name}) {
+                            issueType {
+                                id
+                            }
+                        }
+                    }
+                `, {
+                        owner: organization.id,
+                        name: issueType
+                    });
+                    issueTypeId = createIssueTypeResult.createIssueType.issueType.id;
+                    (0, logger_1.logDebugInfo)(`Created new issue type "${issueType}" with ID: ${issueTypeId}`);
+                }
+                else {
+                    issueTypeId = issueTypeData.id;
                 }
                 await octokit.graphql(`
                 mutation ($issueId: ID!, $issueTypeId: ID!) {
@@ -49755,7 +49798,7 @@ class IssueRepository {
                 }
             `, {
                     issueId,
-                    issueTypeId: issueTypeData.id,
+                    issueTypeId,
                 });
                 (0, logger_1.logDebugInfo)(`Successfully updated issue type to ${issueType}`);
             }
@@ -50428,6 +50471,7 @@ const single_action_use_case_1 = __nccwpck_require__(6479);
 const publish_resume_use_case_1 = __nccwpck_require__(9813);
 const store_configuration_use_case_1 = __nccwpck_require__(9714);
 const logger_1 = __nccwpck_require__(8836);
+const issue_types_1 = __nccwpck_require__(1975);
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -50859,6 +50903,19 @@ async function run() {
     const sizeSLabel = core.getInput('size-s-label');
     const sizeXsLabel = core.getInput('size-xs-label');
     /**
+     * Issue Types
+     */
+    const issueTypeBug = core.getInput('issue-type-bug');
+    const issueTypeHotfix = core.getInput('issue-type-hotfix');
+    const issueTypeEnhancement = core.getInput('issue-type-enhancement');
+    const issueTypeFeature = core.getInput('issue-type-feature');
+    const issueTypeDocumentation = core.getInput('issue-type-documentation');
+    const issueTypeMaintenance = core.getInput('issue-type-maintenance');
+    const issueTypeRelease = core.getInput('issue-type-release');
+    const issueTypeQuestion = core.getInput('issue-type-question');
+    const issueTypeHelp = core.getInput('issue-type-help');
+    const issueTypeTask = core.getInput('issue-type-task');
+    /**
      * Size Thresholds
      */
     const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
@@ -50909,7 +50966,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeBug, issueTypeFeature, issueTypeDocumentation, issueTypeMaintenance, issueTypeHotfix, issueTypeRelease, issueTypeQuestion, issueTypeHelp), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
     await execution.setup();
     if (execution.runnedByToken) {
         (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
@@ -53790,7 +53847,7 @@ class UpdateIssueTypeUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.tokens.token);
+            await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.issueTypes, param.tokens.token);
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -58367,7 +58424,7 @@ class APIClient {
         if ((0, exports.getHeader)(defaultHeaders, 'x-stainless-timeout') === undefined &&
             (0, exports.getHeader)(headers, 'x-stainless-timeout') === undefined &&
             options.timeout) {
-            reqHeaders['x-stainless-timeout'] = String(options.timeout);
+            reqHeaders['x-stainless-timeout'] = String(Math.trunc(options.timeout / 1000));
         }
         this.validateHeaders(reqHeaders, headers);
         return reqHeaders;
@@ -59059,7 +59116,8 @@ exports.toBase64 = toBase64;
 const toFloat32Array = (base64Str) => {
     if (typeof Buffer !== 'undefined') {
         // for Node.js environment
-        return Array.from(new Float32Array(Buffer.from(base64Str, 'base64').buffer));
+        const buf = Buffer.from(base64Str, 'base64');
+        return Array.from(new Float32Array(buf.buffer, buf.byteOffset, buf.length / Float32Array.BYTES_PER_ELEMENT));
     }
     else {
         // for legacy web platform APIs
@@ -65788,7 +65846,7 @@ const addFormValue = async (form, key, value) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
-exports.VERSION = '4.91.1'; // x-release-please-version
+exports.VERSION = '4.92.0'; // x-release-please-version
 //# sourceMappingURL=version.js.map
 
 /***/ }),
