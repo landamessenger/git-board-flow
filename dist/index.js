@@ -50914,13 +50914,13 @@ async function run() {
             results.push(...await new single_action_use_case_1.SingleActionUseCase().invoke(execution));
         }
         else if (execution.isIssue) {
-            results.push(...await new issue_use_case_1.IssueLinkUseCase().invoke(execution));
+            results.push(...await new issue_use_case_1.IssueUseCase().invoke(execution));
         }
         else if (execution.isPullRequest) {
-            results.push(...await new pull_request_use_case_1.PullRequestLinkUseCase().invoke(execution));
+            results.push(...await new pull_request_use_case_1.PullRequestUseCase().invoke(execution));
         }
         else if (execution.isPush) {
-            results.push(...await new commit_use_case_1.CommitCheckUseCase().invoke(execution));
+            results.push(...await new commit_use_case_1.CommitUseCase().invoke(execution));
         }
         else {
             core.setFailed(`Action not handled.`);
@@ -51244,14 +51244,14 @@ exports.DeployedActionUseCase = DeployedActionUseCase;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CommitCheckUseCase = void 0;
+exports.CommitUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(8020);
 const check_changes_issue_size_use_case_1 = __nccwpck_require__(5863);
-class CommitCheckUseCase {
+class CommitUseCase {
     constructor() {
-        this.taskId = 'CommitCheckUseCase';
+        this.taskId = 'CommitUseCase';
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
@@ -51282,7 +51282,7 @@ class CommitCheckUseCase {
         return results;
     }
 }
-exports.CommitCheckUseCase = CommitCheckUseCase;
+exports.CommitUseCase = CommitUseCase;
 
 
 /***/ }),
@@ -51293,7 +51293,7 @@ exports.CommitCheckUseCase = CommitCheckUseCase;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.IssueLinkUseCase = void 0;
+exports.IssueUseCase = void 0;
 const logger_1 = __nccwpck_require__(8836);
 const check_permissions_use_case_1 = __nccwpck_require__(8749);
 const update_title_use_case_1 = __nccwpck_require__(5107);
@@ -51307,9 +51307,9 @@ const prepare_branches_use_case_1 = __nccwpck_require__(4423);
 const remove_issue_branches_use_case_1 = __nccwpck_require__(2354);
 const remove_not_needed_branches_use_case_1 = __nccwpck_require__(773);
 const update_issue_type_use_case_1 = __nccwpck_require__(1652);
-class IssueLinkUseCase {
+class IssueUseCase {
     constructor() {
-        this.taskId = 'IssueLinkUseCase';
+        this.taskId = 'IssueUseCase';
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
@@ -51368,7 +51368,7 @@ class IssueLinkUseCase {
         return results;
     }
 }
-exports.IssueLinkUseCase = IssueLinkUseCase;
+exports.IssueUseCase = IssueUseCase;
 
 
 /***/ }),
@@ -51379,7 +51379,7 @@ exports.IssueLinkUseCase = IssueLinkUseCase;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PullRequestLinkUseCase = void 0;
+exports.PullRequestUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
 const update_title_use_case_1 = __nccwpck_require__(5107);
@@ -51391,9 +51391,9 @@ const check_priority_pull_request_size_use_case_1 = __nccwpck_require__(7383);
 const link_pull_request_issue_use_case_1 = __nccwpck_require__(2175);
 const link_pull_request_project_use_case_1 = __nccwpck_require__(4311);
 const update_pull_request_description_use_case_1 = __nccwpck_require__(158);
-class PullRequestLinkUseCase {
+class PullRequestUseCase {
     constructor() {
-        this.taskId = 'PullRequestLinkUseCase';
+        this.taskId = 'PullRequestUseCase';
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
@@ -51476,7 +51476,7 @@ class PullRequestLinkUseCase {
         return results;
     }
 }
-exports.PullRequestLinkUseCase = PullRequestLinkUseCase;
+exports.PullRequestUseCase = PullRequestUseCase;
 
 
 /***/ }),
@@ -53122,6 +53122,7 @@ class LinkIssueProjectUseCase {
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
+        const columnName = param.project.getProjectColumnIssueCreated();
         try {
             for (const project of param.project.getProjects()) {
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
@@ -53131,14 +53132,14 @@ class LinkIssueProjectUseCase {
                      * Wait for 10 seconds to ensure the issue is linked to the project
                      */
                     await new Promise(resolve => setTimeout(resolve, 10000));
-                    actionDone = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.issue.number, param.project.getProjectColumnIssueCreated(), param.tokens.token);
+                    actionDone = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.issue.number, columnName, param.tokens.token);
                     if (actionDone) {
                         result.push(new result_1.Result({
                             id: this.taskId,
                             success: true,
                             executed: true,
                             steps: [
-                                `The issue was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                                `The issue was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${columnName}\`.`,
                             ]
                         }));
                     }
@@ -53148,7 +53149,7 @@ class LinkIssueProjectUseCase {
                             success: false,
                             executed: true,
                             steps: [
-                                `The issue was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnIssueCreated()}\`.`,
+                                `The issue was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${columnName}\`.`,
                             ]
                         }));
                     }
@@ -53172,6 +53173,62 @@ class LinkIssueProjectUseCase {
     }
 }
 exports.LinkIssueProjectUseCase = LinkIssueProjectUseCase;
+
+
+/***/ }),
+
+/***/ 8203:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MoveIssueToInProgressUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const project_repository_1 = __nccwpck_require__(7917);
+const logger_1 = __nccwpck_require__(8836);
+class MoveIssueToInProgressUseCase {
+    constructor() {
+        this.taskId = 'MoveIssueToInProgressUseCase';
+        this.projectRepository = new project_repository_1.ProjectRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const result = [];
+        const columnName = param.project.getProjectColumnIssueInProgress();
+        try {
+            for (const project of param.project.getProjects()) {
+                const success = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.issueNumber, columnName, param.tokens.token);
+                if (success) {
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Moved issue to \`${columnName}\` in [${project.title}](https://github.com/${param.owner}/${param.repo}/projects/${project.id}).`,
+                        ],
+                    }));
+                }
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to move the issue to \`${columnName}\`, but there was a problem.`,
+                ],
+                errors: [
+                    error?.toString() ?? 'Unknown error',
+                ],
+            }));
+        }
+        return result;
+    }
+}
+exports.MoveIssueToInProgressUseCase = MoveIssueToInProgressUseCase;
 
 
 /***/ }),
@@ -53221,6 +53278,7 @@ const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const logger_1 = __nccwpck_require__(8836);
 const execute_script_use_case_1 = __nccwpck_require__(155);
+const move_issue_to_in_progress_1 = __nccwpck_require__(8203);
 class PrepareBranchesUseCase {
     constructor() {
         this.taskId = 'PrepareBranchesUseCase';
@@ -53448,6 +53506,8 @@ class PrepareBranchesUseCase {
                         ]
                     }));
                 }
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                result.push(...await new move_issue_to_in_progress_1.MoveIssueToInProgressUseCase().invoke(param));
             }
             return result;
         }
@@ -54055,6 +54115,7 @@ class LinkPullRequestProjectUseCase {
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
+        const columnName = param.project.getProjectColumnPullRequestCreated();
         try {
             for (const project of param.project.getProjects()) {
                 let actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.token);
@@ -54063,14 +54124,14 @@ class LinkPullRequestProjectUseCase {
                      * Wait for 10 seconds to ensure the pull request is linked to the project
                      */
                     await new Promise(resolve => setTimeout(resolve, 10000));
-                    actionDone = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.pullRequest.number, param.project.getProjectColumnPullRequestCreated(), param.tokens.token);
+                    actionDone = await this.projectRepository.moveIssueToColumn(project, param.owner, param.repo, param.pullRequest.number, columnName, param.tokens.token);
                     if (actionDone) {
                         result.push(new result_1.Result({
                             id: this.taskId,
                             success: true,
                             executed: true,
                             steps: [
-                                `The pull request was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                                `The pull request was linked to [**${project?.title}**](${project?.url}) and moved to the column \`${columnName}\`.`,
                             ],
                         }));
                     }
@@ -54080,7 +54141,7 @@ class LinkPullRequestProjectUseCase {
                             success: false,
                             executed: true,
                             steps: [
-                                `The pull request was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${param.project.getProjectColumnPullRequestCreated()}\`.`,
+                                `The pull request was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${columnName}\`.`,
                             ],
                         }));
                     }
