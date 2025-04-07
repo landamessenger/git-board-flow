@@ -10,6 +10,9 @@ export class CheckIssueCommentLanguageUseCase implements ParamUseCase<Execution,
 
     private aiRepository = new AiRepository();
     private issueRepository = new IssueRepository();
+    private translatedKey = `<!-- content_translated
+If you'd like this comment to be translated again, please delete the entire comment, including this message. It will then be processed as a new one.
+-->`;
     
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
@@ -18,7 +21,14 @@ export class CheckIssueCommentLanguageUseCase implements ParamUseCase<Execution,
 
         const commentBody = param.issue.commentBody;
 
-        if (commentBody.length === 0) {
+        if (commentBody.length === 0 || commentBody.includes(this.translatedKey)) {
+            results.push(
+                new Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                })
+            );
             return results;
         }
 
@@ -53,14 +63,14 @@ export class CheckIssueCommentLanguageUseCase implements ParamUseCase<Execution,
         }
 
         prompt = `
-        You are a helpful assistant that translates the text to ${locale}.
-        
-        Instructions:
-        1. Translate the text to ${locale}
-        2. Do not provide any explanation or additional text
-        3. Return the translated text only
+You are a helpful assistant that translates the text to ${locale}.
 
-        The text is: ${commentBody}
+Instructions:
+1. Translate the text to ${locale}
+2. Do not provide any explanation or additional text
+3. Return the translated text only
+
+The text is: ${commentBody}
         `;
         result = await this.aiRepository.askChatGPT(
             prompt,
@@ -70,6 +80,7 @@ export class CheckIssueCommentLanguageUseCase implements ParamUseCase<Execution,
 
         const translatedCommentBody = `${result}
 > ${commentBody}
+${this.translatedKey}
 `;
 
         await this.issueRepository.updateComment(
@@ -80,7 +91,7 @@ export class CheckIssueCommentLanguageUseCase implements ParamUseCase<Execution,
             translatedCommentBody,
             param.tokens.token,
         );
-        
+
         return results;
     }
 }
