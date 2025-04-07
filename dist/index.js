@@ -48923,11 +48923,22 @@ class BranchRepository {
         };
         this.getListOfBranches = async (owner, repository, token) => {
             const octokit = github.getOctokit(token);
-            const { data } = await octokit.rest.repos.listBranches({
-                owner: owner,
-                repo: repository,
-            });
-            return data.map(branch => branch.name);
+            const allBranches = [];
+            let page = 1;
+            while (true) {
+                const { data } = await octokit.rest.repos.listBranches({
+                    owner: owner,
+                    repo: repository,
+                    per_page: 100,
+                    page: page,
+                });
+                if (data.length === 0) {
+                    break;
+                }
+                allBranches.push(...data.map(branch => branch.name));
+                page++;
+            }
+            return allBranches;
         };
         this.executeWorkflow = async (owner, repository, branch, workflow, inputs, token) => {
             const octokit = github.getOctokit(token);
@@ -52949,11 +52960,12 @@ class DeployAddedUseCase {
                         .replace(/-+/g, '-')
                         .trim();
                     const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
+                    const escapedDescription = description.replace(/\n/g, '\\n');
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
                         version: param.release.version,
                         title: sanitizedTitle,
-                        changelog: description,
+                        changelog: escapedDescription,
                         issue: `${param.issue.number}`,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.release.branch, param.workflows.release, parameters, param.tokens.token);
@@ -52980,11 +52992,12 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                         .replace(/-+/g, '-')
                         .trim();
                     const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
+                    const escapedDescription = description.replace(/\n/g, '\\n');
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
                         title: sanitizedTitle,
-                        changelog: description,
+                        changelog: escapedDescription,
                         issue: param.issue.number,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.release, parameters, param.tokens.token);
