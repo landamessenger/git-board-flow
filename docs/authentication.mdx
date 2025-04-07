@@ -12,8 +12,6 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
     Choose which account will be used to create your PAT. This account will act as your bot.
     - For individual developers, it is recommended to use your own account as the bot.
     - In organizations and enterprise accounts, it is better to use a separate, dedicated account. For example, this project belongs to [**landamessenger**](https://github.com/landamessenger), and the selected bot account is [**landa-bot**](https://github.com/landa-bot).
-
-    <Info></Info>
   </Step>
   
   <Step title="Create the PAT">
@@ -26,7 +24,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
     
     Now you can start configuring your new token. Set a meaningful name and description to easily distinguish it from other tokens. This might seem redundant, but it helps reduce the risk of accidentally deleting the token.
 
-    Pay close attention to the Resource owner field:
+    Pay close attention to the **Resource owner** field:
     - If your bot account does not belong to an organization (individual developer), you should keep your own account selected when creating the token (this is usually the default value, so you likely won’t need to change it).
     - If your account belongs to an organization, make sure to select the organization that this token will operate under. 
 
@@ -45,7 +43,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
     - **Webhooks Access**: Read and write
     - **Workflows Access**: Read and write
 
-    Set these permissions for the organization (if your bot belongs to an organization):
+    **If your bot belongs to an organization** set these permissions for the organization:
 
     - **Custom repository roles Access**: Read-only
     - **Members Access**: Read-only
@@ -78,7 +76,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
   </Step>
   <Step title="Consume the token">
     In each workflow that consumes Git Board Flow, make sure to pass the PAT you just created with the `token` property:
-    
+
     ```yml
     name: Git Board Flow - Issue
 
