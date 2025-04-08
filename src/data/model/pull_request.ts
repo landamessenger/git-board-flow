@@ -63,6 +63,30 @@ export class PullRequest {
         return this.action === 'synchronize';
     }
 
+    get isPullRequest(): boolean {
+        return github.context.eventName === 'pull_request';
+    }
+
+    get isPullRequestReviewComment(): boolean {
+        return github.context.eventName === 'pull_request_review_comment';
+    }
+
+    get commentId(): number {
+        return github.context.payload.pull_request_review_comment?.id ?? -1;
+    }
+
+    get commentBody(): string {
+        return github.context.payload.pull_request_review_comment?.body ?? '';
+    }
+
+    get commentAuthor(): string {
+        return github.context.payload.pull_request_review_comment?.user.login ?? '';
+    }
+
+    get commentUrl(): string {
+        return github.context.payload.pull_request_review_comment?.html_url ?? '';
+    }
+
     constructor(
         desiredAssigneesCount: number,
         desiredReviewersCount: number,
