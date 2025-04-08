@@ -161,6 +161,39 @@ inputs:
   project-column-pull-request-in-progress:
     description: "Name of the project column for in progress pull requests."
     default: "In Progress"
+  issue-type-task:
+    description: "Name of the issue type for tasks."
+    default: "Task"
+  issue-type-bug:
+    description: "Name of the issue type for bugs."
+    default: "Bug"
+  issue-type-feature:
+    description: "Name of the issue type for features."
+    default: "Feature"
+  issue-type-documentation:
+    description: "Name of the issue type for documentation."
+    default: "Documentation"
+  issue-type-maintenance:
+    description: "Name of the issue type for maintenance."
+    default: "Maintenance"
+  issue-type-hotfix:
+    description: "Name of the issue type for hotfixes."
+    default: "Hotfix"
+  issue-type-release:
+    description: "Name of the issue type for releases."
+    default: "Release"
+  issue-type-question:
+    description: "Name of the issue type for questions."
+    default: "Question"
+  issue-type-help:
+    description: "Name of the issue type for help."
+    default: "Help"
+  issues-locale:
+    description: "Locale of the issues."
+    default: "en-US"
+  pull-requests-locale:
+    description: "Locale of the pull requests."
+    default: "en-US"
   main-branch:
     description: "Name of the main branch (e.g., master)."
     default: "master"

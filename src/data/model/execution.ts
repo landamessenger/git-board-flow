@@ -10,6 +10,7 @@ import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../
 import { incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
 import { IssueRepository } from "../repository/issue_repository";
+import { ProjectRepository } from "../repository/project_repository";
 import { Ai } from "./ai";
 import { Branches } from "./branches";
 import { Commit } from "./commit";
@@ -18,6 +19,7 @@ import { Emoji } from "./emoji";
 import { Hotfix } from "./hotfix";
 import { Images } from "./images";
 import { Issue } from "./issue";
+import { IssueTypes } from "./issue_types";
 import { Labels } from "./labels";
 import { Projects } from "./projects";
 import { PullRequest } from "./pull_request";
@@ -26,7 +28,7 @@ import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Workflows } from "./workflows";
-import { ProjectRepository } from "../repository/project_repository";
+import { Locale } from "./locale";
  
 export class Execution {
     debug: boolean = false;
@@ -46,6 +48,8 @@ export class Execution {
     tokens: Tokens;
     ai: Ai;
     labels: Labels;
+    issueTypes: IssueTypes;
+    locale: Locale;
     sizeThresholds: SizeThresholds;
     branches: Branches;
     release: Release;
@@ -71,11 +75,11 @@ export class Execution {
     }
 
     get isIssue(): boolean {
-        return this.eventName === 'issues' || this.singleAction.isIssue;
+        return this.issue.isIssue || this.issue.isIssueComment || this.singleAction.isIssue;
     }
 
     get isPullRequest(): boolean {
-        return this.eventName === 'pull_request' || this.singleAction.isPullRequest;
+        return this.pullRequest.isPullRequest || this.pullRequest.isPullRequestReviewComment || this.singleAction.isPullRequest;
     }
 
     get isPush(): boolean {
@@ -175,6 +179,8 @@ export class Execution {
         tokens: Tokens,
         ai: Ai,
         labels: Labels,
+        issueTypes: IssueTypes,
+        locale: Locale,
         sizeThresholds: SizeThresholds,
         branches: Branches,
         release: Release,
@@ -192,6 +198,8 @@ export class Execution {
         this.ai = ai;
         this.emoji = emoji;
         this.labels = labels;
+        this.issueTypes = issueTypes;
+        this.locale = locale;
         this.sizeThresholds = sizeThresholds;
         this.branches = branches;
         this.release = release;

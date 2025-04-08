@@ -47616,9 +47616,9 @@ const title_utils_1 = __nccwpck_require__(6676);
 const version_utils_1 = __nccwpck_require__(9887);
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
 const commit_1 = __nccwpck_require__(3993);
 const config_1 = __nccwpck_require__(1106);
-const project_repository_1 = __nccwpck_require__(7917);
 class Execution {
     get eventName() {
         return github.context.eventName;
@@ -47630,10 +47630,10 @@ class Execution {
         return this.singleAction.enabledSingleAction;
     }
     get isIssue() {
-        return this.eventName === 'issues' || this.singleAction.isIssue;
+        return this.issue.isIssue || this.issue.isIssueComment || this.singleAction.isIssue;
     }
     get isPullRequest() {
-        return this.eventName === 'pull_request' || this.singleAction.isPullRequest;
+        return this.pullRequest.isPullRequest || this.pullRequest.isPullRequestReviewComment || this.singleAction.isPullRequest;
     }
     get isPush() {
         return this.eventName === 'push';
@@ -47681,7 +47681,7 @@ class Execution {
     get runnedByToken() {
         return this.tokenUser === this.actor;
     }
-    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, sizeThresholds, branches, release, hotfix, workflows, project) {
+    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, locale, sizeThresholds, branches, release, hotfix, workflows, project) {
         this.debug = false;
         /**
          * Every usage of this field should be checked.
@@ -47834,6 +47834,8 @@ class Execution {
         this.ai = ai;
         this.emoji = emoji;
         this.labels = labels;
+        this.issueTypes = issueTypes;
+        this.locale = locale;
         this.sizeThresholds = sizeThresholds;
         this.branches = branches;
         this.release = release;
@@ -47971,6 +47973,24 @@ class Issue {
     get labelAdded() {
         return github.context.payload.label?.name;
     }
+    get isIssue() {
+        return github.context.eventName === 'issues';
+    }
+    get isIssueComment() {
+        return github.context.eventName === 'issue_comment';
+    }
+    get commentId() {
+        return github.context.payload.comment?.id ?? -1;
+    }
+    get commentBody() {
+        return github.context.payload.comment?.body ?? '';
+    }
+    get commentAuthor() {
+        return github.context.payload.comment?.user.login ?? '';
+    }
+    get commentUrl() {
+        return github.context.payload.comment?.html_url ?? '';
+    }
     constructor(branchManagementAlways, reopenOnPush, desiredAssigneesCount) {
         this.branchManagementAlways = branchManagementAlways;
         this.reopenOnPush = reopenOnPush;
@@ -47978,6 +47998,31 @@ class Issue {
     }
 }
 exports.Issue = Issue;
+
+
+/***/ }),
+
+/***/ 1975:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueTypes = void 0;
+class IssueTypes {
+    constructor(task, bug, feature, documentation, maintenance, hotfix, release, question, help) {
+        this.task = task;
+        this.bug = bug;
+        this.feature = feature;
+        this.documentation = documentation;
+        this.maintenance = maintenance;
+        this.hotfix = hotfix;
+        this.release = release;
+        this.question = question;
+        this.help = help;
+    }
+}
+exports.IssueTypes = IssueTypes;
 
 
 /***/ }),
@@ -48173,6 +48218,25 @@ exports.Labels = Labels;
 
 /***/ }),
 
+/***/ 2152:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Locale = void 0;
+class Locale {
+    constructor(issue, pullRequest) {
+        this.issue = issue;
+        this.pullRequest = pullRequest;
+    }
+}
+exports.Locale = Locale;
+Locale.DEFAULT = 'en-US';
+
+
+/***/ }),
+
 /***/ 2298:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -48335,6 +48399,24 @@ class PullRequest {
     }
     get isSynchronize() {
         return this.action === 'synchronize';
+    }
+    get isPullRequest() {
+        return github.context.eventName === 'pull_request';
+    }
+    get isPullRequestReviewComment() {
+        return github.context.eventName === 'pull_request_review_comment';
+    }
+    get commentId() {
+        return github.context.payload.pull_request_review_comment?.id ?? -1;
+    }
+    get commentBody() {
+        return github.context.payload.pull_request_review_comment?.body ?? '';
+    }
+    get commentAuthor() {
+        return github.context.payload.pull_request_review_comment?.user.login ?? '';
+    }
+    get commentUrl() {
+        return github.context.payload.pull_request_review_comment?.html_url ?? '';
     }
     constructor(desiredAssigneesCount, desiredReviewersCount, mergeTimeout) {
         this.desiredAssigneesCount = desiredAssigneesCount;
@@ -49277,9 +49359,6 @@ const logger_1 = __nccwpck_require__(8836);
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
-        this.issueTypeTask = 'task';
-        this.issueTypeBug = 'bug';
-        this.issueTypeFeature = 'feature';
         this.updateTitleIssueFormat = async (owner, repository, version, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
             try {
                 const octokit = github.getOctokit(token);
@@ -49600,6 +49679,16 @@ class IssueRepository {
             });
             (0, logger_1.logDebugInfo)(`Comment added to Issue ${issueNumber}.`);
         };
+        this.updateComment = async (owner, repository, issueNumber, commentId, comment, token) => {
+            const octokit = github.getOctokit(token);
+            await octokit.rest.issues.updateComment({
+                owner: owner,
+                repo: repository,
+                comment_id: commentId,
+                body: comment,
+            });
+            (0, logger_1.logDebugInfo)(`Comment ${commentId} updated in Issue ${issueNumber}.`);
+        };
         this.closeIssue = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
@@ -49695,32 +49784,32 @@ class IssueRepository {
             });
             return issue.body ?? '';
         };
-        this.setIssueType = async (owner, repository, issueNumber, labels, token) => {
+        this.setIssueType = async (owner, repository, issueNumber, labels, issueTypes, token) => {
             try {
-                let issueType = this.issueTypeTask;
+                let issueType = issueTypes.task;
                 if (labels.isHotfix) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.hotfix;
                 }
                 else if (labels.isRelease) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.release;
                 }
                 else if ((labels.isDocs || labels.isDocumentation)) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.documentation;
                 }
                 else if (labels.isChore || labels.isMaintenance) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.maintenance;
                 }
                 else if (labels.isBugfix || labels.isBug) {
-                    issueType = this.issueTypeBug;
+                    issueType = issueTypes.bug;
                 }
                 else if (labels.isFeature || labels.isEnhancement) {
-                    issueType = this.issueTypeFeature;
+                    issueType = issueTypes.feature;
                 }
                 else if (labels.isHelp) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.help;
                 }
                 else if (labels.isQuestion) {
-                    issueType = this.issueTypeTask;
+                    issueType = issueTypes.question;
                 }
                 const issueId = await this.getId(owner, repository, issueNumber, token);
                 const octokit = github.getOctokit(token);
@@ -49728,6 +49817,7 @@ class IssueRepository {
                 const { organization } = await octokit.graphql(`
                 query ($owner: String!) {
                     organization(login: $owner) {
+                        id
                         issueTypes(first: 10) {
                             nodes {
                                 id
@@ -49738,8 +49828,27 @@ class IssueRepository {
                 }
             `, { owner });
                 const issueTypeData = organization.issueTypes.nodes.find(type => type.name.toLowerCase() === issueType.toLowerCase());
+                let issueTypeId;
                 if (!issueTypeData) {
-                    throw new Error(`Issue type "${issueType}" not found in organization ${owner}`);
+                    (0, logger_1.logDebugInfo)(`Issue type "${issueType}" not found in organization ${owner}. Creating it...`);
+                    // Create the issue type
+                    const createIssueTypeResult = await octokit.graphql(`
+                    mutation ($owner: String!, $name: String!) {
+                        createIssueType(input: {organizationId: $owner, name: $name}) {
+                            issueType {
+                                id
+                            }
+                        }
+                    }
+                `, {
+                        owner: organization.id,
+                        name: issueType
+                    });
+                    issueTypeId = createIssueTypeResult.createIssueType.issueType.id;
+                    (0, logger_1.logDebugInfo)(`Created new issue type "${issueType}" with ID: ${issueTypeId}`);
+                }
+                else {
+                    issueTypeId = issueTypeData.id;
                 }
                 await octokit.graphql(`
                 mutation ($issueId: ID!, $issueTypeId: ID!) {
@@ -49755,7 +49864,7 @@ class IssueRepository {
                 }
             `, {
                     issueId,
-                    issueTypeId: issueTypeData.id,
+                    issueTypeId,
                 });
                 (0, logger_1.logDebugInfo)(`Successfully updated issue type to ${issueType}`);
             }
@@ -50411,7 +50520,9 @@ const execution_1 = __nccwpck_require__(7550);
 const hotfix_1 = __nccwpck_require__(7341);
 const images_1 = __nccwpck_require__(1721);
 const issue_1 = __nccwpck_require__(2632);
+const issue_types_1 = __nccwpck_require__(1975);
 const labels_1 = __nccwpck_require__(818);
+const locale_1 = __nccwpck_require__(2152);
 const projects_1 = __nccwpck_require__(1938);
 const pull_request_1 = __nccwpck_require__(4179);
 const release_1 = __nccwpck_require__(2551);
@@ -50422,7 +50533,9 @@ const tokens_1 = __nccwpck_require__(3421);
 const workflows_1 = __nccwpck_require__(8553);
 const project_repository_1 = __nccwpck_require__(7917);
 const commit_use_case_1 = __nccwpck_require__(5016);
+const issue_comment_use_case_1 = __nccwpck_require__(854);
 const issue_use_case_1 = __nccwpck_require__(8675);
+const pull_request_review_comment_use_case_1 = __nccwpck_require__(7883);
 const pull_request_use_case_1 = __nccwpck_require__(3478);
 const single_action_use_case_1 = __nccwpck_require__(6479);
 const publish_resume_use_case_1 = __nccwpck_require__(9813);
@@ -50859,6 +50972,24 @@ async function run() {
     const sizeSLabel = core.getInput('size-s-label');
     const sizeXsLabel = core.getInput('size-xs-label');
     /**
+     * Issue Types
+     */
+    const issueTypeBug = core.getInput('issue-type-bug');
+    const issueTypeHotfix = core.getInput('issue-type-hotfix');
+    const issueTypeEnhancement = core.getInput('issue-type-enhancement');
+    const issueTypeFeature = core.getInput('issue-type-feature');
+    const issueTypeDocumentation = core.getInput('issue-type-documentation');
+    const issueTypeMaintenance = core.getInput('issue-type-maintenance');
+    const issueTypeRelease = core.getInput('issue-type-release');
+    const issueTypeQuestion = core.getInput('issue-type-question');
+    const issueTypeHelp = core.getInput('issue-type-help');
+    const issueTypeTask = core.getInput('issue-type-task');
+    /**
+     * Locale
+     */
+    const issueLocale = core.getInput('issues-locale') ?? locale_1.Locale.DEFAULT;
+    const pullRequestLocale = core.getInput('pull-requests-locale') ?? locale_1.Locale.DEFAULT;
+    /**
      * Size Thresholds
      */
     const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
@@ -50909,7 +51040,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openaiApiKey, openaiModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeBug, issueTypeFeature, issueTypeDocumentation, issueTypeMaintenance, issueTypeHotfix, issueTypeRelease, issueTypeQuestion, issueTypeHelp), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
     await execution.setup();
     if (execution.runnedByToken) {
         (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
@@ -50925,10 +51056,20 @@ async function run() {
             results.push(...await new single_action_use_case_1.SingleActionUseCase().invoke(execution));
         }
         else if (execution.isIssue) {
-            results.push(...await new issue_use_case_1.IssueUseCase().invoke(execution));
+            if (execution.issue.isIssueComment) {
+                results.push(...await new issue_comment_use_case_1.IssueCommentUseCase().invoke(execution));
+            }
+            else {
+                results.push(...await new issue_use_case_1.IssueUseCase().invoke(execution));
+            }
         }
         else if (execution.isPullRequest) {
-            results.push(...await new pull_request_use_case_1.PullRequestUseCase().invoke(execution));
+            if (execution.pullRequest.isPullRequestReviewComment) {
+                results.push(...await new pull_request_review_comment_use_case_1.PullRequestReviewCommentUseCase().invoke(execution));
+            }
+            else {
+                results.push(...await new pull_request_use_case_1.PullRequestUseCase().invoke(execution));
+            }
         }
         else if (execution.isPush) {
             results.push(...await new commit_use_case_1.CommitUseCase().invoke(execution));
@@ -51298,6 +51439,31 @@ exports.CommitUseCase = CommitUseCase;
 
 /***/ }),
 
+/***/ 854:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueCommentUseCase = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const check_issue_comment_language_use_case_1 = __nccwpck_require__(465);
+class IssueCommentUseCase {
+    constructor() {
+        this.taskId = 'IssueCommentUseCase';
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        results.push(...await new check_issue_comment_language_use_case_1.CheckIssueCommentLanguageUseCase().invoke(param));
+        return results;
+    }
+}
+exports.IssueCommentUseCase = IssueCommentUseCase;
+
+
+/***/ }),
+
 /***/ 8675:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -51380,6 +51546,31 @@ class IssueUseCase {
     }
 }
 exports.IssueUseCase = IssueUseCase;
+
+
+/***/ }),
+
+/***/ 7883:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PullRequestReviewCommentUseCase = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const check_pull_request_comment_language_use_case_1 = __nccwpck_require__(7112);
+class PullRequestReviewCommentUseCase {
+    constructor() {
+        this.taskId = 'PullRequestReviewCommentUseCase';
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        results.push(...await new check_pull_request_comment_language_use_case_1.CheckPullRequestCommentLanguageUseCase().invoke(param));
+        return results;
+    }
+}
+exports.PullRequestReviewCommentUseCase = PullRequestReviewCommentUseCase;
 
 
 /***/ }),
@@ -53790,7 +53981,7 @@ class UpdateIssueTypeUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.tokens.token);
+            await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.issueTypes, param.tokens.token);
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -53808,6 +53999,83 @@ class UpdateIssueTypeUseCase {
     }
 }
 exports.UpdateIssueTypeUseCase = UpdateIssueTypeUseCase;
+
+
+/***/ }),
+
+/***/ 465:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckIssueCommentLanguageUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const ai_repository_1 = __nccwpck_require__(8307);
+const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(8836);
+class CheckIssueCommentLanguageUseCase {
+    constructor() {
+        this.taskId = 'CheckIssueCommentLanguageUseCase';
+        this.aiRepository = new ai_repository_1.AiRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.translatedKey = `<!-- content_translated
+If you'd like this comment to be translated again, please delete the entire comment, including this message. It will then be processed as a new one.
+-->`;
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        const commentBody = param.issue.commentBody;
+        if (commentBody.length === 0 || commentBody.includes(this.translatedKey)) {
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: false,
+            }));
+            return results;
+        }
+        const locale = param.locale.issue;
+        let prompt = `
+        You are a helpful assistant that checks if the text is written in ${locale}.
+        
+        Instructions:
+        1. Analyze the provided text
+        2. If the text is written in ${locale}, respond with exactly "done"
+        3. If the text is written in any other language, respond with exactly "must_translate"
+        4. Do not provide any explanation or additional text
+        
+        The text is: ${commentBody}
+        `;
+        let result = await this.aiRepository.askChatGPT(prompt, param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
+        if (result === "done") {
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+            }));
+            return results;
+        }
+        prompt = `
+You are a helpful assistant that translates the text to ${locale}.
+
+Instructions:
+1. Translate the text to ${locale}
+2. Do not provide any explanation or additional text
+3. Return the translated text only
+
+The text is: ${commentBody}
+        `;
+        result = await this.aiRepository.askChatGPT(prompt, param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
+        const translatedCommentBody = `${result}
+> ${commentBody}
+${this.translatedKey}
+`;
+        await this.issueRepository.updateComment(param.owner, param.repo, param.issue.number, param.issue.commentId, translatedCommentBody, param.tokens.token);
+        return results;
+    }
+}
+exports.CheckIssueCommentLanguageUseCase = CheckIssueCommentLanguageUseCase;
 
 
 /***/ }),
@@ -54463,6 +54731,83 @@ ${section}`;
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
+
+
+/***/ }),
+
+/***/ 7112:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckPullRequestCommentLanguageUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const ai_repository_1 = __nccwpck_require__(8307);
+const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(8836);
+class CheckPullRequestCommentLanguageUseCase {
+    constructor() {
+        this.taskId = 'CheckPullRequestCommentLanguageUseCase';
+        this.aiRepository = new ai_repository_1.AiRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.translatedKey = `<!-- content_translated
+If you'd like this comment to be translated again, please delete the entire comment, including this message. It will then be processed as a new one.
+-->`;
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        const commentBody = param.pullRequest.commentBody;
+        if (commentBody.length === 0 || commentBody.includes(this.translatedKey)) {
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: false,
+            }));
+            return results;
+        }
+        const locale = param.locale.pullRequest;
+        let prompt = `
+        You are a helpful assistant that checks if the text is written in ${locale}.
+        
+        Instructions:
+        1. Analyze the provided text
+        2. If the text is written in ${locale}, respond with exactly "done"
+        3. If the text is written in any other language, respond with exactly "must_translate"
+        4. Do not provide any explanation or additional text
+        
+        The text is: ${commentBody}
+        `;
+        let result = await this.aiRepository.askChatGPT(prompt, param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
+        if (result === "done") {
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+            }));
+            return results;
+        }
+        prompt = `
+You are a helpful assistant that translates the text to ${locale}.
+
+Instructions:
+1. Translate the text to ${locale}
+2. Do not provide any explanation or additional text
+3. Return the translated text only
+
+The text is: ${commentBody}
+        `;
+        result = await this.aiRepository.askChatGPT(prompt, param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
+        const translatedCommentBody = `${result}
+> ${commentBody}
+${this.translatedKey}
+`;
+        await this.issueRepository.updateComment(param.owner, param.repo, param.pullRequest.number, param.pullRequest.commentId, translatedCommentBody, param.tokens.token);
+        return results;
+    }
+}
+exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguageUseCase;
 
 
 /***/ }),
@@ -58367,7 +58712,7 @@ class APIClient {
         if ((0, exports.getHeader)(defaultHeaders, 'x-stainless-timeout') === undefined &&
             (0, exports.getHeader)(headers, 'x-stainless-timeout') === undefined &&
             options.timeout) {
-            reqHeaders['x-stainless-timeout'] = String(options.timeout);
+            reqHeaders['x-stainless-timeout'] = String(Math.trunc(options.timeout / 1000));
         }
         this.validateHeaders(reqHeaders, headers);
         return reqHeaders;
@@ -59059,7 +59404,8 @@ exports.toBase64 = toBase64;
 const toFloat32Array = (base64Str) => {
     if (typeof Buffer !== 'undefined') {
         // for Node.js environment
-        return Array.from(new Float32Array(Buffer.from(base64Str, 'base64').buffer));
+        const buf = Buffer.from(base64Str, 'base64');
+        return Array.from(new Float32Array(buf.buffer, buf.byteOffset, buf.length / Float32Array.BYTES_PER_ELEMENT));
     }
     else {
         // for legacy web platform APIs
@@ -59266,6 +59612,7 @@ const moderations_1 = __nccwpck_require__(2085);
 const audio_1 = __nccwpck_require__(6376);
 const beta_1 = __nccwpck_require__(853);
 const chat_1 = __nccwpck_require__(7670);
+const evals_1 = __nccwpck_require__(510);
 const fine_tuning_1 = __nccwpck_require__(1364);
 const responses_1 = __nccwpck_require__(6214);
 const uploads_1 = __nccwpck_require__(7175);
@@ -59325,6 +59672,7 @@ class OpenAI extends Core.APIClient {
         this.batches = new API.Batches(this);
         this.uploads = new API.Uploads(this);
         this.responses = new API.Responses(this);
+        this.evals = new API.Evals(this);
         this._options = options;
         this.apiKey = apiKey;
         this.organization = organization;
@@ -59387,6 +59735,8 @@ OpenAI.Batches = batches_1.Batches;
 OpenAI.BatchesPage = batches_1.BatchesPage;
 OpenAI.Uploads = uploads_1.Uploads;
 OpenAI.Responses = responses_1.Responses;
+OpenAI.Evals = evals_1.Evals;
+OpenAI.EvalListResponsesPage = evals_1.EvalListResponsesPage;
 /** API Client for interfacing with the Azure OpenAI API. */
 class AzureOpenAI extends OpenAI {
     /**
@@ -64137,6 +64487,210 @@ exports.Embeddings = Embeddings;
 
 /***/ }),
 
+/***/ 510:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EvalListResponsesPage = exports.Evals = void 0;
+const resource_1 = __nccwpck_require__(9593);
+const core_1 = __nccwpck_require__(1798);
+const RunsAPI = __importStar(__nccwpck_require__(235));
+const runs_1 = __nccwpck_require__(235);
+const pagination_1 = __nccwpck_require__(7401);
+class Evals extends resource_1.APIResource {
+    constructor() {
+        super(...arguments);
+        this.runs = new RunsAPI.Runs(this._client);
+    }
+    /**
+     * Create the structure of an evaluation that can be used to test a model's
+     * performance. An evaluation is a set of testing criteria and a datasource. After
+     * creating an evaluation, you can run it on different models and model parameters.
+     * We support several types of graders and datasources. For more information, see
+     * the [Evals guide](https://platform.openai.com/docs/guides/evals).
+     */
+    create(body, options) {
+        return this._client.post('/evals', { body, ...options });
+    }
+    /**
+     * Get an evaluation by ID.
+     */
+    retrieve(evalId, options) {
+        return this._client.get(`/evals/${evalId}`, options);
+    }
+    /**
+     * Update certain properties of an evaluation.
+     */
+    update(evalId, body, options) {
+        return this._client.post(`/evals/${evalId}`, { body, ...options });
+    }
+    list(query = {}, options) {
+        if ((0, core_1.isRequestOptions)(query)) {
+            return this.list({}, query);
+        }
+        return this._client.getAPIList('/evals', EvalListResponsesPage, { query, ...options });
+    }
+    /**
+     * Delete an evaluation.
+     */
+    del(evalId, options) {
+        return this._client.delete(`/evals/${evalId}`, options);
+    }
+}
+exports.Evals = Evals;
+class EvalListResponsesPage extends pagination_1.CursorPage {
+}
+exports.EvalListResponsesPage = EvalListResponsesPage;
+Evals.EvalListResponsesPage = EvalListResponsesPage;
+Evals.Runs = runs_1.Runs;
+Evals.RunListResponsesPage = runs_1.RunListResponsesPage;
+//# sourceMappingURL=evals.js.map
+
+/***/ }),
+
+/***/ 4575:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.OutputItemListResponsesPage = exports.OutputItems = void 0;
+const resource_1 = __nccwpck_require__(9593);
+const core_1 = __nccwpck_require__(1798);
+const pagination_1 = __nccwpck_require__(7401);
+class OutputItems extends resource_1.APIResource {
+    /**
+     * Get an evaluation run output item by ID.
+     */
+    retrieve(evalId, runId, outputItemId, options) {
+        return this._client.get(`/evals/${evalId}/runs/${runId}/output_items/${outputItemId}`, options);
+    }
+    list(evalId, runId, query = {}, options) {
+        if ((0, core_1.isRequestOptions)(query)) {
+            return this.list(evalId, runId, {}, query);
+        }
+        return this._client.getAPIList(`/evals/${evalId}/runs/${runId}/output_items`, OutputItemListResponsesPage, { query, ...options });
+    }
+}
+exports.OutputItems = OutputItems;
+class OutputItemListResponsesPage extends pagination_1.CursorPage {
+}
+exports.OutputItemListResponsesPage = OutputItemListResponsesPage;
+OutputItems.OutputItemListResponsesPage = OutputItemListResponsesPage;
+//# sourceMappingURL=output-items.js.map
+
+/***/ }),
+
+/***/ 235:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RunListResponsesPage = exports.Runs = void 0;
+const resource_1 = __nccwpck_require__(9593);
+const core_1 = __nccwpck_require__(1798);
+const OutputItemsAPI = __importStar(__nccwpck_require__(4575));
+const output_items_1 = __nccwpck_require__(4575);
+const pagination_1 = __nccwpck_require__(7401);
+class Runs extends resource_1.APIResource {
+    constructor() {
+        super(...arguments);
+        this.outputItems = new OutputItemsAPI.OutputItems(this._client);
+    }
+    /**
+     * Create a new evaluation run. This is the endpoint that will kick off grading.
+     */
+    create(evalId, body, options) {
+        return this._client.post(`/evals/${evalId}/runs`, { body, ...options });
+    }
+    /**
+     * Get an evaluation run by ID.
+     */
+    retrieve(evalId, runId, options) {
+        return this._client.get(`/evals/${evalId}/runs/${runId}`, options);
+    }
+    list(evalId, query = {}, options) {
+        if ((0, core_1.isRequestOptions)(query)) {
+            return this.list(evalId, {}, query);
+        }
+        return this._client.getAPIList(`/evals/${evalId}/runs`, RunListResponsesPage, { query, ...options });
+    }
+    /**
+     * Delete an eval run.
+     */
+    del(evalId, runId, options) {
+        return this._client.delete(`/evals/${evalId}/runs/${runId}`, options);
+    }
+    /**
+     * Cancel an ongoing evaluation run.
+     */
+    cancel(evalId, runId, options) {
+        return this._client.post(`/evals/${evalId}/runs/${runId}`, options);
+    }
+}
+exports.Runs = Runs;
+class RunListResponsesPage extends pagination_1.CursorPage {
+}
+exports.RunListResponsesPage = RunListResponsesPage;
+Runs.RunListResponsesPage = RunListResponsesPage;
+Runs.OutputItems = output_items_1.OutputItems;
+Runs.OutputItemListResponsesPage = output_items_1.OutputItemListResponsesPage;
+//# sourceMappingURL=runs.js.map
+
+/***/ }),
+
 /***/ 3873:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -64265,6 +64819,105 @@ Files.FileObjectsPage = FileObjectsPage;
 
 /***/ }),
 
+/***/ 7091:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Checkpoints = void 0;
+const resource_1 = __nccwpck_require__(9593);
+const PermissionsAPI = __importStar(__nccwpck_require__(7081));
+const permissions_1 = __nccwpck_require__(7081);
+class Checkpoints extends resource_1.APIResource {
+    constructor() {
+        super(...arguments);
+        this.permissions = new PermissionsAPI.Permissions(this._client);
+    }
+}
+exports.Checkpoints = Checkpoints;
+Checkpoints.Permissions = permissions_1.Permissions;
+Checkpoints.PermissionCreateResponsesPage = permissions_1.PermissionCreateResponsesPage;
+//# sourceMappingURL=checkpoints.js.map
+
+/***/ }),
+
+/***/ 7081:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PermissionCreateResponsesPage = exports.Permissions = void 0;
+const resource_1 = __nccwpck_require__(9593);
+const core_1 = __nccwpck_require__(1798);
+const pagination_1 = __nccwpck_require__(7401);
+class Permissions extends resource_1.APIResource {
+    /**
+     * **NOTE:** Calling this endpoint requires an [admin API key](../admin-api-keys).
+     *
+     * This enables organization owners to share fine-tuned models with other projects
+     * in their organization.
+     */
+    create(fineTunedModelCheckpoint, body, options) {
+        return this._client.getAPIList(`/fine_tuning/checkpoints/${fineTunedModelCheckpoint}/permissions`, PermissionCreateResponsesPage, { body, method: 'post', ...options });
+    }
+    retrieve(fineTunedModelCheckpoint, query = {}, options) {
+        if ((0, core_1.isRequestOptions)(query)) {
+            return this.retrieve(fineTunedModelCheckpoint, {}, query);
+        }
+        return this._client.get(`/fine_tuning/checkpoints/${fineTunedModelCheckpoint}/permissions`, {
+            query,
+            ...options,
+        });
+    }
+    /**
+     * **NOTE:** This endpoint requires an [admin API key](../admin-api-keys).
+     *
+     * Organization owners can use this endpoint to delete a permission for a
+     * fine-tuned model checkpoint.
+     */
+    del(fineTunedModelCheckpoint, options) {
+        return this._client.delete(`/fine_tuning/checkpoints/${fineTunedModelCheckpoint}/permissions`, options);
+    }
+}
+exports.Permissions = Permissions;
+/**
+ * Note: no pagination actually occurs yet, this is for forwards-compatibility.
+ */
+class PermissionCreateResponsesPage extends pagination_1.Page {
+}
+exports.PermissionCreateResponsesPage = PermissionCreateResponsesPage;
+Permissions.PermissionCreateResponsesPage = PermissionCreateResponsesPage;
+//# sourceMappingURL=permissions.js.map
+
+/***/ }),
+
 /***/ 1364:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -64297,18 +64950,22 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FineTuning = void 0;
 const resource_1 = __nccwpck_require__(9593);
+const CheckpointsAPI = __importStar(__nccwpck_require__(7091));
+const checkpoints_1 = __nccwpck_require__(7091);
 const JobsAPI = __importStar(__nccwpck_require__(816));
 const jobs_1 = __nccwpck_require__(816);
 class FineTuning extends resource_1.APIResource {
     constructor() {
         super(...arguments);
         this.jobs = new JobsAPI.Jobs(this._client);
+        this.checkpoints = new CheckpointsAPI.Checkpoints(this._client);
     }
 }
 exports.FineTuning = FineTuning;
 FineTuning.Jobs = jobs_1.Jobs;
 FineTuning.FineTuningJobsPage = jobs_1.FineTuningJobsPage;
 FineTuning.FineTuningJobEventsPage = jobs_1.FineTuningJobEventsPage;
+FineTuning.Checkpoints = checkpoints_1.Checkpoints;
 //# sourceMappingURL=fine-tuning.js.map
 
 /***/ }),
@@ -64518,7 +65175,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.VectorStores = exports.VectorStoreSearchResponsesPage = exports.VectorStoresPage = exports.Uploads = exports.Responses = exports.Moderations = exports.Models = exports.ModelsPage = exports.Images = exports.FineTuning = exports.Files = exports.FileObjectsPage = exports.Embeddings = exports.Completions = exports.Beta = exports.Batches = exports.BatchesPage = exports.Audio = void 0;
+exports.VectorStores = exports.VectorStoreSearchResponsesPage = exports.VectorStoresPage = exports.Uploads = exports.Responses = exports.Moderations = exports.Models = exports.ModelsPage = exports.Images = exports.FineTuning = exports.Files = exports.FileObjectsPage = exports.Evals = exports.EvalListResponsesPage = exports.Embeddings = exports.Completions = exports.Beta = exports.Batches = exports.BatchesPage = exports.Audio = void 0;
 __exportStar(__nccwpck_require__(8240), exports);
 __exportStar(__nccwpck_require__(4866), exports);
 var audio_1 = __nccwpck_require__(6376);
@@ -64532,6 +65189,9 @@ var completions_1 = __nccwpck_require__(9327);
 Object.defineProperty(exports, "Completions", ({ enumerable: true, get: function () { return completions_1.Completions; } }));
 var embeddings_1 = __nccwpck_require__(8064);
 Object.defineProperty(exports, "Embeddings", ({ enumerable: true, get: function () { return embeddings_1.Embeddings; } }));
+var evals_1 = __nccwpck_require__(510);
+Object.defineProperty(exports, "EvalListResponsesPage", ({ enumerable: true, get: function () { return evals_1.EvalListResponsesPage; } }));
+Object.defineProperty(exports, "Evals", ({ enumerable: true, get: function () { return evals_1.Evals; } }));
 var files_1 = __nccwpck_require__(3873);
 Object.defineProperty(exports, "FileObjectsPage", ({ enumerable: true, get: function () { return files_1.FileObjectsPage; } }));
 Object.defineProperty(exports, "Files", ({ enumerable: true, get: function () { return files_1.Files; } }));
@@ -65788,7 +66448,7 @@ const addFormValue = async (form, key, value) => {
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.VERSION = void 0;
-exports.VERSION = '4.91.1'; // x-release-please-version
+exports.VERSION = '4.93.0'; // x-release-please-version
 //# sourceMappingURL=version.js.map
 
 /***/ }),

@@ -6,7 +6,9 @@ import { Execution } from "./data/model/execution";
 import { Hotfix } from "./data/model/hotfix";
 import { Images } from "./data/model/images";
 import { Issue } from "./data/model/issue";
+import { IssueTypes } from './data/model/issue_types';
 import { Labels } from "./data/model/labels";
+import { Locale } from './data/model/locale';
 import { ProjectDetail } from "./data/model/project_detail";
 import { Projects } from './data/model/projects';
 import { PullRequest } from "./data/model/pull_request";
@@ -19,7 +21,9 @@ import { Tokens } from "./data/model/tokens";
 import { Workflows } from "./data/model/workflows";
 import { ProjectRepository } from "./data/repository/project_repository";
 import { CommitUseCase } from "./usecase/commit_use_case";
+import { IssueCommentUseCase } from './usecase/issue_comment_use_case';
 import { IssueUseCase } from "./usecase/issue_use_case";
+import { PullRequestReviewCommentUseCase } from './usecase/pull_request_review_comment_use_case';
 import { PullRequestUseCase } from "./usecase/pull_request_use_case";
 import { SingleActionUseCase } from "./usecase/single_action_use_case";
 import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
@@ -512,6 +516,26 @@ async function run(): Promise<void> {
     const sizeXsLabel = core.getInput('size-xs-label');
 
     /**
+     * Issue Types
+     */
+    const issueTypeBug = core.getInput('issue-type-bug');
+    const issueTypeHotfix = core.getInput('issue-type-hotfix');
+    const issueTypeEnhancement = core.getInput('issue-type-enhancement');
+    const issueTypeFeature = core.getInput('issue-type-feature');
+    const issueTypeDocumentation = core.getInput('issue-type-documentation');
+    const issueTypeMaintenance = core.getInput('issue-type-maintenance');
+    const issueTypeRelease = core.getInput('issue-type-release');
+    const issueTypeQuestion = core.getInput('issue-type-question');
+    const issueTypeHelp = core.getInput('issue-type-help');
+    const issueTypeTask = core.getInput('issue-type-task');
+
+    /**
+     * Locale
+     */
+    const issueLocale = core.getInput('issues-locale') ?? Locale.DEFAULT;
+    const pullRequestLocale = core.getInput('pull-requests-locale') ?? Locale.DEFAULT;
+
+    /**
      * Size Thresholds
      */
     const sizeXxlThresholdLines = parseInt(core.getInput('size-xxl-threshold-lines')) ?? 1000;
@@ -649,6 +673,18 @@ async function run(): Promise<void> {
             sizeSLabel,
             sizeXsLabel,
         ),
+        new IssueTypes(
+            issueTypeTask,
+            issueTypeBug,
+            issueTypeFeature,
+            issueTypeDocumentation,
+            issueTypeMaintenance,
+            issueTypeHotfix,
+            issueTypeRelease,
+            issueTypeQuestion,
+            issueTypeHelp,
+        ),
+        new Locale(issueLocale, pullRequestLocale),
         new SizeThresholds(
             new SizeThreshold(
                 sizeXxlThresholdLines,
@@ -724,9 +760,17 @@ async function run(): Promise<void> {
         if (execution.isSingleAction) {
             results.push(...await new SingleActionUseCase().invoke(execution));
         } else if (execution.isIssue) {
-            results.push(...await new IssueUseCase().invoke(execution));
+            if (execution.issue.isIssueComment) {
+                results.push(...await new IssueCommentUseCase().invoke(execution));
+            } else {
+                results.push(...await new IssueUseCase().invoke(execution));
+            }
         } else if (execution.isPullRequest) {
-            results.push(...await new PullRequestUseCase().invoke(execution));
+            if (execution.pullRequest.isPullRequestReviewComment) {
+                results.push(...await new PullRequestReviewCommentUseCase().invoke(execution));
+            } else {
+                results.push(...await new PullRequestUseCase().invoke(execution));
+            }
         } else if (execution.isPush) {
             results.push(...await new CommitUseCase().invoke(execution));
         } else {
