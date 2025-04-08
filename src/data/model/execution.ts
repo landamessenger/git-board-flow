@@ -79,7 +79,7 @@ export class Execution {
     }
 
     get isPullRequest(): boolean {
-        return this.eventName === 'pull_request' || this.singleAction.isPullRequest;
+        return this.pullRequest.isPullRequest || this.pullRequest.isPullRequestReviewComment || this.singleAction.isPullRequest;
     }
 
     get isPush(): boolean {

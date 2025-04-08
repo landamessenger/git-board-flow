@@ -8,6 +8,7 @@ import { Images } from "./data/model/images";
 import { Issue } from "./data/model/issue";
 import { IssueTypes } from './data/model/issue_types';
 import { Labels } from "./data/model/labels";
+import { Locale } from './data/model/locale';
 import { ProjectDetail } from "./data/model/project_detail";
 import { Projects } from './data/model/projects';
 import { PullRequest } from "./data/model/pull_request";
@@ -22,12 +23,12 @@ import { ProjectRepository } from "./data/repository/project_repository";
 import { CommitUseCase } from "./usecase/commit_use_case";
 import { IssueCommentUseCase } from './usecase/issue_comment_use_case';
 import { IssueUseCase } from "./usecase/issue_use_case";
+import { PullRequestReviewCommentUseCase } from './usecase/pull_request_review_comment_use_case';
 import { PullRequestUseCase } from "./usecase/pull_request_use_case";
 import { SingleActionUseCase } from "./usecase/single_action_use_case";
 import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
 import { StoreConfigurationUseCase } from "./usecase/steps/common/store_configuration_use_case";
 import { logInfo } from './utils/logger';
-import { Locale } from './data/model/locale';
 
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -765,7 +766,11 @@ async function run(): Promise<void> {
                 results.push(...await new IssueUseCase().invoke(execution));
             }
         } else if (execution.isPullRequest) {
-            results.push(...await new PullRequestUseCase().invoke(execution));
+            if (execution.pullRequest.isPullRequestReviewComment) {
+                results.push(...await new PullRequestReviewCommentUseCase().invoke(execution));
+            } else {
+                results.push(...await new PullRequestUseCase().invoke(execution));
+            }
         } else if (execution.isPush) {
             results.push(...await new CommitUseCase().invoke(execution));
         } else {
