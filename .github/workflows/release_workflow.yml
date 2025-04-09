@@ -250,6 +250,7 @@ jobs:
         uses: ./
         if: ${{ success() }}
         with:
+          debug: ${{ vars.DEBUG }}
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           single-action: 'deployed_action'

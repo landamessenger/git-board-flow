@@ -2,26 +2,23 @@ import { logDebugInfo, logError } from '../../utils/logger';
 import { Ai } from '../model/ai';
 
 export class AiRepository {
-    ask = async (ai: Ai, prompt: string): Promise<string> => {
-        const provider = ai.getOpenRouterProvider();
+    ask = async (ai: Ai, prompt: string): Promise<string | undefined> => {
         const model = ai.getOpenRouterModel();
         const apiKey = ai.getOpenRouterApiKey();
         const providerRouting = ai.getProviderRouting();
 
-        if (!provider || !model || !apiKey) {
-            throw new Error('Missing required AI configuration');
+        if (!model || !apiKey) {
+            logError('Missing required AI configuration');
+            return undefined;
         }
-
-        // If the model already includes the provider, use it as is
-        const proModel = model.includes('/') ? model : `${provider}/${model}`;
 
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
         try {
-            logDebugInfo(`Sending prompt to ${proModel}: ${prompt}`);
+            logDebugInfo(`Sending prompt to ${model}: ${prompt}`);
 
             const requestBody: any = {
-                model: proModel,
+                model: model,
                 messages: [
                     { role: 'user', content: prompt },
                 ],
@@ -46,20 +43,22 @@ export class AiRepository {
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('API Response:', errorText);
-                throw new Error(`Error from API: ${response.status} ${response.statusText}`);
+                logError(`Error from API: ${response.status} ${response.statusText}`);
+                return undefined;
             }
 
             const data = await response.json();
             
             if (!data.choices || data.choices.length === 0) {
-                throw new Error('No response content received from API');
+                logError('No response content received from API');
+                return undefined;
             }
 
-            logDebugInfo(`Successfully received response from ${proModel}`);
+            logDebugInfo(`Successfully received response from ${model}`);
             return data.choices[0].message.content;
         } catch (error) {
-            logError(`Error querying ${proModel}: ${error}`);
-            throw error;
+            logError(`Error querying ${model}: ${error}`);
+            return undefined;
         }
     }
 }

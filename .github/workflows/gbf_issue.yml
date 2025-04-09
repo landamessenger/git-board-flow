@@ -19,7 +19,7 @@ jobs:
 
       - uses: ./
         with:
-          debug: true
+          debug: ${{ vars.DEBUG }}
           hotfix-workflow: release_workflow.yml
           project-ids: 2
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}

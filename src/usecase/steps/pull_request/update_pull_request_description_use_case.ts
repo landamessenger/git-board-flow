@@ -203,6 +203,10 @@ ${section}`;
             filePrompt
         );
 
+        if (!response) {
+            return undefined;
+        }
+
         try {
             const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
             const patchSummary: PatchSummary = JSON.parse(cleanResponse);

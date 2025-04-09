@@ -676,7 +676,6 @@ async function run(): Promise<void> {
         new Tokens(token),
         new Ai(
             openrouterApiKey,
-            openrouterProvider,
             openrouterModel,
             aiPullRequestDescription,
             aiMembersOnly,

@@ -41635,13 +41635,13 @@ function wrappy (fn, cb) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Ai = void 0;
 class Ai {
-    constructor(openRouterApiKey, openRouterProvider, openRouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles) {
+    constructor(openRouterApiKey, openRouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, providerRouting) {
         this.openRouterApiKey = openRouterApiKey;
         this.openRouterModel = openRouterModel;
-        this.openRouterProvider = openRouterProvider;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
+        this.providerRouting = providerRouting || {};
     }
     getOpenRouterApiKey() {
         return this.openRouterApiKey;
@@ -41655,11 +41655,11 @@ class Ai {
     getAiIgnoreFiles() {
         return this.aiIgnoreFiles;
     }
-    getOpenRouterProvider() {
-        return this.openRouterProvider;
-    }
     getOpenRouterModel() {
         return this.openRouterModel;
+    }
+    getProviderRouting() {
+        return this.providerRouting;
     }
 }
 exports.Ai = Ai;
@@ -42884,47 +42884,53 @@ const logger_1 = __nccwpck_require__(8836);
 class AiRepository {
     constructor() {
         this.ask = async (ai, prompt) => {
-            const provider = ai.getOpenRouterProvider();
             const model = ai.getOpenRouterModel();
             const apiKey = ai.getOpenRouterApiKey();
-            if (!provider || !model || !apiKey) {
-                throw new Error('Missing required AI configuration');
+            const providerRouting = ai.getProviderRouting();
+            if (!model || !apiKey) {
+                (0, logger_1.logError)('Missing required AI configuration');
+                return undefined;
             }
-            // If the model already includes the provider, use it as is
-            const proModel = model.includes('/') ? model : `${provider}/${model}`;
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             try {
-                (0, logger_1.logDebugInfo)(`Sending prompt to ${proModel}: ${prompt}`);
+                (0, logger_1.logDebugInfo)(`Sending prompt to ${model}: ${prompt}`);
+                const requestBody = {
+                    model: model,
+                    messages: [
+                        { role: 'user', content: prompt },
+                    ],
+                };
+                // Add provider routing configuration if it exists and has properties
+                if (Object.keys(providerRouting).length > 0) {
+                    requestBody.provider = providerRouting;
+                }
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         Authorization: `Bearer ${apiKey}`,
-                        'Referer': 'https://github.com/landamessenger/git-board-flow',
+                        'HTTP-Referer': 'https://github.com/landamessenger/git-board-flow',
                         'X-Title': 'Git Board Flow',
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        model: proModel,
-                        messages: [
-                            { role: 'user', content: prompt },
-                        ],
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('API Response:', errorText);
-                    throw new Error(`Error from API: ${response.status} ${response.statusText}`);
+                    (0, logger_1.logError)(`Error from API: ${response.status} ${response.statusText}`);
+                    return undefined;
                 }
                 const data = await response.json();
                 if (!data.choices || data.choices.length === 0) {
-                    throw new Error('No response content received from API');
+                    (0, logger_1.logError)('No response content received from API');
+                    return undefined;
                 }
-                (0, logger_1.logDebugInfo)(`Successfully received response from ${proModel}`);
+                (0, logger_1.logDebugInfo)(`Successfully received response from ${model}`);
                 return data.choices[0].message.content;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error querying ${proModel}: ${error}`);
-                throw error;
+                (0, logger_1.logError)(`Error querying ${model}: ${error}`);
+                return undefined;
             }
         };
     }
@@ -45040,7 +45046,6 @@ async function run() {
      * AI
      */
     const openrouterApiKey = core.getInput('openrouter-api-key');
-    const openrouterProvider = core.getInput('openrouter-provider');
     const openrouterModel = core.getInput('openrouter-model');
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
     const aiMembersOnly = core.getInput('ai-members-only') === 'true';
@@ -45049,6 +45054,35 @@ async function run() {
         .split(',')
         .map(path => path.trim())
         .filter(path => path.length > 0);
+    // Provider routing configuration
+    const openRouterProviderOrderInput = core.getInput('openrouter-provider-order');
+    const openRouterProviderOrder = openRouterProviderOrderInput
+        .split(',')
+        .map(provider => provider.trim())
+        .filter(provider => provider.length > 0);
+    const openRouterProviderAllowFallbacks = core.getInput('openrouter-provider-allow-fallbacks') === 'true';
+    const openRouterProviderRequireParameters = core.getInput('openrouter-provider-require-parameters') === 'true';
+    const openRouterProviderDataCollection = core.getInput('openrouter-provider-data-collection');
+    const openRouterProviderIgnoreInput = core.getInput('openrouter-provider-ignore');
+    const openRouterProviderIgnore = openRouterProviderIgnoreInput
+        .split(',')
+        .map(provider => provider.trim())
+        .filter(provider => provider.length > 0);
+    const openRouterProviderQuantizationsInput = core.getInput('openrouter-provider-quantizations');
+    const openRouterProviderQuantizations = openRouterProviderQuantizationsInput
+        .split(',')
+        .map(level => level.trim())
+        .filter(level => level.length > 0);
+    const openRouterProviderSort = core.getInput('openrouter-provider-sort');
+    const providerRouting = {
+        ...(openRouterProviderOrder.length > 0 && { order: openRouterProviderOrder }),
+        ...(openRouterProviderAllowFallbacks !== undefined && { allow_fallbacks: openRouterProviderAllowFallbacks }),
+        ...(openRouterProviderRequireParameters !== undefined && { require_parameters: openRouterProviderRequireParameters }),
+        ...(openRouterProviderDataCollection && { data_collection: openRouterProviderDataCollection }),
+        ...(openRouterProviderIgnore.length > 0 && { ignore: openRouterProviderIgnore }),
+        ...(openRouterProviderQuantizations.length > 0 && { quantizations: openRouterProviderQuantizations }),
+        ...(openRouterProviderSort && { sort: openRouterProviderSort })
+    };
     /**
      * Projects Details
      */
@@ -45347,7 +45381,7 @@ async function run() {
     const pullRequestDesiredAssigneesCount = parseInt(core.getInput('desired-assignees-count')) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
-    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openrouterApiKey, openrouterProvider, openrouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeBug, issueTypeFeature, issueTypeDocumentation, issueTypeMaintenance, issueTypeHotfix, issueTypeRelease, issueTypeQuestion, issueTypeHelp), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openrouterApiKey, openrouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, Object.keys(providerRouting).length > 0 ? providerRouting : undefined), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeBug, issueTypeFeature, issueTypeDocumentation, issueTypeMaintenance, issueTypeHotfix, issueTypeRelease, issueTypeQuestion, issueTypeHelp), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress));
     await execution.setup();
     if (execution.runnedByToken) {
         (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
@@ -48899,6 +48933,9 @@ ${changesDescription}
 ### **Patch**:
 ${section}`;
         const response = await this.aiRepository.ask(ai, filePrompt);
+        if (!response) {
+            return undefined;
+        }
         try {
             const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
             const patchSummary = JSON.parse(cleanResponse);
