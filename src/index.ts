@@ -744,13 +744,6 @@ async function run(): Promise<void> {
         ),
     )
 
-    console.log('Environment variables:');
-    Object.entries(process.env).forEach(([key, value]) => {
-        console.log(`${key}: ${value}`);
-    });
-
-    console.log('test OPEN_ROUTER_API_KEY:', process.env.OPEN_ROUTER_API_KEY);
-
     await execution.setup();
 
     if (execution.runnedByToken) {
