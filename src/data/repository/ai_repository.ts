@@ -37,6 +37,8 @@ export class AiRepository {
 
             
             if (!response.ok) {
+                const errorText = await response.text();
+                console.error('API Response:', errorText);
                 throw new Error(`Error from API: ${response.status} ${response.statusText}`);
             }
 
