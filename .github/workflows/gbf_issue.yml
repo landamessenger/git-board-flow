@@ -22,5 +22,6 @@ jobs:
           debug: true
           project-ids: 2
           hotfix-workflow: release_workflow.yml
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           token: ${{ secrets.PAT }}
 
