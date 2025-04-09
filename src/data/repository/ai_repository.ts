@@ -1,30 +1,54 @@
-import OpenAI from 'openai';
 import { logDebugInfo, logError } from '../../utils/logger';
+import { Ai } from '../model/ai';
 
 export class AiRepository {
-    askChatGPT = async (prompt: string, apiKey: string, model: string = 'gpt-3.5-turbo'): Promise<string> => {
-        try {
-            logDebugInfo(`Sending prompt to ChatGPT: ${prompt}`);
-            
-            const openai = new OpenAI({
-                apiKey: apiKey
-            });
-            
-            const completion = await openai.chat.completions.create({
-                model: model,
-                messages: [{ role: 'user', content: prompt }],
-            });
+    ask = async (ai: Ai, prompt: string): Promise<string> => {
+        const provider = ai.getOpenRouterProvider();
+        const model = ai.getOpenRouterModel();
+        const apiKey = ai.getOpenRouterApiKey();
 
-            const response = completion.choices[0]?.message?.content;
+        if (!provider || !model || !apiKey) {
+            throw new Error('Missing required AI configuration');
+        }
+
+        const proModel = `${provider}/${model}`;
+
+        const url = `https://openrouter.ai/api/v1/chat/completions`;
+
+        try {
+            logDebugInfo(`Sending prompt to ${proModel}: ${prompt}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${apiKey}`,
+                  'HTTP-Referer': 'https://github.com/landamessenger/git-board-flow',
+                  'X-Title': 'Git Board Flow',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: proModel,
+                  messages: [
+                    { role: 'user', content: prompt },
+                  ],
+                }),
+              });
+
             
-            if (!response) {
-                throw new Error('No response received from ChatGPT');
+            if (!response.ok) {
+                throw new Error(`Error from API: ${response.status} ${response.statusText}`);
             }
 
-            logDebugInfo('Successfully received response from ChatGPT');
-            return response;
+            const data = await response.json();
+            
+            if (!data.choices || data.choices.length === 0) {
+                throw new Error('No response content received from API');
+            }
+
+            logDebugInfo(`Successfully received response from ${proModel}`);
+            return data.choices[0].message.content;
         } catch (error) {
-            logError(`Error querying ChatGPT: ${error}`);
+            logError(`Error querying ${proModel}: ${error}`);
             throw error;
         }
     }

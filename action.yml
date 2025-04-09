@@ -314,12 +314,15 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
-  openai-api-key:
-    description: "OpenAI API key for AI operations."
+  openrouter-api-key:
+    description: "OpenRouter API key for AI operations."
     default: ""
-  openai-model:
-    description: "OpenAI model for AI operations."
-    default: "gpt-3.5-turbo"
+  openrouter-provider:
+    description: "OpenRouter provider for AI operations."
+    default: "deepinfra"
+  openrouter-model:
+    description: "OpenRouter model for AI operations."
+    default: "deepseek/deepseek-chat"
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
     default: "false"

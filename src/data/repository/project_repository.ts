@@ -1,4 +1,5 @@
 import * as github from "@actions/github";
+import * as core from '@actions/core';
 import { logDebugInfo, logError } from "../../utils/logger";
 import { ProjectResult } from "../graph/project_result";
 import { ProjectDetail } from "../model/project_detail";
@@ -551,5 +552,4 @@ export class ProjectRepository {
         const {data: user} = await octokit.rest.users.getAuthenticated();
         return user.login;
     }
-
 }

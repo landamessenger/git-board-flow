@@ -1,4 +1,5 @@
 import { PatchSummary } from "../../../data/graph/ai_responses";
+import { Ai } from "../../../data/model/ai";
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { AiRepository } from "../../../data/repository/ai_repository";
@@ -74,17 +75,16 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            const changesDescription = await this.processChanges(changes, param.ai.getAiIgnoreFiles(), param.ai.getOpenaiApiKey(), param.ai.getOpenaiModel());
+            const changesDescription = await this.processChanges(changes, param.ai);
 
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
 just a text description:\n\n
 ${issueDescription}`;
 
-            const currentDescription = await this.aiRepository.askChatGPT(
+            const currentDescription = await this.aiRepository.ask(
+                param.ai,
                 descriptionPrompt,
-                param.ai.getOpenaiApiKey(),
-                param.ai.getOpenaiModel(),
             );
 
             // Update pull request description
@@ -166,8 +166,7 @@ ${changesDescription}
         status: string,
         additions: number,
         deletions: number,
-        openaiApiKey: string,
-        openaiModel: string
+        ai: Ai,
     ): Promise<PatchSummary | undefined> {
         const filePrompt = `Summarize the following code patch in JSON format.
 
@@ -199,7 +198,10 @@ ${changesDescription}
 ### **Patch**:
 ${section}`;
         
-        const response = await this.aiRepository.askChatGPT(filePrompt, openaiApiKey, openaiModel);
+        const response = await this.aiRepository.ask(
+            ai,
+            filePrompt
+        );
 
         try {
             const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
@@ -222,16 +224,14 @@ ${section}`;
 
     private async processChanges(
         changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[],
-        ignoreFiles: string[],
-        openaiApiKey: string,
-        openaiModel: string
+        ai: Ai,
     ): Promise<string> {
         logDebugInfo(`Processing ${changes.length} changes`);
         const fileDescriptions: PatchSummary[] = [];
         for (const change of changes) {
             try {
                 logDebugInfo(`Processing changes for file ${change.filename}`);
-                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ignoreFiles);
+                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ai.getAiIgnoreFiles());
                 if (shouldIgnoreFile) {
                     logDebugInfo(`File ${change.filename} should be ignored`);
                     continue;
@@ -239,10 +239,10 @@ ${section}`;
 
                 if (this.isLargeChange(change)) {
                     logDebugInfo(`File ${change.filename} has large changes, processing by sections`);
-                    fileDescriptions.push(...await this.processFileBySections(change, openaiApiKey, openaiModel));
+                    fileDescriptions.push(...await this.processFileBySections(change, ai));
                 } else {
                     logDebugInfo(`File ${change.filename} has moderate changes, processing as whole`);
-                    fileDescriptions.push(...await this.processFile(change, openaiApiKey, openaiModel));
+                    fileDescriptions.push(...await this.processFile(change, ai));
                 }
             } catch (error) {
                 logError(error);
@@ -323,8 +323,7 @@ ${section}`;
 
     private async processFileBySections(
         change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
-        openaiApiKey: string,
-        openaiModel: string
+        ai: Ai,
     ): Promise<PatchSummary[]> {
         if (!change.patch) {
             return [];
@@ -341,8 +340,7 @@ ${section}`;
                     change.status,
                     change.additions,
                     change.deletions,
-                    openaiApiKey,
-                    openaiModel
+                    ai,
                 )
             )
         );
@@ -352,8 +350,7 @@ ${section}`;
 
     private async processFile(
         change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
-        openaiApiKey: string,
-        openaiModel: string
+        ai: Ai,
     ): Promise<PatchSummary[]> {
         if (!change.patch) {
             return [];
@@ -368,8 +365,7 @@ ${section}`;
                     change.status,
                     change.additions,
                     change.deletions,
-                    openaiApiKey,
-                    openaiModel
+                    ai,
                 )
             )
         );

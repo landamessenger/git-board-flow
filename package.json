@@ -16,8 +16,7 @@
     "@actions/github": "^6.0.0",
     "@types/chance": "^1.1.6",
     "chance": "^1.1.12",
-    "isolated-vm": "^5.0.1",
-    "openai": "^4.28.0"
+    "isolated-vm": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.1",

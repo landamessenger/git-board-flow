@@ -227,8 +227,9 @@ async function run(): Promise<void> {
     /**
      * AI
      */
-    const openaiApiKey = core.getInput('openai-api-key');
-    const openaiModel = core.getInput('openai-model')
+    const openrouterApiKey = core.getInput('openrouter-api-key');
+    const openrouterProvider = core.getInput('openrouter-provider');
+    const openrouterModel = core.getInput('openrouter-model')
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
     const aiMembersOnly = core.getInput('ai-members-only') === 'true';
     const aiIgnoreFilesInput = core.getInput('ai-ignore-files');
@@ -640,8 +641,9 @@ async function run(): Promise<void> {
         ),
         new Tokens(token),
         new Ai(
-            openaiApiKey,
-            openaiModel,
+            openrouterApiKey,
+            openrouterProvider,
+            openrouterModel,
             aiPullRequestDescription,
             aiMembersOnly,
             aiIgnoreFiles,
@@ -741,6 +743,11 @@ async function run(): Promise<void> {
             projectColumnPullRequestInProgress,
         ),
     )
+
+    console.log('Environment variables:');
+    Object.entries(process.env).forEach(([key, value]) => {
+        console.log(`${key}: ${value}`);
+    });
 
     await execution.setup();
 

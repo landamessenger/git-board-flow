@@ -250,6 +250,9 @@ jobs:
         uses: ./
         if: ${{ success() }}
         with:
+          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
+          openrouter-provider: ${{ vars.OPEN_ROUTER_PROVIDER }}
+          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           single-action: 'deployed_action'
           single-action-issue: '${{ github.event.inputs.issue }}'
           token: ${{ secrets.PAT }}
