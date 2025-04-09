@@ -11,7 +11,8 @@ export class AiRepository {
             throw new Error('Missing required AI configuration');
         }
 
-        const proModel = `${provider}/${model}`;
+        // If the model already includes the provider, use it as is
+        const proModel = model.includes('/') ? model : `${provider}/${model}`;
 
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
@@ -22,7 +23,7 @@ export class AiRepository {
                 method: 'POST',
                 headers: {
                   Authorization: `Bearer ${apiKey}`,
-                  'HTTP-Referer': 'https://github.com/landamessenger/git-board-flow',
+                  'Referer': 'https://github.com/landamessenger/git-board-flow',
                   'X-Title': 'Git Board Flow',
                   'Content-Type': 'application/json',
                 },
