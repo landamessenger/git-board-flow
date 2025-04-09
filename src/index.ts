@@ -749,6 +749,8 @@ async function run(): Promise<void> {
         console.log(`${key}: ${value}`);
     });
 
+    console.log('test OPEN_ROUTER_API_KEY:', process.env.OPEN_ROUTER_API_KEY);
+
     await execution.setup();
 
     if (execution.runnedByToken) {
