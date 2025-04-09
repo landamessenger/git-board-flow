@@ -6,6 +6,7 @@ export class AiRepository {
         const provider = ai.getOpenRouterProvider();
         const model = ai.getOpenRouterModel();
         const apiKey = ai.getOpenRouterApiKey();
+        const providerRouting = ai.getProviderRouting();
 
         if (!provider || !model || !apiKey) {
             throw new Error('Missing required AI configuration');
@@ -19,23 +20,29 @@ export class AiRepository {
         try {
             logDebugInfo(`Sending prompt to ${proModel}: ${prompt}`);
 
+            const requestBody: any = {
+                model: proModel,
+                messages: [
+                    { role: 'user', content: prompt },
+                ],
+            };
+
+            // Add provider routing configuration if it exists and has properties
+            if (Object.keys(providerRouting).length > 0) {
+                requestBody.provider = providerRouting;
+            }
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                  'Referer': 'https://github.com/landamessenger/git-board-flow',
-                  'X-Title': 'Git Board Flow',
-                  'Content-Type': 'application/json',
+                    Authorization: `Bearer ${apiKey}`,
+                    'HTTP-Referer': 'https://github.com/landamessenger/git-board-flow',
+                    'X-Title': 'Git Board Flow',
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                  model: proModel,
-                  messages: [
-                    { role: 'user', content: prompt },
-                  ],
-                }),
-              });
+                body: JSON.stringify(requestBody),
+            });
 
-            
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('API Response:', errorText);

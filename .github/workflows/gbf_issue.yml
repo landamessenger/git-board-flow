@@ -23,7 +23,6 @@ jobs:
           hotfix-workflow: release_workflow.yml
           project-ids: 2
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
-          openrouter-provider: ${{ vars.OPEN_ROUTER_PROVIDER }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           token: ${{ secrets.PAT }}
 

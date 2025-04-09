@@ -24,7 +24,6 @@ jobs:
           ai-ignore-files: dist/*
           debug: true
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
-          openrouter-provider: ${{ vars.OPEN_ROUTER_PROVIDER }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           project-ids: 2
           token: ${{ secrets.PAT }}

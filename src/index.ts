@@ -228,7 +228,6 @@ async function run(): Promise<void> {
      * AI
      */
     const openrouterApiKey = core.getInput('openrouter-api-key');
-    const openrouterProvider = core.getInput('openrouter-provider');
     const openrouterModel = core.getInput('openrouter-model')
     const aiPullRequestDescription = core.getInput('ai-pull-request-description') === 'true';
     const aiMembersOnly = core.getInput('ai-members-only') === 'true';
@@ -237,6 +236,41 @@ async function run(): Promise<void> {
         .split(',')
         .map(path => path.trim())
         .filter(path => path.length > 0);
+
+    // Provider routing configuration
+    const openRouterProviderOrderInput = core.getInput('openrouter-provider-order');
+    const openRouterProviderOrder: string[] = openRouterProviderOrderInput
+        .split(',')
+        .map(provider => provider.trim())
+        .filter(provider => provider.length > 0);
+
+    const openRouterProviderAllowFallbacks = core.getInput('openrouter-provider-allow-fallbacks') === 'true';
+    const openRouterProviderRequireParameters = core.getInput('openrouter-provider-require-parameters') === 'true';
+    const openRouterProviderDataCollection = core.getInput('openrouter-provider-data-collection') as 'allow' | 'deny';
+    
+    const openRouterProviderIgnoreInput = core.getInput('openrouter-provider-ignore');
+    const openRouterProviderIgnore: string[] = openRouterProviderIgnoreInput
+        .split(',')
+        .map(provider => provider.trim())
+        .filter(provider => provider.length > 0);
+
+    const openRouterProviderQuantizationsInput = core.getInput('openrouter-provider-quantizations');
+    const openRouterProviderQuantizations: string[] = openRouterProviderQuantizationsInput
+        .split(',')
+        .map(level => level.trim())
+        .filter(level => level.length > 0);
+
+    const openRouterProviderSort = core.getInput('openrouter-provider-sort') as 'price' | 'throughput' | 'latency' | '';
+
+    const providerRouting = {
+        ...(openRouterProviderOrder.length > 0 && { order: openRouterProviderOrder }),
+        ...(openRouterProviderAllowFallbacks !== undefined && { allow_fallbacks: openRouterProviderAllowFallbacks }),
+        ...(openRouterProviderRequireParameters !== undefined && { require_parameters: openRouterProviderRequireParameters }),
+        ...(openRouterProviderDataCollection && { data_collection: openRouterProviderDataCollection }),
+        ...(openRouterProviderIgnore.length > 0 && { ignore: openRouterProviderIgnore }),
+        ...(openRouterProviderQuantizations.length > 0 && { quantizations: openRouterProviderQuantizations }),
+        ...(openRouterProviderSort && { sort: openRouterProviderSort })
+    };
 
     /**
      * Projects Details
@@ -647,6 +681,7 @@ async function run(): Promise<void> {
             aiPullRequestDescription,
             aiMembersOnly,
             aiIgnoreFiles,
+            Object.keys(providerRouting).length > 0 ? providerRouting : undefined
         ),
         new Labels(
             branchManagementLauncherLabel,

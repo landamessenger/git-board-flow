@@ -1,3 +1,13 @@
+export interface ProviderRoutingConfig {
+    order?: string[];
+    allow_fallbacks?: boolean;
+    require_parameters?: boolean;
+    data_collection?: 'allow' | 'deny';
+    ignore?: string[];
+    quantizations?: string[];
+    sort?: 'price' | 'throughput' | 'latency';
+}
+
 export class Ai {
     private openRouterApiKey: string;
     private openRouterModel: string;
@@ -5,14 +15,24 @@ export class Ai {
     private aiPullRequestDescription: boolean;
     private aiMembersOnly: boolean;
     private aiIgnoreFiles: string[];
+    private providerRouting: ProviderRoutingConfig;
 
-    constructor(openRouterApiKey: string, openRouterProvider: string, openRouterModel: string, aiPullRequestDescription: boolean, aiMembersOnly: boolean, aiIgnoreFiles: string[]) {
+    constructor(
+        openRouterApiKey: string, 
+        openRouterProvider: string, 
+        openRouterModel: string, 
+        aiPullRequestDescription: boolean, 
+        aiMembersOnly: boolean, 
+        aiIgnoreFiles: string[],
+        providerRouting?: ProviderRoutingConfig
+    ) {
         this.openRouterApiKey = openRouterApiKey;
         this.openRouterModel = openRouterModel;
         this.openRouterProvider = openRouterProvider;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
+        this.providerRouting = providerRouting || {};
     }
 
     getOpenRouterApiKey(): string {
@@ -37,5 +57,9 @@ export class Ai {
 
     getOpenRouterModel(): string {
         return this.openRouterModel;
+    }
+
+    getProviderRouting(): ProviderRoutingConfig {
+        return this.providerRouting;
     }
 }
