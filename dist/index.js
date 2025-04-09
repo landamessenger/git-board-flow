@@ -45349,6 +45349,7 @@ async function run() {
     Object.entries(process.env).forEach(([key, value]) => {
         console.log(`${key}: ${value}`);
     });
+    console.log('test OPEN_ROUTER_API_KEY:', process.env.OPEN_ROUTER_API_KEY);
     await execution.setup();
     if (execution.runnedByToken) {
         (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
