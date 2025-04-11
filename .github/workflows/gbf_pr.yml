@@ -8,12 +8,13 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   git-board-pull-requests:
     name: Git Board - Pull Request
     runs-on: ubuntu-latest
-
+    if: github.actor != 'landa-bot'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

@@ -75,7 +75,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            const changesDescription = await this.processChanges(changes, param.ai);
+            const changesDescription = await this.processChanges(changes, param.ai, param.owner, param.repo, param.tokens.token, param.pullRequest.base);
 
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
@@ -153,27 +153,91 @@ ${changesDescription}
             return regex.test(filename);
         });
     }
-    
 
-    private splitPatchIntoSections(patch: string): string[] {
-        if (!patch) return [];
-        return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
+    private mergePatchSummaries(summaries: PatchSummary[]): PatchSummary[] {
+        const mergedMap = new Map<string, PatchSummary>();
+
+        for (const summary of summaries) {
+            const existing = mergedMap.get(summary.filePath);
+            if (existing) {
+                // Merge with existing summary
+                existing.summary = `${existing.summary}\n${summary.summary}`;
+                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
+            } else {
+                // Create new entry
+                mergedMap.set(summary.filePath, {
+                    filePath: summary.filePath,
+                    summary: summary.summary,
+                    changes: [...summary.changes]
+                });
+            }
+        }
+
+        return Array.from(mergedMap.values());
     }
 
-    private async processPatchSection(
-        section: string,
-        filename: string,
-        status: string,
-        additions: number,
-        deletions: number,
+    private groupFilesByDirectory(files: PatchSummary[]): { [key: string]: PatchSummary[] } {
+        const groups: { [key: string]: PatchSummary[] } = {
+            root: []
+        };
+
+        files.forEach(file => {
+            const pathParts = file.filePath.split('/');
+            if (pathParts.length > 1) {
+                const directory = pathParts.slice(0, -1).join('/');
+                if (!groups[directory]) {
+                    groups[directory] = [];
+                }
+                groups[directory].push(file);
+            } else {
+                groups.root.push(file);
+            }
+        });
+
+        return groups;
+    }
+
+    private formatFileChanges(file: PatchSummary): string {
+        let output = `#### \`${file.filePath}\`\n\n`;
+        output += `${file.summary}\n\n`;
+        
+        if (file.changes.length > 0) {
+            output += '**Changes:**\n';
+            output += file.changes.map(change => `- ${change}`).join('\n');
+        }
+
+        output += `\n\n--- \n\n`;
+
+        return output;
+    }
+
+    private async processFile(
+        change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
         ai: Ai,
-    ): Promise<PatchSummary | undefined> {
-        const filePrompt = `Summarize the following code patch in JSON format.
+        owner: string,
+        repo: string,
+        token: string,
+        baseBranch: string
+    ): Promise<PatchSummary[]> {
+        if (!change.patch) {
+            return [];
+        }
+
+        // Get the original file content
+        const originalContent = await this.pullRequestRepository.getFileContent(
+            owner,
+            repo,
+            change.filename,
+            token,
+            baseBranch
+        );
+
+        const filePrompt = `Analyze the following code changes and provide a summary in JSON format.
 
 ### **Guidelines**:
 - Output must be a **valid JSON** object.
-- Each file should be listed **only once**.
-- Provide a high-level summary and a list of key changes.
+- Provide a high-level summary of the changes.
+- List the key changes in detail.
 - Pay attention to the file names, don't make mistakes with uppercase, lowercase, or underscores.
 - Be careful when composing the response JSON, don't make mistakes with unnecessary commas.
 
@@ -191,47 +255,45 @@ ${changesDescription}
 \`\`\`
 
 ### **Metadata**:
-- **Filename:** ${filename}
-- **Status:** ${status}
-- **Changes:** +${additions} / -${deletions}
+- **Filename:** ${change.filename}
+- **Status:** ${change.status}
+- **Changes:** +${change.additions} / -${change.deletions}
+
+### **Original File Content**:
+\`\`\`
+${originalContent}
+\`\`\`
 
 ### **Patch**:
-${section}`;
-        
-        const response = await this.aiRepository.ask(
-            ai,
-            filePrompt
-        );
+${change.patch}`;
 
+        const response = await this.aiRepository.ask(ai, filePrompt);
         if (!response) {
-            return undefined;
+            return [];
         }
 
         try {
             const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
             const patchSummary: PatchSummary = JSON.parse(cleanResponse);
-            return patchSummary;
+            return [patchSummary];
         } catch (error) {
             logDebugError(`Response: ${response}`);
             logError(`Error parsing JSON response: ${error}`);
-            return undefined;
+            return [];
         }
-    }
-
-    private isLargeChange(change: { additions: number; deletions: number; patch?: string }): boolean {
-        // Consider changes large if:
-        // 1. Total changes (additions + deletions) are more than 500 lines
-        // 2. Or if there are more than 250 additions or deletions
-        const totalChanges = change.additions + change.deletions;
-        return totalChanges > 500 || change.additions > 250 || change.deletions > 250;
     }
 
     private async processChanges(
         changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[],
         ai: Ai,
+        owner: string,
+        repo: string,
+        token: string,
+        baseBranch: string
     ): Promise<string> {
         logDebugInfo(`Processing ${changes.length} changes`);
         const fileDescriptions: PatchSummary[] = [];
+        
         for (const change of changes) {
             try {
                 logDebugInfo(`Processing changes for file ${change.filename}`);
@@ -241,13 +303,8 @@ ${section}`;
                     continue;
                 }
 
-                if (this.isLargeChange(change)) {
-                    logDebugInfo(`File ${change.filename} has large changes, processing by sections`);
-                    fileDescriptions.push(...await this.processFileBySections(change, ai));
-                } else {
-                    logDebugInfo(`File ${change.filename} has moderate changes, processing as whole`);
-                    fileDescriptions.push(...await this.processFile(change, ai));
-                }
+                const fileSummary = await this.processFile(change, ai, owner, repo, token, baseBranch);
+                fileDescriptions.push(...fileSummary);
             } catch (error) {
                 logError(error);
                 throw new Error(`Error processing file ${change.filename}: ${error}`);
@@ -288,113 +345,5 @@ ${section}`;
         }
 
         return description;
-    }
-
-    private groupFilesByDirectory(files: PatchSummary[]): { [key: string]: PatchSummary[] } {
-        const groups: { [key: string]: PatchSummary[] } = {
-            root: []
-        };
-
-        files.forEach(file => {
-            const pathParts = file.filePath.split('/');
-            if (pathParts.length > 1) {
-                const directory = pathParts.slice(0, -1).join('/');
-                if (!groups[directory]) {
-                    groups[directory] = [];
-                }
-                groups[directory].push(file);
-            } else {
-                groups.root.push(file);
-            }
-        });
-
-        return groups;
-    }
-
-    private formatFileChanges(file: PatchSummary): string {
-        let output = `#### \`${file.filePath}\`\n\n`;
-        output += `${file.summary}\n\n`;
-        
-        if (file.changes.length > 0) {
-            output += '**Changes:**\n';
-            output += file.changes.map(change => `- ${change}`).join('\n');
-        }
-
-        output += `\n\n--- \n\n`;
-
-        return output;
-    }
-
-    private async processFileBySections(
-        change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
-        ai: Ai,
-    ): Promise<PatchSummary[]> {
-        if (!change.patch) {
-            return [];
-        }
-
-        const patchSections = this.splitPatchIntoSections(change.patch);
-        logDebugInfo(`Processing ${patchSections.length} sections for file ${change.filename}`);
-
-        const sectionDescriptions = await Promise.all(
-            patchSections.map((section, index) => 
-                this.processPatchSection(
-                    section,
-                    `${change.filename} (section ${index + 1}/${patchSections.length})`,
-                    change.status,
-                    change.additions,
-                    change.deletions,
-                    ai,
-                )
-            )
-        );
-
-        return sectionDescriptions.filter((desc: PatchSummary | undefined) => desc !== undefined);
-    }
-
-    private async processFile(
-        change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
-        ai: Ai,
-    ): Promise<PatchSummary[]> {
-        if (!change.patch) {
-            return [];
-        }
-
-        const patchSections = this.splitPatchIntoSections(change.patch);
-        const sectionDescriptions = await Promise.all(
-            patchSections.map(section => 
-                this.processPatchSection(
-                    section,
-                    change.filename,
-                    change.status,
-                    change.additions,
-                    change.deletions,
-                    ai,
-                )
-            )
-        );
-        return sectionDescriptions.filter((desc: PatchSummary | undefined) => desc !== undefined);
-    }
-
-    private mergePatchSummaries(summaries: PatchSummary[]): PatchSummary[] {
-        const mergedMap = new Map<string, PatchSummary>();
-
-        for (const summary of summaries) {
-            const existing = mergedMap.get(summary.filePath);
-            if (existing) {
-                // Merge with existing summary
-                existing.summary = `${existing.summary}\n${summary.summary}`;
-                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
-            } else {
-                // Create new entry
-                mergedMap.set(summary.filePath, {
-                    filePath: summary.filePath,
-                    summary: summary.summary,
-                    changes: [...summary.changes]
-                });
-            }
-        }
-
-        return Array.from(mergedMap.values());
     }
 }
