@@ -17,5 +17,8 @@ jobs:
 
       - uses: ./
         with:
+          debug: ${{ vars.DEBUG }}
           project-ids: 2
+          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
+          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           token: ${{ secrets.PAT }}
