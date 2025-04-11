@@ -44778,6 +44778,25 @@ class PullRequestRepository {
                 return [];
             }
         };
+        this.getFileContent = async (owner, repository, path, token, baseBranch) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.repos.getContent({
+                    owner,
+                    repo: repository,
+                    path,
+                    ref: baseBranch
+                });
+                if ('content' in data) {
+                    return Buffer.from(data.content, 'base64').toString();
+                }
+                return '';
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting file content: ${error}.`);
+                return '';
+            }
+        };
     }
 }
 exports.PullRequestRepository = PullRequestRepository;
@@ -48844,7 +48863,7 @@ class UpdatePullRequestDescriptionUseCase {
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            const changesDescription = await this.processChanges(changes, param.ai);
+            const changesDescription = await this.processChanges(changes, param.ai, param.owner, param.repo, param.tokens.token, param.pullRequest.base);
             const descriptionPrompt = `this an issue descrition.
 define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
 just a text description:\n\n
@@ -48897,18 +48916,67 @@ ${changesDescription}
             return regex.test(filename);
         });
     }
-    splitPatchIntoSections(patch) {
-        if (!patch)
-            return [];
-        return patch.split(/(?=@@)/).filter(section => section.trim().length > 0);
+    mergePatchSummaries(summaries) {
+        const mergedMap = new Map();
+        for (const summary of summaries) {
+            const existing = mergedMap.get(summary.filePath);
+            if (existing) {
+                // Merge with existing summary
+                existing.summary = `${existing.summary}\n${summary.summary}`;
+                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
+            }
+            else {
+                // Create new entry
+                mergedMap.set(summary.filePath, {
+                    filePath: summary.filePath,
+                    summary: summary.summary,
+                    changes: [...summary.changes]
+                });
+            }
+        }
+        return Array.from(mergedMap.values());
     }
-    async processPatchSection(section, filename, status, additions, deletions, ai) {
-        const filePrompt = `Summarize the following code patch in JSON format.
+    groupFilesByDirectory(files) {
+        const groups = {
+            root: []
+        };
+        files.forEach(file => {
+            const pathParts = file.filePath.split('/');
+            if (pathParts.length > 1) {
+                const directory = pathParts.slice(0, -1).join('/');
+                if (!groups[directory]) {
+                    groups[directory] = [];
+                }
+                groups[directory].push(file);
+            }
+            else {
+                groups.root.push(file);
+            }
+        });
+        return groups;
+    }
+    formatFileChanges(file) {
+        let output = `#### \`${file.filePath}\`\n\n`;
+        output += `${file.summary}\n\n`;
+        if (file.changes.length > 0) {
+            output += '**Changes:**\n';
+            output += file.changes.map(change => `- ${change}`).join('\n');
+        }
+        output += `\n\n--- \n\n`;
+        return output;
+    }
+    async processFile(change, ai, owner, repo, token, baseBranch) {
+        if (!change.patch) {
+            return [];
+        }
+        // Get the original file content
+        const originalContent = await this.pullRequestRepository.getFileContent(owner, repo, change.filename, token, baseBranch);
+        const filePrompt = `Analyze the following code changes and provide a summary in JSON format.
 
 ### **Guidelines**:
 - Output must be a **valid JSON** object.
-- Each file should be listed **only once**.
-- Provide a high-level summary and a list of key changes.
+- Provide a high-level summary of the changes.
+- List the key changes in detail.
 - Pay attention to the file names, don't make mistakes with uppercase, lowercase, or underscores.
 - Be careful when composing the response JSON, don't make mistakes with unnecessary commas.
 
@@ -48926,35 +48994,33 @@ ${changesDescription}
 \`\`\`
 
 ### **Metadata**:
-- **Filename:** ${filename}
-- **Status:** ${status}
-- **Changes:** +${additions} / -${deletions}
+- **Filename:** ${change.filename}
+- **Status:** ${change.status}
+- **Changes:** +${change.additions} / -${change.deletions}
+
+### **Original File Content**:
+\`\`\`
+${originalContent}
+\`\`\`
 
 ### **Patch**:
-${section}`;
+${change.patch}`;
         const response = await this.aiRepository.ask(ai, filePrompt);
         if (!response) {
-            return undefined;
+            return [];
         }
         try {
             const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
             const patchSummary = JSON.parse(cleanResponse);
-            return patchSummary;
+            return [patchSummary];
         }
         catch (error) {
             (0, logger_1.logDebugError)(`Response: ${response}`);
             (0, logger_1.logError)(`Error parsing JSON response: ${error}`);
-            return undefined;
+            return [];
         }
     }
-    isLargeChange(change) {
-        // Consider changes large if:
-        // 1. Total changes (additions + deletions) are more than 500 lines
-        // 2. Or if there are more than 250 additions or deletions
-        const totalChanges = change.additions + change.deletions;
-        return totalChanges > 500 || change.additions > 250 || change.deletions > 250;
-    }
-    async processChanges(changes, ai) {
+    async processChanges(changes, ai, owner, repo, token, baseBranch) {
         (0, logger_1.logDebugInfo)(`Processing ${changes.length} changes`);
         const fileDescriptions = [];
         for (const change of changes) {
@@ -48965,14 +49031,8 @@ ${section}`;
                     (0, logger_1.logDebugInfo)(`File ${change.filename} should be ignored`);
                     continue;
                 }
-                if (this.isLargeChange(change)) {
-                    (0, logger_1.logDebugInfo)(`File ${change.filename} has large changes, processing by sections`);
-                    fileDescriptions.push(...await this.processFileBySections(change, ai));
-                }
-                else {
-                    (0, logger_1.logDebugInfo)(`File ${change.filename} has moderate changes, processing as whole`);
-                    fileDescriptions.push(...await this.processFile(change, ai));
-                }
+                const fileSummary = await this.processFile(change, ai, owner, repo, token, baseBranch);
+                fileDescriptions.push(...fileSummary);
             }
             catch (error) {
                 (0, logger_1.logError)(error);
@@ -49006,72 +49066,6 @@ ${section}`;
             }
         }
         return description;
-    }
-    groupFilesByDirectory(files) {
-        const groups = {
-            root: []
-        };
-        files.forEach(file => {
-            const pathParts = file.filePath.split('/');
-            if (pathParts.length > 1) {
-                const directory = pathParts.slice(0, -1).join('/');
-                if (!groups[directory]) {
-                    groups[directory] = [];
-                }
-                groups[directory].push(file);
-            }
-            else {
-                groups.root.push(file);
-            }
-        });
-        return groups;
-    }
-    formatFileChanges(file) {
-        let output = `#### \`${file.filePath}\`\n\n`;
-        output += `${file.summary}\n\n`;
-        if (file.changes.length > 0) {
-            output += '**Changes:**\n';
-            output += file.changes.map(change => `- ${change}`).join('\n');
-        }
-        output += `\n\n--- \n\n`;
-        return output;
-    }
-    async processFileBySections(change, ai) {
-        if (!change.patch) {
-            return [];
-        }
-        const patchSections = this.splitPatchIntoSections(change.patch);
-        (0, logger_1.logDebugInfo)(`Processing ${patchSections.length} sections for file ${change.filename}`);
-        const sectionDescriptions = await Promise.all(patchSections.map((section, index) => this.processPatchSection(section, `${change.filename} (section ${index + 1}/${patchSections.length})`, change.status, change.additions, change.deletions, ai)));
-        return sectionDescriptions.filter((desc) => desc !== undefined);
-    }
-    async processFile(change, ai) {
-        if (!change.patch) {
-            return [];
-        }
-        const patchSections = this.splitPatchIntoSections(change.patch);
-        const sectionDescriptions = await Promise.all(patchSections.map(section => this.processPatchSection(section, change.filename, change.status, change.additions, change.deletions, ai)));
-        return sectionDescriptions.filter((desc) => desc !== undefined);
-    }
-    mergePatchSummaries(summaries) {
-        const mergedMap = new Map();
-        for (const summary of summaries) {
-            const existing = mergedMap.get(summary.filePath);
-            if (existing) {
-                // Merge with existing summary
-                existing.summary = `${existing.summary}\n${summary.summary}`;
-                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
-            }
-            else {
-                // Create new entry
-                mergedMap.set(summary.filePath, {
-                    filePath: summary.filePath,
-                    summary: summary.summary,
-                    changes: [...summary.changes]
-                });
-            }
-        }
-        return Array.from(mergedMap.values());
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
