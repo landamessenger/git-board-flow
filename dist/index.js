@@ -108064,6 +108064,117 @@ const path_1 = __importDefault(__nccwpck_require__(1017));
 const logger_1 = __nccwpck_require__(8836);
 class DockerRepository {
     constructor() {
+        this.startContainer = async () => {
+            if (DockerRepository.containerId) {
+                const isRunning = await this.isContainerRunning();
+                if (isRunning) {
+                    (0, logger_1.logDebugInfo)('Container is already running');
+                    return;
+                }
+            }
+            try {
+                // Build the image
+                const stream = await this.docker.buildImage({
+                    context: this.dockerDir,
+                    src: ['Dockerfile', 'requirements.txt', 'main.py']
+                }, { t: 'fastapi-app' });
+                await new Promise((resolve, reject) => {
+                    this.docker.modem.followProgress(stream, (err, res) => {
+                        if (err)
+                            reject(err);
+                        else
+                            resolve(res);
+                    });
+                });
+                // Create and start the container
+                const container = await this.docker.createContainer({
+                    Image: 'fastapi-app',
+                    ExposedPorts: {
+                        '8000/tcp': {}
+                    },
+                    HostConfig: {
+                        PortBindings: {
+                            '8000/tcp': [{ HostPort: '8000' }]
+                        }
+                    }
+                });
+                await container.start();
+                DockerRepository.containerId = container.id;
+                // Wait for the container to be ready
+                await this.waitForContainer();
+            }
+            catch (error) {
+                (0, logger_1.logError)('Error starting container: ' + error);
+                throw error;
+            }
+        };
+        this.waitForContainer = async () => {
+            const maxAttempts = 10;
+            const delay = 2000; // 2 seconds
+            for (let i = 0; i < maxAttempts; i++) {
+                try {
+                    const response = await fetch('http://localhost:8000/health');
+                    if (response.ok) {
+                        return;
+                    }
+                }
+                catch (error) {
+                    // Ignore connection errors
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            throw new Error('Container did not become ready in time');
+        };
+        this.stopContainer = async () => {
+            if (!DockerRepository.containerId)
+                return;
+            try {
+                const container = this.docker.getContainer(DockerRepository.containerId);
+                await container.stop();
+                await container.remove();
+                DockerRepository.containerId = null;
+            }
+            catch (error) {
+                (0, logger_1.logError)('Error stopping container: ' + error);
+                throw error;
+            }
+        };
+        this.isContainerRunning = async () => {
+            if (!DockerRepository.containerId)
+                return false;
+            try {
+                const container = this.docker.getContainer(DockerRepository.containerId);
+                const info = await container.inspect();
+                return info.State.Running;
+            }
+            catch (error) {
+                return false;
+            }
+        };
+        this.getEmbedding = async (instruction, text) => {
+            try {
+                const request = {
+                    instruction,
+                    text
+                };
+                const response = await fetch('http://localhost:8000/embed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(request)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data.vector;
+            }
+            catch (error) {
+                (0, logger_1.logError)('Error getting embedding: ' + error);
+                throw error;
+            }
+        };
         this.docker = new dockerode_1.default();
         this.dockerDir = path_1.default.join(process.cwd(), 'docker');
     }
@@ -108072,93 +108183,6 @@ class DockerRepository {
             DockerRepository.instance = new DockerRepository();
         }
         return DockerRepository.instance;
-    }
-    async startContainer() {
-        if (DockerRepository.containerId) {
-            const isRunning = await this.isContainerRunning();
-            if (isRunning) {
-                (0, logger_1.logDebugInfo)('Container is already running');
-                return;
-            }
-        }
-        try {
-            // Build the image
-            const stream = await this.docker.buildImage({
-                context: this.dockerDir,
-                src: ['Dockerfile', 'requirements.txt', 'main.py']
-            }, { t: 'fastapi-app' });
-            await new Promise((resolve, reject) => {
-                this.docker.modem.followProgress(stream, (err, res) => {
-                    if (err)
-                        reject(err);
-                    else
-                        resolve(res);
-                });
-            });
-            // Create and start the container
-            const container = await this.docker.createContainer({
-                Image: 'fastapi-app',
-                ExposedPorts: {
-                    '8000/tcp': {}
-                },
-                HostConfig: {
-                    PortBindings: {
-                        '8000/tcp': [{ HostPort: '8000' }]
-                    }
-                }
-            });
-            await container.start();
-            DockerRepository.containerId = container.id;
-            // Wait for the container to be ready
-            await this.waitForContainer();
-        }
-        catch (error) {
-            (0, logger_1.logError)('Error starting container: ' + error);
-            throw error;
-        }
-    }
-    async waitForContainer() {
-        const maxAttempts = 10;
-        const delay = 2000; // 2 seconds
-        for (let i = 0; i < maxAttempts; i++) {
-            try {
-                const response = await fetch('http://localhost:8000/health');
-                if (response.ok) {
-                    return;
-                }
-            }
-            catch (error) {
-                // Ignore connection errors
-            }
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-        throw new Error('Container did not become ready in time');
-    }
-    async stopContainer() {
-        if (!DockerRepository.containerId)
-            return;
-        try {
-            const container = this.docker.getContainer(DockerRepository.containerId);
-            await container.stop();
-            await container.remove();
-            DockerRepository.containerId = null;
-        }
-        catch (error) {
-            (0, logger_1.logError)('Error stopping container: ' + error);
-            throw error;
-        }
-    }
-    async isContainerRunning() {
-        if (!DockerRepository.containerId)
-            return false;
-        try {
-            const container = this.docker.getContainer(DockerRepository.containerId);
-            const info = await container.inspect();
-            return info.State.Running;
-        }
-        catch (error) {
-            return false;
-        }
     }
 }
 exports.DockerRepository = DockerRepository;
@@ -113740,11 +113764,8 @@ class VectorActionUseCase {
             (0, logger_1.logDebugInfo)('🐳 🟡 Starting Docker container...');
             await this.dockerRepository.startContainer();
             (0, logger_1.logDebugInfo)('🐳 🟢 Docker container is ready');
-            // Here should be the logic to interact with the container
-            // For example, making API calls to the FastAPI service
-            // const response = await fetch('http://localhost:8000/your-endpoint');
-            // const data = await response.json();
-            // results.push(data);
+            const embedding = await this.dockerRepository.getEmbedding("Represent the following text for semantic search", "Implement a new feature for user authentication");
+            (0, logger_1.logDebugInfo)(`Embedding: ${embedding}`);
             // For now, we'll just add a success message
             results.push(new result_1.Result({
                 id: this.taskId,
@@ -113769,7 +113790,7 @@ class VectorActionUseCase {
         finally {
             // Always stop the container when we're done
             try {
-                (0, logger_1.logDebugInfo)('🐳 🟢 Stopping Docker container...');
+                (0, logger_1.logDebugInfo)('🐳 🟠 Stopping Docker container...');
                 await this.dockerRepository.stopContainer();
                 (0, logger_1.logDebugInfo)('🐳 ⚪ Docker container stopped');
             }
