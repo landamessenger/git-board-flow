@@ -46,12 +46,13 @@ def load_model():
         logger.info(model_state["message"])
 
         try:
-            test_text = ["This is a test sentence"]
-            test_instruction = ["Represent the following sentence for retrieval:"]
+            test_text = "This is a test sentence"
+            test_instruction = "Represent the following sentence for retrieval:"
             logger.info("Starting warm-up encoding")
             embeddings = model.encode(
-                test_text,
-                test_instruction
+                [
+                    [test_text, test_instruction]
+                ]
             )
             logger.info(f"Warm-up successful. Embedding shape: {embeddings.shape}")
         except Exception as e:
@@ -95,5 +96,7 @@ async def vectorize(req: VectorizeRequest):
             "status": model_state["status"],
             "message": model_state["message"]
         }
-    embeddings = model_state["model"].encode(req.texts, req.instructions)
+    embeddings = model_state["model"].encode([
+        [req.texts, req.instructions]
+    ])
     return {"embeddings": embeddings.tolist()}
