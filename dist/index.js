@@ -108128,12 +108128,14 @@ class DockerRepository {
             for (let i = 0; i < maxAttempts; i++) {
                 try {
                     const response = await fetch('http://localhost:8000/health');
+                    (0, logger_1.logDebugInfo)(`Health check response: ${response}`);
                     if (response.ok) {
                         return;
                     }
                 }
                 catch (error) {
                     // Ignore connection errors
+                    (0, logger_1.logDebugError)(`Health check error: ${error}`);
                 }
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
