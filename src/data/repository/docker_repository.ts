@@ -98,6 +98,7 @@ export class DockerRepository {
         for (let i = 0; i < maxAttempts; i++) {
             try {
                 const response = await fetch('http://localhost:8000/health');
+                logDebugInfo(`Health check response: ${response}`);
                 if (response.ok) {
                     return;
                 }
