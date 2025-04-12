@@ -106387,17 +106387,36 @@ class Execution {
              * Set the issue number
              */
             if (this.isSingleAction) {
-                this.singleAction.isPullRequest = await issueRepository.isPullRequest(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.token);
-                this.singleAction.isIssue = await issueRepository.isIssue(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.token);
-                if (this.singleAction.isIssue) {
-                    this.issueNumber = this.singleAction.currentSingleActionIssue;
+                /**
+                 * Single actions can run as isolated processes or as part of a workflow.
+                 * In the case of a workflow, the issue number is got from the workflow.
+                 * In the case of a single action, the issue number is set.
+                 */
+                if (this.isIssue) {
+                    this.singleAction.isIssue = true;
+                    this.issueNumber = this.issue.number;
                 }
-                else if (this.singleAction.isPullRequest) {
-                    const head = await issueRepository.getHeadBranch(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.token);
-                    if (head === undefined) {
-                        return;
+                else if (this.isPullRequest) {
+                    this.singleAction.isPullRequest = true;
+                    this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
+                }
+                else if (this.isPush) {
+                    this.singleAction.isPush = true;
+                    this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
+                }
+                else {
+                    this.singleAction.isPullRequest = await issueRepository.isPullRequest(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.token);
+                    this.singleAction.isIssue = await issueRepository.isIssue(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.token);
+                    if (this.singleAction.isIssue) {
+                        this.issueNumber = this.singleAction.currentSingleActionIssue;
                     }
-                    this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(head);
+                    else if (this.singleAction.isPullRequest) {
+                        const head = await issueRepository.getHeadBranch(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.token);
+                        if (head === undefined) {
+                            return;
+                        }
+                        this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(head);
+                    }
                 }
             }
             else if (this.isIssue) {
@@ -107175,6 +107194,7 @@ class SingleAction {
         this.actions = [deployedAction, vectorAction];
         this.isIssue = false;
         this.isPullRequest = false;
+        this.isPush = false;
         let validIssueNumber = false;
         try {
             this.currentSingleActionIssue = parseInt(currentSingleActionIssue);
@@ -109854,7 +109874,6 @@ async function run() {
      */
     const issueTypeBug = core.getInput('issue-type-bug');
     const issueTypeHotfix = core.getInput('issue-type-hotfix');
-    const issueTypeEnhancement = core.getInput('issue-type-enhancement');
     const issueTypeFeature = core.getInput('issue-type-feature');
     const issueTypeDocumentation = core.getInput('issue-type-documentation');
     const issueTypeMaintenance = core.getInput('issue-type-maintenance');
@@ -110584,11 +110603,11 @@ class SingleActionUseCase {
                 (0, logger_1.logDebugInfo)(`Not a valid single action: ${param.singleAction.currentSingleAction}`);
                 return results;
             }
-            if (param.singleAction.isDeployedAction) {
-                results.push(...await new deployed_action_use_case_1.DeployedActionUseCase().invoke(param));
-            }
             if (param.singleAction.isVectorAction) {
                 results.push(...await new vector_action_use_case_1.VectorActionUseCase().invoke(param));
+            }
+            if (param.singleAction.isDeployedAction) {
+                results.push(...await new deployed_action_use_case_1.DeployedActionUseCase().invoke(param));
             }
         }
         catch (error) {
