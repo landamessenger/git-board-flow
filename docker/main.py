@@ -32,11 +32,13 @@ def load_model():
         model_state["message"] = "Downloading model..."
         logger.info(model_state["message"])
 
-        # Instance of the model with explicit parameters
-        model = INSTRUCTOR(
-            model_name_or_path="hkunlp/instructor-xl",
-            device="cpu"
-        )
+        try:
+            # Instance of the model with different initialization
+            model = INSTRUCTOR('hkunlp/instructor-xl', device='cpu')
+            logger.info("Model initialized successfully")
+        except Exception as e:
+            logger.error(f"Error during model initialization: {str(e)}")
+            raise
 
         model_state["progress"] = 50
         model_state["status"] = "warming_up"
@@ -44,10 +46,15 @@ def load_model():
         logger.info(model_state["message"])
 
         try:
-            # Warm-up with a simple example
+            # Warm-up with a different approach
             test_text = "This is a test sentence"
             test_instruction = "Represent the following sentence for retrieval:"
-            embeddings = model.encode([test_text], [test_instruction])
+            logger.info("Starting warm-up encoding")
+            embeddings = model.encode(
+                sentences=[test_text],
+                instructions=[test_instruction],
+                batch_size=1
+            )
             logger.info(f"Warm-up successful. Embedding shape: {embeddings.shape}")
         except Exception as e:
             logger.error(f"Error during warm-up: {str(e)}")
