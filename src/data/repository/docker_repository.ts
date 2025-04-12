@@ -92,24 +92,38 @@ export class DockerRepository {
     }
 
     private waitForContainer = async (): Promise<void> => {
-        const maxAttempts = 100;
-        const delay = 3000; // 3 seconds
+        const maxAttempts = 200;
+        const delay = 5000;
 
         for (let i = 0; i < maxAttempts; i++) {
             try {
-                const response = await fetch('http://localhost:8000/health');
-                logDebugInfo(`Health check response: ${response}`);
+                logDebugInfo(`Health check attempt ${i + 1}/${maxAttempts}`);
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+                
+                const response = await fetch('http://localhost:8000/health', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                
                 if (response.ok) {
+                    const data = await response.json();
+                    logDebugInfo(`Health check successful: ${JSON.stringify(data)}`);
                     return;
+                } else {
+                    logDebugError(`Health check failed with status: ${response.status}`);
                 }
-            } catch (error) {
-                // Ignore connection errors
-                logDebugError(`Health check error: ${error}`);
+            } catch (error: any) {
+                logDebugError(`Health check error: ${error?.message || String(error)}`);
+                if (error?.code === 'ECONNREFUSED') {
+                    logDebugInfo('Connection refused - container might still be starting up');
+                }
             }
+            logDebugInfo(`Waiting ${delay/1000} seconds before next attempt...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-        throw new Error('Container did not become ready in time');
+        throw new Error(`Container did not become ready after ${maxAttempts} attempts (${(maxAttempts * delay)/1000} seconds)`);
     }
 
     stopContainer = async (): Promise<void> => {
