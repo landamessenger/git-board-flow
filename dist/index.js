@@ -108057,6 +108057,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DockerRepository = void 0;
 const dockerode_1 = __importDefault(__nccwpck_require__(4571));
 const path_1 = __importDefault(__nccwpck_require__(1017));
+const logger_1 = __nccwpck_require__(8836);
 class DockerRepository {
     constructor() {
         this.docker = new dockerode_1.default();
@@ -108072,7 +108073,7 @@ class DockerRepository {
         if (DockerRepository.containerId) {
             const isRunning = await this.isContainerRunning();
             if (isRunning) {
-                console.log('Container is already running');
+                (0, logger_1.logDebugInfo)('Container is already running');
                 return;
             }
         }
@@ -108108,7 +108109,7 @@ class DockerRepository {
             await this.waitForContainer();
         }
         catch (error) {
-            console.error('Error starting container:', error);
+            (0, logger_1.logError)('Error starting container: ' + error);
             throw error;
         }
     }
@@ -108139,7 +108140,7 @@ class DockerRepository {
             DockerRepository.containerId = null;
         }
         catch (error) {
-            console.error('Error stopping container:', error);
+            (0, logger_1.logError)('Error stopping container: ' + error);
             throw error;
         }
     }
