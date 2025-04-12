@@ -555,7 +555,6 @@ async function run(): Promise<void> {
      */
     const issueTypeBug = core.getInput('issue-type-bug');
     const issueTypeHotfix = core.getInput('issue-type-hotfix');
-    const issueTypeEnhancement = core.getInput('issue-type-enhancement');
     const issueTypeFeature = core.getInput('issue-type-feature');
     const issueTypeDocumentation = core.getInput('issue-type-documentation');
     const issueTypeMaintenance = core.getInput('issue-type-maintenance');

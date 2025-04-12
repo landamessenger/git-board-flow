@@ -11,6 +11,7 @@ export class SingleAction {
     validSingleAction: boolean;
     isIssue: boolean = false;
     isPullRequest: boolean = false;
+    isPush: boolean = false;
 
     get isDeployedAction(): boolean {
         return this.currentSingleAction === deployedAction;

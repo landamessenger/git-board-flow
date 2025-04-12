@@ -1,4 +1,4 @@
-name: Git Board Flow - Commit
+name: Git Board Flow - Vector Action
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
       - '!develop'
 
 jobs:
-  git-board-commits:
-    name: Git Board - Commit
+  git-board-vector-action:
+    name: Git Board - Vector Action
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository

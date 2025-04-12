@@ -18,12 +18,12 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (param.singleAction.isDeployedAction) {
-                results.push(...await new DeployedActionUseCase().invoke(param));
-            }
-
             if (param.singleAction.isVectorAction) {
                 results.push(...await new VectorActionUseCase().invoke(param));
+            }
+
+            if (param.singleAction.isDeployedAction) {
+                results.push(...await new DeployedActionUseCase().invoke(param));
             }
         } catch (error) {
             logError(error);
