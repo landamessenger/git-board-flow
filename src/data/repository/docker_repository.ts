@@ -83,24 +83,6 @@ export class DockerRepository {
 
             // Wait for the container to be ready
             logDebugInfo('Waiting for container to be ready...');
-            
-            // First, verify container is actually running
-            let containerRunning = false;
-            for (let i = 0; i < 10; i++) {
-                containerRunning = await this.isContainerRunning();
-                if (containerRunning) {
-                    logDebugInfo('Container is running');
-                    break;
-                }
-                logDebugInfo('Waiting for container to start...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-
-            if (!containerRunning) {
-                throw new Error('Container failed to start');
-            }
-
-            // Now wait for the application to be ready
             await this.waitForContainer();
             logDebugInfo('Container is ready');
         } catch (error) {
@@ -115,31 +97,24 @@ export class DockerRepository {
 
         for (let i = 0; i < maxAttempts; i++) {
             try {
-                logDebugInfo(`Ready check attempt ${i + 1}/${maxAttempts}`);
+                logDebugInfo(`Health check attempt ${i + 1}/${maxAttempts}`);
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 10000);
                 
-                const response = await fetch('http://localhost:8000/ready', {
+                const response = await fetch('http://localhost:8000/health', {
                     signal: controller.signal
                 });
                 clearTimeout(timeout);
                 
                 if (response.ok) {
                     const data = await response.json();
-                    logDebugInfo(`Ready check response: ${JSON.stringify(data)}`);
-                    if (data.status === 'ready') {
-                        return;
-                    } else if (data.status === 'loading') {
-                        logDebugInfo('Model is still loading, waiting...');
-                    } else {
-                        logDebugError(`Model failed to load: ${data.message}`);
-                        throw new Error(`Model failed to load: ${data.message}`);
-                    }
+                    logDebugInfo(`Health check successful: ${JSON.stringify(data)}`);
+                    return;
                 } else {
-                    logDebugError(`Ready check failed with status: ${response.status}`);
+                    logDebugError(`Health check failed with status: ${response.status}`);
                 }
             } catch (error: any) {
-                logDebugError(`Ready check error: ${error?.message || String(error)}`);
+                logDebugError(`Health check error: ${error?.message || String(error)}`);
                 if (error?.code === 'ECONNREFUSED') {
                     logDebugInfo('Connection refused - container might still be starting up');
                 }
