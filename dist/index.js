@@ -108136,8 +108136,18 @@ class DockerRepository {
                     clearTimeout(timeout);
                     if (response.ok) {
                         const data = await response.json();
-                        (0, logger_1.logDebugInfo)(`Health check successful: ${JSON.stringify(data)}`);
-                        return;
+                        (0, logger_1.logDebugInfo)(`Health check response: ${JSON.stringify(data)}`);
+                        if (data.status === 'ready') {
+                            (0, logger_1.logDebugInfo)('Container is ready and model is loaded');
+                            return;
+                        }
+                        else if (data.status === 'error') {
+                            (0, logger_1.logDebugError)(`Model failed to load: ${data.message}`);
+                            throw new Error(`Model failed to load: ${data.message}`);
+                        }
+                        else {
+                            (0, logger_1.logDebugInfo)(`Model status: ${data.status}, Progress: ${data.progress}%, Message: ${data.message}`);
+                        }
                     }
                     else {
                         (0, logger_1.logDebugError)(`Health check failed with status: ${response.status}`);
