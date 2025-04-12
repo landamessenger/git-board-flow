@@ -1,6 +1,6 @@
 import Docker from 'dockerode';
 import path from 'path';
-import { logDebugInfo, logError } from '../../utils/logger';
+import { logDebugInfo, logError, logInfo } from '../../utils/logger';
 
 interface EmbedRequest {
     instruction: string;
@@ -39,6 +39,7 @@ export class DockerRepository {
         }
 
         try {
+            logDebugInfo('Building Docker image...');
             // Build the image
             const stream = await this.docker.buildImage({
                 context: this.dockerDir,
@@ -47,11 +48,21 @@ export class DockerRepository {
 
             await new Promise((resolve, reject) => {
                 this.docker.modem.followProgress(stream, (err: any, res: any) => {
-                    if (err) reject(err);
-                    else resolve(res);
+                    if (err) {
+                        logError('Error building image: ' + err);
+                        reject(err);
+                    } else {
+                        logDebugInfo('Docker image built successfully');
+                        resolve(res);
+                    }
+                }, (event: any) => {
+                    if (event.stream) {
+                        logDebugInfo(event.stream.trim());
+                    }
                 });
             });
 
+            logDebugInfo('Creating container...');
             // Create and start the container
             const container = await this.docker.createContainer({
                 Image: 'fastapi-app',
@@ -65,11 +76,15 @@ export class DockerRepository {
                 }
             });
 
+            logDebugInfo('Starting container...');
             await container.start();
             DockerRepository.containerId = container.id;
+            logDebugInfo('Container started successfully');
 
             // Wait for the container to be ready
+            logDebugInfo('Waiting for container to be ready...');
             await this.waitForContainer();
+            logDebugInfo('Container is ready');
         } catch (error) {
             logError('Error starting container: ' + error);
             throw error;
@@ -77,8 +92,8 @@ export class DockerRepository {
     }
 
     private waitForContainer = async (): Promise<void> => {
-        const maxAttempts = 10;
-        const delay = 2000; // 2 seconds
+        const maxAttempts = 100;
+        const delay = 3000; // 3 seconds
 
         for (let i = 0; i < maxAttempts; i++) {
             try {
