@@ -1,6 +1,6 @@
 import Docker from 'dockerode';
 import path from 'path';
-import { logDebugError, logDebugInfo, logError, logInfo } from '../../utils/logger';
+import { logDebugError, logDebugInfo, logError } from '../../utils/logger';
 
 interface EmbedRequest {
     instruction: string;
@@ -108,8 +108,17 @@ export class DockerRepository {
                 
                 if (response.ok) {
                     const data = await response.json();
-                    logDebugInfo(`Health check successful: ${JSON.stringify(data)}`);
-                    return;
+                    logDebugInfo(`Health check response: ${JSON.stringify(data)}`);
+                    
+                    if (data.status === 'ready') {
+                        logDebugInfo('Container is ready and model is loaded');
+                        return;
+                    } else if (data.status === 'error') {
+                        logDebugError(`Model failed to load: ${data.message}`);
+                        throw new Error(`Model failed to load: ${data.message}`);
+                    } else {
+                        logDebugInfo(`Model status: ${data.status}, Progress: ${data.progress}%, Message: ${data.message}`);
+                    }
                 } else {
                     logDebugError(`Health check failed with status: ${response.status}`);
                 }
