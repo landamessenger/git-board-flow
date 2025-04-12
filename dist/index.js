@@ -108073,6 +108073,7 @@ class DockerRepository {
                 }
             }
             try {
+                (0, logger_1.logDebugInfo)('Building Docker image...');
                 // Build the image
                 const stream = await this.docker.buildImage({
                     context: this.dockerDir,
@@ -108080,12 +108081,21 @@ class DockerRepository {
                 }, { t: 'fastapi-app' });
                 await new Promise((resolve, reject) => {
                     this.docker.modem.followProgress(stream, (err, res) => {
-                        if (err)
+                        if (err) {
+                            (0, logger_1.logError)('Error building image: ' + err);
                             reject(err);
-                        else
+                        }
+                        else {
+                            (0, logger_1.logDebugInfo)('Docker image built successfully');
                             resolve(res);
+                        }
+                    }, (event) => {
+                        if (event.stream) {
+                            (0, logger_1.logDebugInfo)(event.stream.trim());
+                        }
                     });
                 });
+                (0, logger_1.logDebugInfo)('Creating container...');
                 // Create and start the container
                 const container = await this.docker.createContainer({
                     Image: 'fastapi-app',
@@ -108098,10 +108108,14 @@ class DockerRepository {
                         }
                     }
                 });
+                (0, logger_1.logDebugInfo)('Starting container...');
                 await container.start();
                 DockerRepository.containerId = container.id;
+                (0, logger_1.logDebugInfo)('Container started successfully');
                 // Wait for the container to be ready
+                (0, logger_1.logDebugInfo)('Waiting for container to be ready...');
                 await this.waitForContainer();
+                (0, logger_1.logDebugInfo)('Container is ready');
             }
             catch (error) {
                 (0, logger_1.logError)('Error starting container: ' + error);
@@ -108109,8 +108123,8 @@ class DockerRepository {
             }
         };
         this.waitForContainer = async () => {
-            const maxAttempts = 10;
-            const delay = 2000; // 2 seconds
+            const maxAttempts = 100;
+            const delay = 3000; // 3 seconds
             for (let i = 0; i < maxAttempts; i++) {
                 try {
                     const response = await fetch('http://localhost:8000/health');
