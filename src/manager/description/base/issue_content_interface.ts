@@ -10,7 +10,15 @@ export abstract class IssueContentInterface extends ContentInterface {
         try {
             let number = -1
             if (execution.isSingleAction) {
-                number = execution.singleAction.currentSingleActionIssue
+                if (execution.isIssue) {
+                    number = execution.issue.number
+                } else if (execution.isPullRequest) {
+                    number = execution.pullRequest.number
+                } else if (execution.isPush) {
+                    number = execution.issueNumber
+                } else {
+                    number = execution.singleAction.currentSingleActionIssue
+                }
             } else if (execution.isIssue) {
                 number = execution.issue.number
             } else if (execution.isPullRequest) {
@@ -39,13 +47,21 @@ export abstract class IssueContentInterface extends ContentInterface {
         try {
             let number = -1
             if (execution.isSingleAction) {
-                number = execution.singleAction.currentSingleActionIssue;
+                if (execution.isIssue) {
+                    number = execution.issue.number
+                } else if (execution.isPullRequest) {
+                    number = execution.pullRequest.number
+                } else if (execution.isPush) {
+                    number = execution.issueNumber
+                } else {
+                    number = execution.singleAction.currentSingleActionIssue
+                }
             } else if (execution.isIssue) {
-                number = execution.issue.number;
+                number = execution.issue.number
             } else if (execution.isPullRequest) {
-                number = execution.pullRequest.number;
+                number = execution.pullRequest.number
             } else if (execution.isPush) {
-                number = execution.issueNumber;
+                number = execution.issueNumber
             } else {
                 return undefined;
             }
