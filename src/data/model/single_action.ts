@@ -1,11 +1,12 @@
 import { logError } from "../../utils/logger";
 
 const deployedAction = 'deployed_action'
+const vectorAction = 'vector_action'
 
 export class SingleAction {
     currentSingleAction: string;
     currentSingleActionIssue: number = -1;
-    actions: string[] = [deployedAction];
+    actions: string[] = [deployedAction, vectorAction];
     enabledSingleAction: boolean;
     validSingleAction: boolean;
     isIssue: boolean = false;
@@ -13,6 +14,10 @@ export class SingleAction {
 
     get isDeployedAction(): boolean {
         return this.currentSingleAction === deployedAction;
+    }
+
+    get isVectorAction(): boolean {
+        return this.currentSingleAction === vectorAction;
     }
 
     constructor(

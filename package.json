@@ -16,9 +16,11 @@
     "@actions/github": "^6.0.0",
     "@types/chance": "^1.1.6",
     "chance": "^1.1.12",
+    "dockerode": "^4.0.5",
     "isolated-vm": "^5.0.1"
   },
   "devDependencies": {
+    "@types/dockerode": "^3.3.37",
     "@types/node": "^22.9.1",
     "@vercel/ncc": "^0.36.1",
     "typescript": "^5.2.2"
