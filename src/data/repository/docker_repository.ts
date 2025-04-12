@@ -1,6 +1,6 @@
 import Docker from 'dockerode';
 import path from 'path';
-import { logDebugInfo, logError, logInfo } from '../../utils/logger';
+import { logDebugError, logDebugInfo, logError, logInfo } from '../../utils/logger';
 
 interface EmbedRequest {
     instruction: string;
@@ -104,6 +104,7 @@ export class DockerRepository {
                 }
             } catch (error) {
                 // Ignore connection errors
+                logDebugError(`Health check error: ${error}`);
             }
             await new Promise(resolve => setTimeout(resolve, delay));
         }
