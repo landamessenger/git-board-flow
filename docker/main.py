@@ -1,7 +1,12 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from InstructorEmbedding import INSTRUCTOR
 import threading
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 model = None
@@ -12,15 +17,18 @@ def load_model():
     global model, model_loading, model_loaded
     model_loading = True
     try:
+        logger.info("Starting model loading...")
         model = INSTRUCTOR("hkunlp/instructor-xl")
         model_loaded = True
+        logger.info("Model loaded successfully")
     except Exception as e:
-        print(f"Error loading model: {e}")
+        logger.error(f"Error loading model: {e}")
+        model_loaded = False
     finally:
         model_loading = False
 
 # Start model loading in background
-threading.Thread(target=load_model).start()
+threading.Thread(target=load_model, daemon=True).start()
 
 class EmbedRequest(BaseModel):
     instruction: str

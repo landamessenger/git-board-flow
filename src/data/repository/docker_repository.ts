@@ -83,6 +83,24 @@ export class DockerRepository {
 
             // Wait for the container to be ready
             logDebugInfo('Waiting for container to be ready...');
+            
+            // First, verify container is actually running
+            let containerRunning = false;
+            for (let i = 0; i < 10; i++) {
+                containerRunning = await this.isContainerRunning();
+                if (containerRunning) {
+                    logDebugInfo('Container is running');
+                    break;
+                }
+                logDebugInfo('Waiting for container to start...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            if (!containerRunning) {
+                throw new Error('Container failed to start');
+            }
+
+            // Now wait for the application to be ready
             await this.waitForContainer();
             logDebugInfo('Container is ready');
         } catch (error) {
