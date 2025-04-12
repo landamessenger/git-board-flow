@@ -106395,14 +106395,17 @@ class Execution {
                 if (this.isIssue) {
                     this.singleAction.isIssue = true;
                     this.issueNumber = this.issue.number;
+                    this.singleAction.currentSingleActionIssue = this.issueNumber;
                 }
                 else if (this.isPullRequest) {
                     this.singleAction.isPullRequest = true;
                     this.issueNumber = (0, title_utils_1.extractIssueNumberFromBranch)(this.pullRequest.head);
+                    this.singleAction.currentSingleActionIssue = this.issueNumber;
                 }
                 else if (this.isPush) {
                     this.singleAction.isPush = true;
                     this.issueNumber = (0, title_utils_1.extractIssueNumberFromPush)(this.commit.branch);
+                    this.singleAction.currentSingleActionIssue = this.issueNumber;
                 }
                 else {
                     this.singleAction.isPullRequest = await issueRepository.isPullRequest(this.owner, this.repo, this.singleAction.currentSingleActionIssue, this.tokens.token);
@@ -107189,27 +107192,28 @@ class SingleAction {
     get isVectorAction() {
         return this.currentSingleAction === vectorAction;
     }
+    get enabledSingleAction() {
+        return this.currentSingleAction.length > 0;
+    }
+    get validSingleAction() {
+        return this.enabledSingleAction &&
+            this.currentSingleActionIssue > 0 &&
+            this.actions.indexOf(this.currentSingleAction) > -1;
+    }
     constructor(currentSingleAction, currentSingleActionIssue) {
         this.currentSingleActionIssue = -1;
         this.actions = [deployedAction, vectorAction];
         this.isIssue = false;
         this.isPullRequest = false;
         this.isPush = false;
-        let validIssueNumber = false;
         try {
             this.currentSingleActionIssue = parseInt(currentSingleActionIssue);
-            validIssueNumber = true;
         }
         catch (error) {
             (0, logger_1.logError)(`Issue ${currentSingleActionIssue} is not a number.`);
             (0, logger_1.logError)(error);
         }
         this.currentSingleAction = currentSingleAction;
-        this.enabledSingleAction = this.currentSingleAction.length > 0;
-        this.validSingleAction = this.currentSingleAction.length > 0 &&
-            this.currentSingleActionIssue > 0 &&
-            validIssueNumber &&
-            this.actions.indexOf(this.currentSingleAction) > -1;
     }
 }
 exports.SingleAction = SingleAction;
