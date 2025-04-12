@@ -3,15 +3,16 @@ from pydantic import BaseModel
 import threading
 import time
 import logging
+import os
 from instructor_emb import INSTRUCTOR
 
-# configure logs for the action
+# Configure logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# global variable to store the model state
+# Global model state
 model_state = {
     "status": "starting",  # starting, downloading, loading, warming_up, ready, error
     "progress": 0,
@@ -24,13 +25,14 @@ class VectorizeRequest(BaseModel):
     texts: list
     instructions: list
 
-# Background thread to load the model
+# Function to load the model
 def load_model():
     try:
         model_state["status"] = "downloading"
         model_state["message"] = "Downloading model..."
         logger.info(model_state["message"])
 
+        # Instance of the model
         model = INSTRUCTOR("hkunlp/instructor-xl")
 
         model_state["progress"] = 50
@@ -38,7 +40,7 @@ def load_model():
         model_state["message"] = "Warming up model..."
         logger.info(model_state["message"])
 
-        # Warm-up of the model
+        # Warm-up to make the model ready
         model.encode(["Warm-up input"], [["Instruction for warm-up"]])
 
         model_state["progress"] = 100
@@ -53,8 +55,10 @@ def load_model():
         model_state["message"] = f"Error loading model: {str(e)}"
         logger.error(model_state["message"])
 
-# Launch model loading in background
-threading.Thread(target=load_model, daemon=True).start()
+# Load the model in background when the app starts
+@app.on_event("startup")
+def startup_event():
+    threading.Thread(target=load_model, daemon=True).start()
 
 @app.get("/")
 async def root():
@@ -62,11 +66,19 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": model_state["status"], "message": model_state["message"], "progress": model_state["progress"]}
+    return {
+        "status": model_state["status"],
+        "message": model_state["message"],
+        "progress": model_state["progress"]
+    }
 
 @app.post("/vectorize")
 async def vectorize(req: VectorizeRequest):
     if model_state["status"] != "ready":
-        return {"error": "Model not ready", "status": model_state["status"], "message": model_state["message"]}
+        return {
+            "error": "Model not ready",
+            "status": model_state["status"],
+            "message": model_state["message"]
+        }
     embeddings = model_state["model"].encode(req.texts, req.instructions)
     return {"embeddings": embeddings.tolist()}
