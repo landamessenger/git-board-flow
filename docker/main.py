@@ -46,13 +46,12 @@ def load_model():
         logger.info(model_state["message"])
 
         try:
-            # Warm-up with a different approach
-            test_text = "This is a test sentence"
-            test_instruction = "Represent the following sentence for retrieval:"
+            test_text = ["This is a test sentence"]
+            test_instruction = ["Represent the following sentence for retrieval:"]
             logger.info("Starting warm-up encoding")
             embeddings = model.encode(
-                [test_text],
-                [test_instruction]
+                test_text,
+                test_instruction
             )
             logger.info(f"Warm-up successful. Embedding shape: {embeddings.shape}")
         except Exception as e:
