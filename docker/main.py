@@ -52,8 +52,7 @@ def load_model():
             logger.info("Starting warm-up encoding")
             embeddings = model.encode(
                 [test_text],
-                [test_instruction],
-                batch_size=1
+                [test_instruction]
             )
             logger.info(f"Warm-up successful. Embedding shape: {embeddings.shape}")
         except Exception as e:
