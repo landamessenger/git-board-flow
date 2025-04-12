@@ -97,24 +97,31 @@ export class DockerRepository {
 
         for (let i = 0; i < maxAttempts; i++) {
             try {
-                logDebugInfo(`Health check attempt ${i + 1}/${maxAttempts}`);
+                logDebugInfo(`Ready check attempt ${i + 1}/${maxAttempts}`);
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 10000);
                 
-                const response = await fetch('http://localhost:8000/health', {
+                const response = await fetch('http://localhost:8000/ready', {
                     signal: controller.signal
                 });
                 clearTimeout(timeout);
                 
                 if (response.ok) {
                     const data = await response.json();
-                    logDebugInfo(`Health check successful: ${JSON.stringify(data)}`);
-                    return;
+                    logDebugInfo(`Ready check response: ${JSON.stringify(data)}`);
+                    if (data.status === 'ready') {
+                        return;
+                    } else if (data.status === 'loading') {
+                        logDebugInfo('Model is still loading, waiting...');
+                    } else {
+                        logDebugError(`Model failed to load: ${data.message}`);
+                        throw new Error(`Model failed to load: ${data.message}`);
+                    }
                 } else {
-                    logDebugError(`Health check failed with status: ${response.status}`);
+                    logDebugError(`Ready check failed with status: ${response.status}`);
                 }
             } catch (error: any) {
-                logDebugError(`Health check error: ${error?.message || String(error)}`);
+                logDebugError(`Ready check error: ${error?.message || String(error)}`);
                 if (error?.code === 'ECONNREFUSED') {
                     logDebugInfo('Connection refused - container might still be starting up');
                 }
