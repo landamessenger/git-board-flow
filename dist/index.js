@@ -108127,24 +108127,33 @@ class DockerRepository {
             const delay = 5000;
             for (let i = 0; i < maxAttempts; i++) {
                 try {
-                    (0, logger_1.logDebugInfo)(`Health check attempt ${i + 1}/${maxAttempts}`);
+                    (0, logger_1.logDebugInfo)(`Ready check attempt ${i + 1}/${maxAttempts}`);
                     const controller = new AbortController();
                     const timeout = setTimeout(() => controller.abort(), 10000);
-                    const response = await fetch('http://localhost:8000/health', {
+                    const response = await fetch('http://localhost:8000/ready', {
                         signal: controller.signal
                     });
                     clearTimeout(timeout);
                     if (response.ok) {
                         const data = await response.json();
-                        (0, logger_1.logDebugInfo)(`Health check successful: ${JSON.stringify(data)}`);
-                        return;
+                        (0, logger_1.logDebugInfo)(`Ready check response: ${JSON.stringify(data)}`);
+                        if (data.status === 'ready') {
+                            return;
+                        }
+                        else if (data.status === 'loading') {
+                            (0, logger_1.logDebugInfo)('Model is still loading, waiting...');
+                        }
+                        else {
+                            (0, logger_1.logDebugError)(`Model failed to load: ${data.message}`);
+                            throw new Error(`Model failed to load: ${data.message}`);
+                        }
                     }
                     else {
-                        (0, logger_1.logDebugError)(`Health check failed with status: ${response.status}`);
+                        (0, logger_1.logDebugError)(`Ready check failed with status: ${response.status}`);
                     }
                 }
                 catch (error) {
-                    (0, logger_1.logDebugError)(`Health check error: ${error?.message || String(error)}`);
+                    (0, logger_1.logDebugError)(`Ready check error: ${error?.message || String(error)}`);
                     if (error?.code === 'ECONNREFUSED') {
                         (0, logger_1.logDebugInfo)('Connection refused - container might still be starting up');
                     }
