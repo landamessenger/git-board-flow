@@ -113793,8 +113793,14 @@ class VectorActionUseCase {
             (0, logger_1.logDebugInfo)('🐳 🟡 Starting Docker container...');
             await this.dockerRepository.startContainer();
             (0, logger_1.logDebugInfo)('🐳 🟢 Docker container is ready');
-            const embedding = await this.dockerRepository.getEmbedding("Represent the following text for semantic search", "Implement a new feature for user authentication");
-            (0, logger_1.logDebugInfo)(`Embedding: ${embedding}`);
+            /*
+            const embedding = await this.dockerRepository.getEmbedding(
+                "Represent the following text for semantic search",
+                "Implement a new feature for user authentication"
+            );
+
+            logDebugInfo(`Embedding: ${embedding}`);
+            */
             // For now, we'll just add a success message
             results.push(new result_1.Result({
                 id: this.taskId,
