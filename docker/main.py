@@ -51,8 +51,8 @@ def load_model():
             test_instruction = "Represent the following sentence for retrieval:"
             logger.info("Starting warm-up encoding")
             embeddings = model.encode(
-                sentences=[test_text],
-                instructions=[test_instruction],
+                [test_text],
+                [test_instruction],
                 batch_size=1
             )
             logger.info(f"Warm-up successful. Embedding shape: {embeddings.shape}")
