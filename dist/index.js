@@ -108123,23 +108123,36 @@ class DockerRepository {
             }
         };
         this.waitForContainer = async () => {
-            const maxAttempts = 100;
-            const delay = 3000; // 3 seconds
+            const maxAttempts = 200;
+            const delay = 5000;
             for (let i = 0; i < maxAttempts; i++) {
                 try {
-                    const response = await fetch('http://localhost:8000/health');
-                    (0, logger_1.logDebugInfo)(`Health check response: ${response}`);
+                    (0, logger_1.logDebugInfo)(`Health check attempt ${i + 1}/${maxAttempts}`);
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 10000);
+                    const response = await fetch('http://localhost:8000/health', {
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeout);
                     if (response.ok) {
+                        const data = await response.json();
+                        (0, logger_1.logDebugInfo)(`Health check successful: ${JSON.stringify(data)}`);
                         return;
+                    }
+                    else {
+                        (0, logger_1.logDebugError)(`Health check failed with status: ${response.status}`);
                     }
                 }
                 catch (error) {
-                    // Ignore connection errors
-                    (0, logger_1.logDebugError)(`Health check error: ${error}`);
+                    (0, logger_1.logDebugError)(`Health check error: ${error?.message || String(error)}`);
+                    if (error?.code === 'ECONNREFUSED') {
+                        (0, logger_1.logDebugInfo)('Connection refused - container might still be starting up');
+                    }
                 }
+                (0, logger_1.logDebugInfo)(`Waiting ${delay / 1000} seconds before next attempt...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
-            throw new Error('Container did not become ready in time');
+            throw new Error(`Container did not become ready after ${maxAttempts} attempts (${(maxAttempts * delay) / 1000} seconds)`);
         };
         this.stopContainer = async () => {
             if (!DockerRepository.containerId)
