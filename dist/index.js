@@ -110091,7 +110091,18 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
             try {
                 let number = -1;
                 if (execution.isSingleAction) {
-                    number = execution.singleAction.currentSingleActionIssue;
+                    if (execution.isIssue) {
+                        number = execution.issue.number;
+                    }
+                    else if (execution.isPullRequest) {
+                        number = execution.pullRequest.number;
+                    }
+                    else if (execution.isPush) {
+                        number = execution.issueNumber;
+                    }
+                    else {
+                        number = execution.singleAction.currentSingleActionIssue;
+                    }
                 }
                 else if (execution.isIssue) {
                     number = execution.issue.number;
@@ -110117,7 +110128,18 @@ class IssueContentInterface extends content_interface_1.ContentInterface {
             try {
                 let number = -1;
                 if (execution.isSingleAction) {
-                    number = execution.singleAction.currentSingleActionIssue;
+                    if (execution.isIssue) {
+                        number = execution.issue.number;
+                    }
+                    else if (execution.isPullRequest) {
+                        number = execution.pullRequest.number;
+                    }
+                    else if (execution.isPush) {
+                        number = execution.issueNumber;
+                    }
+                    else {
+                        number = execution.singleAction.currentSingleActionIssue;
+                    }
                 }
                 else if (execution.isIssue) {
                     number = execution.issue.number;
