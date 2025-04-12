@@ -4,7 +4,7 @@ import threading
 import time
 import logging
 import os
-from instructor_emb import INSTRUCTOR
+from InstructorEmbedding import INSTRUCTOR
 
 # Configure logs
 logging.basicConfig(level=logging.INFO)
