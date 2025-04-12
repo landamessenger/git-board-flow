@@ -41,7 +41,7 @@ def load_model():
         logger.info(model_state["message"])
 
         # Warm-up to make the model ready
-        model.encode(["Warm-up input"], [["Instruction for warm-up"]])
+        model.encode(["Warm-up input"], ["Represent the following sentence for retrieval:"])
 
         model_state["progress"] = 100
         model_state["status"] = "ready"
