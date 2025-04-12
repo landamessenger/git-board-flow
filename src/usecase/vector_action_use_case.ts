@@ -17,12 +17,14 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             await this.dockerRepository.startContainer();
             logDebugInfo('🐳 🟢 Docker container is ready');
 
+            /*
             const embedding = await this.dockerRepository.getEmbedding(
                 "Represent the following text for semantic search",
                 "Implement a new feature for user authentication"
             );
 
             logDebugInfo(`Embedding: ${embedding}`);
+            */
 
             // For now, we'll just add a success message
             results.push(
