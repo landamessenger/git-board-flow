@@ -2,6 +2,15 @@ import Docker from 'dockerode';
 import path from 'path';
 import { logDebugInfo, logError } from '../../utils/logger';
 
+interface EmbedRequest {
+    instruction: string;
+    text: string;
+}
+
+interface EmbedResponse {
+    vector: number[];
+}
+
 export class DockerRepository {
     private static instance: DockerRepository | null = null;
     private static containerId: string | null = null;
@@ -20,7 +29,7 @@ export class DockerRepository {
         return DockerRepository.instance;
     }
 
-    async startContainer(): Promise<void> {
+    startContainer = async (): Promise<void> => {
         if (DockerRepository.containerId) {
             const isRunning = await this.isContainerRunning();
             if (isRunning) {
@@ -67,7 +76,7 @@ export class DockerRepository {
         }
     }
 
-    private async waitForContainer(): Promise<void> {
+    private waitForContainer = async (): Promise<void> => {
         const maxAttempts = 10;
         const delay = 2000; // 2 seconds
 
@@ -86,7 +95,7 @@ export class DockerRepository {
         throw new Error('Container did not become ready in time');
     }
 
-    async stopContainer(): Promise<void> {
+    stopContainer = async (): Promise<void> => {
         if (!DockerRepository.containerId) return;
 
         try {
@@ -100,7 +109,7 @@ export class DockerRepository {
         }
     }
 
-    async isContainerRunning(): Promise<boolean> {
+    isContainerRunning = async (): Promise<boolean> => {
         if (!DockerRepository.containerId) return false;
 
         try {
@@ -111,4 +120,43 @@ export class DockerRepository {
             return false;
         }
     }
+
+    getEmbedding = async (instruction: string, text: string): Promise<number[]> => {
+        try {
+            const request: EmbedRequest = {
+                instruction,
+                text
+            };
+
+            const response = await fetch('http://localhost:8000/embed', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(request)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data: EmbedResponse = await response.json();
+            return data.vector;
+        } catch (error) {
+            logError('Error getting embedding: ' + error);
+            throw error;
+        }
+    }
+
+    // Example 1: Embedding for semantic search
+    // const vector1 = await getEmbedding(
+    //     "Represent the following text for semantic search",
+    //     "Implement a new feature for user authentication"
+    // );
+
+    // Example 2: Embedding for classification
+    // const vector2 = await getEmbedding(
+    //     "Classify the following text into a category",
+    //     "Fix the login button not working on mobile devices"
+    // );
 }

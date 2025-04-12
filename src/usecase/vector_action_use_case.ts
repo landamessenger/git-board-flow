@@ -17,11 +17,12 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             await this.dockerRepository.startContainer();
             logDebugInfo('🐳 🟢 Docker container is ready');
 
-            // Here should be the logic to interact with the container
-            // For example, making API calls to the FastAPI service
-            // const response = await fetch('http://localhost:8000/your-endpoint');
-            // const data = await response.json();
-            // results.push(data);
+            const embedding = await this.dockerRepository.getEmbedding(
+                "Represent the following text for semantic search",
+                "Implement a new feature for user authentication"
+            );
+
+            logDebugInfo(`Embedding: ${embedding}`);
 
             // For now, we'll just add a success message
             results.push(
@@ -50,7 +51,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         } finally {
             // Always stop the container when we're done
             try {
-                logDebugInfo('🐳 🟢 Stopping Docker container...');
+                logDebugInfo('🐳 🟠 Stopping Docker container...');
                 await this.dockerRepository.stopContainer();
                 logDebugInfo('🐳 ⚪ Docker container stopped');
             } catch (error) {
