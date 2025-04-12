@@ -233,12 +233,15 @@ export class Execution {
             if (this.isIssue) {
                 this.singleAction.isIssue = true;
                 this.issueNumber = this.issue.number;
+                this.singleAction.currentSingleActionIssue = this.issueNumber;
             } else if (this.isPullRequest) {
                 this.singleAction.isPullRequest = true;
                 this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
+                this.singleAction.currentSingleActionIssue = this.issueNumber;
             } else if (this.isPush) {
                 this.singleAction.isPush = true;
                 this.issueNumber = extractIssueNumberFromPush(this.commit.branch)
+                this.singleAction.currentSingleActionIssue = this.issueNumber;
             } else {
                 this.singleAction.isPullRequest = await issueRepository.isPullRequest(
                     this.owner,
