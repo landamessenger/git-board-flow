@@ -1,5 +1,6 @@
 import Docker from 'dockerode';
 import path from 'path';
+import { logDebugInfo, logError } from '../../utils/logger';
 
 export class DockerRepository {
     private static instance: DockerRepository | null = null;
@@ -23,7 +24,7 @@ export class DockerRepository {
         if (DockerRepository.containerId) {
             const isRunning = await this.isContainerRunning();
             if (isRunning) {
-                console.log('Container is already running');
+                logDebugInfo('Container is already running');
                 return;
             }
         }
@@ -61,7 +62,7 @@ export class DockerRepository {
             // Wait for the container to be ready
             await this.waitForContainer();
         } catch (error) {
-            console.error('Error starting container:', error);
+            logError('Error starting container: ' + error);
             throw error;
         }
     }
@@ -94,7 +95,7 @@ export class DockerRepository {
             await container.remove();
             DockerRepository.containerId = null;
         } catch (error) {
-            console.error('Error stopping container:', error);
+            logError('Error stopping container: ' + error);
             throw error;
         }
     }
