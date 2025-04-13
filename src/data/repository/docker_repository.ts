@@ -30,16 +30,18 @@ export class DockerRepository {
     }
 
     startContainer = async (): Promise<void> => {
+        logDebugInfo('🐳 🟡 Starting Docker container...');
+
         if (DockerRepository.containerId) {
             const isRunning = await this.isContainerRunning();
             if (isRunning) {
-                logDebugInfo('Container is already running');
+                logDebugInfo('🐳 🟢 Docker container is ready');
                 return;
             }
         }
 
         try {
-            logDebugInfo('Building Docker image...');
+            logDebugInfo('🐳 🟡 Building Docker image...');
             // Build the image
             const stream = await this.docker.buildImage({
                 context: this.dockerDir,
@@ -49,20 +51,20 @@ export class DockerRepository {
             await new Promise((resolve, reject) => {
                 this.docker.modem.followProgress(stream, (err: any, res: any) => {
                     if (err) {
-                        logError('Error building image: ' + err);
+                        logError('🐳 🔴 Error building image: ' + err);
                         reject(err);
                     } else {
-                        logDebugInfo('Docker image built successfully');
+                        logDebugInfo('🐳 🟢 Docker image built successfully');
                         resolve(res);
                     }
                 }, (event: any) => {
                     if (event.stream) {
-                        logDebugInfo(event.stream.trim());
+                        logDebugInfo(`🐳 🟡 ${event.stream.trim()}`);
                     }
                 });
             });
 
-            logDebugInfo('Creating container...');
+            logDebugInfo('🐳 🟡 Creating container...');
             // Create and start the container
             const container = await this.docker.createContainer({
                 Image: 'fastapi-app',
@@ -76,15 +78,15 @@ export class DockerRepository {
                 }
             });
 
-            logDebugInfo('Starting container...');
+            logDebugInfo('🐳 🟡 Starting container...');
             await container.start();
             DockerRepository.containerId = container.id;
-            logDebugInfo('Container started successfully');
+            logDebugInfo('🐳 🟡 Container started successfully');
 
             // Wait for the container to be ready
-            logDebugInfo('Waiting for container to be ready...');
+            logDebugInfo('🐳 🟡 Waiting for container to be ready...');
             await this.waitForContainer();
-            logDebugInfo('Container is ready');
+            logDebugInfo('🐳 🟢 Docker container is ready');
         } catch (error) {
             logError('Error starting container: ' + error);
             throw error;
@@ -108,34 +110,35 @@ export class DockerRepository {
                 
                 if (response.ok) {
                     const data = await response.json();
-                    logDebugInfo(`Health check response: ${JSON.stringify(data)}`);
+                    logDebugInfo(`🐳 🟡 Health check response: ${JSON.stringify(data)}`);
                     
                     if (data.status === 'ready') {
-                        logDebugInfo('Container is ready and model is loaded');
+                        logDebugInfo('🐳 🟢 Container is ready and model is loaded');
                         return;
                     } else if (data.status === 'error') {
-                        logDebugError(`Model failed to load: ${data.message}`);
+                        logDebugInfo(`🐳 🔴 Model failed to load: ${data.message}`);
                         throw new Error(`Model failed to load: ${data.message}`);
                     } else {
-                        logDebugInfo(`Model status: ${data.status}, Progress: ${data.progress}%, Message: ${data.message}`);
+                        logDebugInfo(`🐳 🟡 Model status: ${data.status}, Progress: ${data.progress}%, Message: ${data.message}`);
                     }
                 } else {
-                    logDebugError(`Health check failed with status: ${response.status}`);
+                    logDebugInfo(`🐳 🔴 Health check failed with status: ${response.status}`);
                 }
             } catch (error: any) {
-                logDebugError(`Health check error: ${error?.message || String(error)}`);
+                logDebugInfo(`🐳 🔴 Health check error: ${error?.message || String(error)}`);
                 if (error?.code === 'ECONNREFUSED') {
-                    logDebugInfo('Connection refused - container might still be starting up');
+                    logDebugInfo('🐳 🔴 Connection refused - container might still be starting up');
                 }
             }
-            logDebugInfo(`Waiting ${delay/1000} seconds before next attempt...`);
+            logDebugInfo(`🐳 🟡 Waiting ${delay/1000} seconds before next attempt...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-        throw new Error(`Container did not become ready after ${maxAttempts} attempts (${(maxAttempts * delay)/1000} seconds)`);
+        throw new Error(`🐳 🔴 Container did not become ready after ${maxAttempts} attempts (${(maxAttempts * delay)/1000} seconds)`);
     }
 
     stopContainer = async (): Promise<void> => {
+        logDebugInfo('🐳 🟠 Stopping Docker container...');
         if (!DockerRepository.containerId) return;
 
         try {
@@ -143,9 +146,9 @@ export class DockerRepository {
             await container.stop();
             await container.remove();
             DockerRepository.containerId = null;
+            logDebugInfo('🐳 ⚪ Docker container stopped');
         } catch (error) {
-            logError('Error stopping container: ' + error);
-            throw error;
+            logError('🐳 🔴 Error stopping container: ' + error);
         }
     }
 

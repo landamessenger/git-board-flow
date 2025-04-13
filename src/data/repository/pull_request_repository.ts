@@ -154,32 +154,4 @@ export class PullRequestRepository {
             return [];
         }
     };
-
-    getFileContent = async (
-        owner: string,
-        repository: string,
-        path: string,
-        token: string,
-        baseBranch: string
-    ): Promise<string> => {
-        const octokit = github.getOctokit(token);
-
-        try {
-            const { data } = await octokit.rest.repos.getContent({
-                owner,
-                repo: repository,
-                path,
-                ref: baseBranch
-            });
-
-            if ('content' in data) {
-                return Buffer.from(data.content, 'base64').toString();
-            }
-            return '';
-        } catch (error) {
-            logError(`Error getting file content: ${error}.`);
-            return '';
-        }
-    };
-
 }

@@ -8,25 +8,22 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
     private dockerRepository: DockerRepository = DockerRepository.getInstance();
 
+    private readonly CODE_INSTRUCTION = "Represent the code for semantic search";
+
     async invoke(param: Execution): Promise<Result[]> {
         const results: Result[] = [];
 
         try {
-            // Start the container and wait for it to be ready
-            logDebugInfo('🐳 🟡 Starting Docker container...');
             await this.dockerRepository.startContainer();
-            logDebugInfo('🐳 🟢 Docker container is ready');
 
-            /*
+
             const embedding = await this.dockerRepository.getEmbedding(
-                "Represent the following text for semantic search",
-                "Implement a new feature for user authentication"
+                this.CODE_INSTRUCTION,
+                "function sum(a, b) { return a + b; }"
             );
 
             logDebugInfo(`Embedding: ${embedding}`);
-            */
-
-            // For now, we'll just add a success message
+            
             results.push(
                 new Result({
                     id: this.taskId,
@@ -39,7 +36,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             );
 
         } catch (error) {
-            logError('🐳 🔴 Error in VectorActionUseCase: ' + error);
+            logError('Error in VectorActionUseCase: ' + error);
             results.push(
                 new Result({
                     id: this.taskId,
@@ -51,14 +48,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 })
             );
         } finally {
-            // Always stop the container when we're done
-            try {
-                logDebugInfo('🐳 🟠 Stopping Docker container...');
-                await this.dockerRepository.stopContainer();
-                logDebugInfo('🐳 ⚪ Docker container stopped');
-            } catch (error) {
-                logError('🐳 🔴 Error stopping container: ' + error);
-            }
+            await this.dockerRepository.stopContainer();
         }
 
         return results;

@@ -3,6 +3,7 @@ import { Ai } from "../../../data/model/ai";
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { AiRepository } from "../../../data/repository/ai_repository";
+import { FileRepository } from "../../../data/repository/file_repository";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
@@ -14,6 +15,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
     
     private aiRepository = new AiRepository();
     private pullRequestRepository = new PullRequestRepository();
+    private fileRepository = new FileRepository();
     private issueRepository = new IssueRepository();
     private projectRepository = new ProjectRepository();
 
@@ -224,7 +226,7 @@ ${changesDescription}
         }
 
         // Get the original file content
-        const originalContent = await this.pullRequestRepository.getFileContent(
+        const originalContent = await this.fileRepository.getFileContent(
             owner,
             repo,
             change.filename,
