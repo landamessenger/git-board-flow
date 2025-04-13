@@ -31,9 +31,7 @@ jobs:
         run: |
           brew install --cask docker
           brew install colima
-          colima start --cpu 4 --memory 16 --disk 100
-          brew services restart colima
-          sleep 10
+          brew services start colima
 
       - name: Set up DOCKER_HOST as output
         id: docker-env
