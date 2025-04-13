@@ -33,10 +33,15 @@ jobs:
           brew install colima
           colima start
 
+      - name: Set up DOCKER_HOST as output
+        id: docker-env
+        run: |
+          echo "docker_host=unix://${HOME}/.colima/default/docker.sock" >> $GITHUB_OUTPUT
+
       - name: Run Vector Action
         uses: ./
         env:
-          DOCKER_HOST: unix://${HOME}/.colima/default/docker.sock
+          DOCKER_HOST: ${{ steps.docker-env.outputs.docker_host }}
         with:
           single-action: vector_action
           debug: ${{ vars.DEBUG }}
