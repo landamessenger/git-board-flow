@@ -8,7 +8,7 @@ interface EmbedRequest {
 }
 
 interface EmbedResponse {
-    vector: number[];
+    embeddings: number[][];
 }
 
 export class DockerRepository {
@@ -164,7 +164,7 @@ export class DockerRepository {
         }
     }
 
-    getEmbedding = async (textInstructionsPairs: [string, string][]): Promise<number[]> => {
+    getEmbedding = async (textInstructionsPairs: [string, string][]): Promise<number[][]> => {
         try {
             const request: EmbedRequest = {
                 instructions: textInstructionsPairs.map(pair => pair[0]),
@@ -184,7 +184,8 @@ export class DockerRepository {
             }
 
             const data: EmbedResponse = await response.json();
-            return data.vector;
+            logDebugInfo(`🐳 🟡 Embedding: ${JSON.stringify(data)}`);
+            return data.embeddings;
         } catch (error) {
             logError('Error getting embedding: ' + error);
             throw error;

@@ -17,13 +17,13 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             await this.dockerRepository.startContainer();
 
 
-            const embedding = await this.dockerRepository.getEmbedding(
+            const embeddings = await this.dockerRepository.getEmbedding(
                 [
                     [this.CODE_INSTRUCTION, "function sum(a, b) { return a + b; }"]
                 ]
             );
 
-            logDebugInfo(`Embedding: ${embedding}`);
+            logDebugInfo(`Embedding: ${embeddings}`);
             
             results.push(
                 new Result({
