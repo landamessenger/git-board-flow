@@ -47,11 +47,16 @@ export class DockerRepository {
 
         try {
             logDebugInfo('🐳 🟡 Building Docker image...');
-            // Build the image
+            // Build the image with explicit tagging
             const stream = await this.docker.buildImage({
                 context: this.dockerDir,
                 src: ['Dockerfile', 'requirements.txt', 'main.py']
-            }, { t: 'fastapi-app' });
+            }, { 
+                t: 'fastapi-app:latest',
+                dockerfile: 'Dockerfile',
+                buildargs: {},
+                nocache: true
+            });
 
             const result = await new Promise((resolve, reject) => {
                 this.docker.modem.followProgress(stream, (err: any, res: any) => {
@@ -70,10 +75,30 @@ export class DockerRepository {
             });
 
             logDebugInfo('🐳 🟡 Image build result: ' + JSON.stringify(result, null, 2));
+
+            // Verify that the image exists and is properly tagged
+            try {
+                const images = await this.docker.listImages();
+                logDebugInfo('🐳 🟡 Images: ' + JSON.stringify(images, null, 2));
+                const fastapiImage = images.find(img => 
+                    img.RepoTags && img.RepoTags.includes('fastapi-app:latest')
+                );
+                
+                if (!fastapiImage) {
+                    logError('🐳 🔴 Image fastapi-app:latest not found after build');
+                    throw new Error('Image fastapi-app:latest not found after build');
+                }
+                
+                logDebugInfo('🐳 🟢 Image exists and is properly tagged');
+            } catch (error) {
+                logError('🐳 🔴 Error verifying image: ' + error);
+                throw error;
+            }
+
             logDebugInfo('🐳 🟡 Creating container...');
             // Create and start the container
             const container = await this.docker.createContainer({
-                Image: 'fastapi-app',
+                Image: 'fastapi-app:latest',
                 ExposedPorts: {
                     '8000/tcp': {}
                 },
