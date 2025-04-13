@@ -108209,7 +108209,8 @@ class DockerRepository {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                return data.vector;
+                (0, logger_1.logDebugInfo)(`🐳 🟡 Embedding: ${JSON.stringify(data)}`);
+                return data.embeddings;
             }
             catch (error) {
                 (0, logger_1.logError)('Error getting embedding: ' + error);
@@ -113887,10 +113888,10 @@ class VectorActionUseCase {
         const results = [];
         try {
             await this.dockerRepository.startContainer();
-            const embedding = await this.dockerRepository.getEmbedding([
+            const embeddings = await this.dockerRepository.getEmbedding([
                 [this.CODE_INSTRUCTION, "function sum(a, b) { return a + b; }"]
             ]);
-            (0, logger_1.logDebugInfo)(`Embedding: ${embedding}`);
+            (0, logger_1.logDebugInfo)(`Embedding: ${embeddings}`);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
