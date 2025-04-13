@@ -10,7 +10,7 @@ on:
 jobs:
   git-board-vector-action:
     name: Git Board - Vector Action
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
