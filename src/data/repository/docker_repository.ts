@@ -53,9 +53,6 @@ export class DockerRepository {
                 src: ['Dockerfile', 'requirements.txt', 'main.py'],
             }, { 
                 t: 'fastapi-app:latest',
-                cpusetcpus: 4,
-                memory: 16384,
-                memswap: 16384,
                 dockerfile: 'Dockerfile',
                 buildargs: {},
                 nocache: true
