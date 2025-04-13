@@ -50,9 +50,12 @@ export class DockerRepository {
             // Build the image with explicit tagging
             const stream = await this.docker.buildImage({
                 context: this.dockerDir,
-                src: ['Dockerfile', 'requirements.txt', 'main.py']
+                src: ['Dockerfile', 'requirements.txt', 'main.py'],
             }, { 
                 t: 'fastapi-app:latest',
+                cpusetcpus: 4,
+                memory: 16384,
+                memswap: 16384,
                 dockerfile: 'Dockerfile',
                 buildargs: {},
                 nocache: true
@@ -106,7 +109,8 @@ export class DockerRepository {
                     PortBindings: {
                         '8000/tcp': [{ HostPort: '8000' }]
                     }
-                }
+                },
+                name: 'fastapi-app'
             });
 
             logDebugInfo('🐳 🟡 Starting container...');

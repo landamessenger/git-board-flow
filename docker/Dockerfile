@@ -3,10 +3,14 @@ FROM python:3.11-slim
 # Opcional: define la ruta de cache huggingface
 ENV HF_HOME=/cache/huggingface
 
+# Configuración de memoria para PyTorch
+ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+ENV MAX_MEMORY=8g
+
 # Instala dependencias necesarias
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
- && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Crea directorios
 WORKDIR /app
