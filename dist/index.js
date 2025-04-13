@@ -108192,11 +108192,11 @@ class DockerRepository {
                 return false;
             }
         };
-        this.getEmbedding = async (instruction, text) => {
+        this.getEmbedding = async (textInstructionsPairs) => {
             try {
                 const request = {
-                    instruction,
-                    text
+                    instructions: textInstructionsPairs.map(pair => pair[0]),
+                    texts: textInstructionsPairs.map(pair => pair[1])
                 };
                 const response = await fetch('http://localhost:8000/embed', {
                     method: 'POST',
@@ -113887,7 +113887,9 @@ class VectorActionUseCase {
         const results = [];
         try {
             await this.dockerRepository.startContainer();
-            const embedding = await this.dockerRepository.getEmbedding(this.CODE_INSTRUCTION, "function sum(a, b) { return a + b; }");
+            const embedding = await this.dockerRepository.getEmbedding([
+                [this.CODE_INSTRUCTION, "function sum(a, b) { return a + b; }"]
+            ]);
             (0, logger_1.logDebugInfo)(`Embedding: ${embedding}`);
             results.push(new result_1.Result({
                 id: this.taskId,
