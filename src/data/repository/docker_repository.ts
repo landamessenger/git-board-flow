@@ -69,7 +69,7 @@ export class DockerRepository {
                 });
             });
 
-            logDebugInfo('🐳 🟡 Image build result: ' + result);
+            logDebugInfo('🐳 🟡 Image build result: ' + JSON.stringify(result, null, 2));
             logDebugInfo('🐳 🟡 Creating container...');
             // Create and start the container
             const container = await this.docker.createContainer({
