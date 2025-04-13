@@ -25,8 +25,17 @@ jobs:
 
       - name: Build Project
         run: npm run build
-        
-      - uses: ./
+
+      - name: Setup docker and docker-compose (missing on MacOS)
+        if: runner.os == 'macos'
+        run: |
+          brew install colima
+          colima start
+
+      - name: Run Vector Action
+        uses: ./
+        env:
+          DOCKER_HOST: unix://${HOME}/.colima/default/docker.sock
         with:
           single-action: vector_action
           debug: ${{ vars.DEBUG }}
