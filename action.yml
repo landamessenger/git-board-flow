@@ -314,6 +314,9 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
+  firebase-config:
+    description: "Firebase configuration (JSON string)."
+    default: ""
   openrouter-api-key:
     description: "OpenRouter API key for AI operations."
     default: ""

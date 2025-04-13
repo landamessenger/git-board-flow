@@ -29,6 +29,7 @@ import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Workflows } from "./workflows";
 import { Locale } from "./locale";
+import { FirebaseConfig } from "./firebase_config";
  
 export class Execution {
     debug: boolean = false;
@@ -61,6 +62,7 @@ export class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
+    firebaseConfig: FirebaseConfig | undefined;
 
     get eventName(): string {
         return github.context.eventName;
@@ -187,6 +189,7 @@ export class Execution {
         hotfix: Hotfix,
         workflows: Workflows,
         project: Projects,
+        firebaseConfig: FirebaseConfig | undefined
     ) {
         this.debug = debug;
         this.singleAction = singleAction;
@@ -207,6 +210,7 @@ export class Execution {
         this.project = project;
         this.workflows = workflows;
         this.currentConfiguration = new Config({});
+        this.firebaseConfig = firebaseConfig;
     }
 
     setup = async () => {

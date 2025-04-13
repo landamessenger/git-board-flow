@@ -1,5 +1,6 @@
 import * as github from "@actions/github";
 import { logError } from "../../utils/logger";
+import { ChunkedFile } from "../model/chunked_file";
 
 export class FileRepository {
     getFileContent = async (
@@ -65,5 +66,43 @@ export class FileRepository {
             logError(`Error getting repository content: ${error}.`);
             return new Map();
         }
+    }
+
+    getChunkedRepositoryContent = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        chunkSize: number,
+        token: string,
+    ): Promise<ChunkedFile[]> => {
+        const fileContents = await this.getRepositoryContent(owner, repository, token, branch);
+        const chunkedFiles: ChunkedFile[] = [];
+
+        for (const [path, content] of fileContents.entries()) {
+            const lines = content.split('\n');
+            const chunks: string[][] = [];
+            let currentChunk: string[] = [];
+
+            for (const line of lines) {
+                currentChunk.push(line);
+                if (currentChunk.length >= chunkSize) {
+                    chunks.push([...currentChunk]);
+                    currentChunk = [];
+                }
+            }
+
+            // Add the last chunk if it's not empty
+            if (currentChunk.length > 0) {
+                chunks.push(currentChunk);
+            }
+
+            // Create ChunkedFile objects for each chunk
+            chunks.forEach((chunkLines, index) => {
+                const chunkContent = chunkLines.join('\n');
+                chunkedFiles.push(new ChunkedFile(`${path}-${index}`, path, index, chunkContent, chunkLines));
+            });
+        }
+
+        return chunkedFiles;    
     }
 } 

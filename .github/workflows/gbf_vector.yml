@@ -19,6 +19,7 @@ jobs:
         with:
           single-action: vector_action
           debug: ${{ vars.DEBUG }}
+          firebase-config: ${{ secrets.FIREBASE_CONFIG }}
           project-ids: 2
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}

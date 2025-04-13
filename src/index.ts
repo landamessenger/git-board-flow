@@ -29,6 +29,7 @@ import { SingleActionUseCase } from "./usecase/single_action_use_case";
 import { PublishResultUseCase } from "./usecase/steps/common/publish_resume_use_case";
 import { StoreConfigurationUseCase } from "./usecase/steps/common/store_configuration_use_case";
 import { logInfo } from './utils/logger';
+import { FirebaseConfig } from './data/model/firebase_config';
 
 const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -625,6 +626,12 @@ async function run(): Promise<void> {
     const pullRequestDesiredReviewersCount = parseInt(core.getInput('desired-reviewers-count')) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput('merge-timeout')) ?? 0;
 
+    /**
+     * Firestore
+     */
+    const firebaseConfigInput = core.getInput('firebase-config');
+    const firebaseConfig = firebaseConfigInput.length > 0 ? JSON.parse(firebaseConfigInput) as FirebaseConfig : undefined;
+
     const execution = new Execution(
         debug,
         new SingleAction(
@@ -775,6 +782,7 @@ async function run(): Promise<void> {
             projectColumnIssueInProgress,
             projectColumnPullRequestInProgress,
         ),
+        firebaseConfig,
     )
 
     await execution.setup();
