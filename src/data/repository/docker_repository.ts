@@ -216,7 +216,7 @@ export class DockerRepository {
             }
 
             const data: EmbedResponse = await response.json();
-            logDebugInfo(`🐳 🟡 Embedding: ${JSON.stringify(data)}`);
+            // logDebugInfo(`🐳 🟡 Embedding: ${JSON.stringify(data)}`);
             return data.embeddings;
         } catch (error) {
             logError('Error getting embedding: ' + error);

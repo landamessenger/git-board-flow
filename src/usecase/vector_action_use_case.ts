@@ -31,6 +31,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             await this.dockerRepository.startContainer();
 
+            logDebugInfo(`Getting chunked files for ${param.repo} ${param.commit.branch}`);
+
             const chunkedFiles = await this.fileRepository.getChunkedRepositoryContent(
                 param.owner,
                 param.repo,
@@ -39,9 +41,24 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 param.tokens.token
             );
             
+            logDebugInfo(`Chunked files: ${chunkedFiles.length}`);
 
             const processedChunkedFiles: ChunkedFile[] = [];
-            for (const chunkedFile of chunkedFiles) {
+            const totalFiles = chunkedFiles.length;
+            const startTime = Date.now();
+            
+            for (let i = 0; i < chunkedFiles.length; i++) {
+                const chunkedFile = chunkedFiles[i];
+                const currentTime = Date.now();
+                const elapsedTime = (currentTime - startTime) / 1000; // in seconds
+                const progress = ((i + 1) / totalFiles) * 100;
+                
+                // Calculate estimated time remaining
+                const estimatedTotalTime = (elapsedTime / (i + 1)) * totalFiles;
+                const remainingTime = estimatedTotalTime - elapsedTime;
+                
+                logDebugInfo(`Processing file ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds`);
+                
                 const embeddings = await this.dockerRepository.getEmbedding(
                     chunkedFile.chunks.map(chunk => [this.CODE_INSTRUCTION, chunk])
                 );
