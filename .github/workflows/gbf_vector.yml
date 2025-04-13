@@ -29,6 +29,7 @@ jobs:
       - name: Setup docker and docker-compose (missing on MacOS)
         if: runner.os == 'macos'
         run: |
+          brew install docker
           brew install colima
           colima start
 
