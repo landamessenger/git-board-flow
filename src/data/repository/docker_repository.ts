@@ -18,7 +18,12 @@ export class DockerRepository {
     private readonly dockerDir: string;
 
     private constructor() {
-        this.docker = new Docker();
+        // const dockerHost = process.env.DOCKER_HOST;
+        // if (dockerHost) {
+           // this.docker = new Docker({ socketPath: dockerHost.replace('unix://', '') });
+        // } else {
+            this.docker = new Docker();
+        // }
         this.dockerDir = path.join(process.cwd(), 'docker');
     }
 
@@ -48,7 +53,7 @@ export class DockerRepository {
                 src: ['Dockerfile', 'requirements.txt', 'main.py']
             }, { t: 'fastapi-app' });
 
-            await new Promise((resolve, reject) => {
+            const result = await new Promise((resolve, reject) => {
                 this.docker.modem.followProgress(stream, (err: any, res: any) => {
                     if (err) {
                         logError('🐳 🔴 Error building image: ' + err);
@@ -64,6 +69,7 @@ export class DockerRepository {
                 });
             });
 
+            logDebugInfo('🐳 🟡 Image build result: ' + result);
             logDebugInfo('🐳 🟡 Creating container...');
             // Create and start the container
             const container = await this.docker.createContainer({
