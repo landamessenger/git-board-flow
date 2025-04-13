@@ -108065,15 +108065,16 @@ const logger_1 = __nccwpck_require__(8836);
 class DockerRepository {
     constructor() {
         this.startContainer = async () => {
+            (0, logger_1.logDebugInfo)('🐳 🟡 Starting Docker container...');
             if (DockerRepository.containerId) {
                 const isRunning = await this.isContainerRunning();
                 if (isRunning) {
-                    (0, logger_1.logDebugInfo)('Container is already running');
+                    (0, logger_1.logDebugInfo)('🐳 🟢 Docker container is ready');
                     return;
                 }
             }
             try {
-                (0, logger_1.logDebugInfo)('Building Docker image...');
+                (0, logger_1.logDebugInfo)('🐳 🟡 Building Docker image...');
                 // Build the image
                 const stream = await this.docker.buildImage({
                     context: this.dockerDir,
@@ -108082,20 +108083,20 @@ class DockerRepository {
                 await new Promise((resolve, reject) => {
                     this.docker.modem.followProgress(stream, (err, res) => {
                         if (err) {
-                            (0, logger_1.logError)('Error building image: ' + err);
+                            (0, logger_1.logError)('🐳 🔴 Error building image: ' + err);
                             reject(err);
                         }
                         else {
-                            (0, logger_1.logDebugInfo)('Docker image built successfully');
+                            (0, logger_1.logDebugInfo)('🐳 🟢 Docker image built successfully');
                             resolve(res);
                         }
                     }, (event) => {
                         if (event.stream) {
-                            (0, logger_1.logDebugInfo)(event.stream.trim());
+                            (0, logger_1.logDebugInfo)(`🐳 🟡 ${event.stream.trim()}`);
                         }
                     });
                 });
-                (0, logger_1.logDebugInfo)('Creating container...');
+                (0, logger_1.logDebugInfo)('🐳 🟡 Creating container...');
                 // Create and start the container
                 const container = await this.docker.createContainer({
                     Image: 'fastapi-app',
@@ -108108,14 +108109,14 @@ class DockerRepository {
                         }
                     }
                 });
-                (0, logger_1.logDebugInfo)('Starting container...');
+                (0, logger_1.logDebugInfo)('🐳 🟡 Starting container...');
                 await container.start();
                 DockerRepository.containerId = container.id;
-                (0, logger_1.logDebugInfo)('Container started successfully');
+                (0, logger_1.logDebugInfo)('🐳 🟡 Container started successfully');
                 // Wait for the container to be ready
-                (0, logger_1.logDebugInfo)('Waiting for container to be ready...');
+                (0, logger_1.logDebugInfo)('🐳 🟡 Waiting for container to be ready...');
                 await this.waitForContainer();
-                (0, logger_1.logDebugInfo)('Container is ready');
+                (0, logger_1.logDebugInfo)('🐳 🟢 Docker container is ready');
             }
             catch (error) {
                 (0, logger_1.logError)('Error starting container: ' + error);
@@ -108136,35 +108137,36 @@ class DockerRepository {
                     clearTimeout(timeout);
                     if (response.ok) {
                         const data = await response.json();
-                        (0, logger_1.logDebugInfo)(`Health check response: ${JSON.stringify(data)}`);
+                        (0, logger_1.logDebugInfo)(`🐳 🟡 Health check response: ${JSON.stringify(data)}`);
                         if (data.status === 'ready') {
-                            (0, logger_1.logDebugInfo)('Container is ready and model is loaded');
+                            (0, logger_1.logDebugInfo)('🐳 🟢 Container is ready and model is loaded');
                             return;
                         }
                         else if (data.status === 'error') {
-                            (0, logger_1.logDebugError)(`Model failed to load: ${data.message}`);
+                            (0, logger_1.logDebugInfo)(`🐳 🔴 Model failed to load: ${data.message}`);
                             throw new Error(`Model failed to load: ${data.message}`);
                         }
                         else {
-                            (0, logger_1.logDebugInfo)(`Model status: ${data.status}, Progress: ${data.progress}%, Message: ${data.message}`);
+                            (0, logger_1.logDebugInfo)(`🐳 🟡 Model status: ${data.status}, Progress: ${data.progress}%, Message: ${data.message}`);
                         }
                     }
                     else {
-                        (0, logger_1.logDebugError)(`Health check failed with status: ${response.status}`);
+                        (0, logger_1.logDebugInfo)(`🐳 🔴 Health check failed with status: ${response.status}`);
                     }
                 }
                 catch (error) {
-                    (0, logger_1.logDebugError)(`Health check error: ${error?.message || String(error)}`);
+                    (0, logger_1.logDebugInfo)(`🐳 🔴 Health check error: ${error?.message || String(error)}`);
                     if (error?.code === 'ECONNREFUSED') {
-                        (0, logger_1.logDebugInfo)('Connection refused - container might still be starting up');
+                        (0, logger_1.logDebugInfo)('🐳 🔴 Connection refused - container might still be starting up');
                     }
                 }
-                (0, logger_1.logDebugInfo)(`Waiting ${delay / 1000} seconds before next attempt...`);
+                (0, logger_1.logDebugInfo)(`🐳 🟡 Waiting ${delay / 1000} seconds before next attempt...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
-            throw new Error(`Container did not become ready after ${maxAttempts} attempts (${(maxAttempts * delay) / 1000} seconds)`);
+            throw new Error(`🐳 🔴 Container did not become ready after ${maxAttempts} attempts (${(maxAttempts * delay) / 1000} seconds)`);
         };
         this.stopContainer = async () => {
+            (0, logger_1.logDebugInfo)('🐳 🟠 Stopping Docker container...');
             if (!DockerRepository.containerId)
                 return;
             try {
@@ -108172,10 +108174,10 @@ class DockerRepository {
                 await container.stop();
                 await container.remove();
                 DockerRepository.containerId = null;
+                (0, logger_1.logDebugInfo)('🐳 ⚪ Docker container stopped');
             }
             catch (error) {
-                (0, logger_1.logError)('Error stopping container: ' + error);
-                throw error;
+                (0, logger_1.logError)('🐳 🔴 Error stopping container: ' + error);
             }
         };
         this.isContainerRunning = async () => {
@@ -108227,6 +108229,107 @@ class DockerRepository {
 exports.DockerRepository = DockerRepository;
 DockerRepository.instance = null;
 DockerRepository.containerId = null;
+
+
+/***/ }),
+
+/***/ 1503:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FileRepository = void 0;
+const github = __importStar(__nccwpck_require__(5438));
+const logger_1 = __nccwpck_require__(8836);
+class FileRepository {
+    constructor() {
+        this.getFileContent = async (owner, repository, path, token, branch) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.repos.getContent({
+                    owner,
+                    repo: repository,
+                    path,
+                    ref: branch
+                });
+                if ('content' in data) {
+                    return Buffer.from(data.content, 'base64').toString();
+                }
+                return '';
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting file content: ${error}.`);
+                return '';
+            }
+        };
+        this.getRepositoryContent = async (owner, repository, token, branch) => {
+            const octokit = github.getOctokit(token);
+            const fileContents = new Map();
+            try {
+                const getContentRecursively = async (path = '') => {
+                    const { data } = await octokit.rest.repos.getContent({
+                        owner,
+                        repo: repository,
+                        path,
+                        ref: branch
+                    });
+                    if (Array.isArray(data)) {
+                        for (const item of data) {
+                            if (item.type === 'file') {
+                                const content = await this.getFileContent(owner, repository, item.path, token, branch);
+                                fileContents.set(item.path, content);
+                            }
+                            else if (item.type === 'dir') {
+                                await getContentRecursively(item.path);
+                            }
+                        }
+                    }
+                };
+                await getContentRecursively();
+                return fileContents;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting repository content: ${error}.`);
+                return new Map();
+            }
+        };
+    }
+}
+exports.FileRepository = FileRepository;
 
 
 /***/ }),
@@ -109382,25 +109485,6 @@ class PullRequestRepository {
             catch (error) {
                 (0, logger_1.logError)(`Error getting pull request changes: ${error}.`);
                 return [];
-            }
-        };
-        this.getFileContent = async (owner, repository, path, token, baseBranch) => {
-            const octokit = github.getOctokit(token);
-            try {
-                const { data } = await octokit.rest.repos.getContent({
-                    owner,
-                    repo: repository,
-                    path,
-                    ref: baseBranch
-                });
-                if ('content' in data) {
-                    return Buffer.from(data.content, 'base64').toString();
-                }
-                return '';
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error getting file content: ${error}.`);
-                return '';
             }
         };
     }
@@ -113450,6 +113534,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.UpdatePullRequestDescriptionUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
+const file_repository_1 = __nccwpck_require__(1503);
 const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const pull_request_repository_1 = __nccwpck_require__(634);
@@ -113459,6 +113544,7 @@ class UpdatePullRequestDescriptionUseCase {
         this.taskId = 'UpdatePullRequestDescriptionUseCase';
         this.aiRepository = new ai_repository_1.AiRepository();
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.fileRepository = new file_repository_1.FileRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
@@ -113601,7 +113687,7 @@ ${changesDescription}
             return [];
         }
         // Get the original file content
-        const originalContent = await this.pullRequestRepository.getFileContent(owner, repo, change.filename, token, baseBranch);
+        const originalContent = await this.fileRepository.getFileContent(owner, repo, change.filename, token, baseBranch);
         const filePrompt = `Analyze the following code changes and provide a summary in JSON format.
 
 ### **Guidelines**:
@@ -113795,23 +113881,14 @@ class VectorActionUseCase {
     constructor() {
         this.taskId = 'VectorActionUseCase';
         this.dockerRepository = docker_repository_1.DockerRepository.getInstance();
+        this.CODE_INSTRUCTION = "Represent the code for semantic search";
     }
     async invoke(param) {
         const results = [];
         try {
-            // Start the container and wait for it to be ready
-            (0, logger_1.logDebugInfo)('🐳 🟡 Starting Docker container...');
             await this.dockerRepository.startContainer();
-            (0, logger_1.logDebugInfo)('🐳 🟢 Docker container is ready');
-            /*
-            const embedding = await this.dockerRepository.getEmbedding(
-                "Represent the following text for semantic search",
-                "Implement a new feature for user authentication"
-            );
-
-            logDebugInfo(`Embedding: ${embedding}`);
-            */
-            // For now, we'll just add a success message
+            const embedding = await this.dockerRepository.getEmbedding(this.CODE_INSTRUCTION, "function sum(a, b) { return a + b; }");
+            (0, logger_1.logDebugInfo)(`Embedding: ${embedding}`);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -113822,7 +113899,7 @@ class VectorActionUseCase {
             }));
         }
         catch (error) {
-            (0, logger_1.logError)('🐳 🔴 Error in VectorActionUseCase: ' + error);
+            (0, logger_1.logError)('Error in VectorActionUseCase: ' + error);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -113833,15 +113910,7 @@ class VectorActionUseCase {
             }));
         }
         finally {
-            // Always stop the container when we're done
-            try {
-                (0, logger_1.logDebugInfo)('🐳 🟠 Stopping Docker container...');
-                await this.dockerRepository.stopContainer();
-                (0, logger_1.logDebugInfo)('🐳 ⚪ Docker container stopped');
-            }
-            catch (error) {
-                (0, logger_1.logError)('🐳 🔴 Error stopping container: ' + error);
-            }
+            await this.dockerRepository.stopContainer();
         }
         return results;
     }
