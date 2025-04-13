@@ -5,7 +5,7 @@ ENV HF_HOME=/cache/huggingface
 
 # Configuración de memoria para PyTorch
 ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
-ENV MAX_MEMORY=8g
+ENV MAX_MEMORY=16384
 
 # Instala dependencias necesarias
 RUN apt-get update && apt-get install -y --no-install-recommends \
