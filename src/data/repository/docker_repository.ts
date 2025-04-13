@@ -3,8 +3,8 @@ import path from 'path';
 import { logDebugError, logDebugInfo, logError } from '../../utils/logger';
 
 interface EmbedRequest {
-    instruction: string;
-    text: string;
+    instructions: string[];
+    texts: string[];
 }
 
 interface EmbedResponse {
@@ -164,11 +164,11 @@ export class DockerRepository {
         }
     }
 
-    getEmbedding = async (instruction: string, text: string): Promise<number[]> => {
+    getEmbedding = async (textInstructionsPairs: [string, string][]): Promise<number[]> => {
         try {
             const request: EmbedRequest = {
-                instruction,
-                text
+                instructions: textInstructionsPairs.map(pair => pair[0]),
+                texts: textInstructionsPairs.map(pair => pair[1])
             };
 
             const response = await fetch('http://localhost:8000/embed', {

@@ -18,8 +18,9 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
 
             const embedding = await this.dockerRepository.getEmbedding(
-                this.CODE_INSTRUCTION,
-                "function sum(a, b) { return a + b; }"
+                [
+                    [this.CODE_INSTRUCTION, "function sum(a, b) { return a + b; }"]
+                ]
             );
 
             logDebugInfo(`Embedding: ${embedding}`);

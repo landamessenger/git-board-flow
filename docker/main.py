@@ -22,8 +22,8 @@ model_state = {
 
 # Input of the endpoint
 class VectorizeRequest(BaseModel):
-    texts: list
-    instructions: list
+    instructions: list[str]
+    texts: list[str]
 
 # Function to load the model
 def load_model():
@@ -51,7 +51,7 @@ def load_model():
             logger.info("Starting warm-up encoding")
             embeddings = model.encode(
                 [
-                    [test_text, test_instruction]
+                    [test_instruction, test_text]
                 ]
             )
             logger.info(f"Warm-up successful. Embedding shape: {embeddings.shape}")
@@ -96,7 +96,8 @@ async def vectorize(req: VectorizeRequest):
             "status": model_state["status"],
             "message": model_state["message"]
         }
-    embeddings = model_state["model"].encode([
-        [req.texts, req.instructions]
-    ])
+    
+    # Pair each text with its corresponding instruction
+    pairs = [[instruction, text] for text, instruction in zip(req.instructions, req.texts)]
+    embeddings = model_state["model"].encode(pairs)
     return {"embeddings": embeddings.tolist()}
