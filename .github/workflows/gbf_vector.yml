@@ -15,11 +15,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            npm install
+      - name: Install dependencies
+        run: npm install
 
       - uses: ./
         with:
