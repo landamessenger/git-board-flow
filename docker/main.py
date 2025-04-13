@@ -88,7 +88,7 @@ async def health_check():
         "progress": model_state["progress"]
     }
 
-@app.post("/vectorize")
+@app.post("/embed")
 async def vectorize(req: VectorizeRequest):
     if model_state["status"] != "ready":
         return {
