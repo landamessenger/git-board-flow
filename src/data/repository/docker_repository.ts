@@ -224,15 +224,8 @@ export class DockerRepository {
         }
     }
 
-    // Example 1: Embedding for semantic search
-    // const vector1 = await getEmbedding(
-    //     "Represent the following text for semantic search",
-    //     "Implement a new feature for user authentication"
-    // );
-
-    // Example 2: Embedding for classification
-    // const vector2 = await getEmbedding(
-    //     "Classify the following text into a category",
-    //     "Fix the login button not working on mobile devices"
-    // );
+    getSystemInfo = async (): Promise<any> => {
+        const response = await fetch('http://localhost:8000/system-info');
+        return await response.json();
+    }
 }

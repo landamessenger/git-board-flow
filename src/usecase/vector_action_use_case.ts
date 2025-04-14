@@ -31,13 +31,18 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             await this.dockerRepository.startContainer();
 
+            const systemInfo = await this.dockerRepository.getSystemInfo();
+            logDebugInfo(`System info: ${JSON.stringify(systemInfo, null, 2)}`);
+            const chunkSize = systemInfo.parameters.chunk_size as number;
+            const maxWorkers = systemInfo.parameters.max_workers as number;
+
             logDebugInfo(`Getting chunked files for ${param.repo} ${param.commit.branch}`);
 
             const chunkedFiles = await this.fileRepository.getChunkedRepositoryContent(
                 param.owner,
                 param.repo,
                 param.commit.branch,
-                32,
+                chunkSize,
                 param.tokens.token
             );
             
@@ -59,20 +64,30 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 
                 logDebugInfo(`Processing file ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds`);
                 
+                const remoteChunkedFiles = await firestoreRepository.getChunkedFiles(
+                    param.repo,
+                    param.commit.branch,
+                    chunkedFile.shasum
+                );
+
+                if (remoteChunkedFiles.length > 0 && remoteChunkedFiles[0].vector.length > 0) {
+                    processedChunkedFiles.push(chunkedFile);
+                    continue;
+                }
+
                 const embeddings = await this.dockerRepository.getEmbedding(
                     chunkedFile.chunks.map(chunk => [this.CODE_INSTRUCTION, chunk])
                 );
                 chunkedFile.vector = embeddings;
+
+                await firestoreRepository.setChunkedFile(
+                    param.repo,
+                    param.commit.branch,
+                    chunkedFile
+                );
+
                 processedChunkedFiles.push(chunkedFile);
             }
-
-            logDebugInfo(`Setting all chunked files to firestore for ${param.repo} ${param.commit.branch}`);
-
-            await firestoreRepository.setAllChunkedFiles(
-                param.repo,
-                param.commit.branch,
-                processedChunkedFiles
-            );
 
             logDebugInfo(`All chunked files set to firestore for ${param.repo} ${param.commit.branch}`);
             

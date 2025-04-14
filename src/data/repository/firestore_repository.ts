@@ -1,5 +1,5 @@
 import { getApps, initializeApp } from 'firebase/app';
-import { Firestore, FirestoreError, collection, doc, getFirestore, writeBatch } from 'firebase/firestore';
+import { Firestore, FirestoreError, collection, doc, getDocs, getFirestore, query, setDoc, where, writeBatch } from 'firebase/firestore';
 import { ChunkedFile } from '../model/chunked_file';
 
 export class FirestoreRepository {
@@ -54,5 +54,26 @@ export class FirestoreRepository {
                 parallelBatches.map(batch => this.processBatch(project, finalBranch, batch))
             );
         }
+    }
+
+    setChunkedFile = async (project: string, branch: string, document: ChunkedFile): Promise<void> => {
+        const finalBranch = branch.replace(/\//g, '-')
+        const proyectCollection = collection(this.getFirestore(), project);
+        const branchDocument = doc(proyectCollection, finalBranch);
+        const filesCollection = collection(branchDocument, this.CHUNKS_COLLECTION);
+        const chunkDocument = doc(filesCollection, document.id);
+        await setDoc(chunkDocument, document);
+    }
+
+    getChunkedFiles = async (project: string, branch: string, shasum: string): Promise<ChunkedFile[]> => {
+        const finalBranch = branch.replace(/\//g, '-')
+        const proyectCollection = collection(this.getFirestore(), project);
+        const branchDocument = doc(proyectCollection, finalBranch);
+        const filesCollection = collection(branchDocument, this.CHUNKS_COLLECTION);
+
+        const shaQuery = query(filesCollection, where('shasum', '==', shasum));
+        const snapshot = await getDocs(shaQuery);
+        const documents = snapshot.docs.map(doc => doc.data() as ChunkedFile);
+        return documents;
     }
 }
