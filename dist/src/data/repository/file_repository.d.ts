@@ -9,4 +9,5 @@ export declare class FileRepository {
     private shouldIgnoreFile;
     private extractCodeBlocks;
     private shouldIgnoreLine;
+    private shuffleArray;
 }

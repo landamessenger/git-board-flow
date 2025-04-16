@@ -97,7 +97,7 @@ class FileRepository {
                 chunkedFiles.push(...this.getChunksByLines(path, content, chunkSize));
                 chunkedFiles.push(...this.getChunksByBlocks(path, content, chunkSize));
             }
-            return chunkedFiles;
+            return this.shuffleArray(chunkedFiles);
         };
         this.getChunksByLines = (path, content, chunkSize) => {
             const chunkedFiles = [];
@@ -242,6 +242,9 @@ class FileRepository {
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
+    }
+    shuffleArray(array) {
+        return [...array].sort(() => Math.random() - 0.5);
     }
 }
 exports.FileRepository = FileRepository;

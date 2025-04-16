@@ -49,18 +49,21 @@ class VectorActionUseCase {
                 // Calculate estimated time remaining
                 const estimatedTotalTime = (elapsedTime / (i + 1)) * totalFiles;
                 const remainingTime = estimatedTotalTime - elapsedTime;
-                (0, logger_1.logDebugInfo)(`Processing file ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds`);
+                (0, logger_1.logSingleLine)(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${chunkedFile.path}]`);
                 const remoteChunkedFile = await supabaseRepository.getChunkedFile(param.owner, param.repo, param.commit.branch, chunkedFile.shasum);
                 if (remoteChunkedFile && remoteChunkedFile.vector.length > 0) {
                     processedChunkedFiles.push(chunkedFile);
                     continue;
                 }
+                (0, logger_1.logSingleLine)(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
                 const embeddings = await this.dockerRepository.getEmbedding(param, chunkedFile.chunks.map(chunk => [this.CODE_INSTRUCTION, chunk]));
                 chunkedFile.vector = embeddings;
+                (0, logger_1.logSingleLine)(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
                 await supabaseRepository.setChunkedFile(param.owner, param.repo, param.commit.branch, chunkedFile);
                 processedChunkedFiles.push(chunkedFile);
             }
-            (0, logger_1.logDebugInfo)(`All chunked files set to firestore for ${param.repo} ${param.commit.branch}`);
+            const totalDurationSeconds = (Date.now() - startTime) / 1000;
+            (0, logger_1.logDebugInfo)(`All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
