@@ -11,7 +11,8 @@ class VectorActionUseCase {
         this.taskId = 'VectorActionUseCase';
         this.dockerRepository = new docker_repository_1.DockerRepository();
         this.fileRepository = new file_repository_1.FileRepository();
-        this.CODE_INSTRUCTION = "Represent the code for semantic search";
+        this.CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
+        this.CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
     }
     async invoke(param) {
         const results = [];
@@ -30,14 +31,15 @@ class VectorActionUseCase {
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
             await this.dockerRepository.startContainer(param);
             const systemInfo = await this.dockerRepository.getSystemInfo(param);
-            (0, logger_1.logDebugInfo)(`System info: ${JSON.stringify(systemInfo, null, 2)}`);
             const chunkSize = systemInfo.parameters.chunk_size;
             const maxWorkers = systemInfo.parameters.max_workers;
-            (0, logger_1.logDebugInfo)(`Getting chunked files for ${param.repo} ${param.commit.branch}`);
+            (0, logger_1.logInfo)(`🧑‍🏭 Max workers: ${maxWorkers}`);
+            (0, logger_1.logInfo)(`🚚 Chunk size: ${chunkSize}`);
+            (0, logger_1.logInfo)(`📦 Getting chunked files for ${param.owner}/${param.repo}/${param.commit.branch}`);
             const chunkedFiles = await this.fileRepository.getChunkedRepositoryContent(param.owner, param.repo, param.commit.branch, chunkSize, param.tokens.token, param.ai.getAiIgnoreFiles(), (fileName) => {
                 (0, logger_1.logSingleLine)(`Checking file ${fileName}`);
             });
-            (0, logger_1.logDebugInfo)(`Chunked files: ${chunkedFiles.length}`);
+            (0, logger_1.logInfo)(`📦 ✅ Chunked files: ${chunkedFiles.length}`, true);
             const processedChunkedFiles = [];
             const totalFiles = chunkedFiles.length;
             const startTime = Date.now();
@@ -49,18 +51,32 @@ class VectorActionUseCase {
                 // Calculate estimated time remaining
                 const estimatedTotalTime = (elapsedTime / (i + 1)) * totalFiles;
                 const remainingTime = estimatedTotalTime - elapsedTime;
-                (0, logger_1.logDebugInfo)(`Processing file ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds`);
-                const remoteChunkedFile = await supabaseRepository.getChunkedFile(param.owner, param.repo, param.commit.branch, chunkedFile.shasum);
-                if (remoteChunkedFile && remoteChunkedFile.vector.length > 0) {
+                (0, logger_1.logSingleLine)(`🔘 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${chunkedFile.path}]`);
+                let remoteChunkedFiles;
+                try {
+                    remoteChunkedFiles = await supabaseRepository.getChunksByShasum(param.owner, param.repo, param.commit.branch, chunkedFile.shasum);
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`Error checking file ${chunkedFile.path} in Supabase: ${JSON.stringify(error, null, 2)}`);
+                    remoteChunkedFiles = [];
+                }
+                if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length === chunkedFile.chunks.length) {
                     processedChunkedFiles.push(chunkedFile);
+                    (0, logger_1.logDebugInfo)(`📦 ✅ Chunk ${chunkedFile.path} already exists in Supabase`, true);
                     continue;
                 }
-                const embeddings = await this.dockerRepository.getEmbedding(param, chunkedFile.chunks.map(chunk => [this.CODE_INSTRUCTION, chunk]));
+                else if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length !== chunkedFile.chunks.length) {
+                    (0, logger_1.logDebugInfo)(`📦 ❌ Chunk ${chunkedFile.path} has a different number of chunks in Supabase`, true);
+                }
+                (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
+                const embeddings = await this.dockerRepository.getEmbedding(param, chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk]));
                 chunkedFile.vector = embeddings;
+                (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
                 await supabaseRepository.setChunkedFile(param.owner, param.repo, param.commit.branch, chunkedFile);
                 processedChunkedFiles.push(chunkedFile);
             }
-            (0, logger_1.logDebugInfo)(`All chunked files set to firestore for ${param.repo} ${param.commit.branch}`);
+            const totalDurationSeconds = (Date.now() - startTime) / 1000;
+            (0, logger_1.logDebugInfo)(`All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,

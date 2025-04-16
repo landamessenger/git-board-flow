@@ -18,9 +18,7 @@ program
 program
   .command('build-ai')
   .description('Build AI')
-  .action(() => {
-    console.log('Executing command A');
-    
+  .action(() => {    
     const params = {
       [INPUT_KEYS.DEBUG]: 'true',
       [INPUT_KEYS.SINGLE_ACTION]: 'vector_action',

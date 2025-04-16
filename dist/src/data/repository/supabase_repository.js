@@ -2,79 +2,156 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SupabaseRepository = void 0;
 const supabase_js_1 = require("@supabase/supabase-js");
-const chunked_file_1 = require("../model/chunked_file");
-const crypto_1 = require("crypto");
+const logger_1 = require("../../utils/logger");
+const chunked_file_chunk_1 = require("../model/chunked_file_chunk");
 class SupabaseRepository {
     constructor(config) {
         this.CHUNKS_TABLE = 'chunks';
         this.MAX_BATCH_SIZE = 500;
         this.MAX_PARALLEL_BATCHES = 5;
         this.setChunkedFile = async (owner, repository, branch, chunkedFile) => {
-            chunkedFile.chunks.forEach(async (chunk, index) => {
-                const { error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .insert({
-                    owner,
-                    repository,
-                    branch,
-                    path: chunkedFile.path,
-                    index: chunkedFile.index,
-                    chunk_index: index,
-                    type: chunkedFile.type,
-                    content: chunk,
-                    shasum: (0, crypto_1.createHash)('sha256').update(chunk).digest('hex'),
-                    vector: chunkedFile.vector[index],
-                    updated_at: new Date().toISOString()
+            try {
+                const insertPromises = chunkedFile.chunks.map(async (chunk, index) => {
+                    const { error } = await this.supabase
+                        .from(this.CHUNKS_TABLE)
+                        .insert({
+                        owner,
+                        repository,
+                        branch,
+                        path: chunkedFile.path,
+                        type: chunkedFile.type,
+                        index: chunkedFile.index,
+                        chunk_index: index,
+                        content: chunk,
+                        shasum: chunkedFile.shasum,
+                        vector: chunkedFile.vector[index],
+                        updated_at: new Date().toISOString()
+                    });
+                    if (error) {
+                        //logError(`Error inserting chunk ${index} for file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
+                        throw error;
+                    }
                 });
+                await Promise.all(insertPromises);
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
+        this.getChunkedFileByShasum = async (owner, repository, branch, type, shasum) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .select('*')
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('type', type)
+                    .eq('shasum', shasum)
+                    .order('chunk_index');
+                if (error) {
+                    (0, logger_1.logError)(`Supabase error getting chunked file: ${JSON.stringify(error, null, 2)}`);
+                    return [];
+                }
+                if (!data) {
+                    return [];
+                }
+                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+        };
+        this.getChunks = async (owner, repository, branch, path, type, index) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .select('*')
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('path', path)
+                    .eq('type', type)
+                    .eq('index', index)
+                    .order('chunk_index');
+                if (error) {
+                    (0, logger_1.logError)(`Supabase error getting chunked file: ${JSON.stringify(error, null, 2)}`);
+                    return [];
+                }
+                if (!data) {
+                    return [];
+                }
+                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+        };
+        this.getChunksByShasum = async (owner, repository, branch, shasum) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .select('*')
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('shasum', shasum)
+                    .order('chunk_index');
                 if (error) {
                     throw error;
                 }
-            });
-        };
-        this.getChunkedFile = async (owner, repository, branch, shasum) => {
-            const { data, error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('shasum', shasum)
-                .maybeSingle();
-            if (error) {
+                if (!data) {
+                    return [];
+                }
+                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
                 throw error;
             }
-            if (!data) {
-                return undefined;
-            }
-            return new chunked_file_1.ChunkedFile(data.path, data.index, data.type, data.content, [data.content]);
-        };
-        this.getChunksByFile = async (owner, repository, branch, path) => {
-            const { data, error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('path', path)
-                .order('index')
-                .order('chunk_index');
-            if (error) {
-                throw error;
-            }
-            return data.map((doc) => new chunked_file_1.ChunkedFile(doc.path, doc.index, doc.type, doc.content, [doc.content] // Since we store the content as a single string, we wrap it in an array
-            ));
         };
         this.updateVector = async (owner, repository, branch, path, index, chunkIndex, vector) => {
-            const { error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .update({ vector })
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('path', path)
-                .eq('index', index)
-                .eq('chunk_index', chunkIndex);
-            if (error) {
+            try {
+                const { error } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .update({ vector })
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('path', path)
+                    .eq('index', index)
+                    .eq('chunk_index', chunkIndex);
+                if (error) {
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error updating vector: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
+        this.matchChunks = async (owner, repository, branch, type, queryEmbedding, matchCount = 5) => {
+            try {
+                const { data, error } = await this.supabase
+                    .rpc('match_chunks', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    branch_param: branch,
+                    type_param: type,
+                    query_embedding: queryEmbedding,
+                    match_count: matchCount
+                });
+                if (error) {
+                    (0, logger_1.logError)(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);
+                    throw error;
+                }
+                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);
                 throw error;
             }
         };

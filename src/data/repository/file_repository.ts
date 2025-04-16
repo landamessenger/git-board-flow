@@ -1,6 +1,7 @@
 import * as github from "@actions/github";
 import { logError } from "../../utils/logger";
 import { ChunkedFile } from "../model/chunked_file";
+import { createHash } from "crypto";
 
 type Block = {
     type: 'function' | 'class' | 'other';
@@ -124,7 +125,7 @@ export class FileRepository {
             if (this.shouldIgnoreLine(line)) {
                 continue;
             }
-            currentChunk.push(line);
+            currentChunk.push(line.trim());
             if (currentChunk.length >= chunkSize) {
                 chunks.push([...currentChunk]);
                 currentChunk = [];
@@ -139,7 +140,16 @@ export class FileRepository {
         // Create ChunkedFile objects for each chunk
         chunks.forEach((chunkLines, index) => {
             const chunkContent = chunkLines.join('\n');
-            chunkedFiles.push(new ChunkedFile(path, index, 'line', chunkContent, chunkLines));
+            chunkedFiles.push(
+                new ChunkedFile(
+                    path,
+                    index,
+                    'line',
+                    chunkContent,
+                    this.calculateShasum(chunkContent),
+                    chunkLines
+                )
+            );
         });
 
         return chunkedFiles;
@@ -167,7 +177,16 @@ export class FileRepository {
         // Create ChunkedFile objects for each chunk
         chunks.forEach((chunkLines, index) => {
             const chunkContent = chunkLines.join('\n');
-            chunkedFiles.push(new ChunkedFile(path, index, 'block', chunkContent, chunkLines));
+            chunkedFiles.push(
+                new ChunkedFile(
+                    path,
+                    index,
+                    'block',
+                    chunkContent,
+                    this.calculateShasum(chunkContent),
+                    chunkLines
+                )
+            );
         });
 
         return chunkedFiles;
@@ -266,11 +285,21 @@ export class FileRepository {
           /^import\s.+from\s.+;?$/.test(trimmed) ||
           /^(return|break|continue|pass);?$/.test(trimmed) ||
           /^\/\/[-=]*$/.test(trimmed) || // comentarios de separación
-          /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed)
+          /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed) ||
+          /^[\]],?;?$/.test(trimmed) ||
+          /^try\s*{$/.test(trimmed) ||
+          /^}\s*else\s*{$/.test(trimmed) ||
+          /^`;?$/.test(trimmed) ||
+          /^\/\*\*$/.test(trimmed) ||
+          /^\*\/$/.test(trimmed)
         );
     };
 
     private shuffleArray<T>(array: T[]): T[] {
         return [...array].sort(() => Math.random() - 0.5);
+    }
+
+    private calculateShasum(content: string): string {
+        return createHash('sha256').update(content).digest('hex');
     }
 } 

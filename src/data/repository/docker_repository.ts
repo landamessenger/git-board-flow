@@ -208,20 +208,25 @@ export class DockerRepository {
     }
 
     getEmbedding = async (param: Execution, textInstructionsPairs: [string, string][]): Promise<number[][]> => {
-        const request: EmbedRequest = {
-            instructions: textInstructionsPairs.map(pair => pair[0]),
-            texts: textInstructionsPairs.map(pair => pair[1])
-        };
+        try {
+            const request: EmbedRequest = {
+                instructions: textInstructionsPairs.map(pair => pair[0]),
+                texts: textInstructionsPairs.map(pair => pair[1])
+            };
 
-        const response = await axios.post(`http://${param.dockerConfig.getDomain()}:${param.dockerConfig.getPort()}/embed`, request, {
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            family: 4
-        });
+            const response = await axios.post(`http://${param.dockerConfig.getDomain()}:${param.dockerConfig.getPort()}/embed`, request, {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                family: 4
+            });
 
-        const data = response.data as EmbedResponse;
-        return data.embeddings;
+            const data = response.data as EmbedResponse;
+            return data.embeddings;
+        } catch (error) {
+            logError(`🐳 🔴 Error getting embedding: ${JSON.stringify(error, null, 2)}`);
+            throw error;
+        }
     }
 
     getSystemInfo = async (param: Execution): Promise<any> => {

@@ -37,6 +37,7 @@ exports.FileRepository = void 0;
 const github = __importStar(require("@actions/github"));
 const logger_1 = require("../../utils/logger");
 const chunked_file_1 = require("../model/chunked_file");
+const crypto_1 = require("crypto");
 class FileRepository {
     constructor() {
         this.getFileContent = async (owner, repository, path, token, branch) => {
@@ -97,7 +98,7 @@ class FileRepository {
                 chunkedFiles.push(...this.getChunksByLines(path, content, chunkSize));
                 chunkedFiles.push(...this.getChunksByBlocks(path, content, chunkSize));
             }
-            return chunkedFiles;
+            return this.shuffleArray(chunkedFiles);
         };
         this.getChunksByLines = (path, content, chunkSize) => {
             const chunkedFiles = [];
@@ -108,7 +109,7 @@ class FileRepository {
                 if (this.shouldIgnoreLine(line)) {
                     continue;
                 }
-                currentChunk.push(line);
+                currentChunk.push(line.trim());
                 if (currentChunk.length >= chunkSize) {
                     chunks.push([...currentChunk]);
                     currentChunk = [];
@@ -121,7 +122,7 @@ class FileRepository {
             // Create ChunkedFile objects for each chunk
             chunks.forEach((chunkLines, index) => {
                 const chunkContent = chunkLines.join('\n');
-                chunkedFiles.push(new chunked_file_1.ChunkedFile(path, index, 'line', chunkContent, chunkLines));
+                chunkedFiles.push(new chunked_file_1.ChunkedFile(path, index, 'line', chunkContent, this.calculateShasum(chunkContent), chunkLines));
             });
             return chunkedFiles;
         };
@@ -144,7 +145,7 @@ class FileRepository {
             // Create ChunkedFile objects for each chunk
             chunks.forEach((chunkLines, index) => {
                 const chunkContent = chunkLines.join('\n');
-                chunkedFiles.push(new chunked_file_1.ChunkedFile(path, index, 'block', chunkContent, chunkLines));
+                chunkedFiles.push(new chunked_file_1.ChunkedFile(path, index, 'block', chunkContent, this.calculateShasum(chunkContent), chunkLines));
             });
             return chunkedFiles;
         };
@@ -211,7 +212,13 @@ class FileRepository {
                 /^import\s.+from\s.+;?$/.test(trimmed) ||
                 /^(return|break|continue|pass);?$/.test(trimmed) ||
                 /^\/\/[-=]*$/.test(trimmed) || // comentarios de separación
-                /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed));
+                /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed) ||
+                /^[\]],?;?$/.test(trimmed) ||
+                /^try\s*{$/.test(trimmed) ||
+                /^}\s*else\s*{$/.test(trimmed) ||
+                /^`;?$/.test(trimmed) ||
+                /^\/\*\*$/.test(trimmed) ||
+                /^\*\/$/.test(trimmed));
         };
     }
     isMediaOrPdfFile(path) {
@@ -242,6 +249,12 @@ class FileRepository {
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
+    }
+    shuffleArray(array) {
+        return [...array].sort(() => Math.random() - 0.5);
+    }
+    calculateShasum(content) {
+        return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
     }
 }
 exports.FileRepository = FileRepository;

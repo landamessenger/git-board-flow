@@ -6,7 +6,10 @@ export function setGlobalLoggerDebug(debug: boolean) {
     loggerDebug = debug;
 }
 
-export function logInfo(message: string) {
+export function logInfo(message: string, previousWasSingleLine: boolean = false) {
+    if (previousWasSingleLine) {
+        console.log()
+    }
     console.log(message);
 }
 
@@ -18,9 +21,9 @@ export function logError(message: any) {
     console.error(message.toString());
 }
 
-export function logDebugInfo(message: string) {
+export function logDebugInfo(message: string, previousWasSingleLine: boolean = false) {
     if (loggerDebug) {
-        logInfo(message);
+        logInfo(message, previousWasSingleLine);
     }
 }
 

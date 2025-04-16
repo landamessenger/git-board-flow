@@ -6,6 +6,5 @@ export declare class ChunkedFile {
     chunks: string[];
     shasum: string;
     vector: number[][];
-    constructor(path: string, index: number, type: 'line' | 'block', content: string, chunks: string[]);
-    private calculateShasum;
+    constructor(path: string, index: number, type: 'line' | 'block', content: string, shasum: string, chunks: string[]);
 }

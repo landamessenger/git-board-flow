@@ -7,15 +7,15 @@ CREATE TABLE IF NOT EXISTS chunks (
     repository TEXT NOT NULL,
     branch TEXT NOT NULL,
     path TEXT NOT NULL,
+    type TEXT NOT NULL,
     index INTEGER NOT NULL,
     chunk_index INTEGER NOT NULL,
-    type TEXT NOT NULL,
     content TEXT NOT NULL,
     shasum TEXT NOT NULL,
     vector vector(768) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (owner, repository, branch, path, index, chunk_index)
+    PRIMARY KEY (owner, repository, branch, path, type, index, chunk_index)
 );
 
 -- Create an index for faster vector similarity search
@@ -27,6 +27,7 @@ CREATE OR REPLACE FUNCTION match_chunks(
     owner_param TEXT,
     repository_param TEXT,
     branch_param TEXT,
+    type_param TEXT,
     query_embedding vector(768),
     match_count INTEGER DEFAULT 5
 )
@@ -35,9 +36,9 @@ RETURNS TABLE (
     repository TEXT,
     branch TEXT,
     path TEXT,
+    type TEXT,
     index INTEGER,
     chunk_index INTEGER,
-    type TEXT,
     content TEXT,
     shasum TEXT,
     vector vector(768),
@@ -52,9 +53,9 @@ BEGIN
         chunks.repository,
         chunks.branch,
         chunks.path,
+        chunks.type,
         chunks.index,
         chunks.chunk_index,
-        chunks.type,
         chunks.content,
         chunks.shasum,
         chunks.vector,
@@ -63,6 +64,7 @@ BEGIN
     WHERE chunks.owner = owner_param
     AND chunks.repository = repository_param
     AND chunks.branch = branch_param
+    AND chunks.type = type_param
     ORDER BY chunks.vector <=> query_embedding
     LIMIT match_count;
 END;

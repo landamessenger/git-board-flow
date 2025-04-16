@@ -16,7 +16,10 @@ let loggerDebug = false;
 function setGlobalLoggerDebug(debug) {
     loggerDebug = debug;
 }
-function logInfo(message) {
+function logInfo(message, previousWasSingleLine = false) {
+    if (previousWasSingleLine) {
+        console.log();
+    }
     console.log(message);
 }
 function logWarning(message) {
@@ -25,9 +28,9 @@ function logWarning(message) {
 function logError(message) {
     console.error(message.toString());
 }
-function logDebugInfo(message) {
+function logDebugInfo(message, previousWasSingleLine = false) {
     if (loggerDebug) {
-        logInfo(message);
+        logInfo(message, previousWasSingleLine);
     }
 }
 function logDebugWarning(message) {

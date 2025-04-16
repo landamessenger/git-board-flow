@@ -1,17 +1,19 @@
 import { ChunkedFile } from '../data/model/chunked_file';
+import { ChunkedFileChunk } from '../data/model/chunked_file_chunk';
 import { Execution } from '../data/model/execution';
 import { Result } from '../data/model/result';
 import { DockerRepository } from '../data/repository/docker_repository';
 import { FileRepository } from '../data/repository/file_repository';
 import { SupabaseRepository } from '../data/repository/supabase_repository';
-import { logDebugInfo, logError, logSingleLine } from '../utils/logger';
+import { logDebugInfo, logError, logInfo, logSingleLine } from '../utils/logger';
 import { ParamUseCase } from './base/param_usecase';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
     private dockerRepository: DockerRepository = new DockerRepository();
     private fileRepository: FileRepository = new FileRepository();
-    private readonly CODE_INSTRUCTION = "Represent the code for semantic search";
+    private readonly CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
+    private readonly CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
 
     async invoke(param: Execution): Promise<Result[]> {
         const results: Result[] = [];
@@ -36,11 +38,12 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             await this.dockerRepository.startContainer(param);
 
             const systemInfo = await this.dockerRepository.getSystemInfo(param);
-            logDebugInfo(`System info: ${JSON.stringify(systemInfo, null, 2)}`);
             const chunkSize = systemInfo.parameters.chunk_size as number;
             const maxWorkers = systemInfo.parameters.max_workers as number;
 
-            logDebugInfo(`Getting chunked files for ${param.repo} ${param.commit.branch}`);
+            logInfo(`🧑‍🏭 Max workers: ${maxWorkers}`);
+            logInfo(`🚚 Chunk size: ${chunkSize}`);
+            logInfo(`📦 Getting chunked files for ${param.owner}/${param.repo}/${param.commit.branch}`);
 
             const chunkedFiles = await this.fileRepository.getChunkedRepositoryContent(
                 param.owner,
@@ -54,7 +57,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             );
             
-            logDebugInfo(`Chunked files: ${chunkedFiles.length}`);
+            logInfo(`📦 ✅ Chunked files: ${chunkedFiles.length}`, true);
 
             const processedChunkedFiles: ChunkedFile[] = [];
             const totalFiles = chunkedFiles.length;
@@ -70,29 +73,38 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const estimatedTotalTime = (elapsedTime / (i + 1)) * totalFiles;
                 const remainingTime = estimatedTotalTime - elapsedTime;
                 
-                logSingleLine(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${chunkedFile.path}]`);
+                logSingleLine(`🔘 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${chunkedFile.path}]`);
                 
-                const remoteChunkedFile = await supabaseRepository.getChunkedFile(
-                    param.owner,
-                    param.repo,
-                    param.commit.branch,
-                    chunkedFile.shasum
-                );
-
-                if (remoteChunkedFile && remoteChunkedFile.vector.length > 0) {
-                    processedChunkedFiles.push(chunkedFile);
-                    continue;
+                let remoteChunkedFiles: ChunkedFileChunk[];
+                try {
+                    remoteChunkedFiles = await supabaseRepository.getChunksByShasum(
+                        param.owner,
+                        param.repo,
+                        param.commit.branch,
+                        chunkedFile.shasum,
+                    );
+                } catch (error) {
+                    logError(`Error checking file ${chunkedFile.path} in Supabase: ${JSON.stringify(error, null, 2)}`);
+                    remoteChunkedFiles = [];
                 }
 
-                logSingleLine(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
+                if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length === chunkedFile.chunks.length) {
+                    processedChunkedFiles.push(chunkedFile);
+                    logDebugInfo(`📦 ✅ Chunk ${chunkedFile.path} already exists in Supabase`, true);
+                    continue;
+                } else if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length !== chunkedFile.chunks.length) {
+                    logDebugInfo(`📦 ❌ Chunk ${chunkedFile.path} has a different number of chunks in Supabase`, true);
+                }
+
+                logSingleLine(`🟡 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
 
                 const embeddings = await this.dockerRepository.getEmbedding(
                     param,
-                    chunkedFile.chunks.map(chunk => [this.CODE_INSTRUCTION, chunk])
+                    chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
                 );
                 chunkedFile.vector = embeddings;
 
-                logSingleLine(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
+                logSingleLine(`🟢 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
                 
                 await supabaseRepository.setChunkedFile(
                     param.owner,
@@ -105,7 +117,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            logDebugInfo(`All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`);
+            logDebugInfo(`All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
             
             results.push(
                 new Result({

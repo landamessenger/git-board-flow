@@ -1,4 +1,5 @@
 import { ChunkedFile } from '../model/chunked_file';
+import { ChunkedFileChunk } from '../model/chunked_file_chunk';
 import { SupabaseConfig } from '../model/supabase_config';
 export declare class SupabaseRepository {
     private readonly CHUNKS_TABLE;
@@ -7,7 +8,9 @@ export declare class SupabaseRepository {
     private supabase;
     constructor(config: SupabaseConfig);
     setChunkedFile: (owner: string, repository: string, branch: string, chunkedFile: ChunkedFile) => Promise<void>;
-    getChunkedFile: (owner: string, repository: string, branch: string, shasum: string) => Promise<ChunkedFile | undefined>;
-    getChunksByFile: (owner: string, repository: string, branch: string, path: string) => Promise<ChunkedFile[]>;
+    getChunkedFileByShasum: (owner: string, repository: string, branch: string, type: string, shasum: string) => Promise<ChunkedFileChunk[]>;
+    getChunks: (owner: string, repository: string, branch: string, path: string, type: string, index: number) => Promise<ChunkedFileChunk[]>;
+    getChunksByShasum: (owner: string, repository: string, branch: string, shasum: string) => Promise<ChunkedFileChunk[]>;
     updateVector: (owner: string, repository: string, branch: string, path: string, index: number, chunkIndex: number, vector: number[]) => Promise<void>;
+    matchChunks: (owner: string, repository: string, branch: string, type: string, queryEmbedding: number[], matchCount?: number) => Promise<ChunkedFileChunk[]>;
 }

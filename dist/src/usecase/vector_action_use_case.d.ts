@@ -5,6 +5,7 @@ export declare class VectorActionUseCase implements ParamUseCase<Execution, Resu
     taskId: string;
     private dockerRepository;
     private fileRepository;
-    private readonly CODE_INSTRUCTION;
+    private readonly CODE_INSTRUCTION_BLOCK;
+    private readonly CODE_INSTRUCTION_LINE;
     invoke(param: Execution): Promise<Result[]>;
 }
