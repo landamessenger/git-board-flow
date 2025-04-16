@@ -25,8 +25,8 @@ program
       [INPUT_KEYS.DEBUG]: 'true',
       [INPUT_KEYS.SINGLE_ACTION]: 'vector_action',
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: '1',
-      [INPUT_KEYS.SUPABASE_URL]: 'https://your-supabase-url.com',
-      [INPUT_KEYS.SUPABASE_KEY]: 'your-supabase-key',
+      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
+      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.AI_IGNORE_FILES]: 'dist/*,bin/*',
       repo: {

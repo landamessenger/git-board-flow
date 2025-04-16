@@ -70,18 +70,21 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const estimatedTotalTime = (elapsedTime / (i + 1)) * totalFiles;
                 const remainingTime = estimatedTotalTime - elapsedTime;
                 
-                logDebugInfo(`Processing file ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds`);
+                logSingleLine(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${chunkedFile.path}]`);
                 
-                const remoteChunkedFiles = await supabaseRepository.getChunkedFiles(
+                const remoteChunkedFile = await supabaseRepository.getChunkedFile(
+                    param.owner,
                     param.repo,
                     param.commit.branch,
                     chunkedFile.shasum
                 );
 
-                if (remoteChunkedFiles.length > 0 && remoteChunkedFiles[0].vector.length > 0) {
+                if (remoteChunkedFile && remoteChunkedFile.vector.length > 0) {
                     processedChunkedFiles.push(chunkedFile);
                     continue;
                 }
+
+                logSingleLine(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
 
                 const embeddings = await this.dockerRepository.getEmbedding(
                     param,
@@ -89,7 +92,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 );
                 chunkedFile.vector = embeddings;
 
+                logSingleLine(`${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
+                
                 await supabaseRepository.setChunkedFile(
+                    param.owner,
                     param.repo,
                     param.commit.branch,
                     chunkedFile
@@ -98,7 +104,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 processedChunkedFiles.push(chunkedFile);
             }
 
-            logDebugInfo(`All chunked files set to firestore for ${param.repo} ${param.commit.branch}`);
+            const totalDurationSeconds = (Date.now() - startTime) / 1000;
+            logDebugInfo(`All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`);
             
             results.push(
                 new Result({
@@ -112,14 +119,14 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             );
 
         } catch (error) {
-            logError('Error in VectorActionUseCase: ' + error);
+            logError('Error in VectorActionUseCase: ' + JSON.stringify(error, null, 2));
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     steps: [
-                        `Error in VectorActionUseCase: ${error}`,
+                        `Error in VectorActionUseCase: ${JSON.stringify(error, null, 2)}`,
                     ],
                 })
             );

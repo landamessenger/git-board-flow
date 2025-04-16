@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { ChunkedFile } from '../model/chunked_file';
 import { SupabaseConfig } from '../model/supabase_config';
+import { createHash } from 'crypto';
+
 export class SupabaseRepository {
     private readonly CHUNKS_TABLE = 'chunks';
     private readonly MAX_BATCH_SIZE = 500;
@@ -11,83 +13,116 @@ export class SupabaseRepository {
         this.supabase = createClient(config.getUrl(), config.getKey());
     }
 
-    private async processBatch(project: string, branch: string, documents: ChunkedFile[]): Promise<void> {
-        try {
-            const finalBranch = branch.replace(/\//g, '-');
+    setChunkedFile = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        chunkedFile: ChunkedFile,
+    ): Promise<void> => {
+        chunkedFile.chunks.forEach(async (chunk, index) => {
             const { error } = await this.supabase
                 .from(this.CHUNKS_TABLE)
-                .upsert(
-                    documents.map(doc => ({
-                        project,
-                        branch: finalBranch,
-                        ...doc
-                    }))
-                );
-
+                .insert({
+                    owner,
+                    repository,
+                    branch,
+                    path: chunkedFile.path,
+                    index: chunkedFile.index,
+                    chunk_index: index,
+                    type: chunkedFile.type,
+                    content: chunk,
+                    shasum: createHash('sha256').update(chunk).digest('hex'),
+                    vector: chunkedFile.vector[index],
+                    updated_at: new Date().toISOString()
+                }); 
             if (error) {
                 throw error;
             }
-        } catch (error: unknown) {
-            if (error instanceof Error) {
-                console.error(`Supabase error in batch: ${error.message}`);
-            }
-            throw error;
-        }
+        });
     }
 
-    setAllChunkedFiles = async (project: string, branch: string, documents: ChunkedFile[]): Promise<void> => {
-        const batches: ChunkedFile[][] = [];
-        
-        // Split documents into batches
-        for (let i = 0; i < documents.length; i += this.MAX_BATCH_SIZE) {
-            batches.push(documents.slice(i, i + this.MAX_BATCH_SIZE));
-        }
-
-        // Process batches in parallel groups
-        for (let i = 0; i < batches.length; i += this.MAX_PARALLEL_BATCHES) {
-            const parallelBatches = batches.slice(i, i + this.MAX_PARALLEL_BATCHES);
-            await Promise.all(
-                parallelBatches.map(batch => this.processBatch(project, branch, batch))
-            );
-        }
-    }
-
-    setChunkedFile = async (project: string, branch: string, document: ChunkedFile): Promise<void> => {
-        const finalBranch = branch.replace(/\//g, '-');
-        const { error } = await this.supabase
-            .from(this.CHUNKS_TABLE)
-            .upsert({
-                project,
-                branch: finalBranch,
-                ...document
-            });
-
-        if (error) {
-            throw error;
-        }
-    }
-
-    getChunkedFiles = async (project: string, branch: string, shasum: string): Promise<ChunkedFile[]> => {
-        const finalBranch = branch.replace(/\//g, '-');
+    getChunkedFile = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        shasum: string,
+    ): Promise<ChunkedFile | undefined> => {
         const { data, error } = await this.supabase
             .from(this.CHUNKS_TABLE)
             .select('*')
-            .eq('project', project)
-            .eq('branch', finalBranch)
-            .eq('shasum', shasum);
+            .eq('owner', owner)
+            .eq('repository', repository)
+            .eq('branch', branch)
+            .eq('shasum', shasum)
+            .maybeSingle();
 
         if (error) {
             throw error;
         }
 
-        return data.map((doc: Record<string, unknown>) => {
-            const { project, branch, ...rest } = doc;
-            return new ChunkedFile(
-                rest.path as string,
-                rest.index as number,
-                rest.content as string,
-                rest.chunks as string[]
-            );
-        });
+        if (!data) {
+            return undefined;
+        }
+
+        return new ChunkedFile(
+            data.path,
+            data.index,
+            data.type,
+            data.content,
+            [data.content]
+        );
+    }
+
+    getChunksByFile = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        path: string
+    ): Promise<ChunkedFile[]> => {
+        const { data, error } = await this.supabase
+            .from(this.CHUNKS_TABLE)
+            .select('*')
+            .eq('owner', owner)
+            .eq('repository', repository)
+            .eq('branch', branch)
+            .eq('path', path)
+            .order('index')
+            .order('chunk_index');
+
+        if (error) {
+            throw error;
+        }
+
+        return data.map((doc: any) => new ChunkedFile(
+            doc.path,
+            doc.index,
+            doc.type,
+            doc.content,
+            [doc.content] // Since we store the content as a single string, we wrap it in an array
+        ));
+    }
+
+    updateVector = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        path: string,
+        index: number,
+        chunkIndex: number,
+        vector: number[]
+    ): Promise<void> => {
+        const { error } = await this.supabase
+            .from(this.CHUNKS_TABLE)
+            .update({ vector })
+            .eq('owner', owner)
+            .eq('repository', repository)
+            .eq('branch', branch)
+            .eq('path', path)
+            .eq('index', index)
+            .eq('chunk_index', chunkIndex);
+
+        if (error) {
+            throw error;
+        }
     }
 } 

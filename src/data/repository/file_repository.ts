@@ -108,10 +108,10 @@ export class FileRepository {
 
         for (const [path, content] of fileContents.entries()) {
             chunkedFiles.push(...this.getChunksByLines(path, content, chunkSize));
-            chunkedFiles.push(...this.getChunksByBlocks(path, content));
+            chunkedFiles.push(...this.getChunksByBlocks(path, content, chunkSize));
         }
 
-        return chunkedFiles;    
+        return this.shuffleArray(chunkedFiles);    
     }
 
     getChunksByLines = (path: string, content: string, chunkSize: number): ChunkedFile[] => {
@@ -121,6 +121,9 @@ export class FileRepository {
         let currentChunk: string[] = [];
 
         for (const line of lines) {
+            if (this.shouldIgnoreLine(line)) {
+                continue;
+            }
             currentChunk.push(line);
             if (currentChunk.length >= chunkSize) {
                 chunks.push([...currentChunk]);
@@ -142,14 +145,31 @@ export class FileRepository {
         return chunkedFiles;
     }
 
-    getChunksByBlocks = (path: string, content: string): ChunkedFile[] => {
+    getChunksByBlocks = (path: string, content: string, chunkSize: number): ChunkedFile[] => {
         const chunkedFiles: ChunkedFile[] = [];
-
         const blocks = this.extractCodeBlocks(content);
-        blocks.forEach((block, index) => {
-            chunkedFiles.push(new ChunkedFile(path, index, 'block', block.content, [block.content]));
+        const chunks: string[][] = [];
+        let currentChunk: string[] = [];
+
+        for (const block of blocks) {
+            currentChunk.push(block.content);
+            if (currentChunk.length >= chunkSize) {
+                chunks.push([...currentChunk]);
+                currentChunk = [];
+            }
+        }
+
+        // Add the last chunk if it's not empty
+        if (currentChunk.length > 0) {
+            chunks.push(currentChunk);
+        }
+
+        // Create ChunkedFile objects for each chunk
+        chunks.forEach((chunkLines, index) => {
+            const chunkContent = chunkLines.join('\n');
+            chunkedFiles.push(new ChunkedFile(path, index, 'block', chunkContent, chunkLines));
         });
-        
+
         return chunkedFiles;
     }
 
@@ -170,10 +190,8 @@ export class FileRepository {
             return regex.test(filename);
         });
     }
-
-
       
-    extractCodeBlocks = (code: string): Block[] => {
+    private extractCodeBlocks = (code: string): Block[] => {
         const lines = code.split('\n');
         const blocks: Block[] = [];
       
@@ -239,4 +257,20 @@ export class FileRepository {
         return blocks;
     }
       
+    private shouldIgnoreLine = (line: string) => {
+        const trimmed = line.trim();
+      
+        return (
+          trimmed === '' ||
+          /^[}\]);]+;?$/.test(trimmed) ||
+          /^import\s.+from\s.+;?$/.test(trimmed) ||
+          /^(return|break|continue|pass);?$/.test(trimmed) ||
+          /^\/\/[-=]*$/.test(trimmed) || // comentarios de separación
+          /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed)
+        );
+    };
+
+    private shuffleArray<T>(array: T[]): T[] {
+        return [...array].sort(() => Math.random() - 0.5);
+    }
 } 
