@@ -253,5 +253,8 @@ class FileRepository {
     shuffleArray(array) {
         return [...array].sort(() => Math.random() - 0.5);
     }
+    calculateShasum(content) {
+        return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
+    }
 }
 exports.FileRepository = FileRepository;
