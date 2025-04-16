@@ -314,8 +314,8 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
-  firebase-config:
-    description: "Firebase configuration (JSON string)."
+  supabase-config:
+    description: "Supabase configuration (JSON string)."
     default: ""
   openrouter-api-key:
     description: "OpenRouter API key for AI operations."
@@ -353,6 +353,15 @@ inputs:
   ai-members-only:
     description: "Restrict AI features to only organization/project members."
     default: "true"
+  docker-container-name:
+    description: "Name of the Docker container to use."
+    default: "git-board-flow"
+  docker-domain:
+    description: "Domain of the Docker container to use."
+    default: "localhost"
+  docker-port:
+    description: "Port of the Docker container to use."
+    default: "8000"
 runs:
   using: "node20"
   main: "dist/index.js"

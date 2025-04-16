@@ -2,7 +2,30 @@ import * as github from "@actions/github";
 import { logError } from "../../utils/logger";
 import { ChunkedFile } from "../model/chunked_file";
 
+type Block = {
+    type: 'function' | 'class' | 'other';
+    name?: string;
+    content: string;
+    startLine: number;
+    endLine: number;
+};
+
 export class FileRepository {
+    private isMediaOrPdfFile(path: string): boolean {
+        const mediaExtensions = [
+            // Image formats
+            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp', '.ico',
+            // Audio formats
+            '.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac',
+            // Video formats
+            '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
+            // PDF
+            '.pdf'
+        ];
+        const extension = path.toLowerCase().substring(path.lastIndexOf('.'));
+        return mediaExtensions.includes(extension);
+    }
+
     getFileContent = async (
         owner: string,
         repository: string,
@@ -34,7 +57,9 @@ export class FileRepository {
         owner: string,
         repository: string,
         token: string,
-        branch: string
+        branch: string,
+        ignoreFiles: string[],
+        progress: (fileName: string) => void,
     ): Promise<Map<string, string>> => {
         const octokit = github.getOctokit(token);
         const fileContents = new Map<string, string>();
@@ -50,7 +75,8 @@ export class FileRepository {
 
                 if (Array.isArray(data)) {
                     for (const item of data) {
-                        if (item.type === 'file') {
+                        if (item.type === 'file' && !this.isMediaOrPdfFile(item.path) && !this.shouldIgnoreFile(item.path, ignoreFiles)) {
+                            progress(item.path);
                             const content = await this.getFileContent(owner, repository, item.path, token, branch);
                             fileContents.set(item.path, content);
                         } else if (item.type === 'dir') {
@@ -74,35 +100,143 @@ export class FileRepository {
         branch: string,
         chunkSize: number,
         token: string,
+        ignoreFiles: string[],
+        progress: (fileName: string) => void
     ): Promise<ChunkedFile[]> => {
-        const fileContents = await this.getRepositoryContent(owner, repository, token, branch);
+        const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress);
         const chunkedFiles: ChunkedFile[] = [];
 
         for (const [path, content] of fileContents.entries()) {
-            const lines = content.split('\n');
-            const chunks: string[][] = [];
-            let currentChunk: string[] = [];
-
-            for (const line of lines) {
-                currentChunk.push(line);
-                if (currentChunk.length >= chunkSize) {
-                    chunks.push([...currentChunk]);
-                    currentChunk = [];
-                }
-            }
-
-            // Add the last chunk if it's not empty
-            if (currentChunk.length > 0) {
-                chunks.push(currentChunk);
-            }
-
-            // Create ChunkedFile objects for each chunk
-            chunks.forEach((chunkLines, index) => {
-                const chunkContent = chunkLines.join('\n');
-                chunkedFiles.push(new ChunkedFile(`${path}-${index}`, path, index, chunkContent, chunkLines));
-            });
+            chunkedFiles.push(...this.getChunksByLines(path, content, chunkSize));
+            chunkedFiles.push(...this.getChunksByBlocks(path, content));
         }
 
         return chunkedFiles;    
     }
+
+    getChunksByLines = (path: string, content: string, chunkSize: number): ChunkedFile[] => {
+        const chunkedFiles: ChunkedFile[] = [];
+        const lines = content.split('\n');
+        const chunks: string[][] = [];
+        let currentChunk: string[] = [];
+
+        for (const line of lines) {
+            currentChunk.push(line);
+            if (currentChunk.length >= chunkSize) {
+                chunks.push([...currentChunk]);
+                currentChunk = [];
+            }
+        }
+
+        // Add the last chunk if it's not empty
+        if (currentChunk.length > 0) {
+            chunks.push(currentChunk);
+        }
+
+        // Create ChunkedFile objects for each chunk
+        chunks.forEach((chunkLines, index) => {
+            const chunkContent = chunkLines.join('\n');
+            chunkedFiles.push(new ChunkedFile(path, index, 'line', chunkContent, chunkLines));
+        });
+
+        return chunkedFiles;
+    }
+
+    getChunksByBlocks = (path: string, content: string): ChunkedFile[] => {
+        const chunkedFiles: ChunkedFile[] = [];
+
+        const blocks = this.extractCodeBlocks(content);
+        blocks.forEach((block, index) => {
+            chunkedFiles.push(new ChunkedFile(path, index, 'block', block.content, [block.content]));
+        });
+        
+        return chunkedFiles;
+    }
+
+    private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
+        return ignorePatterns.some(pattern => {
+            // Convert glob pattern to regex
+            const regexPattern = pattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
+                .replace(/\*/g, '.*') // Convert * to match anything
+                .replace(/\//g, '\\/'); // Escape forward slashes
+    
+            // Allow pattern ending on /* to ignore also subdirectories and files inside
+            if (pattern.endsWith("/*")) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+            }
+    
+            const regex = new RegExp(`^${regexPattern}$`);
+            return regex.test(filename);
+        });
+    }
+
+
+      
+    extractCodeBlocks = (code: string): Block[] => {
+        const lines = code.split('\n');
+        const blocks: Block[] = [];
+      
+        let currentBlock: Block | undefined;
+        let braceDepth = 0;
+        let indentLevel = 0;
+      
+        const startBlock = (type: Block['type'], name: string, line: string, lineNumber: number) => {
+          currentBlock = {
+            type,
+            name,
+            content: line + '\n',
+            startLine: lineNumber,
+            endLine: lineNumber,
+          };
+          braceDepth = (line.match(/{/g) || []).length - (line.match(/}/g) || []).length;
+          indentLevel = line.match(/^(\s*)/)?.[1].length ?? 0;
+        };
+      
+        const endBlock = (lineNumber: number) => {
+          if (currentBlock) {
+            currentBlock.endLine = lineNumber;
+            blocks.push(currentBlock);
+            currentBlock = undefined;
+          }
+        };
+      
+        lines.forEach((line, idx) => {
+          const trimmed = line.trim();
+          const lineNumber = idx + 1;
+      
+          // Detect class or function headers
+          const functionMatch = trimmed.match(/(?:function|def|fn|async|const|let)\s+(\w+)/);
+          const classMatch = trimmed.match(/class\s+(\w+)/);
+      
+          if (!currentBlock && functionMatch) {
+            startBlock('function', functionMatch[1], line, lineNumber);
+          } else if (!currentBlock && classMatch) {
+            startBlock('class', classMatch[1], line, lineNumber);
+          } else if (currentBlock) {
+            currentBlock.content += line + '\n';
+      
+            // Update brace depth
+            braceDepth += (line.match(/{/g) || []).length;
+            braceDepth -= (line.match(/}/g) || []).length;
+      
+            // Or detect dedentation (for Python-style)
+            const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
+            const dedented = currentIndent < indentLevel;
+      
+            if (braceDepth <= 0 && trimmed.endsWith('}') || dedented) {
+              endBlock(lineNumber);
+            }
+          }
+        });
+      
+        // Catch any unfinished block
+        if (currentBlock) {
+          currentBlock.endLine = lines.length;
+          blocks.push(currentBlock);
+        }
+      
+        return blocks;
+    }
+      
 } 

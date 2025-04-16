@@ -132,3 +132,5 @@ web_modules/
 *.lock
 
 .idea
+
+.env

@@ -1,21 +1,21 @@
 import { createHash } from 'crypto';
 
 export class ChunkedFile {
-    id: string;
     path: string;
     index: number;
+    type: 'line' | 'block';
     content: string;
     chunks: string[];
     shasum: string = '';
     vector: number[][] = [];
 
-    constructor(id: string, path: string, index: number, content: string, chunks: string[]) {
-        this.id = id;
+    constructor(path: string, index: number, type: 'line' | 'block', content: string, chunks: string[]) {
         this.path = path;
         this.index = index;
         this.content = content;
         this.chunks = chunks;
         this.shasum = this.calculateShasum(content);
+        this.type = type;
     }
 
     private calculateShasum(content: string): string {

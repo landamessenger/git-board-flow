@@ -1,14 +1,15 @@
+import { ChunkedFile } from '../data/model/chunked_file';
 import { Execution } from '../data/model/execution';
 import { Result } from '../data/model/result';
 import { DockerRepository } from '../data/repository/docker_repository';
 import { FileRepository } from '../data/repository/file_repository';
-import { logDebugInfo, logError } from '../utils/logger';
+import { SupabaseRepository } from '../data/repository/supabase_repository';
+import { logDebugInfo, logError, logSingleLine } from '../utils/logger';
 import { ParamUseCase } from './base/param_usecase';
-import { ChunkedFile } from '../data/model/chunked_file';
-import { FirestoreRepository } from '../data/repository/firestore_repository';
+
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
-    private dockerRepository: DockerRepository = DockerRepository.getInstance();
+    private dockerRepository: DockerRepository = new DockerRepository();
     private fileRepository: FileRepository = new FileRepository();
     private readonly CODE_INSTRUCTION = "Represent the code for semantic search";
 
@@ -16,22 +17,25 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         const results: Result[] = [];
 
         try {
-            if (!param.firebaseConfig) {
-                new Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `Firestore config not found.`,
-                    ],
-                })
+            if (!param.supabaseConfig) {
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Supabase config not found.`,
+                        ],
+                    })
+                )
+                return results;
             }
 
-            const firestoreRepository: FirestoreRepository = new FirestoreRepository(param.firebaseConfig);
+            const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
 
-            await this.dockerRepository.startContainer();
+            await this.dockerRepository.startContainer(param);
 
-            const systemInfo = await this.dockerRepository.getSystemInfo();
+            const systemInfo = await this.dockerRepository.getSystemInfo(param);
             logDebugInfo(`System info: ${JSON.stringify(systemInfo, null, 2)}`);
             const chunkSize = systemInfo.parameters.chunk_size as number;
             const maxWorkers = systemInfo.parameters.max_workers as number;
@@ -43,7 +47,11 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 param.repo,
                 param.commit.branch,
                 chunkSize,
-                param.tokens.token
+                param.tokens.token,
+                param.ai.getAiIgnoreFiles(),
+                (fileName: string) => {
+                    logSingleLine(`Checking file ${fileName}`);
+                }
             );
             
             logDebugInfo(`Chunked files: ${chunkedFiles.length}`);
@@ -64,7 +72,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 
                 logDebugInfo(`Processing file ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds`);
                 
-                const remoteChunkedFiles = await firestoreRepository.getChunkedFiles(
+                const remoteChunkedFiles = await supabaseRepository.getChunkedFiles(
                     param.repo,
                     param.commit.branch,
                     chunkedFile.shasum
@@ -76,11 +84,12 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
 
                 const embeddings = await this.dockerRepository.getEmbedding(
+                    param,
                     chunkedFile.chunks.map(chunk => [this.CODE_INSTRUCTION, chunk])
                 );
                 chunkedFile.vector = embeddings;
 
-                await firestoreRepository.setChunkedFile(
+                await supabaseRepository.setChunkedFile(
                     param.repo,
                     param.commit.branch,
                     chunkedFile
@@ -115,7 +124,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 })
             );
         } finally {
-            await this.dockerRepository.stopContainer();
+            await this.dockerRepository.stopContainer(param);
         }
 
         return results;

@@ -1,6 +1,14 @@
 import { logDebugInfo, logError } from '../../utils/logger';
 import { Ai } from '../model/ai';
 
+interface OpenRouterResponse {
+    choices: Array<{
+        message: {
+            content: string;
+        };
+    }>;
+}
+
 export class AiRepository {
     ask = async (ai: Ai, prompt: string): Promise<string | undefined> => {
         const model = ai.getOpenRouterModel();
@@ -47,7 +55,7 @@ export class AiRepository {
                 return undefined;
             }
 
-            const data = await response.json();
+            const data: any = await response.json();
             
             if (!data.choices || data.choices.length === 0) {
                 logError('No response content received from API');

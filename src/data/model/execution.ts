@@ -13,8 +13,6 @@ import { IssueRepository } from "../repository/issue_repository";
 import { ProjectRepository } from "../repository/project_repository";
 import { Ai } from "./ai";
 import { Branches } from "./branches";
-import { Commit } from "./commit";
-import { Config } from "./config";
 import { Emoji } from "./emoji";
 import { Hotfix } from "./hotfix";
 import { Images } from "./images";
@@ -29,7 +27,11 @@ import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Workflows } from "./workflows";
 import { Locale } from "./locale";
-import { FirebaseConfig } from "./firebase_config";
+import { SupabaseConfig } from "./supabase_config";
+import { DockerConfig } from "./docker_config";
+import { Config } from "./config";
+import { Commit } from "./commit";
+import { INPUT_KEYS } from "../../utils/constants";
  
 export class Execution {
     debug: boolean = false;
@@ -62,14 +64,16 @@ export class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
-    firebaseConfig: FirebaseConfig | undefined;
+    dockerConfig: DockerConfig;
+    supabaseConfig: SupabaseConfig | undefined;
+    inputs: any | undefined;
 
     get eventName(): string {
-        return github.context.eventName;
+        return this.inputs?.eventName ?? github.context.eventName;
     }
 
     get actor(): string {
-        return github.context.actor;
+        return this.inputs?.actor ?? github.context.actor;
     }
 
     get isSingleAction(): boolean {
@@ -89,11 +93,11 @@ export class Execution {
     }
 
     get repo(): string {
-        return github.context.repo.repo;
+        return this.inputs?.repo?.repo ?? github.context.repo.repo;
     }
 
     get owner(): string {
-        return github.context.repo.owner;
+        return this.inputs?.repo?.owner ?? github.context.repo.owner;
     }
 
     get isFeature(): boolean {
@@ -163,7 +167,7 @@ export class Execution {
     }
 
     get commit(): Commit {
-        return new Commit();
+        return new Commit(this.inputs);
     }
 
     get runnedByToken(): boolean {
@@ -172,6 +176,7 @@ export class Execution {
 
     constructor(
         debug: boolean,
+        dockerConfig: DockerConfig,
         singleAction: SingleAction,
         commitPrefixBuilder: string,
         issue: Issue,
@@ -189,9 +194,11 @@ export class Execution {
         hotfix: Hotfix,
         workflows: Workflows,
         project: Projects,
-        firebaseConfig: FirebaseConfig | undefined
+        supabaseConfig: SupabaseConfig | undefined,
+        inputs: any | undefined
     ) {
         this.debug = debug;
+        this.dockerConfig = dockerConfig;
         this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
@@ -210,7 +217,8 @@ export class Execution {
         this.project = project;
         this.workflows = workflows;
         this.currentConfiguration = new Config({});
-        this.firebaseConfig = firebaseConfig;
+        this.supabaseConfig = supabaseConfig;
+        this.inputs = inputs;
     }
 
     setup = async () => {
@@ -234,7 +242,9 @@ export class Execution {
              * In the case of a workflow, the issue number is got from the workflow.
              * In the case of a single action, the issue number is set.
              */
-            if (this.isIssue) {
+            if (this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
+                this.issueNumber = this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
+            } else if (this.isIssue) {
                 this.singleAction.isIssue = true;
                 this.issueNumber = this.issue.number;
                 this.singleAction.currentSingleActionIssue = this.issueNumber;

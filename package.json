@@ -4,8 +4,11 @@
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "dist/index.js",
   "scripts": {
-    "build": "ncc build src/index.ts -o dist",
+    "build": "tsc && ncc build src/actions/github_action.ts -o dist && ncc build src/cli.ts -o bin",
     "prepare": "npm run build"
+  },
+  "bin": {
+    "git-board-flow": "./bin/index.js"
   },
   "keywords": [],
   "author": "Landa Messenger",
@@ -14,11 +17,18 @@
     "@actions/core": "^1.10.0",
     "@actions/exec": "^1.1.1",
     "@actions/github": "^6.0.0",
+    "@supabase/supabase-js": "^2.49.4",
+    "@types/axios": "^0.14.4",
     "@types/chance": "^1.1.6",
+    "@types/dotenv": "^8.2.3",
+    "@types/js-yaml": "^4.0.9",
+    "axios": "^1.8.4",
     "chance": "^1.1.12",
+    "commander": "^12.0.0",
     "dockerode": "^4.0.5",
-    "firebase": "^11.6.0",
-    "isolated-vm": "^5.0.1"
+    "dotenv": "^16.5.0",
+    "isolated-vm": "^5.0.1",
+    "js-yaml": "^4.1.0"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.37",

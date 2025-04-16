@@ -6,6 +6,8 @@ ENV HF_HOME=/cache/huggingface
 # Instala dependencias necesarias
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Crea directorios
