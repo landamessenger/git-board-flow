@@ -51,6 +51,30 @@ export class SupabaseRepository {
         }
     }
 
+    removeChunksByShasum = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        shasum: string,
+    ): Promise<void> => {
+        try {
+            const { error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .delete()
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .eq('shasum', shasum);
+
+            if (error) {
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error removing chunks by shasum: ${JSON.stringify(error, null, 2)}`);
+            throw error;
+        }
+    }
+
     getChunkedFileByShasum = async (
         owner: string,
         repository: string,
