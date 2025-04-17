@@ -333,3 +333,7 @@ export const INPUT_KEYS = {
     SUPABASE_URL: 'supabase-url',
     SUPABASE_KEY: 'supabase-key'
 } as const; 
+
+export const ERRORS = {
+    GIT_REPOSITORY_NOT_FOUND: '❌ Git repository not found'
+} as const; 

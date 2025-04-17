@@ -16,6 +16,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     private readonly CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
 
     async invoke(param: Execution): Promise<Result[]> {
+        logInfo(`Executing ${this.taskId}.`)
+
         const results: Result[] = [];
 
         try {
@@ -90,10 +92,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
                 if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length === chunkedFile.chunks.length) {
                     processedChunkedFiles.push(chunkedFile);
-                    logDebugInfo(`📦 ✅ Chunk ${chunkedFile.path} already exists in Supabase`, true);
+                    logDebugInfo(`📦 ✅ Chunk already exists in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                     continue;
                 } else if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length !== chunkedFile.chunks.length) {
-                    logDebugInfo(`📦 ❌ Chunk ${chunkedFile.path} has a different number of chunks in Supabase`, true);
+                    logDebugInfo(`📦 ❌ Chunk has a different number of chunks in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                 }
 
                 logSingleLine(`🟡 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
@@ -117,7 +119,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            logDebugInfo(`All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+            logDebugInfo(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
             
             results.push(
                 new Result({
