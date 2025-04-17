@@ -10,4 +10,5 @@ export declare class FileRepository {
     private extractCodeBlocks;
     private shouldIgnoreLine;
     private shuffleArray;
+    private calculateShasum;
 }
