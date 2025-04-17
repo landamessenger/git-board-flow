@@ -152,3 +152,6 @@ export declare const INPUT_KEYS: {
     readonly SUPABASE_URL: "supabase-url";
     readonly SUPABASE_KEY: "supabase-key";
 };
+export declare const ERRORS: {
+    readonly GIT_REPOSITORY_NOT_FOUND: "❌ Git repository not found";
+};
