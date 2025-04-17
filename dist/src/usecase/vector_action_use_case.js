@@ -15,6 +15,7 @@ class VectorActionUseCase {
         this.CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
     }
     async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const results = [];
         try {
             if (!param.supabaseConfig) {
@@ -62,11 +63,11 @@ class VectorActionUseCase {
                 }
                 if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length === chunkedFile.chunks.length) {
                     processedChunkedFiles.push(chunkedFile);
-                    (0, logger_1.logDebugInfo)(`📦 ✅ Chunk ${chunkedFile.path} already exists in Supabase`, true);
+                    (0, logger_1.logDebugInfo)(`📦 ✅ Chunk already exists in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                     continue;
                 }
                 else if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length !== chunkedFile.chunks.length) {
-                    (0, logger_1.logDebugInfo)(`📦 ❌ Chunk ${chunkedFile.path} has a different number of chunks in Supabase`, true);
+                    (0, logger_1.logDebugInfo)(`📦 ❌ Chunk has a different number of chunks in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                 }
                 (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
                 const embeddings = await this.dockerRepository.getEmbedding(param, chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk]));
@@ -76,7 +77,7 @@ class VectorActionUseCase {
                 processedChunkedFiles.push(chunkedFile);
             }
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            (0, logger_1.logDebugInfo)(`All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+            (0, logger_1.logDebugInfo)(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,

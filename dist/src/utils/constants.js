@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.INPUT_KEYS = exports.DEFAULT_IMAGE_CONFIG = void 0;
+exports.ERRORS = exports.INPUT_KEYS = exports.DEFAULT_IMAGE_CONFIG = void 0;
 exports.DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -317,4 +317,7 @@ exports.INPUT_KEYS = {
     // Supabase
     SUPABASE_URL: 'supabase-url',
     SUPABASE_KEY: 'supabase-key'
+};
+exports.ERRORS = {
+    GIT_REPOSITORY_NOT_FOUND: '❌ Git repository not found'
 };
