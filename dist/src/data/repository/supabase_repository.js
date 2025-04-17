@@ -39,6 +39,24 @@ class SupabaseRepository {
                 throw error;
             }
         };
+        this.removeChunksByShasum = async (owner, repository, branch, shasum) => {
+            try {
+                const { error } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .delete()
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('shasum', shasum);
+                if (error) {
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error removing chunks by shasum: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
         this.getChunkedFileByShasum = async (owner, repository, branch, type, shasum) => {
             try {
                 const { data, error } = await this.supabase

@@ -68,6 +68,8 @@ class VectorActionUseCase {
                 }
                 else if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length !== chunkedFile.chunks.length) {
                     (0, logger_1.logDebugInfo)(`📦 ❌ Chunk has a different number of chunks in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
+                    await supabaseRepository.removeChunksByShasum(param.owner, param.repo, param.commit.branch, chunkedFile.shasum);
+                    (0, logger_1.logDebugInfo)(`📦 🗑️ Chunks removed from Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                 }
                 (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
                 const embeddings = await this.dockerRepository.getEmbedding(param, chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk]));
