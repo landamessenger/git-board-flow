@@ -1,22 +1,24 @@
+import { ACTIONS } from "../../utils/constants";
 import { logError } from "../../utils/logger";
-
-const deployedAction = 'deployed_action'
-const vectorAction = 'vector_action'
 
 export class SingleAction {
     currentSingleAction: string;
     currentSingleActionIssue: number = -1;
-    actions: string[] = [deployedAction, vectorAction];
+    actions: string[] = [ACTIONS.DEPLOYED, ACTIONS.VECTOR, ACTIONS.ASK];
     isIssue: boolean = false;
     isPullRequest: boolean = false;
     isPush: boolean = false;
 
     get isDeployedAction(): boolean {
-        return this.currentSingleAction === deployedAction;
+        return this.currentSingleAction === ACTIONS.DEPLOYED;
     }
 
     get isVectorAction(): boolean {
-        return this.currentSingleAction === vectorAction;
+        return this.currentSingleAction === ACTIONS.VECTOR;
+    }
+
+    get isAskAction(): boolean {
+        return this.currentSingleAction === ACTIONS.ASK;
     }
 
     get enabledSingleAction(): boolean {

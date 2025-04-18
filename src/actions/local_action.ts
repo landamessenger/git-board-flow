@@ -21,6 +21,7 @@ import { Tokens } from '../data/model/tokens';
 import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
 import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
+import { logInfo } from '../utils/logger';
 import { getActionInputsWithDefaults } from '../utils/yml_utils';
 import { mainRun } from './common_action';
 
@@ -616,5 +617,7 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
         additionalParams,
     )
 
-    await mainRun(execution);
+    const results = await mainRun(execution);
+
+    logInfo(`Results: ${JSON.stringify(results, null, 2)}`);
 }

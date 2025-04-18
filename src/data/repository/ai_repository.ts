@@ -1,3 +1,4 @@
+import { REPO_URL, TITLE } from '../../utils/constants';
 import { logDebugInfo, logError } from '../../utils/logger';
 import { Ai } from '../model/ai';
 
@@ -41,8 +42,8 @@ export class AiRepository {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
-                    'HTTP-Referer': 'https://github.com/landamessenger/git-board-flow',
-                    'X-Title': 'Git Board Flow',
+                    'HTTP-Referer': REPO_URL,
+                    'X-Title': TITLE,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(requestBody),

@@ -110,7 +110,7 @@ export class SupabaseRepository {
                 doc.type,
                 doc.index,
                 doc.chunk_index,
-                doc.chunk,
+                doc.content,
                 doc.shasum,
                 doc.vector
             ));
@@ -271,7 +271,7 @@ export class SupabaseRepository {
                 doc.type,
                 doc.index,
                 doc.chunk_index,
-                doc.chunk,
+                doc.content,
                 doc.shasum,
                 doc.vector
             ));

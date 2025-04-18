@@ -1,3 +1,7 @@
+export const COMMAND = 'git-board-flow'
+export const TITLE = 'Git Board Flow'
+export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
+
 export const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -336,4 +340,10 @@ export const INPUT_KEYS = {
 
 export const ERRORS = {
     GIT_REPOSITORY_NOT_FOUND: '❌ Git repository not found'
+} as const; 
+
+export const ACTIONS = {
+    DEPLOYED: 'deployed_action',
+    VECTOR: 'vector_action',
+    ASK: 'ask_action'
 } as const; 

@@ -1,12 +1,12 @@
-import { ChunkedFile } from '../data/model/chunked_file';
-import { ChunkedFileChunk } from '../data/model/chunked_file_chunk';
-import { Execution } from '../data/model/execution';
-import { Result } from '../data/model/result';
-import { DockerRepository } from '../data/repository/docker_repository';
-import { FileRepository } from '../data/repository/file_repository';
-import { SupabaseRepository } from '../data/repository/supabase_repository';
-import { logDebugInfo, logError, logInfo, logSingleLine } from '../utils/logger';
-import { ParamUseCase } from './base/param_usecase';
+import { ChunkedFile } from '../../data/model/chunked_file';
+import { ChunkedFileChunk } from '../../data/model/chunked_file_chunk';
+import { Execution } from '../../data/model/execution';
+import { Result } from '../../data/model/result';
+import { DockerRepository } from '../../data/repository/docker_repository';
+import { FileRepository } from '../../data/repository/file_repository';
+import { SupabaseRepository } from '../../data/repository/supabase_repository';
+import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
+import { ParamUseCase } from '../base/param_usecase';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
@@ -140,14 +140,14 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             );
 
         } catch (error) {
-            logError('Error in VectorActionUseCase: ' + JSON.stringify(error, null, 2));
+            logError(`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
-                    steps: [
-                        `Error in VectorActionUseCase: ${JSON.stringify(error, null, 2)}`,
+                    errors: [
+                        `Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`,
                     ],
                 })
             );
