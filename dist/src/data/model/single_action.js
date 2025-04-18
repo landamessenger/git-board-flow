@@ -1,15 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SingleAction = void 0;
+const constants_1 = require("../../utils/constants");
 const logger_1 = require("../../utils/logger");
-const deployedAction = 'deployed_action';
-const vectorAction = 'vector_action';
 class SingleAction {
     get isDeployedAction() {
-        return this.currentSingleAction === deployedAction;
+        return this.currentSingleAction === constants_1.ACTIONS.DEPLOYED;
     }
     get isVectorAction() {
-        return this.currentSingleAction === vectorAction;
+        return this.currentSingleAction === constants_1.ACTIONS.VECTOR;
+    }
+    get isAskAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.ASK;
     }
     get enabledSingleAction() {
         return this.currentSingleAction.length > 0;
@@ -21,7 +23,7 @@ class SingleAction {
     }
     constructor(currentSingleAction, currentSingleActionIssue) {
         this.currentSingleActionIssue = -1;
-        this.actions = [deployedAction, vectorAction];
+        this.actions = [constants_1.ACTIONS.DEPLOYED, constants_1.ACTIONS.VECTOR, constants_1.ACTIONS.ASK];
         this.isIssue = false;
         this.isPullRequest = false;
         this.isPush = false;

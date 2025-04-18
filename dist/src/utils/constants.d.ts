@@ -1,3 +1,6 @@
+export declare const COMMAND = "git-board-flow";
+export declare const TITLE = "Git Board Flow";
+export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
         automatic: string[];
@@ -154,4 +157,9 @@ export declare const INPUT_KEYS: {
 };
 export declare const ERRORS: {
     readonly GIT_REPOSITORY_NOT_FOUND: "❌ Git repository not found";
+};
+export declare const ACTIONS: {
+    readonly DEPLOYED: "deployed_action";
+    readonly VECTOR: "vector_action";
+    readonly ASK: "ask_action";
 };

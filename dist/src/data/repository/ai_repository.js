@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiRepository = void 0;
+const constants_1 = require("../../utils/constants");
 const logger_1 = require("../../utils/logger");
 class AiRepository {
     constructor() {
@@ -29,8 +30,8 @@ class AiRepository {
                     method: 'POST',
                     headers: {
                         Authorization: `Bearer ${apiKey}`,
-                        'HTTP-Referer': 'https://github.com/landamessenger/git-board-flow',
-                        'X-Title': 'Git Board Flow',
+                        'HTTP-Referer': constants_1.REPO_URL,
+                        'X-Title': constants_1.TITLE,
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(requestBody),

@@ -3,8 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SingleActionUseCase = void 0;
 const result_1 = require("../data/model/result");
 const logger_1 = require("../utils/logger");
+const ask_ai_use_case_1 = require("./actions/ask_ai_use_case");
 const deployed_action_use_case_1 = require("./actions/deployed_action_use_case");
-const vector_action_use_case_1 = require("./vector_action_use_case");
+const vector_action_use_case_1 = require("./actions/vector_action_use_case");
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -20,7 +21,10 @@ class SingleActionUseCase {
             if (param.singleAction.isVectorAction) {
                 results.push(...await new vector_action_use_case_1.VectorActionUseCase().invoke(param));
             }
-            if (param.singleAction.isDeployedAction) {
+            else if (param.singleAction.isAskAction) {
+                results.push(...await new ask_ai_use_case_1.AskActionUseCase().invoke(param));
+            }
+            else if (param.singleAction.isDeployedAction) {
                 results.push(...await new deployed_action_use_case_1.DeployedActionUseCase().invoke(param));
             }
         }
