@@ -5,8 +5,9 @@ export declare class AskActionUseCase implements ParamUseCase<Execution, Result[
     taskId: string;
     private dockerRepository;
     private fileRepository;
-    private readonly CODE_INSTRUCTION_BLOCK;
-    private readonly CODE_INSTRUCTION_LINE;
+    private aiRepository;
+    private issueRepository;
     private readonly CODE_INSTRUCTION_ASK;
     invoke(param: Execution): Promise<Result[]>;
+    private getRelatedFiles;
 }
