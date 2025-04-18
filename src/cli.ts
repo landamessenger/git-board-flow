@@ -8,6 +8,7 @@ import { execSync } from 'child_process';
 import boxen from 'boxen';
 import chalk from 'chalk';
 import { logInfo } from './utils/logger';
+import { IssueRepository } from './data/repository/issue_repository';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -98,7 +99,14 @@ program
   .option('-b, --branch <name>', 'Branch name', 'master')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .action((options) => {    
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
+  .option('-k, --key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .option('-p, --provider <provider>', 'OpenRouter provider', process.env.OPENROUTER_PROVIDER_ORDER)
+  .option('-f, --fallback <fallback>', 'OpenRouter fallback', process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS)
+  .option('-r, --require <require>', 'OpenRouter require', process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS)
+  .option('-c, --collection <collection>', 'OpenRouter collection', process.env.OPENROUTER_PROVIDER_DATA_COLLECTION)
+  .option('-q, --question <question>', 'Question', '')
+  .action(async (options) => {    
     const gitInfo = getGitInfo();
     
     if ('error' in gitInfo) {
@@ -106,15 +114,21 @@ program
       return;
     }
 
-    const commentBody = `@landa-bot where is should add new constants?`;
+    const commentBody = options.question;
 
-    const params = {
+    const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.ASK,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: options.issue,
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.OPENROUTER_API_KEY]: process.env.OPENROUTER_API_KEY,
+      [INPUT_KEYS.OPENROUTER_MODEL]: process.env.OPENROUTER_MODEL,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_ORDER]: process.env.OPENROUTER_PROVIDER_ORDER,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS]: process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS]: process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION]: process.env.OPENROUTER_PROVIDER_DATA_COLLECTION,
       [INPUT_KEYS.AI_IGNORE_FILES]: 'dist/*,bin/*',
       repo: {
         owner: gitInfo.owner,
@@ -123,16 +137,39 @@ program
       commits: {
         ref: `refs/heads/${options.branch}`,
       },
-      eventName: 'issue_comment',
-      comment: {
-        body: commentBody,
-      },
-      pull_request_review_comment: {
-        body: commentBody,
-      },
-      issue: {
+    }
+
+    const issueRepository = new IssueRepository();
+    const isIssue = await issueRepository.isIssue(
+      gitInfo.owner,
+      gitInfo.repo,
+      parseInt(options.issue),
+      process.env.PERSONAL_ACCESS_TOKEN ?? ''
+    );
+
+    const isPullRequest = await issueRepository.isPullRequest(
+      gitInfo.owner,
+      gitInfo.repo,
+      parseInt(options.issue),
+      process.env.PERSONAL_ACCESS_TOKEN ?? ''
+    );
+
+    if (isIssue) {
+      params.eventName = 'issue_comment';
+      params.issue = {
         number: parseInt(options.issue),
-      },
+      }
+      params.comment = {
+        body: commentBody,
+      }
+    } else if (isPullRequest) {
+      params.eventName = 'pull_request_review_comment';
+      params.issue = {
+        number: parseInt(options.issue),
+      }
+      params.pull_request_review_comment = {
+        body: commentBody,
+      }
     }
 
     logInfo(

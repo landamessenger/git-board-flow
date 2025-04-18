@@ -21,10 +21,14 @@ export class AiRepository {
             return undefined;
         }
 
+        logDebugInfo(`🔎 Model: ${model}`);
+        logDebugInfo(`🔎 API Key: ***`);
+        logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
+
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
         try {
-            logDebugInfo(`Sending prompt to ${model}: ${prompt}`);
+            // logDebugInfo(`Sending prompt to ${model}: ${prompt}`);
 
             const requestBody: any = {
                 model: model,
@@ -69,5 +73,18 @@ export class AiRepository {
             logError(`Error querying ${model}: ${error}`);
             return undefined;
         }
+    }
+
+    askJson = async (ai: Ai, prompt: string): Promise<any | undefined> => {
+        const result = await this.ask(ai, prompt);
+        if (!result) {
+            return undefined;
+        }
+        // Clean the response by removing ```json markers if present
+        const cleanedResult = result
+            .replace(/^```json\n?/, '')  // Remove ```json at the start
+            .replace(/\n?```$/, '')      // Remove ``` at the end
+            .trim();
+        return JSON.parse(cleanedResult);
     }
 }

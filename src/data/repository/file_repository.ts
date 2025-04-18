@@ -11,6 +11,22 @@ type Block = {
     endLine: number;
 };
 
+export interface FileTreeNodeWithNoContent {
+    name: string;
+    type: 'file' | 'directory';
+    children?: FileTreeNodeWithNoContent[];
+    path: string;
+    content?: string;
+}
+
+export interface FileTreeNodeWithContent {
+    name: string;
+    type: 'file' | 'directory';
+    children?: FileTreeNodeWithContent[];
+    path: string;
+    content?: string;
+}
+
 export class FileRepository {
     private isMediaOrPdfFile(path: string): boolean {
         const mediaExtensions = [
@@ -301,5 +317,92 @@ export class FileRepository {
 
     private calculateShasum(content: string): string {
         return createHash('sha256').update(content).digest('hex');
+    }
+
+    getFileTree = async (
+        owner: string,
+        repository: string,
+        token: string,
+        branch: string,
+        ignoreFiles: string[],
+        progress: (fileName: string) => void,
+    ): Promise<{ withContent: FileTreeNodeWithContent; withoutContent: FileTreeNodeWithNoContent }> => {
+        const fileContents = await this.getRepositoryContent(
+            owner,
+            repository,
+            token,
+            branch,
+            ignoreFiles,
+            progress
+        );
+
+        // Create root nodes for both trees
+        const rootWithContent: FileTreeNodeWithContent = {
+            name: repository,
+            type: 'directory',
+            path: '',
+            children: []
+        };
+
+        const rootWithoutContent: FileTreeNodeWithNoContent = {
+            name: repository,
+            type: 'directory',
+            path: '',
+            children: []
+        };
+
+        // Process each file path to build both trees
+        for (const [filePath, content] of fileContents.entries()) {
+            const parts = filePath.split('/');
+            let currentLevelWithContent = rootWithContent;
+            let currentLevelWithoutContent = rootWithoutContent;
+
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                const isLastPart = i === parts.length - 1;
+                const currentPath = parts.slice(0, i + 1).join('/');
+
+                // Find or create the node in the content tree
+                let nodeWithContent = currentLevelWithContent.children?.find(n => n.name === part);
+                if (!nodeWithContent) {
+                    nodeWithContent = {
+                        name: part,
+                        type: isLastPart ? 'file' : 'directory',
+                        path: currentPath,
+                        children: isLastPart ? undefined : [],
+                        content: isLastPart ? content : undefined
+                    };
+                    if (!currentLevelWithContent.children) {
+                        currentLevelWithContent.children = [];
+                    }
+                    currentLevelWithContent.children.push(nodeWithContent);
+                }
+
+                // Find or create the node in the no-content tree
+                let nodeWithoutContent = currentLevelWithoutContent.children?.find(n => n.name === part);
+                if (!nodeWithoutContent) {
+                    nodeWithoutContent = {
+                        name: part,
+                        type: isLastPart ? 'file' : 'directory',
+                        path: currentPath,
+                        children: isLastPart ? undefined : []
+                    };
+                    if (!currentLevelWithoutContent.children) {
+                        currentLevelWithoutContent.children = [];
+                    }
+                    currentLevelWithoutContent.children.push(nodeWithoutContent);
+                }
+
+                if (!isLastPart) {
+                    currentLevelWithContent = nodeWithContent;
+                    currentLevelWithoutContent = nodeWithoutContent;
+                }
+            }
+        }
+
+        return {
+            withContent: rootWithContent,
+            withoutContent: rootWithoutContent
+        };
     }
 } 
