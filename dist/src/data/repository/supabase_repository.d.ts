@@ -8,6 +8,7 @@ export declare class SupabaseRepository {
     private supabase;
     constructor(config: SupabaseConfig);
     setChunkedFile: (owner: string, repository: string, branch: string, chunkedFile: ChunkedFile) => Promise<void>;
+    removeChunksByShasum: (owner: string, repository: string, branch: string, shasum: string) => Promise<void>;
     getChunkedFileByShasum: (owner: string, repository: string, branch: string, type: string, shasum: string) => Promise<ChunkedFileChunk[]>;
     getChunks: (owner: string, repository: string, branch: string, path: string, type: string, index: number) => Promise<ChunkedFileChunk[]>;
     getChunksByShasum: (owner: string, repository: string, branch: string, shasum: string) => Promise<ChunkedFileChunk[]>;
