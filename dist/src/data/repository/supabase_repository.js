@@ -75,7 +75,7 @@ class SupabaseRepository {
                 if (!data) {
                     return [];
                 }
-                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
+                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.content, doc.shasum, doc.vector));
             }
             catch (error) {
                 (0, logger_1.logError)(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
@@ -166,7 +166,7 @@ class SupabaseRepository {
                     (0, logger_1.logError)(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);
                     throw error;
                 }
-                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
+                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.content, doc.shasum, doc.vector));
             }
             catch (error) {
                 (0, logger_1.logError)(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);

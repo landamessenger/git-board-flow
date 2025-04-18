@@ -1,6 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ERRORS = exports.INPUT_KEYS = exports.DEFAULT_IMAGE_CONFIG = void 0;
+exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.DEFAULT_IMAGE_CONFIG = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.COMMAND = 'git-board-flow';
+exports.TITLE = 'Git Board Flow';
+exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
 exports.DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -320,4 +323,9 @@ exports.INPUT_KEYS = {
 };
 exports.ERRORS = {
     GIT_REPOSITORY_NOT_FOUND: '❌ Git repository not found'
+};
+exports.ACTIONS = {
+    DEPLOYED: 'deployed_action',
+    VECTOR: 'vector_action',
+    ASK: 'ask_action'
 };

@@ -66,8 +66,8 @@ function getGitInfo() {
     }
 }
 program
-    .name('git-board-flow')
-    .description('CLI tool for Git Board Flow')
+    .name(constants_1.COMMAND)
+    .description(`CLI tool for ${constants_1.TITLE}`)
     .version('1.0.0');
 program
     .command('build-ai')
@@ -84,7 +84,7 @@ program
     }
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
-        [constants_1.INPUT_KEYS.SINGLE_ACTION]: 'vector_action',
+        [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.VECTOR,
         [constants_1.INPUT_KEYS.SINGLE_ACTION_ISSUE]: options.issue,
         [constants_1.INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
         [constants_1.INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
@@ -107,7 +107,58 @@ program
         margin: 1,
         borderStyle: 'round',
         borderColor: 'cyan',
-        title: 'Git Board Flow',
+        title: constants_1.TITLE,
+        titleAlignment: 'center'
+    }));
+    (0, local_action_1.runLocalAction)(params);
+});
+program
+    .command('ask-ai')
+    .description('Ask AI')
+    .option('-i, --issue <number>', 'Issue number to process', '1')
+    .option('-b, --branch <name>', 'Branch name', 'master')
+    .option('-d, --debug', 'Debug mode', false)
+    .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+    .action((options) => {
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+        console.log(gitInfo.error);
+        return;
+    }
+    const commentBody = `@landa-bot where is should add new constants?`;
+    const params = {
+        [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
+        [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.ASK,
+        [constants_1.INPUT_KEYS.SINGLE_ACTION_ISSUE]: options.issue,
+        [constants_1.INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
+        [constants_1.INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
+        [constants_1.INPUT_KEYS.TOKEN]: process.env.PERSONAL_ACCESS_TOKEN,
+        [constants_1.INPUT_KEYS.AI_IGNORE_FILES]: 'dist/*,bin/*',
+        repo: {
+            owner: gitInfo.owner,
+            repo: gitInfo.repo,
+        },
+        commits: {
+            ref: `refs/heads/${options.branch}`,
+        },
+        eventName: 'issue_comment',
+        comment: {
+            body: commentBody,
+        },
+        pull_request_review_comment: {
+            body: commentBody,
+        },
+        issue: {
+            number: parseInt(options.issue),
+        },
+    };
+    (0, logger_1.logInfo)((0, boxen_1.default)(chalk_1.default.cyan('🚀 Asking AI started\n') +
+        chalk_1.default.gray(`Asking AI on ${gitInfo.owner}/${gitInfo.repo}/${options.branch}...`), {
+        padding: 1,
+        margin: 1,
+        borderStyle: 'round',
+        borderColor: 'cyan',
+        title: constants_1.TITLE,
         titleAlignment: 'center'
     }));
     (0, local_action_1.runLocalAction)(params);
