@@ -13,9 +13,12 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration');
                 return undefined;
             }
+            (0, logger_1.logDebugInfo)(`🔎 Model: ${model}`);
+            (0, logger_1.logDebugInfo)(`🔎 API Key: ***`);
+            (0, logger_1.logDebugInfo)(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             try {
-                (0, logger_1.logDebugInfo)(`Sending prompt to ${model}: ${prompt}`);
+                // logDebugInfo(`Sending prompt to ${model}: ${prompt}`);
                 const requestBody = {
                     model: model,
                     messages: [
@@ -54,6 +57,18 @@ class AiRepository {
                 (0, logger_1.logError)(`Error querying ${model}: ${error}`);
                 return undefined;
             }
+        };
+        this.askJson = async (ai, prompt) => {
+            const result = await this.ask(ai, prompt);
+            if (!result) {
+                return undefined;
+            }
+            // Clean the response by removing ```json markers if present
+            const cleanedResult = result
+                .replace(/^```json\n?/, '') // Remove ```json at the start
+                .replace(/\n?```$/, '') // Remove ``` at the end
+                .trim();
+            return JSON.parse(cleanedResult);
         };
     }
 }

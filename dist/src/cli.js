@@ -45,6 +45,7 @@ const child_process_1 = require("child_process");
 const boxen_1 = __importDefault(require("boxen"));
 const chalk_1 = __importDefault(require("chalk"));
 const logger_1 = require("./utils/logger");
+const issue_repository_1 = require("./data/repository/issue_repository");
 // Load environment variables from .env file
 dotenv.config();
 const program = new commander_1.Command();
@@ -119,13 +120,20 @@ program
     .option('-b, --branch <name>', 'Branch name', 'master')
     .option('-d, --debug', 'Debug mode', false)
     .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-    .action((options) => {
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
+    .option('-k, --key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-p, --provider <provider>', 'OpenRouter provider', process.env.OPENROUTER_PROVIDER_ORDER)
+    .option('-f, --fallback <fallback>', 'OpenRouter fallback', process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS)
+    .option('-r, --require <require>', 'OpenRouter require', process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS)
+    .option('-c, --collection <collection>', 'OpenRouter collection', process.env.OPENROUTER_PROVIDER_DATA_COLLECTION)
+    .option('-q, --question <question>', 'Question', '')
+    .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
         console.log(gitInfo.error);
         return;
     }
-    const commentBody = `@landa-bot where is should add new constants?`;
+    const commentBody = options.question;
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.ASK,
@@ -133,6 +141,12 @@ program
         [constants_1.INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
         [constants_1.INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
         [constants_1.INPUT_KEYS.TOKEN]: process.env.PERSONAL_ACCESS_TOKEN,
+        [constants_1.INPUT_KEYS.OPENROUTER_API_KEY]: process.env.OPENROUTER_API_KEY,
+        [constants_1.INPUT_KEYS.OPENROUTER_MODEL]: process.env.OPENROUTER_MODEL,
+        [constants_1.INPUT_KEYS.OPENROUTER_PROVIDER_ORDER]: process.env.OPENROUTER_PROVIDER_ORDER,
+        [constants_1.INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS]: process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS,
+        [constants_1.INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS]: process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS,
+        [constants_1.INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION]: process.env.OPENROUTER_PROVIDER_DATA_COLLECTION,
         [constants_1.INPUT_KEYS.AI_IGNORE_FILES]: 'dist/*,bin/*',
         repo: {
             owner: gitInfo.owner,
@@ -141,17 +155,28 @@ program
         commits: {
             ref: `refs/heads/${options.branch}`,
         },
-        eventName: 'issue_comment',
-        comment: {
-            body: commentBody,
-        },
-        pull_request_review_comment: {
-            body: commentBody,
-        },
-        issue: {
-            number: parseInt(options.issue),
-        },
     };
+    const issueRepository = new issue_repository_1.IssueRepository();
+    const isIssue = await issueRepository.isIssue(gitInfo.owner, gitInfo.repo, parseInt(options.issue), process.env.PERSONAL_ACCESS_TOKEN ?? '');
+    const isPullRequest = await issueRepository.isPullRequest(gitInfo.owner, gitInfo.repo, parseInt(options.issue), process.env.PERSONAL_ACCESS_TOKEN ?? '');
+    if (isIssue) {
+        params.eventName = 'issue_comment';
+        params.issue = {
+            number: parseInt(options.issue),
+        };
+        params.comment = {
+            body: commentBody,
+        };
+    }
+    else if (isPullRequest) {
+        params.eventName = 'pull_request_review_comment';
+        params.issue = {
+            number: parseInt(options.issue),
+        };
+        params.pull_request_review_comment = {
+            body: commentBody,
+        };
+    }
     (0, logger_1.logInfo)((0, boxen_1.default)(chalk_1.default.cyan('🚀 Asking AI started\n') +
         chalk_1.default.gray(`Asking AI on ${gitInfo.owner}/${gitInfo.repo}/${options.branch}...`), {
         padding: 1,

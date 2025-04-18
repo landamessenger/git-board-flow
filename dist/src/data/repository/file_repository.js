@@ -220,6 +220,70 @@ class FileRepository {
                 /^\/\*\*$/.test(trimmed) ||
                 /^\*\/$/.test(trimmed));
         };
+        this.getFileTree = async (owner, repository, token, branch, ignoreFiles, progress) => {
+            const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress);
+            // Create root nodes for both trees
+            const rootWithContent = {
+                name: repository,
+                type: 'directory',
+                path: '',
+                children: []
+            };
+            const rootWithoutContent = {
+                name: repository,
+                type: 'directory',
+                path: '',
+                children: []
+            };
+            // Process each file path to build both trees
+            for (const [filePath, content] of fileContents.entries()) {
+                const parts = filePath.split('/');
+                let currentLevelWithContent = rootWithContent;
+                let currentLevelWithoutContent = rootWithoutContent;
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    const isLastPart = i === parts.length - 1;
+                    const currentPath = parts.slice(0, i + 1).join('/');
+                    // Find or create the node in the content tree
+                    let nodeWithContent = currentLevelWithContent.children?.find(n => n.name === part);
+                    if (!nodeWithContent) {
+                        nodeWithContent = {
+                            name: part,
+                            type: isLastPart ? 'file' : 'directory',
+                            path: currentPath,
+                            children: isLastPart ? undefined : [],
+                            content: isLastPart ? content : undefined
+                        };
+                        if (!currentLevelWithContent.children) {
+                            currentLevelWithContent.children = [];
+                        }
+                        currentLevelWithContent.children.push(nodeWithContent);
+                    }
+                    // Find or create the node in the no-content tree
+                    let nodeWithoutContent = currentLevelWithoutContent.children?.find(n => n.name === part);
+                    if (!nodeWithoutContent) {
+                        nodeWithoutContent = {
+                            name: part,
+                            type: isLastPart ? 'file' : 'directory',
+                            path: currentPath,
+                            children: isLastPart ? undefined : []
+                        };
+                        if (!currentLevelWithoutContent.children) {
+                            currentLevelWithoutContent.children = [];
+                        }
+                        currentLevelWithoutContent.children.push(nodeWithoutContent);
+                    }
+                    if (!isLastPart) {
+                        currentLevelWithContent = nodeWithContent;
+                        currentLevelWithoutContent = nodeWithoutContent;
+                    }
+                }
+            }
+            return {
+                withContent: rootWithContent,
+                withoutContent: rootWithoutContent
+            };
+        };
     }
     isMediaOrPdfFile(path) {
         const mediaExtensions = [
