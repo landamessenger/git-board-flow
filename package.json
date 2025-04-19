@@ -4,8 +4,9 @@
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && ncc build src/actions/github_action.ts -o dist && ncc build src/cli.ts -o bin",
-    "prepare": "npm run build"
+    "build-macos": "tsc && ncc build src/actions/github_action.ts -o dist/macos/ && ncc build src/cli.ts -o bin/macos",
+    "build-linux": "tsc && ncc build src/actions/github_action.ts -o dist/linux/ && ncc build src/cli.ts -o bin/linux",
+    "build-common": "ncc build runner/github_action.ts -o dist && ncc build runner/cli.ts -o bin && chmod +x bin/index.js"
   },
   "bin": {
     "git-board-flow": "./bin/index.js"

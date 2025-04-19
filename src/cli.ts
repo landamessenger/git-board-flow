@@ -1,19 +1,14 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander';
-import { INPUT_KEYS, ERRORS, ACTIONS, TITLE, COMMAND } from './utils/constants';
-import { runLocalAction } from './actions/local_action';
-import * as dotenv from 'dotenv';
 import { execSync } from 'child_process';
-import boxen from 'boxen';
-import chalk from 'chalk';
-import { logInfo } from './utils/logger';
+import { Command } from 'commander';
+import * as dotenv from 'dotenv';
+import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
+import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
 
 // Load environment variables from .env file
 dotenv.config();
-
-
 
 const program = new Command();
 
@@ -118,20 +113,20 @@ program
 
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
-      [INPUT_KEYS.SUPABASE_URL]: options.supabaseUrl.length > 0 ? options.supabaseUrl : process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: options.supabaseKey.length > 0 ? options.supabaseKey : process.env.SUPABASE_KEY,
-      [INPUT_KEYS.TOKEN]: options.token.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENROUTER_API_KEY]: options.openrouterApiKey.length > 0 ? options.openrouterApiKey : process.env.OPENROUTER_API_KEY,
-      [INPUT_KEYS.OPENROUTER_MODEL]: options.openrouterModel.length > 0 ? options.openrouterModel : process.env.OPENROUTER_MODEL,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_ORDER]: options.openrouterProviderOrder.length > 0 ? options.openrouterProviderOrder : process.env.OPENROUTER_PROVIDER_ORDER,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS]: options.openrouterProviderAllowFallbacks.length > 0 ? options.openrouterProviderAllowFallbacks : process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS]: options.openrouterProviderRequireParameters.length > 0 ? options.openrouterProviderRequireParameters : process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION]: options.openrouterProviderDataCollection.length > 0 ? options.openrouterProviderDataCollection : process.env.OPENROUTER_PROVIDER_DATA_COLLECTION,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE]: options.openrouterProviderIgnore.length > 0 ? options.openrouterProviderIgnore : process.env.OPENROUTER_PROVIDER_IGNORE,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS]: options.openrouterProviderQuantizations.length > 0 ? options.openrouterProviderQuantizations : process.env.OPENROUTER_PROVIDER_QUANTIZATIONS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_SORT]: options.openrouterProviderSort.length > 0 ? options.openrouterProviderSort : process.env.OPENROUTER_PROVIDER_SORT,
-      [INPUT_KEYS.AI_IGNORE_FILES]: options.aiIgnoreFiles.length > 0 ? options.aiIgnoreFiles : process.env.AI_IGNORE_FILES,
-      [INPUT_KEYS.AI_INCLUDE_REASONING]: options.includeReasoning.length > 0 ? options.includeReasoning : process.env.AI_INCLUDE_REASONING,
+      [INPUT_KEYS.SUPABASE_URL]: options?.supabaseUrl?.length > 0 ? options.supabaseUrl : process.env.SUPABASE_URL,
+      [INPUT_KEYS.SUPABASE_KEY]: options?.supabaseKey?.length > 0 ? options.supabaseKey : process.env.SUPABASE_KEY,
+      [INPUT_KEYS.TOKEN]: options?.token?.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.OPENROUTER_API_KEY]: options?.openrouterApiKey?.length > 0 ? options.openrouterApiKey : process.env.OPENROUTER_API_KEY,
+      [INPUT_KEYS.OPENROUTER_MODEL]: options?.openrouterModel?.length > 0 ? options.openrouterModel : process.env.OPENROUTER_MODEL,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_ORDER]: options?.openrouterProviderOrder?.length > 0 ? options.openrouterProviderOrder : process.env.OPENROUTER_PROVIDER_ORDER,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS]: options?.openrouterProviderAllowFallbacks?.length > 0 ? options.openrouterProviderAllowFallbacks : process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS]: options?.openrouterProviderRequireParameters?.length > 0 ? options.openrouterProviderRequireParameters : process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION]: options?.openrouterProviderDataCollection?.length > 0 ? options.openrouterProviderDataCollection : process.env.OPENROUTER_PROVIDER_DATA_COLLECTION,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE]: options?.openrouterProviderIgnore?.length > 0 ? options.openrouterProviderIgnore : process.env.OPENROUTER_PROVIDER_IGNORE,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS]: options?.openrouterProviderQuantizations?.length > 0 ? options.openrouterProviderQuantizations : process.env.OPENROUTER_PROVIDER_QUANTIZATIONS,
+      [INPUT_KEYS.OPENROUTER_PROVIDER_SORT]: options?.openrouterProviderSort?.length > 0 ? options.openrouterProviderSort : process.env.OPENROUTER_PROVIDER_SORT,
+      [INPUT_KEYS.AI_IGNORE_FILES]: options?.aiIgnoreFiles?.length > 0 ? options.aiIgnoreFiles : process.env.AI_IGNORE_FILES,
+      [INPUT_KEYS.AI_INCLUDE_REASONING]: options?.includeReasoning?.length > 0 ? options.includeReasoning : process.env.AI_INCLUDE_REASONING,
       repo: {
         owner: gitInfo.owner,
         repo: gitInfo.repo,
