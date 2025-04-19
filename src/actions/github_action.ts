@@ -35,6 +35,9 @@ export async function runGitHubAction(): Promise<void> {
      */
     const debug = core.getInput(INPUT_KEYS.DEBUG) == 'true'
 
+    /**
+     * Docker 
+     */
     const dockerContainerName = core.getInput(INPUT_KEYS.DOCKER_CONTAINER_NAME);
     const dockerDomain = core.getInput(INPUT_KEYS.DOCKER_DOMAIN);
     const dockerPort = parseInt(core.getInput(INPUT_KEYS.DOCKER_PORT));
@@ -57,6 +60,7 @@ export async function runGitHubAction(): Promise<void> {
     const openrouterModel = core.getInput(INPUT_KEYS.OPENROUTER_MODEL)
     const aiPullRequestDescription = core.getInput(INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION) === 'true';
     const aiMembersOnly = core.getInput(INPUT_KEYS.AI_MEMBERS_ONLY) === 'true';
+    const aiIncludeReasoning = core.getInput(INPUT_KEYS.AI_INCLUDE_REASONING) === 'true';
     const aiIgnoreFilesInput: string = core.getInput(INPUT_KEYS.AI_IGNORE_FILES);
     const aiIgnoreFiles: string[] = aiIgnoreFilesInput
         .split(',')
@@ -512,6 +516,7 @@ export async function runGitHubAction(): Promise<void> {
             aiPullRequestDescription,
             aiMembersOnly,
             aiIgnoreFiles,
+            aiIncludeReasoning,
             Object.keys(providerRouting).length > 0 ? providerRouting : undefined
         ),
         new Labels(
@@ -609,6 +614,7 @@ export async function runGitHubAction(): Promise<void> {
             projectColumnPullRequestInProgress,
         ),
         new SupabaseConfig(supabaseUrl, supabaseKey),
+        undefined,
         undefined,
     )
 

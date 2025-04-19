@@ -1,15 +1,14 @@
-import { AiResponse } from '../../data/model/ai_response';
-import { ChunkedFile } from '../../data/model/chunked_file';
-import { ChunkedFileChunk } from '../../data/model/chunked_file_chunk';
-import { Execution } from '../../data/model/execution';
-import { Result } from '../../data/model/result';
-import { AiRepository } from '../../data/repository/ai_repository';
-import { DockerRepository } from '../../data/repository/docker_repository';
-import { FileRepository, FileTreeNodeWithContent } from '../../data/repository/file_repository';
-import { IssueRepository } from '../../data/repository/issue_repository';
-import { SupabaseRepository } from '../../data/repository/supabase_repository';
-import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
-import { ParamUseCase } from '../base/param_usecase';
+import { AiResponse } from '../../../data/model/ai_response';
+import { ChunkedFileChunk } from '../../../data/model/chunked_file_chunk';
+import { Execution } from '../../../data/model/execution';
+import { Result } from '../../../data/model/result';
+import { AiRepository } from '../../../data/repository/ai_repository';
+import { DockerRepository } from '../../../data/repository/docker_repository';
+import { FileRepository, FileTreeNodeWithContent } from '../../../data/repository/file_repository';
+import { IssueRepository } from '../../../data/repository/issue_repository';
+import { SupabaseRepository } from '../../../data/repository/supabase_repository';
+import { logDebugInfo, logError, logInfo, logSingleLine } from '../../../utils/logger';
+import { ParamUseCase } from '../../base/param_usecase';
 
 export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'AskActionUseCase';
@@ -26,21 +25,6 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
         const results: Result[] = [];
 
         try {
-
-            if (param.ai.getOpenRouterModel().length === 0 || param.ai.getOpenRouterApiKey().length === 0) {
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: false,
-                        errors: [
-                            `OpenRouter model or API key not found.`,
-                        ],
-                    })
-                )
-                return results;
-            }
-            
             /**
              * Check if the user from the token is found.
              */
@@ -58,11 +42,12 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
+            let description = '';
+            let commentBody = '';
+
             /**
              * Get the comment body.
              */
-            let description = '';
-            let commentBody = '';
             if (param.issue.isIssueComment) {
                 commentBody = param.issue.commentBody;
                 description = await this.issueRepository.getDescription(
@@ -91,20 +76,31 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            /**
-             * Check if the comment body includes the user from the token.
-             */
-            if (!commentBody.includes(param.tokenUser)) {
+            if (commentBody.length === 0 || !commentBody.includes(`@${param.tokenUser}`)) {
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: true,
                         executed: false,
                     })
-                )
+                );
                 return results;
             } else {
                 commentBody = commentBody.replace(param.tokenUser, '').trim();
+            }
+
+            if (param.ai.getOpenRouterModel().length === 0 || param.ai.getOpenRouterApiKey().length === 0) {
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: false,
+                        errors: [
+                            `OpenRouter model or API key not found.`,
+                        ],
+                    })
+                )
+                return results;
             }
 
             /**

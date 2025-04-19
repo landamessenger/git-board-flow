@@ -4,7 +4,7 @@ import { logError } from "../../utils/logger";
 export class SingleAction {
     currentSingleAction: string;
     currentSingleActionIssue: number = -1;
-    actions: string[] = [ACTIONS.DEPLOYED, ACTIONS.VECTOR, ACTIONS.ASK];
+    actions: string[] = [ACTIONS.DEPLOYED, ACTIONS.VECTOR];
     isIssue: boolean = false;
     isPullRequest: boolean = false;
     isPush: boolean = false;
@@ -15,10 +15,6 @@ export class SingleAction {
 
     get isVectorAction(): boolean {
         return this.currentSingleAction === ACTIONS.VECTOR;
-    }
-
-    get isAskAction(): boolean {
-        return this.currentSingleAction === ACTIONS.ASK;
     }
 
     get enabledSingleAction(): boolean {

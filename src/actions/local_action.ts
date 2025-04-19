@@ -18,6 +18,7 @@ import { SizeThreshold } from '../data/model/size_threshold';
 import { SizeThresholds } from '../data/model/size_thresholds';
 import { SupabaseConfig } from '../data/model/supabase_config';
 import { Tokens } from '../data/model/tokens';
+import { Welcome } from '../data/model/welcome';
 import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
 import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
@@ -34,6 +35,12 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      * Debug
      */
     const debug = (additionalParams[INPUT_KEYS.DEBUG] ?? actionInputs[INPUT_KEYS.DEBUG]) == 'true'
+
+    /**
+     * Welcome
+     */
+    const welcomeTitle = additionalParams[INPUT_KEYS.WELCOME_TITLE] ?? actionInputs[INPUT_KEYS.WELCOME_TITLE];
+    const welcomeMessages = additionalParams[INPUT_KEYS.WELCOME_MESSAGES] ?? actionInputs[INPUT_KEYS.WELCOME_MESSAGES];
 
     /**
      * Docker
@@ -60,6 +67,7 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     const openrouterModel = additionalParams[INPUT_KEYS.OPENROUTER_MODEL] ?? actionInputs[INPUT_KEYS.OPENROUTER_MODEL];
     const aiPullRequestDescription = (additionalParams[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION] ?? actionInputs[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION]) === 'true';
     const aiMembersOnly = (additionalParams[INPUT_KEYS.AI_MEMBERS_ONLY] ?? actionInputs[INPUT_KEYS.AI_MEMBERS_ONLY]) === 'true';
+    const aiIncludeReasoning = (additionalParams[INPUT_KEYS.AI_INCLUDE_REASONING] ?? actionInputs[INPUT_KEYS.AI_INCLUDE_REASONING]) === 'true';
     const aiIgnoreFilesInput: string = additionalParams[INPUT_KEYS.AI_IGNORE_FILES] ?? actionInputs[INPUT_KEYS.AI_IGNORE_FILES];
     const aiIgnoreFiles: string[] = aiIgnoreFilesInput
         .split(',')
@@ -517,6 +525,7 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             aiPullRequestDescription,
             aiMembersOnly,
             aiIgnoreFiles,
+            aiIncludeReasoning,
             Object.keys(providerRouting).length > 0 ? providerRouting : undefined
         ),
         new Labels(
@@ -614,6 +623,7 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             projectColumnPullRequestInProgress,
         ),
         new SupabaseConfig(supabaseUrl, supabaseKey),
+        new Welcome(welcomeTitle, welcomeMessages),
         additionalParams,
     )
 

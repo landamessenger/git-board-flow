@@ -1,7 +1,7 @@
 import { Execution } from "../data/model/execution";
 import { Result } from "../data/model/result";
 import { logDebugInfo, logError, logInfo } from "../utils/logger";
-import { AskActionUseCase } from "./actions/ask_ai_use_case";
+import { AskActionUseCase } from "./steps/common/ask_ai_use_case";
 import { DeployedActionUseCase } from "./actions/deployed_action_use_case";
 import { VectorActionUseCase } from "./actions/vector_action_use_case";
 import { ParamUseCase } from "./base/param_usecase";
@@ -21,8 +21,6 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             if (param.singleAction.isVectorAction) {
                 results.push(...await new VectorActionUseCase().invoke(param));
-            } else if (param.singleAction.isAskAction) {
-                results.push(...await new AskActionUseCase().invoke(param));
             } else if (param.singleAction.isDeployedAction) {
                 results.push(...await new DeployedActionUseCase().invoke(param));
             }

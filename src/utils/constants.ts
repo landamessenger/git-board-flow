@@ -181,6 +181,10 @@ export const INPUT_KEYS = {
     // Debug
     DEBUG: 'debug',
 
+    // Welcome
+    WELCOME_TITLE: 'welcome-title',
+    WELCOME_MESSAGES: 'welcome-messages',
+
     // Docker
     DOCKER_CONTAINER_NAME: 'docker-container-name',
     DOCKER_DOMAIN: 'docker-domain',
@@ -199,6 +203,7 @@ export const INPUT_KEYS = {
     AI_PULL_REQUEST_DESCRIPTION: 'ai-pull-request-description',
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',
+    AI_INCLUDE_REASONING: 'ai-include-reasoning',
     OPENROUTER_PROVIDER_ORDER: 'openrouter-provider-order',
     OPENROUTER_PROVIDER_ALLOW_FALLBACKS: 'openrouter-provider-allow-fallbacks',
     OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: 'openrouter-provider-require-parameters',
@@ -345,5 +350,4 @@ export const ERRORS = {
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
     VECTOR: 'vector_action',
-    ASK: 'ask_action'
 } as const; 

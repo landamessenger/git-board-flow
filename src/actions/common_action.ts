@@ -8,6 +8,9 @@ import { PullRequestReviewCommentUseCase } from '../usecase/pull_request_review_
 import { PullRequestUseCase } from '../usecase/pull_request_use_case';
 import { SingleActionUseCase } from '../usecase/single_action_use_case';
 import { logInfo } from '../utils/logger';
+import { TITLE } from '../utils/constants';
+import chalk from 'chalk';
+import boxen from 'boxen';
 
 export async function mainRun(execution: Execution): Promise<Result[]> {
     await execution.setup();
@@ -20,6 +23,23 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
     if (execution.issueNumber === -1) {
         logInfo(`Issue number not found. Skipping.`);
         return [];
+    }
+
+    if (execution.welcome) {
+        logInfo(
+            boxen(
+                chalk.cyan(execution.welcome.title) +
+                execution.welcome.messages.map(message => chalk.gray(message)).join('\n'),
+                {
+                    padding: 1,
+                    margin: 1,
+                    borderStyle: 'round',
+                    borderColor: 'cyan',
+                    title: TITLE,
+                    titleAlignment: 'center'
+                }
+            )
+        );
     }
 
     const results: Result[] = []

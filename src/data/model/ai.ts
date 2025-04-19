@@ -14,6 +14,7 @@ export class Ai {
     private aiPullRequestDescription: boolean;
     private aiMembersOnly: boolean;
     private aiIgnoreFiles: string[];
+    private aiIncludeReasoning: boolean;
     private providerRouting: ProviderRoutingConfig;
 
     constructor(
@@ -22,6 +23,7 @@ export class Ai {
         aiPullRequestDescription: boolean, 
         aiMembersOnly: boolean, 
         aiIgnoreFiles: string[],
+        aiIncludeReasoning: boolean,
         providerRouting?: ProviderRoutingConfig
     ) {
         this.openRouterApiKey = openRouterApiKey;
@@ -29,6 +31,7 @@ export class Ai {
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
+        this.aiIncludeReasoning = aiIncludeReasoning;
         this.providerRouting = providerRouting || {};
     }
 
@@ -46,6 +49,10 @@ export class Ai {
 
     getAiIgnoreFiles(): string[] {
         return this.aiIgnoreFiles;
+    }
+
+    getAiIncludeReasoning(): boolean {
+        return this.aiIncludeReasoning;
     }
 
     getOpenRouterModel(): string {

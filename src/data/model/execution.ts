@@ -4,6 +4,7 @@ import { ConfigurationHandler } from "../../manager/description/configuration_ha
 import { GetHotfixVersionUseCase } from "../../usecase/steps/common/get_hotfix_version_use_case";
 import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_type_use_case";
 import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
+import { INPUT_KEYS } from "../../utils/constants";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
 import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
@@ -13,29 +14,29 @@ import { IssueRepository } from "../repository/issue_repository";
 import { ProjectRepository } from "../repository/project_repository";
 import { Ai } from "./ai";
 import { Branches } from "./branches";
+import { Commit } from "./commit";
+import { Config } from "./config";
+import { DockerConfig } from "./docker_config";
 import { Emoji } from "./emoji";
 import { Hotfix } from "./hotfix";
 import { Images } from "./images";
 import { Issue } from "./issue";
 import { IssueTypes } from "./issue_types";
 import { Labels } from "./labels";
+import { Locale } from "./locale";
 import { Projects } from "./projects";
 import { PullRequest } from "./pull_request";
 import { Release } from "./release";
 import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
-import { Tokens } from "./tokens";
-import { Workflows } from "./workflows";
-import { Locale } from "./locale";
 import { SupabaseConfig } from "./supabase_config";
-import { DockerConfig } from "./docker_config";
-import { Config } from "./config";
-import { Commit } from "./commit";
-import { INPUT_KEYS } from "../../utils/constants";
+import { Tokens } from "./tokens";
+import { Welcome } from "./welcome";
+import { Workflows } from "./workflows";
  
 export class Execution {
     debug: boolean = false;
-
+    welcome: Welcome | undefined;
     /**
      * Every usage of this field should be checked.
      * PRs with no issue ID in the head branch won't have it.
@@ -195,6 +196,7 @@ export class Execution {
         workflows: Workflows,
         project: Projects,
         supabaseConfig: SupabaseConfig | undefined,
+        welcome: Welcome | undefined,
         inputs: any | undefined
     ) {
         this.debug = debug;
@@ -219,6 +221,7 @@ export class Execution {
         this.currentConfiguration = new Config({});
         this.supabaseConfig = supabaseConfig;
         this.inputs = inputs;
+        this.welcome = welcome;
     }
 
     setup = async () => {
