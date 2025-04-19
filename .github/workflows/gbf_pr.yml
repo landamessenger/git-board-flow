@@ -14,7 +14,6 @@ jobs:
   git-board-pull-requests:
     name: Git Board - Pull Request
     runs-on: ubuntu-latest
-    if: github.actor != 'landa-bot'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -22,7 +21,7 @@ jobs:
       - uses: ./
         with:
           ai-pull-request-description: true
-          ai-ignore-files: dist/*
+          ai-ignore-files: dist/*,bin/*
           debug: ${{ vars.DEBUG }}
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}

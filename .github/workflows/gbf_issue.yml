@@ -14,7 +14,6 @@ jobs:
   git-board-issues:
     name: Git Board - Issue
     runs-on: ubuntu-latest
-    if: github.actor != 'landa-bot'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -22,6 +21,7 @@ jobs:
       - uses: ./
         with:
           debug: ${{ vars.DEBUG }}
+          ai-ignore-files: dist/*,bin/*
           hotfix-workflow: release_workflow.yml
           project-ids: 2
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}

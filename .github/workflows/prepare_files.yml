@@ -40,7 +40,7 @@ jobs:
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './dist/'
+          add: './dist/ ./bin/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info

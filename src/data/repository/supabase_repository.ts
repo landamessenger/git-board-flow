@@ -7,7 +7,6 @@ import { SupabaseConfig } from '../model/supabase_config';
 export class SupabaseRepository {
     private readonly CHUNKS_TABLE = 'chunks';
     private readonly MAX_BATCH_SIZE = 500;
-    private readonly MAX_PARALLEL_BATCHES = 5;
     private supabase: any;
 
     constructor(config: SupabaseConfig) {
@@ -288,7 +287,24 @@ export class SupabaseRepository {
         targetBranch: string,
     ): Promise<void> => {
         try {
-            // First, get all chunks from the source branch
+            // First, check if there are any entries for the source branch
+            const { count, error: countError } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .select('*', { count: 'exact', head: true })
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', sourceBranch);
+
+            if (countError) {
+                logError(`Error checking source branch entries: ${JSON.stringify(countError, null, 2)}`);
+                throw countError;
+            }
+
+            if (count === 0) {
+                return; // No entries exist for source branch, exit early
+            }
+
+            // Get all chunks from the source branch
             const { data: sourceChunks, error: fetchError } = await this.supabase
                 .from(this.CHUNKS_TABLE)
                 .select('*')
@@ -327,6 +343,29 @@ export class SupabaseRepository {
             }
         } catch (error) {
             logError(`Error duplicating chunks by branch: ${JSON.stringify(error, null, 2)}`);
+            throw error;
+        }
+    }
+
+    removeChunksByBranch = async (
+        owner: string,
+        repository: string,
+        branch: string,
+    ): Promise<void> => {
+        try {
+            const { error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .delete()
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch);
+
+            if (error) {
+                logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
             throw error;
         }
     }
