@@ -43,7 +43,7 @@ jobs:
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './dist/ ./bin/'
+          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
@@ -83,7 +83,7 @@ jobs:
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './dist/ ./bin/'
+          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
@@ -114,7 +114,7 @@ jobs:
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './dist/ ./bin/'
+          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
@@ -144,7 +144,7 @@ jobs:
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './dist/ ./bin/'
+          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
