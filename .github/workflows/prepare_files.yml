@@ -40,10 +40,12 @@ jobs:
       - name: Build Common Platform Files
         run: npm run build-common
 
+      - name: Force add build directory
+        run: git add -f ./build/
+
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
@@ -80,10 +82,12 @@ jobs:
       - name: Build Linux Files
         run: npm run build-linux-x64
 
+      - name: Force add build directory
+        run: git add -f ./build/
+
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
@@ -111,10 +115,12 @@ jobs:
       - name: Build MacOS Files
         run: npm run build-macos-x64
 
+      - name: Force add build directory
+        run: git add -f ./build/
+
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
@@ -141,10 +147,12 @@ jobs:
       - name: Build MacOS Files
         run: npm run build-macos-arm64
 
+      - name: Force add build directory
+        run: git add -f ./build/
+
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './build/'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
