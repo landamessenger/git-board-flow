@@ -8,7 +8,6 @@ class SupabaseRepository {
     constructor(config) {
         this.CHUNKS_TABLE = 'chunks';
         this.MAX_BATCH_SIZE = 500;
-        this.MAX_PARALLEL_BATCHES = 5;
         this.setChunkedFile = async (owner, repository, branch, chunkedFile) => {
             try {
                 const insertPromises = chunkedFile.chunks.map(async (chunk, index) => {
@@ -175,7 +174,21 @@ class SupabaseRepository {
         };
         this.duplicateChunksByBranch = async (owner, repository, sourceBranch, targetBranch) => {
             try {
-                // First, get all chunks from the source branch
+                // First, check if there are any entries for the source branch
+                const { count, error: countError } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .select('*', { count: 'exact', head: true })
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', sourceBranch);
+                if (countError) {
+                    (0, logger_1.logError)(`Error checking source branch entries: ${JSON.stringify(countError, null, 2)}`);
+                    throw countError;
+                }
+                if (count === 0) {
+                    return; // No entries exist for source branch, exit early
+                }
+                // Get all chunks from the source branch
                 const { data: sourceChunks, error: fetchError } = await this.supabase
                     .from(this.CHUNKS_TABLE)
                     .select('*')
@@ -210,6 +223,24 @@ class SupabaseRepository {
             }
             catch (error) {
                 (0, logger_1.logError)(`Error duplicating chunks by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
+        this.removeChunksByBranch = async (owner, repository, branch) => {
+            try {
+                const { error } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .delete()
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch);
+                if (error) {
+                    (0, logger_1.logError)(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
                 throw error;
             }
         };

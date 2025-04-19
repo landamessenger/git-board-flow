@@ -4,7 +4,6 @@ import { SupabaseConfig } from '../model/supabase_config';
 export declare class SupabaseRepository {
     private readonly CHUNKS_TABLE;
     private readonly MAX_BATCH_SIZE;
-    private readonly MAX_PARALLEL_BATCHES;
     private supabase;
     constructor(config: SupabaseConfig);
     setChunkedFile: (owner: string, repository: string, branch: string, chunkedFile: ChunkedFile) => Promise<void>;
@@ -15,4 +14,5 @@ export declare class SupabaseRepository {
     updateVector: (owner: string, repository: string, branch: string, path: string, index: number, chunkIndex: number, vector: number[]) => Promise<void>;
     matchChunks: (owner: string, repository: string, branch: string, type: string, queryEmbedding: number[], matchCount?: number) => Promise<ChunkedFileChunk[]>;
     duplicateChunksByBranch: (owner: string, repository: string, sourceBranch: string, targetBranch: string) => Promise<void>;
+    removeChunksByBranch: (owner: string, repository: string, branch: string) => Promise<void>;
 }
