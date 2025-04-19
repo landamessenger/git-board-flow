@@ -14,4 +14,5 @@ export declare class SupabaseRepository {
     getChunksByShasum: (owner: string, repository: string, branch: string, shasum: string) => Promise<ChunkedFileChunk[]>;
     updateVector: (owner: string, repository: string, branch: string, path: string, index: number, chunkIndex: number, vector: number[]) => Promise<void>;
     matchChunks: (owner: string, repository: string, branch: string, type: string, queryEmbedding: number[], matchCount?: number) => Promise<ChunkedFileChunk[]>;
+    duplicateChunksByBranch: (owner: string, repository: string, sourceBranch: string, targetBranch: string) => Promise<void>;
 }

@@ -10,9 +10,6 @@ class SingleAction {
     get isVectorAction() {
         return this.currentSingleAction === constants_1.ACTIONS.VECTOR;
     }
-    get isAskAction() {
-        return this.currentSingleAction === constants_1.ACTIONS.ASK;
-    }
     get enabledSingleAction() {
         return this.currentSingleAction.length > 0;
     }
@@ -23,7 +20,7 @@ class SingleAction {
     }
     constructor(currentSingleAction, currentSingleActionIssue) {
         this.currentSingleActionIssue = -1;
-        this.actions = [constants_1.ACTIONS.DEPLOYED, constants_1.ACTIONS.VECTOR, constants_1.ACTIONS.ASK];
+        this.actions = [constants_1.ACTIONS.DEPLOYED, constants_1.ACTIONS.VECTOR];
         this.isIssue = false;
         this.isPullRequest = false;
         this.isPush = false;

@@ -32,6 +32,8 @@ export declare const DEFAULT_IMAGE_CONFIG: {
 };
 export declare const INPUT_KEYS: {
     readonly DEBUG: "debug";
+    readonly WELCOME_TITLE: "welcome-title";
+    readonly WELCOME_MESSAGES: "welcome-messages";
     readonly DOCKER_CONTAINER_NAME: "docker-container-name";
     readonly DOCKER_DOMAIN: "docker-domain";
     readonly DOCKER_PORT: "docker-port";
@@ -43,6 +45,7 @@ export declare const INPUT_KEYS: {
     readonly AI_PULL_REQUEST_DESCRIPTION: "ai-pull-request-description";
     readonly AI_MEMBERS_ONLY: "ai-members-only";
     readonly AI_IGNORE_FILES: "ai-ignore-files";
+    readonly AI_INCLUDE_REASONING: "ai-include-reasoning";
     readonly OPENROUTER_PROVIDER_ORDER: "openrouter-provider-order";
     readonly OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "openrouter-provider-allow-fallbacks";
     readonly OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: "openrouter-provider-require-parameters";
@@ -161,5 +164,4 @@ export declare const ERRORS: {
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
     readonly VECTOR: "vector_action";
-    readonly ASK: "ask_action";
 };
