@@ -26,6 +26,9 @@ jobs:
       - name: Switch to SSH
         run: git remote set-url origin git@github.com:landamessenger/git-board-flow.git
 
+      - name: Pull latest changes
+        run: git pull origin ${{ github.head_ref || github.ref_name }}
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -62,6 +65,9 @@ jobs:
 
       - name: Switch to SSH
         run: git remote set-url origin git@github.com:landamessenger/git-board-flow.git
+
+      - name: Pull latest changes
+        run: git pull origin ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -100,6 +106,9 @@ jobs:
 
       - name: Switch to SSH
         run: git remote set-url origin git@github.com:landamessenger/git-board-flow.git
+
+      - name: Pull latest changes
+        run: git pull origin ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
