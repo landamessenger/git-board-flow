@@ -173,6 +173,46 @@ class SupabaseRepository {
                 throw error;
             }
         };
+        this.duplicateChunksByBranch = async (owner, repository, sourceBranch, targetBranch) => {
+            try {
+                // First, get all chunks from the source branch
+                const { data: sourceChunks, error: fetchError } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .select('*')
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', sourceBranch);
+                if (fetchError) {
+                    (0, logger_1.logError)(`Error fetching chunks from source branch: ${JSON.stringify(fetchError, null, 2)}`);
+                    throw fetchError;
+                }
+                if (!sourceChunks || sourceChunks.length === 0) {
+                    return; // No chunks to duplicate
+                }
+                // Prepare the chunks for insertion with the new branch
+                const chunksToInsert = sourceChunks.map((chunk) => ({
+                    ...chunk,
+                    branch: targetBranch,
+                    updated_at: new Date().toISOString()
+                }));
+                // Insert the chunks in batches
+                const batchSize = this.MAX_BATCH_SIZE;
+                for (let i = 0; i < chunksToInsert.length; i += batchSize) {
+                    const batch = chunksToInsert.slice(i, i + batchSize);
+                    const { error: insertError } = await this.supabase
+                        .from(this.CHUNKS_TABLE)
+                        .insert(batch);
+                    if (insertError) {
+                        (0, logger_1.logError)(`Error inserting batch of chunks: ${JSON.stringify(insertError, null, 2)}`);
+                        throw insertError;
+                    }
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error duplicating chunks by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
         this.supabase = (0, supabase_js_1.createClient)(config.getUrl(), config.getKey());
     }
 }

@@ -2,12 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Ai = void 0;
 class Ai {
-    constructor(openRouterApiKey, openRouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, providerRouting) {
+    constructor(openRouterApiKey, openRouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, providerRouting) {
         this.openRouterApiKey = openRouterApiKey;
         this.openRouterModel = openRouterModel;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
+        this.aiIncludeReasoning = aiIncludeReasoning;
         this.providerRouting = providerRouting || {};
     }
     getOpenRouterApiKey() {
@@ -21,6 +22,9 @@ class Ai {
     }
     getAiIgnoreFiles() {
         return this.aiIgnoreFiles;
+    }
+    getAiIncludeReasoning() {
+        return this.aiIncludeReasoning;
     }
     getOpenRouterModel() {
         return this.openRouterModel;

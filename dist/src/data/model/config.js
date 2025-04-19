@@ -10,6 +10,7 @@ class Config {
         this.hotfixBranch = data['hotfixBranch'];
         this.releaseBranch = data['releaseBranch'];
         this.parentBranch = data['parentBranch'];
+        this.workingBranch = data['workingBranch'];
         if (data['branchConfiguration'] !== undefined) {
             this.branchConfiguration = new branch_configuration_1.BranchConfiguration(data['branchConfiguration']);
         }

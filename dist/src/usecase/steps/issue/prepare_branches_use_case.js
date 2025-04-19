@@ -212,6 +212,7 @@ class PrepareBranchesUseCase {
             const lastAction = branchesResult[branchesResult.length - 1];
             if (lastAction.success && lastAction.executed) {
                 const branchName = lastAction.payload.newBranchName;
+                param.currentConfiguration.workingBranch = branchName;
                 let commitPrefix = '';
                 if (param.commitPrefixBuilder.length > 0) {
                     param.commitPrefixBuilderParams = {

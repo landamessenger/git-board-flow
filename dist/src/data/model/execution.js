@@ -39,6 +39,7 @@ const configuration_handler_1 = require("../../manager/description/configuration
 const get_hotfix_version_use_case_1 = require("../../usecase/steps/common/get_hotfix_version_use_case");
 const get_release_type_use_case_1 = require("../../usecase/steps/common/get_release_type_use_case");
 const get_release_version_use_case_1 = require("../../usecase/steps/common/get_release_version_use_case");
+const constants_1 = require("../../utils/constants");
 const label_utils_1 = require("../../utils/label_utils");
 const logger_1 = require("../../utils/logger");
 const title_utils_1 = require("../../utils/title_utils");
@@ -46,9 +47,8 @@ const version_utils_1 = require("../../utils/version_utils");
 const branch_repository_1 = require("../repository/branch_repository");
 const issue_repository_1 = require("../repository/issue_repository");
 const project_repository_1 = require("../repository/project_repository");
-const config_1 = require("./config");
 const commit_1 = require("./commit");
-const constants_1 = require("../../utils/constants");
+const config_1 = require("./config");
 class Execution {
     get eventName() {
         return this.inputs?.eventName ?? github.context.eventName;
@@ -111,7 +111,7 @@ class Execution {
     get runnedByToken() {
         return this.tokenUser === this.actor;
     }
-    constructor(debug, dockerConfig, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, locale, sizeThresholds, branches, release, hotfix, workflows, project, supabaseConfig, inputs) {
+    constructor(debug, dockerConfig, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, locale, sizeThresholds, branches, release, hotfix, workflows, project, supabaseConfig, welcome, inputs) {
         this.debug = false;
         /**
          * Every usage of this field should be checked.
@@ -301,6 +301,7 @@ class Execution {
         this.currentConfiguration = new config_1.Config({});
         this.supabaseConfig = supabaseConfig;
         this.inputs = inputs;
+        this.welcome = welcome;
     }
 }
 exports.Execution = Execution;

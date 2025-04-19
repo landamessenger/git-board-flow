@@ -32,6 +32,9 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mainRun = mainRun;
 const core = __importStar(require("@actions/core"));
@@ -42,6 +45,9 @@ const pull_request_review_comment_use_case_1 = require("../usecase/pull_request_
 const pull_request_use_case_1 = require("../usecase/pull_request_use_case");
 const single_action_use_case_1 = require("../usecase/single_action_use_case");
 const logger_1 = require("../utils/logger");
+const constants_1 = require("../utils/constants");
+const chalk_1 = __importDefault(require("chalk"));
+const boxen_1 = __importDefault(require("boxen"));
 async function mainRun(execution) {
     await execution.setup();
     if (execution.runnedByToken) {
@@ -51,6 +57,17 @@ async function mainRun(execution) {
     if (execution.issueNumber === -1) {
         (0, logger_1.logInfo)(`Issue number not found. Skipping.`);
         return [];
+    }
+    if (execution.welcome) {
+        (0, logger_1.logInfo)((0, boxen_1.default)(chalk_1.default.cyan(execution.welcome.title) +
+            execution.welcome.messages.map(message => chalk_1.default.gray(message)).join('\n'), {
+            padding: 1,
+            margin: 1,
+            borderStyle: 'round',
+            borderColor: 'cyan',
+            title: constants_1.TITLE,
+            titleAlignment: 'center'
+        }));
     }
     const results = [];
     try {
