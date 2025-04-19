@@ -16,6 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Pull latest changes
+        run: git pull --no-ff --no-edit
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -29,9 +32,6 @@ jobs:
 
       - name: Force add build directory
         run: git add -f ./build/
-
-      - name: Pull latest changes
-        run: git pull --no-ff --no-edit
 
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
@@ -48,6 +48,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Pull latest changes
+        run: git pull --no-ff --no-edit
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -61,9 +64,6 @@ jobs:
 
       - name: Force add build directory
         run: git add -f ./build/
-
-      - name: Pull latest changes
-        run: git pull --no-ff --no-edit
 
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
@@ -81,6 +81,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Pull latest changes
+        run: git pull --no-ff --no-edit
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -94,9 +97,6 @@ jobs:
 
       - name: Force add build directory
         run: git add -f ./build/
-
-      - name: Pull latest changes
-        run: git pull --no-ff --no-edit
 
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
@@ -113,6 +113,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Pull latest changes
+        run: git pull --no-ff --no-edit
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -126,9 +129,6 @@ jobs:
 
       - name: Force add build directory
         run: git add -f ./build/
-
-      - name: Pull latest changes
-        run: git pull --no-ff --no-edit
 
       - name: Commit updated dist directory
         uses: EndBug/add-and-commit@v9
