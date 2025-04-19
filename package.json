@@ -2,14 +2,16 @@
   "name": "git-board-flow",
   "version": "1.0.50",
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
-  "main": "dist/index.js",
-  "scripts": {
-    "build-macos": "tsc && ncc build src/actions/github_action.ts -o dist/macos/ && ncc build src/cli.ts -o bin/macos",
-    "build-linux": "tsc && ncc build src/actions/github_action.ts -o dist/linux/ && ncc build src/cli.ts -o bin/linux",
-    "build-common": "ncc build runner/github_action.ts -o dist && ncc build runner/cli.ts -o bin && chmod +x bin/index.js"
-  },
+  "main": "build/github_action/index.js",
   "bin": {
-    "git-board-flow": "./bin/index.js"
+    "git-board-flow": "./build/cli/index.js"
+  },
+  "scripts": {
+    "build-macos-x64": "tsc && ncc build src/actions/github_action.ts -o build/github_action/macos/x64 && ncc build src/cli.ts -o build/cli/macos/x64",
+    "build-macos-arm64": "tsc && ncc build src/actions/github_action.ts -o build/github_action/macos/arm64 && ncc build src/cli.ts -o build/cli/macos/arm64",
+    "build-linux-x64": "tsc && ncc build src/actions/github_action.ts -o build/github_action/linux/x64 && ncc build src/cli.ts -o build/cli/linux/x64",
+    "build-linux-arm64": "tsc && ncc build src/actions/github_action.ts -o build/github_action/linux/arm64 && ncc build src/cli.ts -o build/cli/linux/arm64",
+    "build-common": "ncc build runner/github_action.ts -o build/github_action && ncc build runner/cli.ts -o build/cli && chmod +x build/cli/index.js"
   },
   "keywords": [],
   "author": "Landa Messenger",

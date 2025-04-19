@@ -1,11 +1,23 @@
 import os from 'os';
 import { execSync } from 'child_process';
 
-const execTarget = os.platform() === 'darwin'
-  ? './dist/macos/index.js'
-  : os.platform() === 'linux'
-    ? './dist/linux/index.js'
-    : null;
+const platform = os.platform();
+const arch = os.arch();
 
-if (!execTarget) throw new Error('Unsupported OS');
+let execTarget: string | null = null;
+
+if (platform === 'darwin') {
+  execTarget = arch === 'arm64'
+    ? './build/github_action/macos/arm64/index.js'
+    : './build/github_action/macos/x64/index.js';
+} else if (platform === 'linux') {
+  execTarget = arch === 'arm64'
+    ? './build/github_action/linux/arm64/index.js'
+    : './build/github_action/linux/x64/index.js';
+}
+
+if (!execTarget) {
+  throw new Error(`Unsupported platform (${platform}) or architecture (${arch})`);
+}
+
 execSync(`node ${execTarget}`, { stdio: 'inherit', env: process.env });

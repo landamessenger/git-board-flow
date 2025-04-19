@@ -3,16 +3,25 @@
 import os from 'os';
 import { execSync } from 'child_process';
 
-const execTarget = os.platform() === 'darwin'
-  ? './bin/macos/index.js'
-  : os.platform() === 'linux'
-    ? './bin/linux/index.js'
-    : null;
+const platform = os.platform();
+const arch = os.arch();
 
-if (!execTarget) throw new Error('Unsupported OS');
+let execTarget: string | null = null;
 
-// 👇 juntar los argumentos que recibió este proceso
+if (platform === 'darwin') {
+  execTarget = arch === 'arm64'
+    ? './bin/macos/arm64/index.js'
+    : './bin/macos/x64/index.js';
+} else if (platform === 'linux') {
+  execTarget = arch === 'arm64'
+    ? './bin/linux/arm64/index.js'
+    : './bin/linux/x64/index.js';
+}
+
+if (!execTarget) {
+  throw new Error(`Unsupported platform (${platform}) or architecture (${arch})`);
+}
+
 const args = process.argv.slice(2).join(' ');
 
-// 👇 pasar los args al comando que se ejecuta
 execSync(`node ${execTarget} ${args}`, { stdio: 'inherit' });
