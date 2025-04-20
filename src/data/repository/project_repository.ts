@@ -1,4 +1,5 @@
 import * as github from "@actions/github";
+import * as core from '@actions/core';
 import { logDebugInfo, logError } from "../../utils/logger";
 import { ProjectResult } from "../graph/project_result";
 import { ProjectDetail } from "../model/project_detail";
@@ -205,17 +206,17 @@ export class ProjectRepository {
     }
   `;
 
-            logDebugInfo(`Query: ${query}`);
-            logDebugInfo(`Project ID: ${project.id}`);
-            logDebugInfo(`Content ID: ${contentId}`);
-            logDebugInfo(`After cursor: ${endCursor}`);
+            // logDebugInfo(`Query: ${query}`);
+            // logDebugInfo(`Project ID: ${project.id}`);
+            // logDebugInfo(`Content ID: ${contentId}`);
+            // logDebugInfo(`After cursor: ${endCursor}`);
 
             const result: any = await octokit.graphql(query, {
                 projectId: project.id,
                 after: endCursor,
             });
 
-            logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
+            // logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
 
             const items = result.node.items.nodes;
             allItems = allItems.concat(items);
@@ -357,18 +358,18 @@ export class ProjectRepository {
                 after: endCursor
             });
 
-            logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
+            // logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
 
             // Check current value in current page
             currentItem = fieldResult.node.items.nodes.find((item: any) => item.id === contentId);
             if (currentItem) {
-                logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
+                // logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
                 const currentFieldValue = currentItem.fieldValues.nodes.find(
                     (value: any) => value.field?.name === fieldName
                 );
                 
                 if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
-                    logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
+                    // logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
                     return false;
                 }
                 break; // Found the item, no need to continue pagination
@@ -483,10 +484,12 @@ export class ProjectRepository {
             const membersSet = new Set<string>();
 
             for (const team of teams) {
+                logDebugInfo(`Checking team: ${team.slug}`);
                 const {data: members} = await octokit.rest.teams.listMembersInOrg({
                     org: organization,
                     team_slug: team.slug,
                 });
+                logDebugInfo(`Members: ${members.length}`);
                 members.forEach((member) => membersSet.add(member.login));
             }
 
@@ -551,5 +554,4 @@ export class ProjectRepository {
         const {data: user} = await octokit.rest.users.getAuthenticated();
         return user.login;
     }
-
 }

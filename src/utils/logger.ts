@@ -1,4 +1,4 @@
-import * as core from "@actions/core";
+import readline from 'readline';
 
 let loggerDebug = false;
 
@@ -6,21 +6,24 @@ export function setGlobalLoggerDebug(debug: boolean) {
     loggerDebug = debug;
 }
 
-export function logInfo(message: string) {
-    core.info(message);
+export function logInfo(message: string, previousWasSingleLine: boolean = false) {
+    if (previousWasSingleLine) {
+        console.log()
+    }
+    console.log(message);
 }
 
 export function logWarning(message: string) {
-    core.warning(message);
+    console.warn(message);
 }
 
 export function logError(message: any) {
-    core.error(message.toString());
+    console.error(message.toString());
 }
 
-export function logDebugInfo(message: string) {
+export function logDebugInfo(message: string, previousWasSingleLine: boolean = false) {
     if (loggerDebug) {
-        logInfo(message);
+        logInfo(message, previousWasSingleLine);
     }
 }
 
@@ -34,4 +37,10 @@ export function logDebugError(message: any) {
     if (loggerDebug) {
         logError(message.toString());
     }
+}
+
+export function logSingleLine(message: string) {
+    readline.clearLine(process.stdout, 0);
+    readline.cursorTo(process.stdout, 0);
+    process.stdout.write(message);
 }
