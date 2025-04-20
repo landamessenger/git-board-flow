@@ -40,7 +40,8 @@ const env = {
 inputVars.forEach(([key, value]) => {
     env[key] = value;
 });
-console.log('env', JSON.stringify(env, null, 2));
+console.log('env after adding INPUT_ variables:', JSON.stringify(env, null, 2));
+console.log('INPUT_ variables in env:', Object.entries(env).filter(([key]) => key.startsWith('INPUT_')));
 (0, child_process_1.execSync)(`node ${execTarget}`, {
     stdio: 'inherit',
     env: env
