@@ -1,8 +1,14 @@
 import * as github from "@actions/github";
 
 export class Commit {
+    private inputs: any | undefined = undefined;
+
+    constructor(inputs: any | undefined = undefined) {
+        this.inputs = inputs;
+    }
+    
     get branchReference(): string {
-        return github.context.payload.ref;
+        return this.inputs?.commits?.ref ?? github.context.payload.ref ?? '';
     }
 
     get branch(): string {

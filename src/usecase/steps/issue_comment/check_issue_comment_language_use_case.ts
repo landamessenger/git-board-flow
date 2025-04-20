@@ -45,10 +45,9 @@ If you'd like this comment to be translated again, please delete the entire comm
         The text is: ${commentBody}
         `;
         
-        let result = await this.aiRepository.askChatGPT(
+        let result = await this.aiRepository.ask(
+            param.ai,
             prompt,
-            param.ai.getOpenaiApiKey(),
-            param.ai.getOpenaiModel(),
         );
         
         if (result === "done") {
@@ -72,10 +71,9 @@ Instructions:
 
 The text is: ${commentBody}
         `;
-        result = await this.aiRepository.askChatGPT(
+        result = await this.aiRepository.ask(
+            param.ai,
             prompt,
-            param.ai.getOpenaiApiKey(),
-            param.ai.getOpenaiModel(),
         );
 
         const translatedCommentBody = `${result}

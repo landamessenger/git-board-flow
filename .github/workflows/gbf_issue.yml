@@ -8,6 +8,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   git-board-issues:
@@ -19,9 +20,11 @@ jobs:
 
       - uses: ./
         with:
-          debug: true
-          project-ids: 2
+          debug: ${{ vars.DEBUG }}
+          ai-ignore-files: build/*
           hotfix-workflow: release_workflow.yml
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          project-ids: 2
+          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
+          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           token: ${{ secrets.PAT }}
 

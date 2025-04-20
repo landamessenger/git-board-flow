@@ -1,4 +1,5 @@
 import * as github from "@actions/github";
+import * as core from '@actions/core';
 import { logDebugInfo, logError } from "../../utils/logger";
 import { ProjectResult } from "../graph/project_result";
 import { ProjectDetail } from "../model/project_detail";
@@ -483,10 +484,12 @@ export class ProjectRepository {
             const membersSet = new Set<string>();
 
             for (const team of teams) {
+                logDebugInfo(`Checking team: ${team.slug}`);
                 const {data: members} = await octokit.rest.teams.listMembersInOrg({
                     org: organization,
                     team_slug: team.slug,
                 });
+                logDebugInfo(`Members: ${members.length}`);
                 members.forEach((member) => membersSet.add(member.login));
             }
 
@@ -551,5 +554,4 @@ export class ProjectRepository {
         const {data: user} = await octokit.rest.users.getAuthenticated();
         return user.login;
     }
-
 }
