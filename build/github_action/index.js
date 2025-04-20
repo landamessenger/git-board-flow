@@ -31,6 +31,8 @@ if (!execTarget) {
 // Log all INPUT_ environment variables
 const inputVars = Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'));
 console.log('Found INPUT_ environment variables:', JSON.stringify(inputVars, null, 2));
+// Log all environment variables for debugging
+console.log('All environment variables:', JSON.stringify(process.env, null, 2));
 (0, child_process_1.execSync)(`node ${execTarget}`, {
     stdio: 'inherit',
     env: {
