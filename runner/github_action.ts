@@ -22,7 +22,7 @@ if (!execTarget) {
 
 // Log all INPUT_ environment variables
 const inputVars = Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'));
-console.log('Found INPUT_ environment variables:', inputVars);
+console.log('Found INPUT_ environment variables:', JSON.stringify(inputVars, null, 2));
 
 // Spread the filtered variables into the environment
 const envWithInputs = {
