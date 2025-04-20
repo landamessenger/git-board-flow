@@ -34,6 +34,9 @@ export async function runGitHubAction(): Promise<void> {
      * Debug
      */
     const debug = core.getInput(INPUT_KEYS.DEBUG) == 'true'
+    console.warn('INPUT_KEYS.DEBUG:', INPUT_KEYS.DEBUG);
+    console.warn('core.getInput(INPUT_KEYS.DEBUG):', core.getInput(INPUT_KEYS.DEBUG));
+    console.warn('debug:', debug);
 
     /**
      * Docker 
@@ -459,6 +462,12 @@ export async function runGitHubAction(): Promise<void> {
     const pullRequestDesiredReviewersCount = parseInt(core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)) ?? 0;
 
+    console.warn('INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT:', INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT);
+    console.warn('INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT:', INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT);
+    
+    console.warn(`core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT): ${core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT)}`);
+    console.warn(`core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT): ${core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)}`);
+    console.warn(`core.getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT): ${core.getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)}`);
     console.warn('pullRequestDesiredAssigneesCount:', pullRequestDesiredAssigneesCount);
     console.warn('pullRequestDesiredReviewersCount:', pullRequestDesiredReviewersCount);
     console.warn('pullRequestMergeTimeout:', pullRequestMergeTimeout);
