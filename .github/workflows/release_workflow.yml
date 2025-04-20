@@ -87,7 +87,7 @@ jobs:
       - name: Commit updated package.json and dist directory
         uses: EndBug/add-and-commit@v9
         with:
-          add: './dist/ ./package.json'
+          add: './build/ ./package.json'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info

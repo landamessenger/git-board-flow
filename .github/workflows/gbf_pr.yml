@@ -21,7 +21,7 @@ jobs:
       - uses: ./
         with:
           ai-pull-request-description: true
-          ai-ignore-files: dist/*,bin/*
+          ai-ignore-files: build/*
           debug: ${{ vars.DEBUG }}
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}

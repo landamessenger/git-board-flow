@@ -56,7 +56,7 @@ program
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.AI_IGNORE_FILES]: 'dist/*,bin/*',
+      [INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
       repo: {
         owner: gitInfo.owner,
         repo: gitInfo.repo,
@@ -99,7 +99,7 @@ program
   .option('--openrouter-provider-ignore <ignore>', 'OpenRouter ignore', '')
   .option('--openrouter-provider-quantizations <quantizations>', 'OpenRouter quantizations', '')
   .option('--openrouter-provider-sort <sort>', 'OpenRouter sort', '')
-  .option('--ai-ignore-files <ai-ignore-files>', 'AI ignore files', 'dist/*,bin/*,node_modules/*,build/*')
+  .option('--ai-ignore-files <ai-ignore-files>', 'AI ignore files', 'node_modules/*,build/*')
   .option('--include-reasoning <include-reasoning>', 'Include reasoning', 'false')
   .action(async (options) => {    
     const gitInfo = getGitInfo();

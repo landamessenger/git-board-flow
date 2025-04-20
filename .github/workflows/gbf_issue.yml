@@ -21,7 +21,7 @@ jobs:
       - uses: ./
         with:
           debug: ${{ vars.DEBUG }}
-          ai-ignore-files: dist/*,bin/*
+          ai-ignore-files: build/*
           hotfix-workflow: release_workflow.yml
           project-ids: 2
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}

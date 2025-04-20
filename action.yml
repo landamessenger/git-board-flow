@@ -364,7 +364,7 @@ inputs:
     default: "8000"
 runs:
   using: "node20"
-  main: "dist/index.js"
+  main: "build/github_action/index.js"
 branding:
   icon: "git-branch"
   color: "gray-dark"
