@@ -20,4 +20,11 @@ if (!execTarget) {
   throw new Error(`Unsupported platform (${platform}) or architecture (${arch})`);
 }
 
-execSync(`node ${execTarget}`, { stdio: 'inherit', env: process.env });
+execSync(`node ${execTarget}`, {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    GITHUB_EVENT_PATH: process.env.GITHUB_EVENT_PATH,
+    GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME,
+  },
+});
