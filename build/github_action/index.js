@@ -28,7 +28,14 @@ else if (platform === 'linux') {
 if (!execTarget) {
     throw new Error(`Unsupported platform (${platform}) or architecture (${arch})`);
 }
-(0, child_process_1.execSync)(`node ${execTarget}`, { stdio: 'inherit', env: process.env });
+(0, child_process_1.execSync)(`node ${execTarget}`, {
+    stdio: 'inherit',
+    env: {
+        ...process.env,
+        GITHUB_EVENT_PATH: process.env.GITHUB_EVENT_PATH,
+        GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME,
+    },
+});
 
 
 /***/ }),
