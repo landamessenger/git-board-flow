@@ -28,6 +28,7 @@ console.log('Found INPUT_ environment variables:', JSON.stringify(inputVars, nul
 // Log all environment variables for debugging
 console.log('All environment variables:', JSON.stringify(process.env, null, 2));
 
+
 execSync(`node ${execTarget}`, {
   stdio: 'inherit',
   env: {
