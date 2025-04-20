@@ -57,7 +57,6 @@ if (!execTarget) {
     stdio: 'inherit',
     env: {
         ...process.env,
-        DUMMY_VAR: 'DUMMY_VALUE',
         INPUT_VARS_JSON: JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'))))
     }
 });

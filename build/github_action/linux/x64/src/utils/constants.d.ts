@@ -39,6 +39,9 @@ export declare const INPUT_KEYS: {
     readonly DOCKER_PORT: "docker-port";
     readonly SINGLE_ACTION: "single-action";
     readonly SINGLE_ACTION_ISSUE: "single-action-issue";
+    readonly SINGLE_ACTION_VERSION: "single-action-version";
+    readonly SINGLE_ACTION_TITLE: "single-action-title";
+    readonly SINGLE_ACTION_CHANGELOG: "single-action-changelog";
     readonly TOKEN: "token";
     readonly OPENROUTER_API_KEY: "openrouter-api-key";
     readonly OPENROUTER_MODEL: "openrouter-model";
@@ -164,4 +167,7 @@ export declare const ERRORS: {
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
     readonly VECTOR: "vector_action";
+    readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
+    readonly CREATE_RELEASE: "create_release";
+    readonly CREATE_TAG: "create_tag";
 };
