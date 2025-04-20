@@ -31,16 +31,15 @@ if (!execTarget) {
 // Log all INPUT_ environment variables
 const inputVars = Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'));
 console.log('Found INPUT_ environment variables:', JSON.stringify(inputVars, null, 2));
-// Spread the filtered variables into the environment
-const envWithInputs = {
-    ...process.env,
-    GITHUB_EVENT_PATH: process.env.GITHUB_EVENT_PATH,
-    GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME,
-    ...Object.fromEntries(inputVars),
-};
 (0, child_process_1.execSync)(`node ${execTarget}`, {
     stdio: 'inherit',
-    env: envWithInputs,
+    env: {
+        ...process.env,
+        GITHUB_EVENT_PATH: process.env.GITHUB_EVENT_PATH,
+        GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME,
+        ...Object.fromEntries(inputVars),
+        "DUMMY_VAR": "DUMMY_VALUE",
+    },
 });
 
 
