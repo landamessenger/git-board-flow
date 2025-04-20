@@ -226,7 +226,9 @@ export class Execution {
 
     setup = async () => {
         setGlobalLoggerDebug(this.debug);
-        
+      
+        console.log('Full context.payload:', JSON.stringify(github.context.payload, null, 2));
+
         const issueRepository = new IssueRepository();
         const projectRepository = new ProjectRepository();
 
