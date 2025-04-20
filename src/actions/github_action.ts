@@ -26,20 +26,15 @@ import { StoreConfigurationUseCase } from '../usecase/steps/common/store_configu
 import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
 import { mainRun } from './common_action';
 import { SupabaseConfig } from '../data/model/supabase_config';
+import { logError } from '../utils/logger';
 
 export async function runGitHubAction(): Promise<void> {
     const projectRepository = new ProjectRepository();
-
-
-    console.log('process.env:', process.env);
 
     /**
      * Debug
      */
     const debug = getInput(INPUT_KEYS.DEBUG) == 'true'
-    console.warn('INPUT_KEYS.DEBUG:', INPUT_KEYS.DEBUG);
-    console.warn('core.getInput(INPUT_KEYS.DEBUG):', getInput(INPUT_KEYS.DEBUG));
-    console.warn('debug:', debug);
 
     /**
      * Docker 
@@ -454,26 +449,12 @@ export async function runGitHubAction(): Promise<void> {
     const reopenIssueOnPush = getInput(INPUT_KEYS.REOPEN_ISSUE_ON_PUSH) === 'true';
     const issueDesiredAssigneesCount = parseInt(getInput(INPUT_KEYS.DESIRED_ASSIGNEES_COUNT)) ?? 0;
 
-    console.warn('issueDesiredAssigneesCount:', issueDesiredAssigneesCount);
-    console.warn('reopenIssueOnPush:', reopenIssueOnPush);
-    console.warn('branchManagementAlways:', branchManagementAlways);
-
     /**
      * Pull Request
      */
     const pullRequestDesiredAssigneesCount = parseInt(getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT)) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)) ?? 0;
     const pullRequestMergeTimeout = parseInt(getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)) ?? 0;
-
-    console.warn('INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT:', INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT);
-    console.warn('INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT:', INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT);
-    
-    console.warn(`core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT): ${getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT)}`);
-    console.warn(`core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT): ${getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)}`);
-    console.warn(`core.getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT): ${getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)}`);
-    console.warn('pullRequestDesiredAssigneesCount:', pullRequestDesiredAssigneesCount);
-    console.warn('pullRequestDesiredReviewersCount:', pullRequestDesiredReviewersCount);
-    console.warn('pullRequestMergeTimeout:', pullRequestMergeTimeout);
 
     /**
      * Supabase
@@ -660,7 +641,7 @@ function getInput(key: string, options?: { required?: boolean }): string {
             }
         }
     } catch (error) {
-        console.error('Error parsing INPUT_VARS_JSON:', error);
+        logError(`Error parsing INPUT_VARS_JSON: ${JSON.stringify(error, null, 2)}`);
     }
 
     // Fallback to core.getInput

@@ -20,18 +20,15 @@ if (!execTarget) {
   throw new Error(`Unsupported platform (${platform}) or architecture (${arch})`);
 }
 
-// Log all INPUT_ environment variables
-const inputVars = Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'));
-console.log('Found INPUT_ environment variables:', JSON.stringify(inputVars, null, 2));
-
-// Create a JSON object with all INPUT_ variables
-const inputVarsJson = JSON.stringify(Object.fromEntries(inputVars));
-
 execSync(`node ${execTarget}`, {
   stdio: 'inherit',
   env: {
     ...process.env,
     DUMMY_VAR: 'DUMMY_VALUE',
-    INPUT_VARS_JSON: inputVarsJson
+    INPUT_VARS_JSON: JSON.stringify(
+      Object.fromEntries(
+        Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'))
+      )
+    )
   }
 });
