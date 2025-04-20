@@ -455,6 +455,10 @@ export async function runGitHubAction(): Promise<void> {
     const pullRequestDesiredReviewersCount = parseInt(core.getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)) ?? 0;
     const pullRequestMergeTimeout = parseInt(core.getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)) ?? 0;
 
+    console.warn('pullRequestDesiredAssigneesCount:', pullRequestDesiredAssigneesCount);
+    console.warn('pullRequestDesiredReviewersCount:', pullRequestDesiredReviewersCount);
+    console.warn('pullRequestMergeTimeout:', pullRequestMergeTimeout);
+
     /**
      * Supabase
      */
