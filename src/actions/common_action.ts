@@ -28,7 +28,7 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
     if (execution.welcome) {
         logInfo(
             boxen(
-                chalk.cyan(execution.welcome.title) +
+                chalk.cyan(execution.welcome.title) + '\n' +
                 execution.welcome.messages.map(message => chalk.gray(message)).join('\n'),
                 {
                     padding: 1,
