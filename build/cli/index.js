@@ -18,13 +18,13 @@ const arch = os_1.default.arch();
 let execTarget = null;
 if (platform === 'darwin') {
     execTarget = arch === 'arm64'
-        ? './bin/macos/arm64/index.js'
-        : './bin/macos/x64/index.js';
+        ? './build/cli/macos/arm64/index.js'
+        : './build/cli/macos/x64/index.js';
 }
 else if (platform === 'linux') {
     execTarget = arch === 'arm64'
-        ? './bin/linux/arm64/index.js'
-        : './bin/linux/x64/index.js';
+        ? './build/cli/linux/arm64/index.js'
+        : './build/cli/linux/x64/index.js';
 }
 if (!execTarget) {
     throw new Error(`Unsupported platform (${platform}) or architecture (${arch})`);
