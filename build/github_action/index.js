@@ -28,6 +28,7 @@ else if (platform === 'linux') {
 if (!execTarget) {
     throw new Error(`Unsupported platform (${platform}) or architecture (${arch})`);
 }
+console.log('process.env:', process.env);
 // Log all INPUT_ environment variables
 const inputVars = Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'));
 console.log('Found INPUT_ environment variables:', JSON.stringify(inputVars, null, 2));
