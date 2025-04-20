@@ -448,6 +448,10 @@ export async function runGitHubAction(): Promise<void> {
     const reopenIssueOnPush = core.getInput(INPUT_KEYS.REOPEN_ISSUE_ON_PUSH) === 'true';
     const issueDesiredAssigneesCount = parseInt(core.getInput(INPUT_KEYS.DESIRED_ASSIGNEES_COUNT)) ?? 0;
 
+    console.warn('issueDesiredAssigneesCount:', issueDesiredAssigneesCount);
+    console.warn('reopenIssueOnPush:', reopenIssueOnPush);
+    console.warn('branchManagementAlways:', branchManagementAlways);
+
     /**
      * Pull Request
      */
