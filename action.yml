@@ -314,12 +314,36 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
-  openai-api-key:
-    description: "OpenAI API key for AI operations."
+  supabase-config:
+    description: "Supabase configuration (JSON string)."
     default: ""
-  openai-model:
-    description: "OpenAI model for AI operations."
-    default: "gpt-3.5-turbo"
+  openrouter-api-key:
+    description: "OpenRouter API key for AI operations."
+    default: ""
+  openrouter-model:
+    description: "OpenRouter model for AI operations."
+    default: "deepseek/deepseek-chat"
+  openrouter-provider-order:
+    description: "Comma-separated list of provider names to try in order."
+    default: ""
+  openrouter-provider-allow-fallbacks:
+    description: "Whether to allow backup providers when the primary is unavailable."
+    default: "true"
+  openrouter-provider-require-parameters:
+    description: "Only use providers that support all parameters in the request."
+    default: "false"
+  openrouter-provider-data-collection:
+    description: "Control whether to use providers that may store data (allow/deny)."
+    default: "allow"
+  openrouter-provider-ignore:
+    description: "Comma-separated list of provider names to skip."
+    default: ""
+  openrouter-provider-quantizations:
+    description: "Comma-separated list of quantization levels to filter by (e.g., int4, int8, fp4, fp6, fp8, fp16, bf16, fp32)."
+    default: ""
+  openrouter-provider-sort:
+    description: "Sort providers by price, throughput, or latency."
+    default: "price"
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
     default: "false"
@@ -329,9 +353,18 @@ inputs:
   ai-members-only:
     description: "Restrict AI features to only organization/project members."
     default: "true"
+  docker-container-name:
+    description: "Name of the Docker container to use."
+    default: "git-board-flow"
+  docker-domain:
+    description: "Domain of the Docker container to use."
+    default: "localhost"
+  docker-port:
+    description: "Port of the Docker container to use."
+    default: "8000"
 runs:
   using: "node20"
-  main: "dist/index.js"
+  main: "build/github_action/index.js"
 branding:
   icon: "git-branch"
   color: "gray-dark"

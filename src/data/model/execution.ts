@@ -4,6 +4,7 @@ import { ConfigurationHandler } from "../../manager/description/configuration_ha
 import { GetHotfixVersionUseCase } from "../../usecase/steps/common/get_hotfix_version_use_case";
 import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_type_use_case";
 import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
+import { INPUT_KEYS } from "../../utils/constants";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
 import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
@@ -15,24 +16,27 @@ import { Ai } from "./ai";
 import { Branches } from "./branches";
 import { Commit } from "./commit";
 import { Config } from "./config";
+import { DockerConfig } from "./docker_config";
 import { Emoji } from "./emoji";
 import { Hotfix } from "./hotfix";
 import { Images } from "./images";
 import { Issue } from "./issue";
 import { IssueTypes } from "./issue_types";
 import { Labels } from "./labels";
+import { Locale } from "./locale";
 import { Projects } from "./projects";
 import { PullRequest } from "./pull_request";
 import { Release } from "./release";
 import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
+import { SupabaseConfig } from "./supabase_config";
 import { Tokens } from "./tokens";
+import { Welcome } from "./welcome";
 import { Workflows } from "./workflows";
-import { Locale } from "./locale";
  
 export class Execution {
     debug: boolean = false;
-
+    welcome: Welcome | undefined;
     /**
      * Every usage of this field should be checked.
      * PRs with no issue ID in the head branch won't have it.
@@ -61,13 +65,16 @@ export class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
+    dockerConfig: DockerConfig;
+    supabaseConfig: SupabaseConfig | undefined;
+    inputs: any | undefined;
 
     get eventName(): string {
-        return github.context.eventName;
+        return this.inputs?.eventName ?? github.context.eventName;
     }
 
     get actor(): string {
-        return github.context.actor;
+        return this.inputs?.actor ?? github.context.actor;
     }
 
     get isSingleAction(): boolean {
@@ -87,11 +94,11 @@ export class Execution {
     }
 
     get repo(): string {
-        return github.context.repo.repo;
+        return this.inputs?.repo?.repo ?? github.context.repo.repo;
     }
 
     get owner(): string {
-        return github.context.repo.owner;
+        return this.inputs?.repo?.owner ?? github.context.repo.owner;
     }
 
     get isFeature(): boolean {
@@ -161,7 +168,7 @@ export class Execution {
     }
 
     get commit(): Commit {
-        return new Commit();
+        return new Commit(this.inputs);
     }
 
     get runnedByToken(): boolean {
@@ -170,6 +177,7 @@ export class Execution {
 
     constructor(
         debug: boolean,
+        dockerConfig: DockerConfig,
         singleAction: SingleAction,
         commitPrefixBuilder: string,
         issue: Issue,
@@ -187,8 +195,12 @@ export class Execution {
         hotfix: Hotfix,
         workflows: Workflows,
         project: Projects,
+        supabaseConfig: SupabaseConfig | undefined,
+        welcome: Welcome | undefined,
+        inputs: any | undefined
     ) {
         this.debug = debug;
+        this.dockerConfig = dockerConfig;
         this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
@@ -207,11 +219,14 @@ export class Execution {
         this.project = project;
         this.workflows = workflows;
         this.currentConfiguration = new Config({});
+        this.supabaseConfig = supabaseConfig;
+        this.inputs = inputs;
+        this.welcome = welcome;
     }
 
     setup = async () => {
         setGlobalLoggerDebug(this.debug);
-        
+      
         const issueRepository = new IssueRepository();
         const projectRepository = new ProjectRepository();
 
@@ -224,32 +239,54 @@ export class Execution {
          * Set the issue number
          */
         if (this.isSingleAction) {
-            this.singleAction.isPullRequest = await issueRepository.isPullRequest(
-                this.owner,
-                this.repo,
-                this.singleAction.currentSingleActionIssue,
-                this.tokens.token,
-            )
-            this.singleAction.isIssue = await issueRepository.isIssue(
-                this.owner,
-                this.repo,
-                this.singleAction.currentSingleActionIssue,
-                this.tokens.token,
-            )
 
-            if (this.singleAction.isIssue) {
-                this.issueNumber = this.singleAction.currentSingleActionIssue
-            } else if (this.singleAction.isPullRequest) {
-                const head = await issueRepository.getHeadBranch(
+            /**
+             * Single actions can run as isolated processes or as part of a workflow.
+             * In the case of a workflow, the issue number is got from the workflow.
+             * In the case of a single action, the issue number is set.
+             */
+            if (this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
+                this.issueNumber = this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
+            } else if (this.isIssue) {
+                this.singleAction.isIssue = true;
+                this.issueNumber = this.issue.number;
+                this.singleAction.currentSingleActionIssue = this.issueNumber;
+            } else if (this.isPullRequest) {
+                this.singleAction.isPullRequest = true;
+                this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
+                this.singleAction.currentSingleActionIssue = this.issueNumber;
+            } else if (this.isPush) {
+                this.singleAction.isPush = true;
+                this.issueNumber = extractIssueNumberFromPush(this.commit.branch)
+                this.singleAction.currentSingleActionIssue = this.issueNumber;
+            } else {
+                this.singleAction.isPullRequest = await issueRepository.isPullRequest(
                     this.owner,
                     this.repo,
                     this.singleAction.currentSingleActionIssue,
                     this.tokens.token,
                 )
-                if (head === undefined) {
-                    return
+                this.singleAction.isIssue = await issueRepository.isIssue(
+                    this.owner,
+                    this.repo,
+                    this.singleAction.currentSingleActionIssue,
+                    this.tokens.token,
+                )
+
+                if (this.singleAction.isIssue) {
+                    this.issueNumber = this.singleAction.currentSingleActionIssue
+                } else if (this.singleAction.isPullRequest) {
+                    const head = await issueRepository.getHeadBranch(
+                        this.owner,
+                        this.repo,
+                        this.singleAction.currentSingleActionIssue,
+                        this.tokens.token,
+                    )
+                    if (head === undefined) {
+                        return
+                    }
+                    this.issueNumber = extractIssueNumberFromBranch(head);
                 }
-                this.issueNumber = extractIssueNumberFromBranch(head);
             }
         } else if (this.isIssue) {
             this.issueNumber = this.issue.number;

@@ -248,6 +248,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
                 const branchName = lastAction.payload.newBranchName;
 
+                param.currentConfiguration.workingBranch = branchName
+
                 let commitPrefix = ''
                 if (param.commitPrefixBuilder.length > 0) {
                     param.commitPrefixBuilderParams = {
