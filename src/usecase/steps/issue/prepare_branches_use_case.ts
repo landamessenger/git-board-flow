@@ -69,6 +69,8 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     logDebugInfo(`Hotfix branch: ${param.hotfix.branch}`);
 
                     param.currentConfiguration.parentBranch = param.hotfix.baseBranch
+                    param.currentConfiguration.hotfixBranch = param.hotfix.branch
+                    param.currentConfiguration.workingBranch = param.hotfix.branch;
 
                     if (branches.indexOf(param.hotfix.branch) === -1) {
                         const linkResult = await this.branchRepository.createLinkedBranch(
@@ -122,6 +124,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             } else if (param.release.active) {
                 if (param.release.version !== undefined && param.release.branch !== undefined) {
                     param.currentConfiguration.releaseBranch = param.release.branch;
+                    param.currentConfiguration.workingBranch = param.release.branch;
 
                     logDebugInfo(`Release branch: ${param.release.branch}`);
                     param.currentConfiguration.parentBranch = param.branches.development

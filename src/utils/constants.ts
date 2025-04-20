@@ -193,6 +193,9 @@ export const INPUT_KEYS = {
     // Single action
     SINGLE_ACTION: 'single-action',
     SINGLE_ACTION_ISSUE: 'single-action-issue',
+    SINGLE_ACTION_VERSION: 'single-action-version',
+    SINGLE_ACTION_TITLE: 'single-action-title',
+    SINGLE_ACTION_CHANGELOG: 'single-action-changelog',
 
     // Tokens
     TOKEN: 'token',
@@ -350,4 +353,7 @@ export const ERRORS = {
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
     VECTOR: 'vector_action',
+    PUBLISH_GITHUB_ACTION: 'publish_github_action',
+    CREATE_RELEASE: 'create_release',
+    CREATE_TAG: 'create_tag',
 } as const; 

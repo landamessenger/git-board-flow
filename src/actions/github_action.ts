@@ -48,6 +48,9 @@ export async function runGitHubAction(): Promise<void> {
      */
     const singleAction = getInput(INPUT_KEYS.SINGLE_ACTION);
     const singleActionIssue = getInput(INPUT_KEYS.SINGLE_ACTION_ISSUE);
+    const singleActionVersion = getInput(INPUT_KEYS.SINGLE_ACTION_VERSION);
+    const singleActionTitle = getInput(INPUT_KEYS.SINGLE_ACTION_TITLE);
+    const singleActionChangelog = getInput(INPUT_KEYS.SINGLE_ACTION_CHANGELOG);
 
     /**
      * Tokens
@@ -468,6 +471,9 @@ export async function runGitHubAction(): Promise<void> {
         new SingleAction(
             singleAction,
             singleActionIssue,
+            singleActionVersion,
+            singleActionTitle,
+            singleActionChangelog,
         ),
         commitPrefixBuilder,
         new Issue(
@@ -628,6 +634,13 @@ async function finishWithResults(execution: Execution, results: Result[]): Promi
     execution.currentConfiguration.results = results;
     await new PublishResultUseCase().invoke(execution)
     await new StoreConfigurationUseCase().invoke(execution)
+
+    /**
+     * If a single action is executed and the last step failed, throw an error
+     */
+    if (execution.isSingleAction && execution.singleAction.throwError) {
+        core.setFailed(results[results.length - 1].errors[0]);
+    }
 }
 
 function getInput(key: string, options?: { required?: boolean }): string {

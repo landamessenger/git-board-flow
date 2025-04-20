@@ -54,6 +54,9 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      */
     const singleAction = additionalParams[INPUT_KEYS.SINGLE_ACTION] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION];
     const singleActionIssue = additionalParams[INPUT_KEYS.SINGLE_ACTION_ISSUE] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
+    const singleActionVersion = additionalParams[INPUT_KEYS.SINGLE_ACTION_VERSION] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_VERSION];
+    const singleActionTitle = additionalParams[INPUT_KEYS.SINGLE_ACTION_TITLE] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_TITLE];
+    const singleActionChangelog = additionalParams[INPUT_KEYS.SINGLE_ACTION_CHANGELOG] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_CHANGELOG];
 
     /**
      * Tokens
@@ -474,6 +477,9 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
         new SingleAction(
             singleAction,
             singleActionIssue,
+            singleActionVersion,
+            singleActionTitle,
+            singleActionChangelog,
         ),
         commitPrefixBuilder,
         new Issue(

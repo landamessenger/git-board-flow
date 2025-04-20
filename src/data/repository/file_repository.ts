@@ -209,6 +209,11 @@ export class FileRepository {
     }
 
     private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
+        // First check for .DS_Store
+        if (filename.endsWith('.DS_Store')) {
+            return true;
+        }
+
         return ignorePatterns.some(pattern => {
             // Convert glob pattern to regex
             const regexPattern = pattern
