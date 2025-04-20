@@ -30,7 +30,6 @@ import { SupabaseConfig } from '../data/model/supabase_config';
 export async function runGitHubAction(): Promise<void> {
     const projectRepository = new ProjectRepository();
 
-    console.warn('test');
     console.log('process.env:', process.env);
 
     /**
