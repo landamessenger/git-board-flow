@@ -484,10 +484,12 @@ export class ProjectRepository {
             const membersSet = new Set<string>();
 
             for (const team of teams) {
+                logDebugInfo(`Checking team: ${team.slug}`);
                 const {data: members} = await octokit.rest.teams.listMembersInOrg({
                     org: organization,
                     team_slug: team.slug,
                 });
+                logDebugInfo(`Members: ${members.length}`);
                 members.forEach((member) => membersSet.add(member.login));
             }
 
