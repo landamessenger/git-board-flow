@@ -650,7 +650,6 @@ async function finishWithResults(execution: Execution, results: Result[]): Promi
 }
 
 function getInput(key: string, options?: { required?: boolean }): string {
-    // Try to get from JSON first
     try {
         const inputVarsJson = process.env.INPUT_VARS_JSON;
         if (inputVarsJson) {
