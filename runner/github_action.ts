@@ -24,19 +24,17 @@ if (!execTarget) {
 const inputVars = Object.entries(process.env).filter(([key]) => key.startsWith('INPUT_'));
 console.log('Found INPUT_ environment variables:', JSON.stringify(inputVars, null, 2));
 
-// Create a new env object with all variables
+// Create a new env object with renamed variables
 const env: { [key: string]: string | undefined } = {
   ...process.env,
   DUMMY_VAR: 'DUMMY_VALUE'
 };
 
-// Add INPUT_ variables explicitly
+// Add INPUT_ variables with COPILOT_ prefix
 inputVars.forEach(([key, value]) => {
-  env[key] = value;
+  const newKey = key.replace('INPUT_', 'COPILOT_');
+  env[newKey] = value;
 });
-
-console.log('env after adding INPUT_ variables:', JSON.stringify(env, null, 2));
-console.log('INPUT_ variables in env:', Object.entries(env).filter(([key]) => key.startsWith('INPUT_')));
 
 execSync(`node ${execTarget}`, {
   stdio: 'inherit',
