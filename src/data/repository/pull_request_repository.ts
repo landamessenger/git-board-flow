@@ -134,21 +134,26 @@ export class PullRequestRepository {
         patch: string
     }>> => {
         const octokit = github.getOctokit(token);
+        const allFiles = [];
 
         try {
-            const { data: filesData } = await octokit.rest.pulls.listFiles({
+            for await (const response of octokit.paginate.iterator(octokit.rest.pulls.listFiles, {
                 owner,
                 repo: repository,
                 pull_number: pullNumber,
-            });
+                per_page: 100
+            })) {
+                const filesData = response.data;
+                allFiles.push(...filesData.map((file) => ({
+                    filename: file.filename,
+                    status: file.status,
+                    additions: file.additions,
+                    deletions: file.deletions,
+                    patch: file.patch || ''
+                })));
+            }
 
-            return filesData.map((file) => ({
-                filename: file.filename,
-                status: file.status,
-                additions: file.additions,
-                deletions: file.deletions,
-                patch: file.patch || ''
-            }));
+            return allFiles;
         } catch (error) {
             logError(`Error getting pull request changes: ${error}.`);
             return [];
