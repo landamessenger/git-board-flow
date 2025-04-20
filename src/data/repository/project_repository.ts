@@ -206,17 +206,17 @@ export class ProjectRepository {
     }
   `;
 
-            logDebugInfo(`Query: ${query}`);
-            logDebugInfo(`Project ID: ${project.id}`);
-            logDebugInfo(`Content ID: ${contentId}`);
-            logDebugInfo(`After cursor: ${endCursor}`);
+            // logDebugInfo(`Query: ${query}`);
+            // logDebugInfo(`Project ID: ${project.id}`);
+            // logDebugInfo(`Content ID: ${contentId}`);
+            // logDebugInfo(`After cursor: ${endCursor}`);
 
             const result: any = await octokit.graphql(query, {
                 projectId: project.id,
                 after: endCursor,
             });
 
-            logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
+            // logDebugInfo(`Result: ${JSON.stringify(result, null, 2)}`);
 
             const items = result.node.items.nodes;
             allItems = allItems.concat(items);
@@ -358,18 +358,18 @@ export class ProjectRepository {
                 after: endCursor
             });
 
-            logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
+            // logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
 
             // Check current value in current page
             currentItem = fieldResult.node.items.nodes.find((item: any) => item.id === contentId);
             if (currentItem) {
-                logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
+                // logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
                 const currentFieldValue = currentItem.fieldValues.nodes.find(
                     (value: any) => value.field?.name === fieldName
                 );
                 
                 if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
-                    logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
+                    // logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
                     return false;
                 }
                 break; // Found the item, no need to continue pagination
