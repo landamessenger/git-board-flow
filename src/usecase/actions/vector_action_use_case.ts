@@ -157,4 +157,4 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
         return results;
     }
-} 
+}
