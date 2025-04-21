@@ -1,4 +1,4 @@
-export declare function setGlobalLoggerDebug(debug: boolean): void;
+export declare function setGlobalLoggerDebug(debug: boolean, isRemote?: boolean): void;
 export declare function logInfo(message: string, previousWasSingleLine?: boolean): void;
 export declare function logWarning(message: string): void;
 export declare function logError(message: any): void;
