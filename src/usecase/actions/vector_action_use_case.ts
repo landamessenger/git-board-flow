@@ -92,17 +92,17 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
                 if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length === chunkedFile.chunks.length) {
                     processedChunkedFiles.push(chunkedFile);
-                    logDebugInfo(`📦 ✅ Chunk already exists in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
+                    logInfo(`📦 ✅ Chunk already exists in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                     continue;
                 } else if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length !== chunkedFile.chunks.length) {
-                    logDebugInfo(`📦 ❌ Chunk has a different number of chunks in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
+                    logInfo(`📦 ❌ Chunk has a different number of chunks in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                     await supabaseRepository.removeChunksByShasum(
                         param.owner,
                         param.repo,
                         param.commit.branch,
                         chunkedFile.shasum,
                     );
-                    logDebugInfo(`📦 🗑️ Chunks removed from Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
+                    logInfo(`📦 🗑️ Chunks removed from Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
                 }
 
                 logSingleLine(`🟡 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
@@ -126,7 +126,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            logDebugInfo(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+            logInfo(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${param.commit.branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
             
             results.push(
                 new Result({
