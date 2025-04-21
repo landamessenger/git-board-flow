@@ -245,7 +245,7 @@ export class Execution {
              * In the case of a workflow, the issue number is got from the workflow.
              * In the case of a single action, the issue number is set.
              */
-            if (this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
+            if (this.inputs?.[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
                 this.issueNumber = this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
             } else if (this.isIssue) {
                 this.singleAction.isIssue = true;
