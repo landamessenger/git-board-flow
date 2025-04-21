@@ -225,7 +225,7 @@ export class Execution {
     }
 
     setup = async () => {
-        setGlobalLoggerDebug(this.debug);
+        setGlobalLoggerDebug(this.debug, this.inputs === undefined);
       
         const issueRepository = new IssueRepository();
         const projectRepository = new ProjectRepository();
