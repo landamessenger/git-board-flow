@@ -27,11 +27,12 @@ jobs:
         env:
           DOCKER_HOST: ${{ steps.docker-env.outputs.docker_host }}
         with:
-          single-action: vector_action
           debug: ${{ vars.DEBUG }}
-          supabase-url: ${{ secrets.SUPABASE_URL }}
-          supabase-key: ${{ secrets.SUPABASE_KEY }}
-          project-ids: 2
+          ai-ignore-files: build/*
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
+          project-ids: 2
+          single-action: vector_action
+          supabase-url: ${{ secrets.SUPABASE_URL }}
+          supabase-key: ${{ secrets.SUPABASE_KEY }}
           token: ${{ secrets.PAT }}
