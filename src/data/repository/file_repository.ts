@@ -77,6 +77,7 @@ export class FileRepository {
         branch: string,
         ignoreFiles: string[],
         progress: (fileName: string) => void,
+        ignoredFiles: (fileName: string) => void,
     ): Promise<Map<string, string>> => {
         const octokit = github.getOctokit(token);
         const fileContents = new Map<string, string>();
@@ -92,7 +93,11 @@ export class FileRepository {
 
                 if (Array.isArray(data)) {
                     for (const item of data) {
-                        if (item.type === 'file' && !this.isMediaOrPdfFile(item.path) && !this.shouldIgnoreFile(item.path, ignoreFiles)) {
+                        if (item.type === 'file') {
+                            if (this.isMediaOrPdfFile(item.path) || this.shouldIgnoreFile(item.path, ignoreFiles)) {
+                                ignoredFiles(item.path);
+                                continue;
+                            }
                             progress(item.path);
                             const content = await this.getFileContent(owner, repository, item.path, token, branch);
                             fileContents.set(item.path, content);
@@ -118,9 +123,10 @@ export class FileRepository {
         chunkSize: number,
         token: string,
         ignoreFiles: string[],
-        progress: (fileName: string) => void
+        progress: (fileName: string) => void,
+        ignoredFiles: (fileName: string) => void,
     ): Promise<ChunkedFile[]> => {
-        const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress);
+        const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress, ignoredFiles);
         const chunkedFiles: ChunkedFile[] = [];
 
         for (const [path, content] of fileContents.entries()) {
@@ -331,6 +337,7 @@ export class FileRepository {
         branch: string,
         ignoreFiles: string[],
         progress: (fileName: string) => void,
+        ignoredFiles: (fileName: string) => void,
     ): Promise<{ withContent: FileTreeNodeWithContent; withoutContent: FileTreeNodeWithNoContent }> => {
         const fileContents = await this.getRepositoryContent(
             owner,
@@ -338,7 +345,8 @@ export class FileRepository {
             token,
             branch,
             ignoreFiles,
-            progress
+            progress,
+            ignoredFiles,
         );
 
         // Create root nodes for both trees

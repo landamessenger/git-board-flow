@@ -60,6 +60,9 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 param.ai.getAiIgnoreFiles(),
                 (fileName: string) => {
                     logSingleLine(`Checking file ${fileName}`);
+                },
+                (fileName: string) => {
+                    logSingleLine(`Ignoring file ${fileName}`);
                 }
             );
             

@@ -15,6 +15,7 @@ export class SingleAction {
      * Actions that throw an error if the last step failed
      */
     actionsThrowError: string[] = [
+       ACTIONS.VECTOR,
        ACTIONS.PUBLISH_GITHUB_ACTION,
        ACTIONS.CREATE_RELEASE,
        ACTIONS.DEPLOYED,

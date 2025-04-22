@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { logError } from '../../utils/logger';
+import { logError, logInfo } from '../../utils/logger';
 import { ChunkedFile } from '../model/chunked_file';
 import { ChunkedFileChunk } from '../model/chunked_file_chunk';
 import { SupabaseConfig } from '../model/supabase_config';
@@ -376,6 +376,8 @@ export class SupabaseRepository {
         branch: string,
     ): Promise<string[]> => {
         try {
+            logInfo(`Getting distinct paths for ${owner}/${repository}/${branch}`);
+            
             const { data, error } = await this.supabase
                 .from(this.CHUNKS_TABLE)
                 .select('path')
@@ -386,17 +388,20 @@ export class SupabaseRepository {
                 .distinct();
 
             if (error) {
-                logError(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
+                logError(`Error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
                 return [];
             }
 
             if (!data) {
+                logInfo(`No data found for ${owner}/${repository}/${branch}`);
                 return [];
             }
 
-            return (data as { path: string }[]).map(doc => doc.path);
+            const paths = (data as { path: string }[]).map(doc => doc.path);
+            logInfo(`Found ${paths.length} distinct paths for ${owner}/${repository}/${branch}`);
+            return paths;
         } catch (error) {
-            logError(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
+            logError(`Unexpected error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
             return [];
         }
     }
