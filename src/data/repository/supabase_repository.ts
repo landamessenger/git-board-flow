@@ -38,14 +38,16 @@ export class SupabaseRepository {
                     });
                 
                 if (error) {
-                    //logError(`Error inserting chunk ${index} for file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
+                    chunkedFile.vector = [];
+                    logError(`Error inserting index ${chunkedFile.index} chunk ${index} for file ${chunkedFile.path}: ${JSON.stringify(chunkedFile, null, 2)}`);
+                    logError(`Inserting error: ${JSON.stringify(error, null, 2)}`);
                     throw error;
                 }
             });
 
             await Promise.all(insertPromises);
         } catch (error) {
-            logError(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
+            // logError(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
             throw error;
         }
     }
