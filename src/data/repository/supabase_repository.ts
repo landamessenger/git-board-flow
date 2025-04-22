@@ -369,4 +369,59 @@ export class SupabaseRepository {
             throw error;
         }
     }
+
+    getDistinctPaths = async (
+        owner: string,
+        repository: string,
+        branch: string,
+    ): Promise<string[]> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .select('path')
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .order('path')
+                .distinct();
+
+            if (error) {
+                logError(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+
+            if (!data) {
+                return [];
+            }
+
+            return (data as { path: string }[]).map(doc => doc.path);
+        } catch (error) {
+            logError(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
+            return [];
+        }
+    }
+
+    removeChunksByPath = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        path: string,
+    ): Promise<void> => {
+        try {
+            const { error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .delete()
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .eq('path', path);
+
+            if (error) {
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error removing chunks by path: ${JSON.stringify(error, null, 2)}`);
+            throw error;
+        }
+    }
 } 

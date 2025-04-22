@@ -6,6 +6,8 @@ export class SingleAction {
     actions: string[] = [
         ACTIONS.DEPLOYED,
         ACTIONS.VECTOR,
+        ACTIONS.VECTOR_LOCAL,
+        ACTIONS.VECTOR_REMOVAL,
         ACTIONS.PUBLISH_GITHUB_ACTION,
         ACTIONS.CREATE_TAG,
     ];
@@ -35,7 +37,15 @@ export class SingleAction {
     }
 
     get isVectorAction(): boolean {
-        return this.currentSingleAction === ACTIONS.VECTOR;
+        return this.currentSingleAction === ACTIONS.VECTOR || this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
+    }
+
+    get isVectorLocalAction(): boolean {
+        return this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
+    }
+
+    get isVectorRemovalAction(): boolean {
+        return this.currentSingleAction === ACTIONS.VECTOR_REMOVAL;
     }
 
     get isPublishGithubAction(): boolean {
