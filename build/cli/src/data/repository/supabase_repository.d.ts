@@ -17,4 +17,5 @@ export declare class SupabaseRepository {
     removeChunksByBranch: (owner: string, repository: string, branch: string) => Promise<void>;
     getDistinctPaths: (owner: string, repository: string, branch: string) => Promise<string[]>;
     removeChunksByPath: (owner: string, repository: string, branch: string, path: string) => Promise<void>;
+    getShasumByPath: (owner: string, repository: string, branch: string, path: string) => Promise<string | undefined>;
 }
