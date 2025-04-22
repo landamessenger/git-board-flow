@@ -98,11 +98,11 @@ SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT path
+    SELECT DISTINCT chunks.path
     FROM chunks
-    WHERE owner = owner_param
-    AND repository = repository_param
-    AND branch = branch_param
-    ORDER BY path;
+    WHERE chunks.owner = owner_param
+    AND chunks.repository = repository_param
+    AND chunks.branch = branch_param
+    ORDER BY chunks.path;
 END;
 $$; 

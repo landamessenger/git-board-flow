@@ -137,7 +137,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
 
         if (pathsToRemove.length > 0) {
-            logInfo(`Found ${pathsToRemove.length} paths to remove from Supabase as they no longer exist in the current branch.`);
+            logInfo(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
             
             for (const path of pathsToRemove) {
                 try {
@@ -159,7 +159,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     success: true,
                     executed: true,
                     steps: [
-                        `Removed ${pathsToRemove.length} paths from Supabase that no longer exist in ${param.owner}/${param.repo}/${branch}.`,
+                        `Removed ${pathsToRemove.length} paths from AI index as they no longer exist in \`${branch}\`.`,
                     ],
                 })
             );
@@ -264,6 +264,16 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         const totalDurationSeconds = (Date.now() - startTime) / 1000;
         logInfo(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
         
+        results.push(
+            new Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [
+                    `All chunked files up to date in AI index for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
+                ],
+            })
+        );
         return results;
     }
 

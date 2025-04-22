@@ -375,9 +375,7 @@ export class SupabaseRepository {
         repository: string,
         branch: string,
     ): Promise<string[]> => {
-        try {
-            logInfo(`Getting distinct paths for ${owner}/${repository}/${branch}`);
-            
+        try {            
             const { data, error } = await this.supabase
                 .rpc('get_distinct_paths', {
                     owner_param: owner,
@@ -396,7 +394,6 @@ export class SupabaseRepository {
             }
 
             const paths = data.map((doc: { path: string }) => doc.path);
-            logInfo(`Found ${paths.length} distinct paths for ${owner}/${repository}/${branch}`);
             return paths;
         } catch (error) {
             logError(`Unexpected error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
