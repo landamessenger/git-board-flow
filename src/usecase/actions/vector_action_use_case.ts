@@ -35,15 +35,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            logInfo(`param.commit.branch: ${param.commit.branch}`);
-            logInfo(`param.branches.main: ${param.branches.main}`);
-            logInfo(`param.branches.development: ${param.branches.development}`);
-            logInfo(`param.singleAction.isVectorLocalAction: ${param.singleAction.isVectorLocalAction}`);
-
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
-                logInfo(`📦 Chunks from \`${param.branches.main}\` will be duplicated to \`${param.branches.development}\` for ${param.owner}/${param.repo}.`);
+                logInfo(`📦 Chunks from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
 
@@ -57,7 +52,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             logInfo(`🚚 Chunk size: ${chunkSize}`);
             logInfo(`📦 Getting chunked files for ${param.owner}/${param.repo}/${branch}`);
 
-            const chunkedFiles = await this.fileRepository.getChunkedRepositoryContent(
+            const chunkedFilesMap = await this.fileRepository.getChunkedRepositoryContent(
                 param.owner,
                 param.repo,
                 branch,
@@ -72,10 +67,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             );
             
-            logInfo(`📦 ✅ Chunked files: ${chunkedFiles.length}`, true);
+            logInfo(`📦 ✅ Chunked files: ${chunkedFilesMap.size}`, true);
 
-            results.push(...await this.checkChunksInSupabase(param, branch, chunkedFiles));
-            results.push(...await this.uploadChunksToSupabase(param, branch, chunkedFiles));
+            results.push(...await this.checkChunksInSupabase(param, branch, chunkedFilesMap));
+            results.push(...await this.uploadChunksToSupabase(param, branch, chunkedFilesMap));
 
             if (duplicationBranch) {
                 results.push(...await this.duplicateChunksToBranch(param, branch, duplicationBranch));
@@ -111,7 +106,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private checkChunksInSupabase = async (param: Execution, branch: string, chunkedFiles: ChunkedFile[]) => {
+    private checkChunksInSupabase = async (param: Execution, branch: string, chunkedFilesMap: Map<string, ChunkedFile[]>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -137,7 +132,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         );
 
         // Get all local paths from chunkedFiles
-        const localPaths = new Set(chunkedFiles.map(file => file.path));
+        const localPaths = new Set(Array.from(chunkedFilesMap.keys()));
 
         // Find paths that exist in Supabase but not in the current branch
         const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
@@ -185,7 +180,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private uploadChunksToSupabase = async (param: Execution, branch: string, chunkedFiles: ChunkedFile[]) => {
+    private uploadChunksToSupabase = async (param: Execution, branch: string, chunkedFilesMap: Map<string, ChunkedFile[]>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -198,73 +193,75 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                         `Supabase config not found.`,
                     ],
                 })
-            )
+            )       
             return results;
         }
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
         const processedChunkedFiles: ChunkedFile[] = [];
+        const chunkedFiles = Array.from(chunkedFilesMap.values()).flat();
         const totalFiles = chunkedFiles.length;
         const startTime = Date.now();
+        const chunkedPaths = Array.from(chunkedFilesMap.keys());
         
-        for (let i = 0; i < chunkedFiles.length; i++) {
-            const chunkedFile = chunkedFiles[i];
+        for (let i = 0; i < chunkedPaths.length; i++) {
+            const path = chunkedPaths[i];
+            const chunkedFiles: ChunkedFile[] = chunkedFilesMap.get(path) || [];
+            const progress = ((i + 1) / chunkedPaths.length) * 100;
             const currentTime = Date.now();
             const elapsedTime = (currentTime - startTime) / 1000; // in seconds
-            const progress = ((i + 1) / totalFiles) * 100;
-            
-            // Calculate estimated time remaining
-            const estimatedTotalTime = (elapsedTime / (i + 1)) * totalFiles;
+            const estimatedTotalTime = (elapsedTime / (i + 1)) * chunkedPaths.length;
             const remainingTime = estimatedTotalTime - elapsedTime;
-            
-            logSingleLine(`🔘 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${chunkedFile.path}]`);
-            
-            let remoteChunkedFiles: ChunkedFileChunk[];
-            try {
-                remoteChunkedFiles = await supabaseRepository.getChunksByShasum(
-                    param.owner,
-                    param.repo,
-                    branch,
-                    chunkedFile.shasum,
-                );
-            } catch (error) {
-                logError(`Error checking file ${chunkedFile.path} in Supabase: ${JSON.stringify(error, null, 2)}`);
-                remoteChunkedFiles = [];
-            }
 
-            if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length === chunkedFile.chunks.length) {
-                processedChunkedFiles.push(chunkedFile);
-                logInfo(`📦 ✅ Chunk already exists in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
-                continue;
-            } else if (remoteChunkedFiles.length > 0 && remoteChunkedFiles.length !== chunkedFile.chunks.length) {
-                logInfo(`📦 ❌ Chunk has a different number of chunks in Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
-                await supabaseRepository.removeChunksByShasum(
-                    param.owner,
-                    param.repo,
-                    branch,
-                    chunkedFile.shasum,
-                );
-                logInfo(`📦 🗑️ Chunks removed from Supabase: [${chunkedFile.path}] [${chunkedFile.index}]`, true);
-            }
+            logSingleLine(`🔘 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${path}]`);
 
-            logSingleLine(`🟡 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
-
-            const embeddings = await this.dockerRepository.getEmbedding(
-                param,
-                chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
-            );
-            chunkedFile.vector = embeddings;
-
-            logSingleLine(`🟢 ${i + 1}/${totalFiles} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
-            
-            await supabaseRepository.setChunkedFile(
+            const remoteShasum = await supabaseRepository.getShasumByPath(
                 param.owner,
                 param.repo,
                 branch,
-                chunkedFile
+                path
             );
 
-            processedChunkedFiles.push(chunkedFile);
+            if (remoteShasum && remoteShasum === chunkedFiles[0].shasum) {
+                logInfo(`📦 ✅ Chunk already exists in Supabase: [${path}] [${remoteShasum}]`, true);
+                continue;
+            } else if (remoteShasum && remoteShasum !== chunkedFiles[0].shasum) {
+                logInfo(`📦 ❌ Chunk has a different shasum in Supabase: [${path}] [${remoteShasum}] [${chunkedFiles[0].shasum}]`, true);
+                await supabaseRepository.removeChunksByPath(
+                    param.owner,
+                    param.repo,
+                    branch,
+                    path
+                );
+            }
+
+            for (let j = 0; j < chunkedFiles.length; j++) {
+                const chunkedFile = chunkedFiles[j];
+                const chunkProgress = ((j + 1) / chunkedFiles.length) * 100;
+                const currentChunkTime = Date.now();
+                const chunkElapsedTime = (currentChunkTime - startTime) / 1000;
+                const estimatedChunkTotalTime = (chunkElapsedTime / ((i * chunkedFiles.length) + j + 1)) * totalFiles;
+                const chunkRemainingTime = estimatedChunkTotalTime - chunkElapsedTime;
+                
+                logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
+
+                const embeddings = await this.dockerRepository.getEmbedding(
+                    param,
+                    chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
+                );
+                chunkedFile.vector = embeddings;
+
+                logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Storing [${chunkedFile.path}]`);
+                
+                await supabaseRepository.setChunkedFile(
+                    param.owner,
+                    param.repo,
+                    branch,
+                    chunkedFile
+                );
+
+                processedChunkedFiles.push(chunkedFile);
+            }
         }
 
         const totalDurationSeconds = (Date.now() - startTime) / 1000;

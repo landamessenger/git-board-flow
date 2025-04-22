@@ -125,19 +125,22 @@ export class FileRepository {
         ignoreFiles: string[],
         progress: (fileName: string) => void,
         ignoredFiles: (fileName: string) => void,
-    ): Promise<ChunkedFile[]> => {
+    ): Promise<Map<string, ChunkedFile[]>> => {
         const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress, ignoredFiles);
-        const chunkedFiles: ChunkedFile[] = [];
+        const chunkedFilesMap = new Map<string, ChunkedFile[]>();
 
         for (const [path, content] of fileContents.entries()) {
-            chunkedFiles.push(...this.getChunksByLines(path, content, chunkSize));
-            chunkedFiles.push(...this.getChunksByBlocks(path, content, chunkSize));
+            const shasum = this.calculateShasum(content);
+            chunkedFilesMap.set(path, [
+                ...this.getChunksByLines(path, content, shasum, chunkSize),
+                ...this.getChunksByBlocks(path, content, shasum, chunkSize),
+            ]);
         }
 
-        return this.shuffleArray(chunkedFiles);    
+        return chunkedFilesMap;    
     }
 
-    getChunksByLines = (path: string, content: string, chunkSize: number): ChunkedFile[] => {
+    getChunksByLines = (path: string, content: string, shasum: string, chunkSize: number): ChunkedFile[] => {
         const chunkedFiles: ChunkedFile[] = [];
         const lines = content.split('\n');
         const chunks: string[][] = [];
@@ -168,7 +171,7 @@ export class FileRepository {
                     index,
                     'line',
                     chunkContent,
-                    this.calculateShasum(chunkContent),
+                    shasum,
                     chunkLines
                 )
             );
@@ -177,7 +180,7 @@ export class FileRepository {
         return chunkedFiles;
     }
 
-    getChunksByBlocks = (path: string, content: string, chunkSize: number): ChunkedFile[] => {
+    getChunksByBlocks = (path: string, content: string, shasum: string, chunkSize: number): ChunkedFile[] => {
         const chunkedFiles: ChunkedFile[] = [];
         const blocks = this.extractCodeBlocks(content);
         const chunks: string[][] = [];
@@ -205,7 +208,7 @@ export class FileRepository {
                     index,
                     'block',
                     chunkContent,
-                    this.calculateShasum(chunkContent),
+                    shasum,
                     chunkLines
                 )
             );

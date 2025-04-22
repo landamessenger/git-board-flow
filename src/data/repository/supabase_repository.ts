@@ -430,4 +430,38 @@ export class SupabaseRepository {
             throw error;
         }
     }
+
+    getShasumByPath = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        path: string,
+    ): Promise<string | undefined> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .select('*')
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .eq('path', path)
+                .order('index')
+                .order('chunk_index')
+                .limit(1);
+
+            if (error) {
+                logError(`Supabase error getting chunks by path: ${JSON.stringify(error, null, 2)}`);
+                return undefined;
+            }
+
+            if (!data) {
+                return undefined;
+            }
+
+            return data[0].shasum;
+        } catch (error) {
+            logError(`Error getting shasum by path: ${JSON.stringify(error, null, 2)}`);
+            return undefined;
+        }
+    }
 } 
