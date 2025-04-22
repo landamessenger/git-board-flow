@@ -49,7 +49,7 @@ program
     
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
-      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.VECTOR,
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.VECTOR_LOCAL,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
