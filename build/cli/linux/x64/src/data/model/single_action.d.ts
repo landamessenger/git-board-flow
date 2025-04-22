@@ -17,6 +17,8 @@ export declare class SingleAction {
     changelog: string;
     get isDeployedAction(): boolean;
     get isVectorAction(): boolean;
+    get isVectorLocalAction(): boolean;
+    get isVectorRemovalAction(): boolean;
     get isPublishGithubAction(): boolean;
     get isCreateReleaseAction(): boolean;
     get isCreateTagAction(): boolean;
