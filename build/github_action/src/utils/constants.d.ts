@@ -167,6 +167,8 @@ export declare const ERRORS: {
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
     readonly VECTOR: "vector_action";
+    readonly VECTOR_LOCAL: "vector_local";
+    readonly VECTOR_REMOVAL: "vector_removal";
     readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";
