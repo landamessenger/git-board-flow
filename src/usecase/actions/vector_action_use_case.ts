@@ -35,9 +35,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
+            logInfo(`param.commit.branch: ${param.commit.branch}`);
+            logInfo(`param.branches.main: ${param.branches.main}`);
+            logInfo(`param.branches.development: ${param.branches.development}`);
+            logInfo(`param.singleAction.isVectorLocalAction: ${param.singleAction.isVectorLocalAction}`);
+
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
+                logInfo(`📦 Chunks from \`${param.branches.main}\` will be duplicated to \`${param.branches.development}\` for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
 
