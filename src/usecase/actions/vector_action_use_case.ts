@@ -50,7 +50,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`🧑‍🏭 Max workers: ${maxWorkers}`);
             logInfo(`🚚 Chunk size: ${chunkSize}`);
-            logInfo(`📦 Getting chunked files for ${param.owner}/${param.repo}/${branch}`);
+            logInfo(`📦 Getting chunks on ${param.owner}/${param.repo}/${branch}`);
 
             const chunkedFilesMap = await this.fileRepository.getChunkedRepositoryContent(
                 param.owner,
@@ -67,7 +67,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             );
             
-            logInfo(`📦 ✅ Chunked files: ${chunkedFilesMap.size}`, true);
+            logInfo(`📦 ✅ Files to index: ${chunkedFilesMap.size}`, true);
 
             results.push(...await this.checkChunksInSupabase(param, branch, chunkedFilesMap));
             results.push(...await this.uploadChunksToSupabase(param, branch, chunkedFilesMap));
@@ -148,9 +148,9 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                         branch,
                         path
                     );
-                    logInfo(`Removed chunks for path: ${path}`);
+                    logInfo(`📦 ✅ Removed chunks for path: ${path}`);
                 } catch (error) {
-                    logError(`Error removing chunks for path ${path}: ${JSON.stringify(error, null, 2)}`);
+                    logError(`📦 ❌ Error removing chunks for path ${path}: ${JSON.stringify(error, null, 2)}`);
                 }
             }
 
@@ -170,9 +170,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [
-                        `No paths to remove from Supabase. All paths exist in the current branch.`,
-                    ],
                 })
             );
         }
@@ -223,10 +220,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             );
 
             if (remoteShasum && remoteShasum === chunkedFiles[0].shasum) {
-                logInfo(`📦 ✅ Chunk already exists in Supabase: [${path}] [${remoteShasum}]`, true);
+                logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);
                 continue;
             } else if (remoteShasum && remoteShasum !== chunkedFiles[0].shasum) {
-                logInfo(`📦 ❌ Chunk has a different shasum in Supabase: [${path}] [${remoteShasum}] [${chunkedFiles[0].shasum}]`, true);
+                logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
                 await supabaseRepository.removeChunksByPath(
                     param.owner,
                     param.repo,
