@@ -378,6 +378,19 @@ export class SupabaseRepository {
         try {
             logInfo(`Getting distinct paths for ${owner}/${repository}/${branch}`);
             
+            // Verify connection
+            const { data: testData, error: testError } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .select('count')
+                .limit(1);
+
+            if (testError) {
+                logError(`Supabase connection error: ${JSON.stringify(testError, null, 2)}`);
+                return [];
+            }
+
+            logInfo(`Supabase connection verified for ${owner}/${repository}/${branch}`);
+            
             const { data, error } = await this.supabase
                 .from(this.CHUNKS_TABLE)
                 .select('path')
@@ -402,6 +415,10 @@ export class SupabaseRepository {
             return paths;
         } catch (error) {
             logError(`Unexpected error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
+            if (error instanceof Error) {
+                logError(`Error details: ${error.message}`);
+                logError(`Error stack: ${error.stack}`);
+            }
             return [];
         }
     }
