@@ -15,4 +15,6 @@ export declare class SupabaseRepository {
     matchChunks: (owner: string, repository: string, branch: string, type: string, queryEmbedding: number[], matchCount?: number) => Promise<ChunkedFileChunk[]>;
     duplicateChunksByBranch: (owner: string, repository: string, sourceBranch: string, targetBranch: string) => Promise<void>;
     removeChunksByBranch: (owner: string, repository: string, branch: string) => Promise<void>;
+    getDistinctPaths: (owner: string, repository: string, branch: string) => Promise<string[]>;
+    removeChunksByPath: (owner: string, repository: string, branch: string, path: string) => Promise<void>;
 }
