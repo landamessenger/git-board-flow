@@ -47,8 +47,8 @@ export class SupabaseRepository {
 
             await Promise.all(insertPromises);
         } catch (error) {
-            // logError(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
-            throw error;
+            logError(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
+            // throw error;
         }
     }
 
