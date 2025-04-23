@@ -194,6 +194,8 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 Your tasks are:
                 - Analyze the code snippets in the context of the user's question.
                 - Use the file tree to provide additional context if needed (e.g., to understand module relationships).
+                - Strive to find the most appropriate and complete solution to the user's question.
+                - When in doubt or if you need more context to provide a confident answer, request additional files.
                 - Provide your answer **only** in a JSON format, following this structure:
 
                 {
@@ -205,12 +207,14 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
 
                 Explanation:
                 - If the provided code snippets and file tree are sufficient to confidently answer the question, set "complete": true and "action": "none".
-                - If you determine that you need to review additional files to provide a complete and accurate answer, set "complete": false, "action": "analyze_files", and list the related file paths you need to investigate further in "related_files".
+                - If you have any doubts or need more context to provide a complete and accurate answer, set "complete": false, "action": "analyze_files", and list the related file paths you need to investigate further in "related_files".
                 - Do not invent file paths; only request files that logically relate to the question based on the information available.
                 - Always provide a "text_response" with your reasoning, even if requesting more files.
+                - When requesting additional files, explain in the text_response why you need those specific files to provide a better answer.
 
                 Important:
                 - **Respond only with the JSON object**, without any extra commentary or text outside of the JSON.
+                - Prioritize accuracy and completeness over speed - it's better to request more files than to provide an incomplete or uncertain answer.
 
                 Information provided:
                 User's question:

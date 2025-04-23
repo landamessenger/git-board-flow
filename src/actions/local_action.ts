@@ -665,7 +665,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     logInfo('\n')
     logInfo(
         boxen(
-            chalk.cyan(TITLE) + '\n' +
             content,
             {
                 padding: 1,
