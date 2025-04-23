@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { COMMAND } from '../../utils/constants';
 import { logError, logInfo } from '../../utils/logger';
 import { ChunkedFile } from '../model/chunked_file';
 import { ChunkedFileChunk } from '../model/chunked_file_chunk';
@@ -7,10 +8,41 @@ import { SupabaseConfig } from '../model/supabase_config';
 export class SupabaseRepository {
     private readonly CHUNKS_TABLE = 'chunks';
     private readonly MAX_BATCH_SIZE = 500;
+    private readonly DEFAULT_TIMEOUT = 30000; // 30 seconds
     private supabase: any;
 
     constructor(config: SupabaseConfig) {
-        this.supabase = createClient(config.getUrl(), config.getKey());
+        const customFetch = async (input: string | URL | Request, init?: RequestInit) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), this.DEFAULT_TIMEOUT);
+
+            try {
+                const response = await fetch(input, {
+                    ...init,
+                    signal: controller.signal
+                });
+                return response;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
+
+        this.supabase = createClient(config.getUrl(), config.getKey(), {
+            global: {
+                headers: {
+                    'X-Client-Info': COMMAND
+                },
+                fetch: customFetch
+            },
+            db: {
+                schema: 'public'
+            },
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true
+            }
+        });
     }
 
     setChunkedFile = async (

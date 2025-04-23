@@ -232,6 +232,12 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 );
             }
 
+            // Procesar chunks en paralelo con límite de concurrencia
+            const systemInfo = await this.dockerRepository.getSystemInfo(param);
+            const maxWorkers = systemInfo.parameters.max_workers as number;
+            const chunkPromises: Promise<void>[] = [];
+            let activeWorkers = 0;
+
             for (let j = 0; j < chunkedFiles.length; j++) {
                 const chunkedFile = chunkedFiles[j];
                 const chunkProgress = ((j + 1) / chunkedFiles.length) * 100;
@@ -239,26 +245,49 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const chunkElapsedTime = (currentChunkTime - startTime) / 1000;
                 const estimatedChunkTotalTime = (chunkElapsedTime / ((i * chunkedFiles.length) + j + 1)) * totalFiles;
                 const chunkRemainingTime = estimatedChunkTotalTime - chunkElapsedTime;
-                
-                logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
 
-                const embeddings = await this.dockerRepository.getEmbedding(
-                    param,
-                    chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
-                );
-                chunkedFile.vector = embeddings;
+                // Esperar si hemos alcanzado el límite de workers
+                while (activeWorkers >= maxWorkers) {
+                    await Promise.race(chunkPromises);
+                    activeWorkers = chunkPromises.filter(p => !p).length;
+                }
 
-                logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Storing [${chunkedFile.path}]`);
-                
-                await supabaseRepository.setChunkedFile(
-                    param.owner,
-                    param.repo,
-                    branch,
-                    chunkedFile
-                );
+                const processChunk = async () => {
+                    try {
+                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
 
-                processedChunkedFiles.push(chunkedFile);
+                        const embeddings = await this.dockerRepository.getEmbedding(
+                            param,
+                            chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
+                        );
+                        chunkedFile.vector = embeddings;
+
+                        logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Storing [${chunkedFile.path}]`);
+                        
+                        await supabaseRepository.setChunkedFile(
+                            param.owner,
+                            param.repo,
+                            branch,
+                            chunkedFile
+                        );
+
+                        processedChunkedFiles.push(chunkedFile);
+                    } catch (error) {
+                        logError(`Error processing chunk ${j + 1} of file ${path}: ${JSON.stringify(error, null, 2)}`);
+                    }
+                };
+
+                const chunkPromise = processChunk();
+                chunkPromises.push(chunkPromise);
+                activeWorkers++;
+
+                chunkPromise.finally(() => {
+                    activeWorkers--;
+                });
             }
+
+            // Esperar a que todos los chunks del archivo actual se procesen
+            await Promise.all(chunkPromises);
         }
 
         const totalDurationSeconds = (Date.now() - startTime) / 1000;
