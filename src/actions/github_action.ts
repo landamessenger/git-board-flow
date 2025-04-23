@@ -638,7 +638,7 @@ async function finishWithResults(execution: Execution, results: Result[]): Promi
     /**
      * If a single action is executed and the last step failed, throw an error
      */
-    if (execution.isSingleAction && execution.singleAction.throwError) {
+    if (execution.isSingleAction && execution.singleAction.throwError && results[results.length - 1].errors.length > 0) {
         core.setFailed(results[results.length - 1].errors[0]);
     }
 }
