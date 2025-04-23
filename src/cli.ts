@@ -6,6 +6,7 @@ import * as dotenv from 'dotenv';
 import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
+import { logInfo } from './utils/logger';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -169,6 +170,7 @@ program
       `Asking AI on ${gitInfo.owner}/${gitInfo.repo}/${options.branch}...`,
     ];
 
+    logInfo(JSON.stringify(params, null, 2));
     runLocalAction(params);
   });
 

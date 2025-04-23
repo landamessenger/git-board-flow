@@ -49,6 +49,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
              * Get the comment body.
              */
             if (param.issue.isIssueComment) {
+                logInfo(`🔎 Issue comment body: ${param.issue.commentBody}`);
                 commentBody = param.issue.commentBody;
                 description = await this.issueRepository.getDescription(
                     param.owner,
@@ -57,6 +58,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                     param.tokenUser
                 ) ?? '';
             } else if (param.pullRequest.isPullRequestReviewComment) {
+                logInfo(`🔎 Pull request review comment body: ${param.pullRequest.commentBody}`);
                 commentBody = param.pullRequest.commentBody;
                 description = await this.issueRepository.getDescription(
                     param.owner,
@@ -77,6 +79,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             if (commentBody.length === 0 || !commentBody.includes(`@${param.tokenUser}`)) {
+                logInfo(`🔎 Comment body is empty or does not include @${param.tokenUser}`);
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -88,6 +91,8 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
             } else {
                 commentBody = commentBody.replace(param.tokenUser, '').trim();
             }
+
+            logInfo(`🔎 Comment body: ${commentBody}`);
 
             if (param.ai.getOpenRouterModel().length === 0 || param.ai.getOpenRouterApiKey().length === 0) {
                 results.push(
