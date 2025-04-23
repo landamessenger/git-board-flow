@@ -4,6 +4,7 @@ import { SupabaseConfig } from '../model/supabase_config';
 export declare class SupabaseRepository {
     private readonly CHUNKS_TABLE;
     private readonly MAX_BATCH_SIZE;
+    private readonly DEFAULT_TIMEOUT;
     private supabase;
     constructor(config: SupabaseConfig);
     setChunkedFile: (owner: string, repository: string, branch: string, chunkedFile: ChunkedFile) => Promise<void>;
