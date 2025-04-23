@@ -254,7 +254,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
                 const processChunk = async () => {
                     try {
-                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
+                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
 
                         const embeddings = await this.dockerRepository.getEmbedding(
                             param,
@@ -262,7 +262,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                         );
                         chunkedFile.vector = embeddings;
 
-                        logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(chunkRemainingTime)} seconds | Storing [${chunkedFile.path}]`);
+                        logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
                         
                         await supabaseRepository.setChunkedFile(
                             param.owner,
