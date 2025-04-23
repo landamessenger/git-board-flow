@@ -638,8 +638,8 @@ async function finishWithResults(execution: Execution, results: Result[]): Promi
     /**
      * If a single action is executed and the last step failed, throw an error
      */
-    if (execution.isSingleAction && execution.singleAction.throwError && results[results.length - 1].errors.length > 0) {
-        core.setFailed(results[results.length - 1].errors[0]);
+    if (execution.isSingleAction && execution.singleAction.throwError) {
+        setFirstErrorIfExists(results);
     }
 }
 
@@ -659,6 +659,15 @@ function getInput(key: string, options?: { required?: boolean }): string {
 
     // Fallback to core.getInput
     return core.getInput(key, options);
+}
+
+function setFirstErrorIfExists(results: Result[]): void {
+    for (const result of results) {
+        if (result.errors && result.errors.length > 0) {
+            core.setFailed(result.errors[0]);
+            return;
+        }
+    }
 }
 
 runGitHubAction();
