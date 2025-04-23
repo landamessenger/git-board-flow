@@ -83,7 +83,7 @@ export class FileRepository {
         const fileContents = new Map<string, string>();
 
         try {
-            const getContentRecursively = async (path: string = '') => {
+            const getContentRecursively = async (path: string = ''): Promise<void> => {
                 const { data } = await octokit.rest.repos.getContent({
                     owner,
                     repo: repository,
@@ -92,6 +92,8 @@ export class FileRepository {
                 });
 
                 if (Array.isArray(data)) {
+                    const promises: Promise<void>[] = [];
+
                     for (const item of data) {
                         if (item.type === 'file') {
                             if (this.isMediaOrPdfFile(item.path) || this.shouldIgnoreFile(item.path, ignoreFiles)) {
@@ -99,12 +101,17 @@ export class FileRepository {
                                 continue;
                             }
                             progress(item.path);
-                            const content = await this.getFileContent(owner, repository, item.path, token, branch);
-                            fileContents.set(item.path, content);
+                            const filePromise = (async () => {
+                                const content = await this.getFileContent(owner, repository, item.path, token, branch);
+                                fileContents.set(item.path, content);
+                            })();
+                            promises.push(filePromise);
                         } else if (item.type === 'dir') {
-                            await getContentRecursively(item.path);
+                            promises.push(getContentRecursively(item.path));
                         }
                     }
+
+                    await Promise.all(promises);
                 }
             };
 
