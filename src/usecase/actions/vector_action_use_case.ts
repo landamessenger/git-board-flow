@@ -297,6 +297,14 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
 
         try {
+            logInfo(`📦 -> 📦 Clearing possible existing chunks from ${targetBranch} for ${param.owner}/${param.repo}.`);
+            await supabaseRepository.removeChunksByBranch(
+                param.owner,
+                param.repo,
+                targetBranch
+            );
+            
+            
             logInfo(`📦 -> 📦 Duplicating chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
             await supabaseRepository.duplicateChunksByBranch(
                 param.owner,
