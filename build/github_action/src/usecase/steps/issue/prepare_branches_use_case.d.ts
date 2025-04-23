@@ -5,4 +5,5 @@ export declare class PrepareBranchesUseCase implements ParamUseCase<Execution, R
     taskId: string;
     private branchRepository;
     invoke(param: Execution): Promise<Result[]>;
+    private duplicateChunksByBranch;
 }

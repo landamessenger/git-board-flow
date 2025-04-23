@@ -5,4 +5,5 @@ export declare class CloseIssueAfterMergingUseCase implements ParamUseCase<Execu
     taskId: string;
     private issueRepository;
     invoke(param: Execution): Promise<Result[]>;
+    private removeBranches;
 }
