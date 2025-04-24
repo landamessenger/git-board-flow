@@ -225,7 +225,7 @@ export class Execution {
     }
 
     setup = async () => {
-        setGlobalLoggerDebug(this.debug);
+        setGlobalLoggerDebug(this.debug, this.inputs === undefined);
       
         const issueRepository = new IssueRepository();
         const projectRepository = new ProjectRepository();
@@ -245,41 +245,41 @@ export class Execution {
              * In the case of a workflow, the issue number is got from the workflow.
              * In the case of a single action, the issue number is set.
              */
-            if (this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
+            if (this.inputs?.[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
                 this.issueNumber = this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
             } else if (this.isIssue) {
                 this.singleAction.isIssue = true;
                 this.issueNumber = this.issue.number;
-                this.singleAction.currentSingleActionIssue = this.issueNumber;
+                this.singleAction.issue = this.issueNumber;
             } else if (this.isPullRequest) {
                 this.singleAction.isPullRequest = true;
                 this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
-                this.singleAction.currentSingleActionIssue = this.issueNumber;
+                this.singleAction.issue = this.issueNumber;
             } else if (this.isPush) {
                 this.singleAction.isPush = true;
                 this.issueNumber = extractIssueNumberFromPush(this.commit.branch)
-                this.singleAction.currentSingleActionIssue = this.issueNumber;
+                this.singleAction.issue = this.issueNumber;
             } else {
                 this.singleAction.isPullRequest = await issueRepository.isPullRequest(
                     this.owner,
                     this.repo,
-                    this.singleAction.currentSingleActionIssue,
+                    this.singleAction.issue,
                     this.tokens.token,
                 )
                 this.singleAction.isIssue = await issueRepository.isIssue(
                     this.owner,
                     this.repo,
-                    this.singleAction.currentSingleActionIssue,
+                    this.singleAction.issue,
                     this.tokens.token,
                 )
 
                 if (this.singleAction.isIssue) {
-                    this.issueNumber = this.singleAction.currentSingleActionIssue
+                    this.issueNumber = this.singleAction.issue
                 } else if (this.singleAction.isPullRequest) {
                     const head = await issueRepository.getHeadBranch(
                         this.owner,
                         this.repo,
-                        this.singleAction.currentSingleActionIssue,
+                        this.singleAction.issue,
                         this.tokens.token,
                     )
                     if (head === undefined) {

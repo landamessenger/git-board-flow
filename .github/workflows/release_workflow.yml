@@ -21,54 +21,15 @@ on:
         default: '-1'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check-tag:
-    name: Publish version
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create tag
-        id: create_tag
-        run: |
-          # Check if the tag already exists in the remote repository
-          if git rev-parse "v${{ github.event.inputs.version }}" >/dev/null 2>&1; then
-            echo "Tag v${{ github.event.inputs.version }} already exists."
-            exit 1
-          else
-            echo "Tag v${{ github.event.inputs.version }} not exists."
-          fi
-
-  prepare-files:
+  prepare-version-files:
     name: Prepare files for release
     runs-on: ubuntu-latest
-    needs: [ check-tag ]
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check branch and prepare SSH
-        run: |
-          if [[ "${{ github.ref_name }}" == release/* ]]; then
-            echo "Release branch."
-          else
-            echo "Not valid branch type."
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git remote set-url origin git@github.com:landamessenger/git-board-flow.git
-
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
 
       - name: Update version
         uses: actions/github-script@v7
@@ -79,11 +40,6 @@ jobs:
             packageJson.version = '${{ github.event.inputs.version }}';
             fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2));
 
-      - name: Compile files
-        run: |
-          npm install
-          npm run build
-
       - name: Commit updated package.json and dist directory
         uses: EndBug/add-and-commit@v9
         with:
@@ -92,167 +48,192 @@ jobs:
           committer_email: actions@github.com
           default_author: user_info
           message: 'gh-action: updated compiled files and bumped version to ${{ github.event.inputs.version }}'
-  tag:
-    name: Publish version
+
+  prepare-files-common:
+    name: Update common compiled files
     runs-on: ubuntu-latest
-    needs: [ prepare-files ]
+    needs: prepare-version-files
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare SSH and create tag
+      - name: Pull latest changes
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git remote set-url origin git@github.com:landamessenger/git-board-flow.git
-          
-          git pull origin
-          
-          # Check if the tag already exists in the remote repository
-          if git rev-parse "v${{ github.event.inputs.version }}" >/dev/null 2>&1; then
-            echo "Tag v${{ github.event.inputs.version }} already exists."
-          else
-            # Create and push the new tag
-            git tag "v${{ github.event.inputs.version }}"
-            git push origin "v${{ github.event.inputs.version }}"
-          fi
+          git config --global user.email "efraespada@gmail.com"
+          git config --global user.name "Efra Espada"
+          git pull --no-ff --no-edit
 
-      - name: Create a release
-        id: create_release
-        uses: actions/github-script@v7
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
         with:
-          script: |
-            const version = "${{ github.event.inputs.version }}";
-            const title = "${{ github.event.inputs.title }}";
-            const changelog = "${{ github.event.inputs.changelog }}";
-             
-            const { data: release } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: `v${version}`,
-              name: `v${version} - ${title}`,
-              body: changelog,
-              draft: false,
-              prerelease: false,
-            });
-            
-            console.log(`Release created: ${release.html_url}`);
+          node-version: '20.x'
 
-      - name: Publish to GitHub Marketplace
-        uses: actions/github-script@v7
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Common Platform Files
+        run: npm run build-common
+
+      - name: Force add build directory
+        run: git add -f ./build/
+
+      - name: Commit updated dist directory
+        uses: EndBug/add-and-commit@v9
         with:
-          github-token: ${{ secrets.REPO_PAT }}
-          script: |
-            const sourceTag = 'v${{ github.event.inputs.version }}';
-            const targetTag = sourceTag.split('.')[0];
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          default_author: user_info
+          message: 'gh-action: updated common compiled files'
 
-            async function findTag(tag) {
-              try {
-                const { data: foundTag } = await github.rest.git.getRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: `tags/${tag}`,
-                });
-                return foundTag;
-              } catch (err) {
-                if (err.status === 404) {
-                  return null;
-                }
-                throw new Error(`Retrieving refs failed with the following error: ${err.message}`);
-              }
-            }
+  prepare-files-linux-x64:
+    name: Update Linux x64 compiled files
+    runs-on: ubuntu-latest
+    needs: prepare-files-common
+    steps:
+      - uses: actions/checkout@v4
 
-            async function getTagSHA(tag) {
-              const foundTag = await findTag(tag);
-              if (!foundTag) {
-                throw new Error(`The '${tag}' tag does not exist in the remote repository`);
-              }
-              return foundTag.object.sha;
-            }
+      - name: Pull latest changes
+        run: |
+          git config --global user.email "efraespada@gmail.com"
+          git config --global user.name "Efra Espada"
+          git pull --no-ff --no-edit
 
-            async function updateTag(sourceTag, targetTag) {
-              const sourceTagSHA = await getTagSHA(sourceTag);
-              const foundTargetTag = await findTag(targetTag);
-              const refName = `tags/${targetTag}`;
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
 
-              if (foundTargetTag) {
-                console.log(`Updating the '${targetTag}' tag to point to the '${sourceTag}' tag`);
-                await github.rest.git.updateRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: refName,
-                  sha: sourceTagSHA,
-                  force: true,
-                });
-              } else {
-                console.log(`Creating the '${targetTag}' tag from the '${sourceTag}' tag`);
-                await github.rest.git.createRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: `refs/${refName}`,
-                  sha: sourceTagSHA,
-                });
-              }
-            }
-            async function updateRelease(sourceTag, targetTag) {
-              // Get the release associated with sourceTag
-              const { data: sourceRelease } = await github.rest.repos.getReleaseByTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag: sourceTag,
-              });
+      - name: Install Dependencies
+        run: npm install
 
-              console.log(`Found release for sourceTag '${sourceTag}': ${sourceRelease.name}`);
+      - name: Build Linux Files
+        run: npm run build-linux-x64
 
-              // Check if there is a release for targetTag
-              const { data: releases } = await github.rest.repos.listReleases({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-              });
+      - name: Force add build directory
+        run: git add -f ./build/
 
-              const targetRelease = releases.find(r => r.tag_name === targetTag);
+      - name: Commit updated dist directory
+        uses: EndBug/add-and-commit@v9
+        with:
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          default_author: user_info
+          message: 'gh-action: updated linux x64 compiled files'
 
-              let targetReleaseId;
-              if (targetRelease) {
-                console.log(`Updating release for targetTag '${targetTag}'`);
-                // Update the target release with the content from the source release
-                await github.rest.repos.updateRelease({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: targetRelease.id,
-                  name: sourceRelease.name,
-                  body: sourceRelease.body,
-                  draft: sourceRelease.draft,
-                  prerelease: sourceRelease.prerelease,
-                });
-                targetReleaseId = targetRelease.id;
-              } else {
-                console.log(`Creating new release for targetTag '${targetTag}'`);
-                // Create a new release for targetTag if it doesn't exist
-                const { data: newRelease } = await github.rest.repos.createRelease({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  tag_name: targetTag,
-                  name: sourceRelease.name,
-                  body: sourceRelease.body,
-                  draft: sourceRelease.draft,
-                  prerelease: sourceRelease.prerelease,
-                });
-                targetReleaseId = newRelease.id;
-              }
-            }
 
-            await updateTag(sourceTag, targetTag);
-            await updateRelease(sourceTag, targetTag);
+  prepare-files-macos-x64:
+    name: Update MacOS x64 compiled files
+    runs-on: [self-hosted, macOS, X64]
+    needs: prepare-files-linux-x64
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Git Board - Deploy success notification
+      - name: Pull latest changes
+        run: |
+          git config --global user.email "efraespada@gmail.com"
+          git config --global user.name "Efra Espada"
+          git pull --no-ff --no-edit
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build MacOS Files
+        run: npm run build-macos-x64
+
+      - name: Force add build directory
+        run: git add -f ./build/
+
+      - name: Commit updated dist directory
+        uses: EndBug/add-and-commit@v9
+        with:
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          default_author: user_info
+          message: 'gh-action: updated macos x64 compiled files'
+  
+  prepare-files-macos-arm64:
+    name: Update MacOS arm64 compiled files
+    runs-on: [self-hosted, macOS, ARM64]
+    needs: prepare-files-macos-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull latest changes
+        run: |
+          git config --global user.email "efraespada@gmail.com"
+          git config --global user.name "Efra Espada"
+          git pull --no-ff --no-edit
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build MacOS Files
+        run: npm run build-macos-arm64
+
+      - name: Force add build directory
+        run: git add -f ./build/
+
+      - name: Commit updated dist directory
+        uses: EndBug/add-and-commit@v9
+        with:
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          default_author: user_info
+          message: 'gh-action: updated macos arm64 compiled files'
+
+  tag:
+    name: Publish version
+    runs-on: ubuntu-latest
+    needs: [ prepare-files-macos-arm64 ]
+    steps:
+      - name: Git Board Flow - Create Tag
         uses: ./
         if: ${{ success() }}
         with:
           debug: ${{ vars.DEBUG }}
-          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
-          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
+          single-action: 'create_tag'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          single-action-version: '${{ github.event.inputs.version }}'
+          token: ${{ secrets.PAT }}
+  
+      - name: Git Board Flow - Create Release
+        uses: ./
+        if: ${{ success() }}
+        with:
+          debug: ${{ vars.DEBUG }}
+          single-action: 'create_release'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          single-action-version: '${{ github.event.inputs.version }}'
+          single-action-title: '${{ github.event.inputs.title }}'
+          single-action-changelog: '${{ github.event.inputs.changelog }}'
+          token: ${{ secrets.PAT }}
+
+      - name: Git Board Flow - Publish Github Action Version
+        uses: ./
+        if: ${{ success() }}
+        with:
+          debug: ${{ vars.DEBUG }}
+          single-action: 'publish_github_action'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          single-action-version: '${{ github.event.inputs.version }}'
+          token: ${{ secrets.PAT }}
+
+      - name: Git Board Flow - Deploy success notification
+        uses: ./
+        if: ${{ success() }}
+        with:
+          debug: ${{ vars.DEBUG }}
           single-action: 'deployed_action'
           single-action-issue: '${{ github.event.inputs.issue }}'
+          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
+          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           token: ${{ secrets.PAT }}

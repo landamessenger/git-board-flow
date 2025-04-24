@@ -82,4 +82,27 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_chunks_updated_at
     BEFORE UPDATE ON chunks
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column(); 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create a function to get distinct paths
+CREATE OR REPLACE FUNCTION get_distinct_paths(
+    owner_param TEXT,
+    repository_param TEXT,
+    branch_param TEXT
+)
+RETURNS TABLE (
+    path TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT chunks.path
+    FROM chunks
+    WHERE chunks.owner = owner_param
+    AND chunks.repository = repository_param
+    AND chunks.branch = branch_param
+    ORDER BY chunks.path;
+END;
+$$; 

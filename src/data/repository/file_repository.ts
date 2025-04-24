@@ -77,12 +77,13 @@ export class FileRepository {
         branch: string,
         ignoreFiles: string[],
         progress: (fileName: string) => void,
+        ignoredFiles: (fileName: string) => void,
     ): Promise<Map<string, string>> => {
         const octokit = github.getOctokit(token);
         const fileContents = new Map<string, string>();
 
         try {
-            const getContentRecursively = async (path: string = '') => {
+            const getContentRecursively = async (path: string = ''): Promise<void> => {
                 const { data } = await octokit.rest.repos.getContent({
                     owner,
                     repo: repository,
@@ -91,15 +92,26 @@ export class FileRepository {
                 });
 
                 if (Array.isArray(data)) {
+                    const promises: Promise<void>[] = [];
+
                     for (const item of data) {
-                        if (item.type === 'file' && !this.isMediaOrPdfFile(item.path) && !this.shouldIgnoreFile(item.path, ignoreFiles)) {
+                        if (item.type === 'file') {
+                            if (this.isMediaOrPdfFile(item.path) || this.shouldIgnoreFile(item.path, ignoreFiles)) {
+                                ignoredFiles(item.path);
+                                continue;
+                            }
                             progress(item.path);
-                            const content = await this.getFileContent(owner, repository, item.path, token, branch);
-                            fileContents.set(item.path, content);
+                            const filePromise = (async () => {
+                                const content = await this.getFileContent(owner, repository, item.path, token, branch);
+                                fileContents.set(item.path, content);
+                            })();
+                            promises.push(filePromise);
                         } else if (item.type === 'dir') {
-                            await getContentRecursively(item.path);
+                            promises.push(getContentRecursively(item.path));
                         }
                     }
+
+                    await Promise.all(promises);
                 }
             };
 
@@ -118,20 +130,24 @@ export class FileRepository {
         chunkSize: number,
         token: string,
         ignoreFiles: string[],
-        progress: (fileName: string) => void
-    ): Promise<ChunkedFile[]> => {
-        const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress);
-        const chunkedFiles: ChunkedFile[] = [];
+        progress: (fileName: string) => void,
+        ignoredFiles: (fileName: string) => void,
+    ): Promise<Map<string, ChunkedFile[]>> => {
+        const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress, ignoredFiles);
+        const chunkedFilesMap = new Map<string, ChunkedFile[]>();
 
         for (const [path, content] of fileContents.entries()) {
-            chunkedFiles.push(...this.getChunksByLines(path, content, chunkSize));
-            chunkedFiles.push(...this.getChunksByBlocks(path, content, chunkSize));
+            const shasum = this.calculateShasum(content);
+            chunkedFilesMap.set(path, [
+                ...this.getChunksByLines(path, content, shasum, chunkSize),
+                ...this.getChunksByBlocks(path, content, shasum, chunkSize),
+            ]);
         }
 
-        return this.shuffleArray(chunkedFiles);    
+        return chunkedFilesMap;    
     }
 
-    getChunksByLines = (path: string, content: string, chunkSize: number): ChunkedFile[] => {
+    getChunksByLines = (path: string, content: string, shasum: string, chunkSize: number): ChunkedFile[] => {
         const chunkedFiles: ChunkedFile[] = [];
         const lines = content.split('\n');
         const chunks: string[][] = [];
@@ -162,7 +178,7 @@ export class FileRepository {
                     index,
                     'line',
                     chunkContent,
-                    this.calculateShasum(chunkContent),
+                    shasum,
                     chunkLines
                 )
             );
@@ -171,7 +187,7 @@ export class FileRepository {
         return chunkedFiles;
     }
 
-    getChunksByBlocks = (path: string, content: string, chunkSize: number): ChunkedFile[] => {
+    getChunksByBlocks = (path: string, content: string, shasum: string, chunkSize: number): ChunkedFile[] => {
         const chunkedFiles: ChunkedFile[] = [];
         const blocks = this.extractCodeBlocks(content);
         const chunks: string[][] = [];
@@ -199,7 +215,7 @@ export class FileRepository {
                     index,
                     'block',
                     chunkContent,
-                    this.calculateShasum(chunkContent),
+                    shasum,
                     chunkLines
                 )
             );
@@ -209,6 +225,11 @@ export class FileRepository {
     }
 
     private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
+        // First check for .DS_Store
+        if (filename.endsWith('.DS_Store')) {
+            return true;
+        }
+
         return ignorePatterns.some(pattern => {
             // Convert glob pattern to regex
             const regexPattern = pattern
@@ -326,6 +347,7 @@ export class FileRepository {
         branch: string,
         ignoreFiles: string[],
         progress: (fileName: string) => void,
+        ignoredFiles: (fileName: string) => void,
     ): Promise<{ withContent: FileTreeNodeWithContent; withoutContent: FileTreeNodeWithNoContent }> => {
         const fileContents = await this.getRepositoryContent(
             owner,
@@ -333,7 +355,8 @@ export class FileRepository {
             token,
             branch,
             ignoreFiles,
-            progress
+            progress,
+            ignoredFiles,
         );
 
         // Create root nodes for both trees

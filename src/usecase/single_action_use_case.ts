@@ -5,6 +5,9 @@ import { AskActionUseCase } from "./steps/common/ask_ai_use_case";
 import { DeployedActionUseCase } from "./actions/deployed_action_use_case";
 import { VectorActionUseCase } from "./actions/vector_action_use_case";
 import { ParamUseCase } from "./base/param_usecase";
+import { PublishGithubActionUseCase } from "./actions/publish_github_action_use_case";
+import { CreateReleaseUseCase } from "./actions/create_release_use_case";
+import { CreateTagUseCase } from "./actions/create_tag_use_case";
 
 export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'SingleActionUseCase';
@@ -23,6 +26,12 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 results.push(...await new VectorActionUseCase().invoke(param));
             } else if (param.singleAction.isDeployedAction) {
                 results.push(...await new DeployedActionUseCase().invoke(param));
+            } else if (param.singleAction.isPublishGithubAction) {
+                results.push(...await new PublishGithubActionUseCase().invoke(param));
+            } else if (param.singleAction.isCreateReleaseAction) {
+                results.push(...await new CreateReleaseUseCase().invoke(param));
+            } else if (param.singleAction.isCreateTagAction) {
+                results.push(...await new CreateTagUseCase().invoke(param));
             }
         } catch (error) {
             logError(error);

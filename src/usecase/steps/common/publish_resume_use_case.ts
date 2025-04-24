@@ -146,7 +146,7 @@ ${footer}
                 await this.issueRepository.addComment(
                     param.owner,
                     param.repo,
-                    param.singleAction.currentSingleActionIssue,
+                    param.singleAction.issue,
                     commentBody,
                     param.tokens.token,
                 )
