@@ -464,6 +464,10 @@ export async function runGitHubAction(): Promise<void> {
      */
     const supabaseUrl = getInput(INPUT_KEYS.SUPABASE_URL);
     const supabaseKey = getInput(INPUT_KEYS.SUPABASE_KEY);
+    let supabaseConfig: SupabaseConfig | undefined = undefined;
+    if (supabaseUrl.length > 0 && supabaseKey.length > 0) {
+        supabaseConfig = new SupabaseConfig(supabaseUrl, supabaseKey);
+    }
 
     const execution = new Execution(
         debug,
@@ -620,7 +624,7 @@ export async function runGitHubAction(): Promise<void> {
             projectColumnIssueInProgress,
             projectColumnPullRequestInProgress,
         ),
-        new SupabaseConfig(supabaseUrl, supabaseKey),
+        supabaseConfig,
         undefined,
         undefined,
     )

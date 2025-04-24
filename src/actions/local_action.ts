@@ -472,6 +472,10 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      */
     const supabaseUrl = additionalParams[INPUT_KEYS.SUPABASE_URL] ?? actionInputs[INPUT_KEYS.SUPABASE_URL];
     const supabaseKey = additionalParams[INPUT_KEYS.SUPABASE_KEY] ?? actionInputs[INPUT_KEYS.SUPABASE_KEY];
+    let supabaseConfig: SupabaseConfig | undefined = undefined;
+    if (supabaseUrl.length > 0 && supabaseKey.length > 0) {
+        supabaseConfig = new SupabaseConfig(supabaseUrl, supabaseKey);
+    }
 
     const execution = new Execution(
         debug,
@@ -630,7 +634,7 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             projectColumnIssueInProgress,
             projectColumnPullRequestInProgress,
         ),
-        new SupabaseConfig(supabaseUrl, supabaseKey),
+        supabaseConfig,
         new Welcome(welcomeTitle, welcomeMessages),
         additionalParams,
     )
