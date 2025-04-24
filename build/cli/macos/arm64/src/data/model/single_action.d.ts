@@ -5,6 +5,10 @@ export declare class SingleAction {
      * Actions that throw an error if the last step failed
      */
     actionsThrowError: string[];
+    /**
+     * Actions that do not require an issue
+     */
+    actionsWithoutIssue: string[];
     isIssue: boolean;
     isPullRequest: boolean;
     isPush: boolean;
@@ -24,6 +28,7 @@ export declare class SingleAction {
     get isCreateTagAction(): boolean;
     get enabledSingleAction(): boolean;
     get validSingleAction(): boolean;
+    get isSingleActionWithoutIssue(): boolean;
     get throwError(): boolean;
     constructor(currentSingleAction: string, issue: string, version: string, title: string, changelog: string);
 }
