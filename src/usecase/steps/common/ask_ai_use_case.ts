@@ -191,10 +191,11 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             while (!workComplete) {
                 const prompt = `
-                You are a highly skilled code analysis assistant. I will provide you with:
-                1. A user's question about a codebase
-                2. A file tree representing the structure of the project
-                3. The most relevant code snippets from the codebase related to their query
+                You are a highly skilled code analysis assistant, currently working on a GitHub issue. Your role is to assist the developer by answering any related questions they may have. I will provide you with:
+                1. The issue description
+                2. A user's question about a codebase
+                3. A file tree representing the structure of the project
+                4. The most relevant code snippets from the codebase related to their query
 
                 Your tasks are:
                 - Analyze the code snippets in the context of the user's question.
@@ -211,6 +212,12 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                     "complete": true | false
                 }
 
+                Important guidelines for text_response:
+                - Start your response directly with the answer or analysis, without introductory phrases like "Based on the provided code snippets..." or "Based on the file tree..."
+                - Be concise and direct in your response
+                - Focus on providing the information requested without unnecessary context or explanations
+                - If you need more information, state it directly without prefacing phrases
+
                 Explanation:
                 - If the provided code snippets and file tree are sufficient to confidently answer the question, set "complete": true and "action": "none".
                 - If you have any doubts or need more context to provide a complete and accurate answer, set "complete": false, "action": "analyze_files", and list the related file paths you need to investigate further in "related_files".
@@ -225,6 +232,10 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 - If the current code snippets are not helpful, use the file tree structure to guide your search for relevant files.
 
                 Information provided:
+
+                Issue description:
+                ${description}
+
                 User's question:
                 ${commentBody}
 
