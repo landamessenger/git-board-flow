@@ -1,4 +1,4 @@
-name: Git Board Flow - Issue
+name: Git Board Flow - Issue Comment
 
 on:
   issue_comment:
@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   git-board-issues:
-    name: Git Board - Issue
+    name: Git Board - Issue Comment
     runs-on: [self-hosted, macOS, X64]
     steps:
       - name: Checkout Repository

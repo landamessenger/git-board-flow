@@ -1,4 +1,4 @@
-name: Git Board Flow - Pull Request
+name: Git Board Flow - Pull Request Review Comment
 
 on:
   pull_request_review_comment:
@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   git-board-pull-requests:
-    name: Git Board - Pull Request
+    name: Git Board - Pull Request Review Comment
     runs-on: [self-hosted, macOS, X64]
     steps:
       - name: Checkout Repository

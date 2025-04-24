@@ -55,7 +55,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                     param.owner,
                     param.repo,
                     param.issueNumber,
-                    param.tokenUser
+                    param.tokens.token
                 ) ?? '';
             } else if (param.pullRequest.isPullRequestReviewComment) {
                 logInfo(`🔎 Pull request review comment body: ${param.pullRequest.commentBody}`);
@@ -64,7 +64,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                     param.owner,
                     param.repo,
                     param.issueNumber,
-                    param.tokenUser
+                    param.tokens.token
                 ) ?? '';
             } else {
                 logError(`Not a valid comment body.`);
