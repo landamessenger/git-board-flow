@@ -239,7 +239,6 @@ export class Execution {
          * Set the issue number
          */
         if (this.isSingleAction) {
-
             /**
              * Single actions can run as isolated processes or as part of a workflow.
              * In the case of a workflow, the issue number is got from the workflow.
