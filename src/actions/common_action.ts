@@ -13,16 +13,23 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 
 export async function mainRun(execution: Execution): Promise<Result[]> {
+    const results: Result[] = []
+    
     await execution.setup();
 
     if (execution.runnedByToken) {
         logInfo(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
-        return [];
+        return results;
     }
 
+    
     if (execution.issueNumber === -1) {
-        logInfo(`Issue number not found. Skipping.`);
-        return [];
+        if (execution.isSingleAction && execution.singleAction.isSingleActionWithoutIssue) {
+            results.push(...await new SingleActionUseCase().invoke(execution));
+        } else {
+            logInfo(`Issue number not found. Skipping.`);
+        }
+        return results;
     }
 
     if (execution.welcome) {
@@ -41,8 +48,6 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
             )
         );
     }
-
-    const results: Result[] = []
 
     try {
         if (execution.isSingleAction) {
