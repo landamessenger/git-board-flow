@@ -76,7 +76,7 @@ export class SingleAction {
 
     get validSingleAction(): boolean {
         return this.enabledSingleAction &&
-            this.issue > 0 &&
+            (this.issue > 0 || this.isSingleActionWithoutIssue) &&
             this.actions.indexOf(this.currentSingleAction) > -1;
     }
 
