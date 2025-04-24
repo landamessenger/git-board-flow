@@ -310,7 +310,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 param.repo,
                 number,
                 finalResponse,
-                param.tokenUser
+                param.tokens.token
             );
 
             results.push(
