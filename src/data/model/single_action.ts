@@ -81,8 +81,7 @@ export class SingleAction {
     }
 
     get isSingleActionWithoutIssue(): boolean {
-        return this.enabledSingleAction && 
-            this.actionsWithoutIssue.indexOf(this.currentSingleAction) > -1;
+        return this.actionsWithoutIssue.indexOf(this.currentSingleAction) > -1;
     }
 
     get throwError(): boolean {
