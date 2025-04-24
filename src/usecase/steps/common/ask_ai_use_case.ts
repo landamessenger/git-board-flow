@@ -258,7 +258,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 \`\`\`
 
                 ### Relevant code snippets
-                
+
                 ${relatedFiles.size > 0 
                     ? Array.from(relatedFiles.entries()).map(([path, content]) => `\nFile: ${path}\nCode:\n${content}`).join('\n')
                     : chunks.map(chunk => `\nFile: ${chunk.path}\nCode:\n${chunk.chunk}`).join('\n')}
@@ -297,18 +297,29 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
             logInfo(`📦 🔎 Matched chunks for ${param.owner}/${param.repo}/${param.commit.branch}:\n Total duration: ${Math.ceil(totalDurationSeconds)} seconds`);
-                        
+
+            let number = 0
+            if (param.issue.isIssueComment) {
+                number = param.issueNumber;
+            } else if (param.pullRequest.isPullRequestReviewComment) {
+                number = param.pullRequest.number;
+            }
+
+            await this.issueRepository.addComment(
+                param.owner,
+                param.repo,
+                number,
+                finalResponse,
+                param.tokenUser
+            );
+
             results.push(
                 new Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [
-                        `Vector action executed successfully.`,
-                    ],
                 })
             );
-
         } catch (error) {
             logError(`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`);
             results.push(

@@ -1,8 +1,8 @@
 name: Git Board Flow - Issue
 
 on:
-  issues:
-    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
+  issue_comment:
+    types: [created, edited]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
@@ -11,7 +11,7 @@ concurrency:
 jobs:
   git-board-issues:
     name: Git Board - Issue
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, X64]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
