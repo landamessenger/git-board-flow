@@ -21,6 +21,15 @@ export class SingleAction {
        ACTIONS.DEPLOYED,
        ACTIONS.CREATE_TAG,
     ];
+
+    /**
+     * Actions that do not require an issue
+     */
+    actionsWithoutIssue: string[] = [
+        ACTIONS.VECTOR,
+        ACTIONS.VECTOR_LOCAL,
+    ];
+
     isIssue: boolean = false;
     isPullRequest: boolean = false;
     isPush: boolean = false;
@@ -67,8 +76,13 @@ export class SingleAction {
 
     get validSingleAction(): boolean {
         return this.enabledSingleAction &&
-        this.issue > 0 &&
-        this.actions.indexOf(this.currentSingleAction) > -1;
+            this.issue > 0 &&
+            this.actions.indexOf(this.currentSingleAction) > -1;
+    }
+
+    get isSingleActionWithoutIssue(): boolean {
+        return this.enabledSingleAction && 
+            this.actionsWithoutIssue.indexOf(this.currentSingleAction) > -1;
     }
 
     get throwError(): boolean {
@@ -85,11 +99,15 @@ export class SingleAction {
         this.version = version;
         this.title = title;
         this.changelog = changelog;
-        try {
-            this.issue = parseInt(issue)
-        } catch (error) {
-            logError(`Issue ${issue} is not a number.`)
-            logError(error)
+        if (!this.isSingleActionWithoutIssue) {
+            try {
+                this.issue = parseInt(issue)
+            } catch (error) {
+                logError(`Issue ${issue} is not a number.`)
+                logError(error)
+            }
+        } else {
+            this.issue = 0;
         }
         this.currentSingleAction = currentSingleAction;
     }
