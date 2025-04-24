@@ -1,0 +1,28 @@
+name: Git Board Flow - Issue Comment
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  git-board-issues:
+    name: Git Board - Issue Comment
+    runs-on: [self-hosted, macOS, X64]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          debug: ${{ vars.DEBUG }}
+          ai-ignore-files: build/*
+          hotfix-workflow: release_workflow.yml
+          project-ids: 2
+          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
+          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
+          token: ${{ secrets.PAT }}
+

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { logError } from '../../utils/logger';
+import { COMMAND } from '../../utils/constants';
+import { logError, logInfo } from '../../utils/logger';
 import { ChunkedFile } from '../model/chunked_file';
 import { ChunkedFileChunk } from '../model/chunked_file_chunk';
 import { SupabaseConfig } from '../model/supabase_config';
@@ -7,10 +8,41 @@ import { SupabaseConfig } from '../model/supabase_config';
 export class SupabaseRepository {
     private readonly CHUNKS_TABLE = 'chunks';
     private readonly MAX_BATCH_SIZE = 500;
+    private readonly DEFAULT_TIMEOUT = 30000; // 30 seconds
     private supabase: any;
 
     constructor(config: SupabaseConfig) {
-        this.supabase = createClient(config.getUrl(), config.getKey());
+        const customFetch = async (input: string | URL | Request, init?: RequestInit) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), this.DEFAULT_TIMEOUT);
+
+            try {
+                const response = await fetch(input, {
+                    ...init,
+                    signal: controller.signal
+                });
+                return response;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        };
+
+        this.supabase = createClient(config.getUrl(), config.getKey(), {
+            global: {
+                headers: {
+                    'X-Client-Info': COMMAND
+                },
+                fetch: customFetch
+            },
+            db: {
+                schema: 'public'
+            },
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true
+            }
+        });
     }
 
     setChunkedFile = async (
@@ -38,7 +70,9 @@ export class SupabaseRepository {
                     });
                 
                 if (error) {
-                    //logError(`Error inserting chunk ${index} for file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
+                    chunkedFile.vector = [];
+                    logError(`Error inserting index ${chunkedFile.index} chunk ${index} for file ${chunkedFile.path}: ${JSON.stringify(chunkedFile, null, 2)}`);
+                    logError(`Inserting error: ${JSON.stringify(error, null, 2)}`);
                     throw error;
                 }
             });
@@ -46,7 +80,7 @@ export class SupabaseRepository {
             await Promise.all(insertPromises);
         } catch (error) {
             logError(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
-            throw error;
+            // throw error;
         }
     }
 
@@ -367,6 +401,99 @@ export class SupabaseRepository {
         } catch (error) {
             logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
             throw error;
+        }
+    }
+
+    getDistinctPaths = async (
+        owner: string,
+        repository: string,
+        branch: string,
+    ): Promise<string[]> => {
+        try {            
+            const { data, error } = await this.supabase
+                .rpc('get_distinct_paths', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    branch_param: branch
+                });
+
+            if (error) {
+                logError(`Error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+
+            if (!data) {
+                logInfo(`No data found for ${owner}/${repository}/${branch}`);
+                return [];
+            }
+
+            const paths = data.map((doc: { path: string }) => doc.path);
+            return paths;
+        } catch (error) {
+            logError(`Unexpected error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
+            if (error instanceof Error) {
+                logError(`Error details: ${error.message}`);
+                logError(`Error stack: ${error.stack}`);
+            }
+            return [];
+        }
+    }
+
+    removeChunksByPath = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        path: string,
+    ): Promise<void> => {
+        try {
+            const { error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .delete()
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .eq('path', path);
+
+            if (error) {
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error removing chunks by path: ${JSON.stringify(error, null, 2)}`);
+            throw error;
+        }
+    }
+
+    getShasumByPath = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        path: string,
+    ): Promise<string | undefined> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .select('*')
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .eq('path', path)
+                .order('index')
+                .order('chunk_index')
+                .limit(1);
+
+            if (error) {
+                logError(`Supabase error getting chunks by path: ${JSON.stringify(error, null, 2)}`);
+                return undefined;
+            }
+
+            if (!data) {
+                return undefined;
+            }
+
+            return data[0].shasum;
+        } catch (error) {
+            logError(`Error getting shasum by path: ${JSON.stringify(error, null, 2)}`);
+            return undefined;
         }
     }
 } 

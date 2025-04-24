@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { Ai } from '../data/model/ai';
 import { Branches } from '../data/model/branches';
 import { DockerConfig } from '../data/model/docker_config';
@@ -21,10 +22,11 @@ import { Tokens } from '../data/model/tokens';
 import { Welcome } from '../data/model/welcome';
 import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
-import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
+import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS, TITLE } from '../utils/constants';
 import { logInfo } from '../utils/logger';
 import { getActionInputsWithDefaults } from '../utils/yml_utils';
 import { mainRun } from './common_action';
+import boxen from 'boxen';
 
 export async function runLocalAction(additionalParams: any): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -54,6 +56,9 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      */
     const singleAction = additionalParams[INPUT_KEYS.SINGLE_ACTION] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION];
     const singleActionIssue = additionalParams[INPUT_KEYS.SINGLE_ACTION_ISSUE] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
+    const singleActionVersion = additionalParams[INPUT_KEYS.SINGLE_ACTION_VERSION] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_VERSION];
+    const singleActionTitle = additionalParams[INPUT_KEYS.SINGLE_ACTION_TITLE] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_TITLE];
+    const singleActionChangelog = additionalParams[INPUT_KEYS.SINGLE_ACTION_CHANGELOG] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION_CHANGELOG];
 
     /**
      * Tokens
@@ -474,6 +479,9 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
         new SingleAction(
             singleAction,
             singleActionIssue,
+            singleActionVersion,
+            singleActionTitle,
+            singleActionChangelog,
         ),
         commitPrefixBuilder,
         new Issue(
@@ -629,5 +637,43 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
 
     const results = await mainRun(execution);
 
-    logInfo(`Results: ${JSON.stringify(results, null, 2)}`);
+    let content = ''
+    const stepsContent = results
+        .filter(result => result.executed && result.steps.length > 0)
+        .map(result => chalk.gray(result.steps.join('\n'))).join('\n')
+
+    if (stepsContent.length > 0) {
+        content +=  '\n' + chalk.cyan('Steps:') + '\n' + stepsContent
+    }
+
+    const errorsContent = results
+        .filter(result => !result.executed && result.errors.length > 0)
+        .map(result => chalk.gray(result.errors.join('\n'))).join('\n')
+
+    if (errorsContent.length > 0) {
+        content +=  '\n' + chalk.red('Errors:') + '\n' + errorsContent
+    }
+
+    const reminderContent = results
+        .filter(result => result.executed && result.reminders.length > 0)
+        .map(result => chalk.gray(result.reminders.join('\n'))).join('\n')
+
+    if (reminderContent.length > 0) {
+        content +=  '\n' + chalk.cyan('Reminder:') + '\n' + reminderContent
+    }
+
+    logInfo('\n')
+    logInfo(
+        boxen(
+            content,
+            {
+                padding: 1,
+                margin: 1,
+                borderStyle: 'round',
+                borderColor: 'cyan',
+                title: TITLE,
+                titleAlignment: 'center'
+            }
+        )
+    );
 }

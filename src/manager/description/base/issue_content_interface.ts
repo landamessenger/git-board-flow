@@ -17,7 +17,7 @@ export abstract class IssueContentInterface extends ContentInterface {
                 } else if (execution.isPush) {
                     number = execution.issueNumber
                 } else {
-                    number = execution.singleAction.currentSingleActionIssue
+                    number = execution.singleAction.issue
                 }
             } else if (execution.isIssue) {
                 number = execution.issue.number
@@ -54,7 +54,7 @@ export abstract class IssueContentInterface extends ContentInterface {
                 } else if (execution.isPush) {
                     number = execution.issueNumber
                 } else {
-                    number = execution.singleAction.currentSingleActionIssue
+                    number = execution.singleAction.issue
                 }
             } else if (execution.isIssue) {
                 number = execution.issue.number

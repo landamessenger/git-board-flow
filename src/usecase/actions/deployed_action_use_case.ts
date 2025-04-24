@@ -50,12 +50,12 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
             await this.issueRepository.setLabels(
                 param.owner,
                 param.repo,
-                param.singleAction.currentSingleActionIssue,
+                param.singleAction.issue,
                 labelNames,
                 param.tokens.token,
             )
 
-            logDebugInfo(`Updated labels on issue #${param.singleAction.currentSingleActionIssue}:`);
+            logDebugInfo(`Updated labels on issue #${param.singleAction.issue}:`);
             logDebugInfo(`Labels: ${labelNames}`);
 
             result.push(

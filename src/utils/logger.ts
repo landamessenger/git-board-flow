@@ -1,13 +1,15 @@
 import readline from 'readline';
 
 let loggerDebug = false;
+let loggerRemote = false;
 
-export function setGlobalLoggerDebug(debug: boolean) {
+export function setGlobalLoggerDebug(debug: boolean, isRemote: boolean = false) {
     loggerDebug = debug;
+    loggerRemote = isRemote;
 }
 
 export function logInfo(message: string, previousWasSingleLine: boolean = false) {
-    if (previousWasSingleLine) {
+    if (previousWasSingleLine && !loggerRemote) {
         console.log()
     }
     console.log(message);
@@ -40,6 +42,10 @@ export function logDebugError(message: any) {
 }
 
 export function logSingleLine(message: string) {
+    if (loggerRemote) {
+        console.log(message);
+        return;
+    }
     readline.clearLine(process.stdout, 0);
     readline.cursorTo(process.stdout, 0);
     process.stdout.write(message);

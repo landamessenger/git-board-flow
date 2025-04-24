@@ -18,7 +18,7 @@ export class GetHotfixVersionUseCase implements ParamUseCase<Execution, Result[]
         try {
             let number = -1
             if (param.isSingleAction) {
-                number = param.singleAction.currentSingleActionIssue;
+                number = param.singleAction.issue;
             } else if (param.isIssue) {
                 number = param.issue.number;
             } else if (param.isPullRequest) {

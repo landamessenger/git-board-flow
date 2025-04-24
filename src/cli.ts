@@ -6,6 +6,7 @@ import * as dotenv from 'dotenv';
 import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
+import { logInfo } from './utils/logger';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -34,25 +35,23 @@ program
   .description(`CLI tool for ${TITLE}`)
   .version('1.0.0');
 
-  program
+program
   .command('build-ai')
   .description('Build AI')
-  .option('-i, --issue <number>', 'Issue number to process', '1')
-  .option('-b, --branch <name>', 'Branch name', 'master')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .action((options) => {    
+  .action(async (options) => {    
     const gitInfo = getGitInfo();
     
     if ('error' in gitInfo) {
       console.log(gitInfo.error);
       return;
     }
-
+    
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
-      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.VECTOR,
-      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: options.issue,
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.VECTOR_LOCAL,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: process.env.PERSONAL_ACCESS_TOKEN,
@@ -61,35 +60,32 @@ program
         owner: gitInfo.owner,
         repo: gitInfo.repo,
       },
-      commits: {
-        ref: `refs/heads/${options.branch}`,
-      },
       issue: {
-        number: parseInt(options.issue),
+        number: 1,
       },
     }
 
-    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 Vectorization started';
+    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Indexing';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [
-      `Processing code blocks on ${gitInfo.owner}/${gitInfo.repo}/${options.branch}...`,
+      `Processing code blocks on ${gitInfo.owner}/${gitInfo.repo}...`,
     ];
 
-    runLocalAction(params);
+    await runLocalAction(params);
   });
 
-  /**
-   * Run the asking AI scenario on issues or pull requests.
-   * 
-   * For the action of asking the AI to be executed, the bot user managing the repository must be mentioned.
-   */
-  program
+/**
+ * Run the asking AI scenario on issues or pull requests.
+ * 
+ * For the action of asking the AI to be executed, the bot user managing the repository must be mentioned.
+ */
+program
   .command('ask-ai')
   .description('Ask AI')
   .option('-i, --issue <number>', 'Issue number to process', '1')
   .option('-b, --branch <name>', 'Branch name', 'master')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('--question <question>', 'Question', '')
+  .option('-q, --question <question...>', 'Question', '')
   .option('--openrouter-api-key <key>', 'OpenRouter API key', '')
   .option('--openrouter-model <model>', 'OpenRouter model', '')
   .option('--openrouter-provider-order <provider>', 'OpenRouter provider', '')
@@ -109,7 +105,7 @@ program
       return;
     }
 
-    const commentBody = options.question;
+    const commentBody = (options.question || []).join(' ');
 
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
@@ -174,6 +170,7 @@ program
       `Asking AI on ${gitInfo.owner}/${gitInfo.repo}/${options.branch}...`,
     ];
 
+    logInfo(JSON.stringify(params, null, 2));
     runLocalAction(params);
   });
 

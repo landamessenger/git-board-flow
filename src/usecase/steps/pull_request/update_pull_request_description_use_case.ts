@@ -294,24 +294,24 @@ ${change.patch}`;
         baseBranch: string
     ): Promise<string> {
         logDebugInfo(`Processing ${changes.length} changes`);
-        const fileDescriptions: PatchSummary[] = [];
         
-        for (const change of changes) {
+        const processFilePromises = changes.map(async (change) => {
             try {
                 logDebugInfo(`Processing changes for file ${change.filename}`);
                 const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ai.getAiIgnoreFiles());
                 if (shouldIgnoreFile) {
                     logDebugInfo(`File ${change.filename} should be ignored`);
-                    continue;
+                    return [];
                 }
 
-                const fileSummary = await this.processFile(change, ai, owner, repo, token, baseBranch);
-                fileDescriptions.push(...fileSummary);
+                return await this.processFile(change, ai, owner, repo, token, baseBranch);
             } catch (error) {
                 logError(error);
                 throw new Error(`Error processing file ${change.filename}: ${error}`);
             }
-        }
+        });
+
+        const fileDescriptions = (await Promise.all(processFilePromises)).flat();
 
         // Merge PatchSummary objects for the same file
         const mergedFileDescriptions = this.mergePatchSummaries(fileDescriptions);

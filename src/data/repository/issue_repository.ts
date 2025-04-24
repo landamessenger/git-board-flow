@@ -249,7 +249,7 @@ export class IssueRepository {
             });
             return issue.body ?? '';
         } catch (error) {
-            logError(`Error reading pull request configuration: ${error}`);
+            logError(`Error reading issue #${issueNumber} description: ${error}`);
             return undefined
         }
     }
