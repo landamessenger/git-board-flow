@@ -139,7 +139,7 @@ export class FileRepository {
         for (const [path, content] of fileContents.entries()) {
             const shasum = this.calculateShasum(content);
             chunkedFilesMap.set(path, [
-                // ...this.getChunksByLines(path, content, shasum, chunkSize),
+                ...this.getChunksByLines(path, content, shasum, chunkSize),
                 ...this.getChunksByBlocks(path, content, shasum, chunkSize),
             ]);
         }
