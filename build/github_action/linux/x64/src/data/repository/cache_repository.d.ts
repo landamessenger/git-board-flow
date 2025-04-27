@@ -1,4 +1,6 @@
 export declare class CacheRepository {
+    private isGitHubActions;
+    private ensureCacheDirectory;
     /**
      * Saves data to the GitHub Actions cache
      * @param key The unique key for the cache entry
