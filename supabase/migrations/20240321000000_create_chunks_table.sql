@@ -123,7 +123,27 @@ BEGIN
     AND repository = repository_param
     AND branch = branch_param;
 END;
-$$; 
+$$;
+
+-- Create a function to delete entries from a specific branch and path
+CREATE OR REPLACE FUNCTION delete_branch_path_entries(
+    owner_param TEXT,
+    repository_param TEXT,
+    branch_param TEXT,
+    path_param TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM chunks
+    WHERE owner = owner_param
+    AND repository = repository_param
+    AND branch = branch_param
+    AND path = path_param;
+END;
+$$;
 
 -- Create a function to duplicate all entries from one branch to another
 CREATE OR REPLACE FUNCTION duplicate_branch_entries(
@@ -242,5 +262,3 @@ BEGIN
     RETURN entry_count;
 END;
 $$;
-
-
