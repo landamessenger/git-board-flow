@@ -1,6 +1,5 @@
-import * as core from '@actions/core';
 import * as cache from '@actions/cache';
-import { logError } from '../../utils/logger';
+import { logDebugInfo, logError } from '../../utils/logger';
 
 export class CacheRepository {
     /**
@@ -13,7 +12,7 @@ export class CacheRepository {
         try {
             const cacheId = await cache.saveCache(paths, key);
             if (cacheId === -1) {
-                core.warning(`Cache save failed for key: ${key}`);
+                logDebugInfo(`Cache save failed for key: ${key}`);
                 return false;
             }
             return true;
@@ -33,7 +32,7 @@ export class CacheRepository {
         try {
             const cacheKey = await cache.restoreCache(paths, key);
             if (!cacheKey) {
-                core.info(`Cache miss for key: ${key}`);
+                logDebugInfo(`Cache miss for key: ${key}`);
                 return false;
             }
             return true;

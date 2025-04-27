@@ -3,6 +3,8 @@ import path from 'path';
 import axios from 'axios';
 import { logDebugError, logDebugInfo, logError } from '../../utils/logger';
 import { Execution } from '../model/execution';
+import { CACHE_KEYS } from '../../utils/constants';
+import { CacheRepository } from './cache_repository';
 
 interface EmbedRequest {
     instructions: string[];
@@ -22,6 +24,7 @@ interface HealthCheckResponse {
 export class DockerRepository {
     private docker: Docker;
     private readonly dockerDir: string;
+    private cacheRepository = new CacheRepository();
 
     constructor() {
         this.docker = new Docker();
@@ -38,6 +41,12 @@ export class DockerRepository {
         }
 
         try {
+
+            let cachedContainer = await this.cacheRepository.restoreCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
+            if (cachedContainer) {
+                logDebugInfo('🐳 🟢 Docker container restored from cache');
+            }
+
             // Check if image exists
             const images = await this.docker.listImages();
             const imageExists = images.some(img => 
@@ -120,6 +129,11 @@ export class DockerRepository {
             logDebugInfo('🐳 🟡 Waiting for container to be ready...');
             await this.waitForContainer(param);
             logDebugInfo('🐳 🟢 Docker container is ready');
+
+            cachedContainer = await this.cacheRepository.saveCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
+            if (cachedContainer) {
+                logDebugInfo('🐳 🟢 Docker container saved to cache');
+            }
         } catch (error) {
             logError('Error starting container: ' + error);
             throw error;
