@@ -388,10 +388,10 @@ export class SupabaseRepository {
         let totalChunksRemoved = 0;
 
         while (hasMoreChunks) {
-            // Delete chunks in batches
-            const { count, error } = await this.supabase
+            // First, get a batch of chunks to delete
+            const { data: chunksToDelete, error: fetchError } = await this.supabase
                 .from(this.CHUNKS_TABLE)
-                .delete()
+                .select('path, type, index, chunk_index')
                 .eq('owner', owner)
                 .eq('repository', repository)
                 .eq('branch', branch)
@@ -399,15 +399,14 @@ export class SupabaseRepository {
                 .order('type', { ascending: true })
                 .order('index', { ascending: true })
                 .order('chunk_index', { ascending: true })
-                .limit(limit)
-                .select('count');
+                .range(offset, offset + limit - 1);
 
-            if (error) {
-                logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
-                throw error;
+            if (fetchError) {
+                logError(`Error fetching chunks to delete: ${JSON.stringify(fetchError, null, 2)}`);
+                throw fetchError;
             }
 
-            if (count === 0) {
+            if (!chunksToDelete || chunksToDelete.length === 0) {
                 if (totalChunksRemoved === 0) {
                     logInfo(`No chunks to remove from branch ${branch}`);
                 }
@@ -415,7 +414,26 @@ export class SupabaseRepository {
                 continue;
             }
 
-            totalChunksRemoved += count;
+            // Delete the chunks using their composite key
+            for (const chunk of chunksToDelete) {
+                const { error: deleteError } = await this.supabase
+                    .from(this.CHUNKS_TABLE)
+                    .delete()
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('path', chunk.path)
+                    .eq('type', chunk.type)
+                    .eq('index', chunk.index)
+                    .eq('chunk_index', chunk.chunk_index);
+
+                if (deleteError) {
+                    logError(`Error removing chunk: ${JSON.stringify(deleteError, null, 2)}`);
+                    throw deleteError;
+                }
+            }
+
+            totalChunksRemoved += chunksToDelete.length;
             logInfo(`Removed ${totalChunksRemoved} chunks from branch ${branch}`);
             
             // Move to the next batch
