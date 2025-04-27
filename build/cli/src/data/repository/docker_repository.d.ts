@@ -15,4 +15,7 @@ export declare class DockerRepository {
     getContainerIdByName: (param: Execution) => Promise<string>;
     getEmbedding: (param: Execution, textInstructionsPairs: [string, string][]) => Promise<number[][]>;
     getSystemInfo: (param: Execution) => Promise<any>;
+    private commitContainer;
+    private saveContainerState;
+    private restoreContainerState;
 }
