@@ -10,14 +10,14 @@ export class CacheRepository {
 
     private async ensureCacheDirectory(): Promise<boolean> {
         try {
-            // For self-hosted runners, we need to set RUNNER_TEMP to a writable directory
-            const runnerTemp = process.env.RUNNER_TEMP || path.join(os.tmpdir(), 'actions');
-            process.env.RUNNER_TEMP = runnerTemp;
-            return true;
+            if (process.env.RUNNER_TEMP) {
+                logDebugInfo(`RUNNER_TEMP: ${process.env.RUNNER_TEMP}`);
+                return true;
+            }
         } catch (error) {
             logError(`Error setting up cache directory: ${error}`);
-            return false;
         }
+        return false;
     }
 
     /**
