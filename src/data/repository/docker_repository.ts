@@ -5,6 +5,7 @@ import { logDebugError, logDebugInfo, logError } from '../../utils/logger';
 import { Execution } from '../model/execution';
 import { CACHE_KEYS } from '../../utils/constants';
 import { CacheRepository } from './cache_repository';
+import fs from 'fs';
 
 interface EmbedRequest {
     instructions: string[];
@@ -291,11 +292,39 @@ export class DockerRepository {
                 return;
             }
 
+            // Save the container state as an image
             await this.commitContainer(containerId, param);
-            const cachedContainer = await this.cacheRepository.saveCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
+
+            // Save the Docker images to cache
+            const images = await this.docker.listImages();
+            const image = images.find(img => 
+                img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:cached`)
+            );
+
+            if (!image) {
+                logDebugInfo('🐳 🟡 No image to save');
+                return;
+            }
+
+            // Save the image to a tar file
+            const imageStream = await this.docker.getImage(`${param.dockerConfig.getContainerName()}:cached`).get();
+            const tarPath = path.join(this.dockerDir, 'cached_image.tar');
+            const writeStream = fs.createWriteStream(tarPath);
+            
+            await new Promise<void>((resolve, reject) => {
+                imageStream.pipe(writeStream);
+                writeStream.on('finish', () => resolve());
+                writeStream.on('error', reject);
+            });
+
+            // Save the tar file to cache
+            const cachedContainer = await this.cacheRepository.saveCache(CACHE_KEYS.DOCKER_VECTOR, [tarPath]);
             if (cachedContainer) {
                 logDebugInfo('🐳 🟢 Container state saved to cache');
             }
+
+            // Clean up the tar file
+            fs.unlinkSync(tarPath);
         } catch (error) {
             logError('Error saving container state: ' + error);
         }
@@ -303,22 +332,25 @@ export class DockerRepository {
 
     private restoreContainerState = async (param: Execution): Promise<boolean> => {
         try {
-            const cachedContainer = await this.cacheRepository.restoreCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
+            const tarPath = path.join(this.dockerDir, 'cached_image.tar');
+            const cachedContainer = await this.cacheRepository.restoreCache(CACHE_KEYS.DOCKER_VECTOR, [tarPath]);
             if (!cachedContainer) {
                 logDebugInfo('🐳 🟡 No cached container state found');
                 return false;
             }
 
-            // Check if the cached image exists
-            const images = await this.docker.listImages();
-            const cachedImage = images.find(img => 
-                img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:cached`)
-            );
-
-            if (!cachedImage) {
-                logDebugInfo('🐳 🟡 Cached image not found');
+            if (!fs.existsSync(tarPath)) {
+                logDebugInfo('🐳 🟡 No cached image tar file found');
                 return false;
             }
+
+            // Load the image from the tar file
+            const readStream = fs.createReadStream(tarPath);
+            await this.docker.loadImage(readStream);
+            logDebugInfo('🐳 🟢 Cached image loaded successfully');
+
+            // Clean up the tar file
+            fs.unlinkSync(tarPath);
 
             // Create and start container from cached image
             const container = await this.docker.createContainer({
