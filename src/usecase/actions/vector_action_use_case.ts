@@ -217,9 +217,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 path
             );
 
-            logDebugInfo(`remoteShasum: ${remoteShasum}`, true);
-            logDebugInfo(`chunkedFiles[0].shasum: ${chunkedFiles[0].shasum}`, true);
-
             if (remoteShasum) {
                 if (remoteShasum === chunkedFiles[0].shasum) {
                     logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);

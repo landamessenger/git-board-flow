@@ -438,7 +438,7 @@ export class SupabaseRepository {
                 branch_param: branch,
                 path_param: path
             });
-        logDebugInfo(`Removed chunks on path ${path} from branch ${branch}`);
+        logDebugInfo(`Removed chunks: ${path} [${branch}]`);
         if (error) {
             logError(`Error removing chunks by path: ${JSON.stringify(error, null, 2)}`);
             throw error;
@@ -512,7 +512,7 @@ export class SupabaseRepository {
         targetBranch: string,
     ): Promise<void> => {
         try {
-            logDebugInfo(`Duplicating file entries for ${owner}/${repository}/${sourceBranch}/${path} to ${targetBranch}`);
+            logDebugInfo(`Duplicating file entries: ${path} [${sourceBranch}] -> [${targetBranch}]`);
 
             const { error } = await this.supabase
                 .rpc('duplicate_file_entries', {
