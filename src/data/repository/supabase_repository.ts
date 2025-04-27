@@ -320,60 +320,17 @@ export class SupabaseRepository {
         sourceBranch: string,
         targetBranch: string,
     ): Promise<void> => {
-        let hasMoreChunks = true;
-        let offset = 0;
-        const limit = this.MAX_BATCH_SIZE;
-        let totalChunksProcessed = 0;
+        const count = await this.countBranchEntries(owner, repository, sourceBranch);
+        logInfo(`Counting chunks in branch ${sourceBranch}: ${count}`);
 
-        while (hasMoreChunks) {
-            // Get chunks from the source branch with pagination
-            const { data: sourceChunks, error: fetchError } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', sourceBranch)
-                .order('path', { ascending: true })
-                .order('type', { ascending: true })
-                .order('index', { ascending: true })
-                .order('chunk_index', { ascending: true })
-                .range(offset, offset + limit - 1);
-
-            if (fetchError) {
-                logError(`Error fetching chunks from source branch: ${JSON.stringify(fetchError, null, 2)}`);
-                throw fetchError;
+        if (count < 10000) {
+            await this.duplicateBranchEntries(owner, repository, sourceBranch, targetBranch);
+        } else {
+            const filePaths = await this.getDistinctPaths(owner, repository, sourceBranch);
+            logInfo(`Counting files in branch ${sourceBranch}: ${filePaths.length}`);
+            for (const path of filePaths) {
+                await this.duplicateFileEntries(owner, repository, sourceBranch, path, targetBranch);
             }
-
-            if (!sourceChunks || sourceChunks.length === 0) {
-                if (totalChunksProcessed === 0) {
-                    logInfo(`No chunks to duplicate from ${sourceBranch} to ${targetBranch}`);
-                }
-                hasMoreChunks = false;
-                continue;
-            }
-
-            // Prepare the chunks for insertion with the new branch
-            const chunksToInsert = sourceChunks.map((chunk: any) => ({
-                ...chunk,
-                branch: targetBranch,
-                updated_at: new Date().toISOString()
-            }));
-
-            // Insert the chunks in batches
-            const { error: insertError } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .insert(chunksToInsert);
-
-            if (insertError) {
-                logError(`Error inserting batch of chunks: ${JSON.stringify(insertError, null, 2)}`);
-                throw insertError;
-            }
-
-            totalChunksProcessed += sourceChunks.length;
-            logInfo(`Processed ${totalChunksProcessed} chunks from ${sourceBranch} to ${targetBranch}`);
-            
-            // Move to the next page
-            offset += limit;
         }
     }
 
@@ -517,6 +474,86 @@ export class SupabaseRepository {
         } catch (error) {
             // logError(`Error getting shasum by path: ${JSON.stringify(error, null, 2)}`);
             return undefined;
+        }
+    }
+
+    countBranchEntries = async (
+        owner: string,
+        repository: string,
+        branch: string,
+    ): Promise<number> => {
+        try {
+            const { data, error } = await this.supabase
+                .rpc('count_branch_entries', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    branch_param: branch
+                });
+
+            if (error) {
+                logError(`Error counting branch entries: ${JSON.stringify(error, null, 2)}`);
+                return 0;
+            }
+
+            return data || 0;
+        } catch (error) {
+            logError(`Error counting branch entries: ${JSON.stringify(error, null, 2)}`);
+            return 0;
+        }
+    }
+
+    private duplicateFileEntries = async (
+        owner: string,
+        repository: string,
+        sourceBranch: string,
+        path: string,
+        targetBranch: string,
+    ): Promise<void> => {
+        try {
+            logInfo(`Duplicating file entries for ${owner}/${repository}/${sourceBranch}/${path} to ${targetBranch}`);
+
+            const { error } = await this.supabase
+                .rpc('duplicate_file_entries', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    source_branch_param: sourceBranch,
+                    path_param: path,
+                    target_branch_param: targetBranch
+                });
+
+            if (error) {
+                logError(`Error duplicating file entries: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error duplicating file entries: ${JSON.stringify(error, null, 2)}`);
+            throw error;
+        }
+    }
+
+    private duplicateBranchEntries = async (
+        owner: string,
+        repository: string,
+        sourceBranch: string,
+        targetBranch: string,
+    ): Promise<void> => {
+        try {
+            logInfo(`Duplicating branch entries for ${owner}/${repository}/${sourceBranch} to ${targetBranch}`);
+            const { error } = await this.supabase
+                .rpc('duplicate_branch_entries', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    source_branch_param: sourceBranch,
+                    target_branch_param: targetBranch
+                });
+
+            if (error) {
+                logError(`Error duplicating branch entries: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error duplicating branch entries: ${JSON.stringify(error, null, 2)}`);
+            throw error;
         }
     }
 } 
