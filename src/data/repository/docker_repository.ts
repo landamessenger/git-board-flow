@@ -42,14 +42,13 @@ export class DockerRepository {
         }
 
         try {
-            let cachedContainer = await this.cacheRepository.restoreCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
-            if (cachedContainer) {
-                logDebugInfo('🐳 🟢 Docker container restored from cache');
-                await this.runContainer(param);
+            // Try to restore from cache first
+            const restored = await this.restoreContainerState(param);
+            if (restored) {
                 return;
             }
 
-            // Check if image exists
+            // If no cache or restore failed, build and start new container
             const imageExists = await this.imageExists(param);
             if (!imageExists) {
                 await this.buildImage(param);
@@ -58,11 +57,7 @@ export class DockerRepository {
             }
 
             await this.runContainer(param);
-
-            cachedContainer = await this.cacheRepository.saveCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
-            if (cachedContainer) {
-                logDebugInfo('🐳 🟢 Docker container saved to cache');
-            }
+            await this.saveContainerState(param);
         } catch (error) {
             logError('Error starting container: ' + error);
             throw error;
@@ -102,7 +97,7 @@ export class DockerRepository {
             t: `${param.dockerConfig.getContainerName()}:latest`,
             dockerfile: 'Dockerfile',
             buildargs: {},
-            nocache: true
+            nocache: false // Enable Docker's built-in cache
         });
 
         await new Promise((resolve, reject) => {
@@ -121,12 +116,9 @@ export class DockerRepository {
             });
         });
 
-        // logDebugInfo('🐳 🟡 Image build result: ' + JSON.stringify(result, null, 2));
-
         // Verify that the image exists and is properly tagged
         try {
             const images = await this.docker.listImages();
-            logDebugInfo('🐳 🟡 Images: ' + JSON.stringify(images, null, 2));
             const actionImage = images.find(img => 
                 img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:latest`)
             );
@@ -210,6 +202,9 @@ export class DockerRepository {
         if (!containerId) return;
 
         try {
+            // Save container state before stopping
+            await this.saveContainerState(param);
+            
             const container = this.docker.getContainer(containerId);
             await container.stop();
             await container.remove();
@@ -272,5 +267,79 @@ export class DockerRepository {
             family: 4
         });
         return response.data;
+    }
+
+    private commitContainer = async (containerId: string, param: Execution): Promise<void> => {
+        try {
+            const container = this.docker.getContainer(containerId);
+            await container.commit({
+                repo: param.dockerConfig.getContainerName(),
+                tag: 'cached'
+            });
+            logDebugInfo('🐳 🟢 Container state committed successfully');
+        } catch (error) {
+            logError('Error committing container: ' + error);
+            throw error;
+        }
+    }
+
+    private saveContainerState = async (param: Execution): Promise<void> => {
+        try {
+            const containerId = await this.getContainerIdByName(param);
+            if (!containerId) {
+                logDebugInfo('🐳 🟡 No container to save');
+                return;
+            }
+
+            await this.commitContainer(containerId, param);
+            const cachedContainer = await this.cacheRepository.saveCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
+            if (cachedContainer) {
+                logDebugInfo('🐳 🟢 Container state saved to cache');
+            }
+        } catch (error) {
+            logError('Error saving container state: ' + error);
+        }
+    }
+
+    private restoreContainerState = async (param: Execution): Promise<boolean> => {
+        try {
+            const cachedContainer = await this.cacheRepository.restoreCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
+            if (!cachedContainer) {
+                logDebugInfo('🐳 🟡 No cached container state found');
+                return false;
+            }
+
+            // Check if the cached image exists
+            const images = await this.docker.listImages();
+            const cachedImage = images.find(img => 
+                img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:cached`)
+            );
+
+            if (!cachedImage) {
+                logDebugInfo('🐳 🟡 Cached image not found');
+                return false;
+            }
+
+            // Create and start container from cached image
+            const container = await this.docker.createContainer({
+                Image: `${param.dockerConfig.getContainerName()}:cached`,
+                ExposedPorts: {
+                    [`${param.dockerConfig.getPort()}/tcp`]: {}
+                },
+                HostConfig: {
+                    PortBindings: {
+                        [`${param.dockerConfig.getPort()}/tcp`]: [{ HostPort: param.dockerConfig.getPort().toString() }]
+                    }
+                },
+                name: param.dockerConfig.getContainerName()
+            });
+
+            await container.start();
+            logDebugInfo('🐳 🟢 Container restored from cache');
+            return true;
+        } catch (error) {
+            logError('Error restoring container state: ' + error);
+            return false;
+        }
     }
 }

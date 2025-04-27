@@ -17,11 +17,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Ensure temp directory exists
-        run: |
-          mkdir -p /tmp/github-actions-temp
-          chmod 777 /tmp/github-actions-temp
-
       - name: Set up DOCKER_HOST as output
         id: docker-env
         run: |
