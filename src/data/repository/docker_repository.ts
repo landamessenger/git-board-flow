@@ -1,4 +1,4 @@
-import Docker from 'dockerode';
+import Docker, { Container } from 'dockerode';
 import path from 'path';
 import axios from 'axios';
 import { logDebugError, logDebugInfo, logError } from '../../utils/logger';
@@ -33,6 +33,7 @@ export class DockerRepository {
 
     startContainer = async (param: Execution): Promise<void> => {
         logDebugInfo('🐳 🟡 Starting Docker container...');
+        logDebugInfo(`🐳 🟡 Docker directory: ${this.dockerDir}`);
 
         const isRunning = await this.isContainerRunning(param);
         if (isRunning) {
@@ -41,85 +42,41 @@ export class DockerRepository {
         }
 
         try {
-
             let cachedContainer = await this.cacheRepository.restoreCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
             if (cachedContainer) {
                 logDebugInfo('🐳 🟢 Docker container restored from cache');
+                
+                // Get the container instance from Docker
+                const containerId = await this.getContainerIdByName(param);
+                if (containerId) {
+                    const container = this.docker.getContainer(containerId);
+                    const containerInfo = await container.inspect();
+                    
+                    // If container exists but is not running, start it
+                    if (containerInfo.State.Status !== 'running') {
+                        logDebugInfo('🐳 🟡 Starting restored container...');
+                        await container.start();
+                    }
+                    
+                    // Wait for the container to be ready
+                    logDebugInfo('🐳 🟡 Waiting for container to be ready...');
+                    await this.waitForContainer(param);
+                    logDebugInfo('🐳 🟢 Docker container is ready');
+                    return;
+                }
             }
 
             // Check if image exists
-            const images = await this.docker.listImages();
-            const imageExists = images.some(img => 
-                img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:latest`)
-            );
-
+            const imageExists = await this.imageExists(param);
             if (!imageExists) {
-                logDebugInfo('🐳 🟡 Building Docker image...');
-                // Build the image with explicit tagging
-                const stream = await this.docker.buildImage({
-                    context: this.dockerDir,
-                    src: ['Dockerfile', 'requirements.txt', 'main.py'],
-                }, { 
-                    t: `${param.dockerConfig.getContainerName()}:latest`,
-                    dockerfile: 'Dockerfile',
-                    buildargs: {},
-                    nocache: true
-                });
-
-                await new Promise((resolve, reject) => {
-                    this.docker.modem.followProgress(stream, (err: any, res: any) => {
-                        if (err) {
-                            logError('🐳 🔴 Error building image: ' + err);
-                            reject(err);
-                        } else {
-                            logDebugInfo('🐳 🟢 Docker image built successfully');
-                            resolve(res);
-                        }
-                    }, (event: any) => {
-                        if (event.stream) {
-                            logDebugInfo(`🐳 🟡 ${event.stream.trim()}`);
-                        }
-                    });
-                });
-
-                // logDebugInfo('🐳 🟡 Image build result: ' + JSON.stringify(result, null, 2));
-
-                // Verify that the image exists and is properly tagged
-                try {
-                    const images = await this.docker.listImages();
-                    logDebugInfo('🐳 🟡 Images: ' + JSON.stringify(images, null, 2));
-                    const actionImage = images.find(img => 
-                        img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:latest`)
-                    );
-                    
-                    if (!actionImage) {
-                        logError(`🐳 🔴 Image ${param.dockerConfig.getContainerName()}:latest not found after build`);
-                        throw new Error(`Image ${param.dockerConfig.getContainerName()}:latest not found after build`);
-                    }
-                    
-                    logDebugInfo('🐳 🟢 Image exists and is properly tagged');
-                } catch (error) {
-                    logError('🐳 🔴 Error verifying image: ' + error);
-                    throw error;
-                }
+                await this.buildImage(param);
             } else {
                 logDebugInfo('🐳 🟢 Image already exists, skipping build');
             }
 
             logDebugInfo(`🐳 🟡 Creating container... ${param.dockerConfig.getContainerName()}:${param.dockerConfig.getPort()}`);
             // Create and start the container
-            const container = await this.docker.createContainer({
-                Image: `${param.dockerConfig.getContainerName()}:latest`,
-                ExposedPorts: {
-                    [`${param.dockerConfig.getPort()}/tcp`]: {}
-                },
-                HostConfig: {
-                    PortBindings: {
-                        [`${param.dockerConfig.getPort()}/tcp`]: [{ HostPort: param.dockerConfig.getPort().toString() }]
-                    }
-                },
-                name: param.dockerConfig.getContainerName()
-            });
+            const container = await this.createContainer(param);
 
             logDebugInfo('🐳 🟡 Starting container...');
             await container.start();
@@ -138,6 +95,79 @@ export class DockerRepository {
             logError('Error starting container: ' + error);
             throw error;
         }
+    }
+
+    private imageExists = async (param: Execution): Promise<boolean> => {
+        const images = await this.docker.listImages();
+        return images.some(img => 
+            img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:latest`)
+        );
+    }
+
+    private buildImage = async (param: Execution): Promise<void> => {
+        logDebugInfo('🐳 🟡 Building Docker image...');
+        // Build the image with explicit tagging
+        const stream = await this.docker.buildImage({
+            context: this.dockerDir,
+            src: ['Dockerfile', 'requirements.txt', 'main.py'],
+        }, { 
+            t: `${param.dockerConfig.getContainerName()}:latest`,
+            dockerfile: 'Dockerfile',
+            buildargs: {},
+            nocache: true
+        });
+
+        await new Promise((resolve, reject) => {
+            this.docker.modem.followProgress(stream, (err: any, res: any) => {
+                if (err) {
+                    logError('🐳 🔴 Error building image: ' + err);
+                    reject(err);
+                } else {
+                    logDebugInfo('🐳 🟢 Docker image built successfully');
+                    resolve(res);
+                }
+            }, (event: any) => {
+                if (event.stream) {
+                    logDebugInfo(`🐳 🟡 ${event.stream.trim()}`);
+                }
+            });
+        });
+
+        // logDebugInfo('🐳 🟡 Image build result: ' + JSON.stringify(result, null, 2));
+
+        // Verify that the image exists and is properly tagged
+        try {
+            const images = await this.docker.listImages();
+            logDebugInfo('🐳 🟡 Images: ' + JSON.stringify(images, null, 2));
+            const actionImage = images.find(img => 
+                img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:latest`)
+            );
+            
+            if (!actionImage) {
+                logError(`🐳 🔴 Image ${param.dockerConfig.getContainerName()}:latest not found after build`);
+                throw new Error(`Image ${param.dockerConfig.getContainerName()}:latest not found after build`);
+            }
+            
+            logDebugInfo('🐳 🟢 Image exists and is properly tagged');
+        } catch (error) {
+            logError('🐳 🔴 Error verifying image: ' + error);
+            throw error;
+        }
+    }
+
+    private createContainer = async (param: Execution): Promise<Container> => {
+        return this.docker.createContainer({
+            Image: `${param.dockerConfig.getContainerName()}:latest`,
+            ExposedPorts: {
+                [`${param.dockerConfig.getPort()}/tcp`]: {}
+            },
+            HostConfig: {
+                PortBindings: {
+                    [`${param.dockerConfig.getPort()}/tcp`]: [{ HostPort: param.dockerConfig.getPort().toString() }]
+                }
+            },
+            name: param.dockerConfig.getContainerName()
+        });
     }
 
     private waitForContainer = async (param: Execution): Promise<void> => {
