@@ -23,4 +23,5 @@ export declare class SupabaseRepository {
     private duplicateFileEntries;
     private duplicateBranchEntries;
     private deleteBranchEntries;
+    getVectorOfChunkContent: (owner: string, repository: string, content: string) => Promise<number[]>;
 }
