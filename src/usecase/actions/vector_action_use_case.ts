@@ -267,7 +267,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                                 chunk
                             );
                             if (vector.length > 0) {
-                                logDebugInfo(`cached chunk: ${chunk}`, true);
                                 existingVectors.push(vector);
                                 existingChunks.push(chunk);
                             } else {
@@ -275,6 +274,9 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                             }
                         }
 
+                        const cachedPercentage = (existingChunks.length / chunkedFile.chunks.length) * 100;
+                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}] - ${cachedPercentage.toFixed(1)}% cached`);
+                        
                         let embeddings: number[][] = [];
                         let chunks: string[] = [];
                         if (chunksToProcess.length > 0) {
