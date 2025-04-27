@@ -5,6 +5,9 @@ export declare class DockerRepository {
     private cacheRepository;
     constructor();
     startContainer: (param: Execution) => Promise<void>;
+    private imageExists;
+    private buildImage;
+    private createContainer;
     private waitForContainer;
     stopContainer: (param: Execution) => Promise<void>;
     isContainerRunning: (param: Execution) => Promise<boolean>;
