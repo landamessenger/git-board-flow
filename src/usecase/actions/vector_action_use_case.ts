@@ -5,7 +5,7 @@ import { Result } from '../../data/model/result';
 import { DockerRepository } from '../../data/repository/docker_repository';
 import { FileRepository } from '../../data/repository/file_repository';
 import { SupabaseRepository } from '../../data/repository/supabase_repository';
-import { logError, logInfo, logSingleLine } from '../../utils/logger';
+import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
@@ -219,17 +219,22 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 path
             );
 
-            if (remoteShasum && remoteShasum === chunkedFiles[0].shasum) {
-                logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);
-                continue;
-            } else if (remoteShasum && remoteShasum !== chunkedFiles[0].shasum) {
-                logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
-                await supabaseRepository.removeChunksByPath(
-                    param.owner,
-                    param.repo,
-                    branch,
-                    path
-                );
+            logDebugInfo(`remoteShasum: ${remoteShasum}`, true);
+            logDebugInfo(`chunkedFiles[0].shasum: ${chunkedFiles[0].shasum}`, true);
+
+            if (remoteShasum) {
+                if (remoteShasum === chunkedFiles[0].shasum) {
+                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);
+                    continue;
+                } else if (remoteShasum !== chunkedFiles[0].shasum) {
+                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
+                    await supabaseRepository.removeChunksByPath(
+                        param.owner,
+                        param.repo,
+                        branch,
+                        path
+                    );
+                }
             }
 
             // Process chunks in parallel with concurrency limit
