@@ -2,6 +2,7 @@ import { Execution } from '../model/execution';
 export declare class DockerRepository {
     private docker;
     private readonly dockerDir;
+    private cacheRepository;
     constructor();
     startContainer: (param: Execution) => Promise<void>;
     private waitForContainer;

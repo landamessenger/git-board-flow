@@ -173,3 +173,7 @@ export declare const ACTIONS: {
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";
 };
+export declare const CACHE_KEYS: {
+    readonly DOCKER_VECTOR: "docker_vector";
+    readonly DOCKER_DATABASE: "docker_database";
+};
