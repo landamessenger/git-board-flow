@@ -378,16 +378,40 @@ export class SupabaseRepository {
         repository: string,
         branch: string,
     ): Promise<void> => {
-        const { error } = await this.supabase
-            .from(this.CHUNKS_TABLE)
-            .delete()
-            .eq('owner', owner)
-            .eq('repository', repository)
-            .eq('branch', branch);
+        let hasMoreChunks = true;
+        let offset = 0;
+        const limit = this.MAX_BATCH_SIZE;
+        let totalChunksRemoved = 0;
 
-        if (error) {
-            logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
-            throw error;
+        while (hasMoreChunks) {
+            // Delete chunks in batches
+            const { count, error } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .delete()
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .limit(limit)
+                .select('count');
+
+            if (error) {
+                logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+
+            if (count === 0) {
+                if (totalChunksRemoved === 0) {
+                    logInfo(`No chunks to remove from branch ${branch}`);
+                }
+                hasMoreChunks = false;
+                continue;
+            }
+
+            totalChunksRemoved += count;
+            logInfo(`Removed ${totalChunksRemoved} chunks from branch ${branch}`);
+            
+            // Move to the next batch
+            offset += limit;
         }
     }
 
