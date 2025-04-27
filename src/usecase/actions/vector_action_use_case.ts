@@ -196,8 +196,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
         const processedChunkedFiles: ChunkedFile[] = [];
-        const chunkedFiles = Array.from(chunkedFilesMap.values()).flat();
-        const totalFiles = chunkedFiles.length;
         const startTime = Date.now();
         const chunkedPaths = Array.from(chunkedFilesMap.keys());
         
