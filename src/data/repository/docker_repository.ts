@@ -45,25 +45,8 @@ export class DockerRepository {
             let cachedContainer = await this.cacheRepository.restoreCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
             if (cachedContainer) {
                 logDebugInfo('🐳 🟢 Docker container restored from cache');
-                
-                // Get the container instance from Docker
-                const containerId = await this.getContainerIdByName(param);
-                if (containerId) {
-                    const container = this.docker.getContainer(containerId);
-                    const containerInfo = await container.inspect();
-                    
-                    // If container exists but is not running, start it
-                    if (containerInfo.State.Status !== 'running') {
-                        logDebugInfo('🐳 🟡 Starting restored container...');
-                        await container.start();
-                    }
-                    
-                    // Wait for the container to be ready
-                    logDebugInfo('🐳 🟡 Waiting for container to be ready...');
-                    await this.waitForContainer(param);
-                    logDebugInfo('🐳 🟢 Docker container is ready');
-                    return;
-                }
+                await this.runContainer(param);
+                return;
             }
 
             // Check if image exists
@@ -74,18 +57,7 @@ export class DockerRepository {
                 logDebugInfo('🐳 🟢 Image already exists, skipping build');
             }
 
-            logDebugInfo(`🐳 🟡 Creating container... ${param.dockerConfig.getContainerName()}:${param.dockerConfig.getPort()}`);
-            // Create and start the container
-            const container = await this.createContainer(param);
-
-            logDebugInfo('🐳 🟡 Starting container...');
-            await container.start();
-            logDebugInfo('🐳 🟡 Container started successfully');
-
-            // Wait for the container to be ready
-            logDebugInfo('🐳 🟡 Waiting for container to be ready...');
-            await this.waitForContainer(param);
-            logDebugInfo('🐳 🟢 Docker container is ready');
+            await this.runContainer(param);
 
             cachedContainer = await this.cacheRepository.saveCache(CACHE_KEYS.DOCKER_VECTOR, [this.dockerDir]);
             if (cachedContainer) {
@@ -95,6 +67,22 @@ export class DockerRepository {
             logError('Error starting container: ' + error);
             throw error;
         }
+    }
+
+    private runContainer = async (param: Execution): Promise<void> => {
+        const container = await this.getContainer(param);
+        const containerInfo = await container.inspect();
+            
+        // If container exists but is not running, start it
+        if (containerInfo.State.Status !== 'running') {
+            logDebugInfo('🐳 🟡 Starting restored container...');
+            await container.start();
+        }
+        
+        // Wait for the container to be ready
+        logDebugInfo('🐳 🟡 Waiting for container to be ready...');
+        await this.waitForContainer(param);
+        logDebugInfo('🐳 🟢 Docker container is ready');
     }
 
     private imageExists = async (param: Execution): Promise<boolean> => {
@@ -155,7 +143,13 @@ export class DockerRepository {
         }
     }
 
-    private createContainer = async (param: Execution): Promise<Container> => {
+    private getContainer = async (param: Execution): Promise<Container> => {
+        const containerId = await this.getContainerIdByName(param);
+        if (containerId) {
+            logDebugInfo(`🐳 🟡 Container already exists... ${param.dockerConfig.getContainerName()}:${param.dockerConfig.getPort()}`);
+            return this.docker.getContainer(containerId);
+        }
+        logDebugInfo(`🐳 🟡 Creating container... ${param.dockerConfig.getContainerName()}:${param.dockerConfig.getPort()}`);
         return this.docker.createContainer({
             Image: `${param.dockerConfig.getContainerName()}:latest`,
             ExposedPorts: {
