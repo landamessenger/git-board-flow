@@ -492,7 +492,7 @@ export class SupabaseRepository {
 
             return data[0].shasum;
         } catch (error) {
-            logError(`Error getting shasum by path: ${JSON.stringify(error, null, 2)}`);
+            // logError(`Error getting shasum by path: ${JSON.stringify(error, null, 2)}`);
             return undefined;
         }
     }

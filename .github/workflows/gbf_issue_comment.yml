@@ -18,11 +18,13 @@ jobs:
 
       - uses: ./
         with:
-          debug: ${{ vars.DEBUG }}
           ai-ignore-files: build/*
+          debug: ${{ vars.DEBUG }}
           hotfix-workflow: release_workflow.yml
-          project-ids: 2
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
+          project-ids: 2
+          supabase-url: ${{ secrets.SUPABASE_URL }}
+          supabase-key: ${{ secrets.SUPABASE_KEY }}
           token: ${{ secrets.PAT }}
 
