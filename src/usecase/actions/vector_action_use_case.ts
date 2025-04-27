@@ -5,7 +5,7 @@ import { Result } from '../../data/model/result';
 import { DockerRepository } from '../../data/repository/docker_repository';
 import { FileRepository } from '../../data/repository/file_repository';
 import { SupabaseRepository } from '../../data/repository/supabase_repository';
-import { logError, logInfo, logSingleLine } from '../../utils/logger';
+import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
@@ -137,7 +137,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         // Find paths that exist in Supabase but not in the current branch
         const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
 
-        if (pathsToRemove.length > 0) {
+        if (pathsToRemove.length > 0 && remotePaths.length > 0) {
             logInfo(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
             
             for (const path of pathsToRemove) {
@@ -196,8 +196,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
         const processedChunkedFiles: ChunkedFile[] = [];
-        const chunkedFiles = Array.from(chunkedFilesMap.values()).flat();
-        const totalFiles = chunkedFiles.length;
         const startTime = Date.now();
         const chunkedPaths = Array.from(chunkedFilesMap.keys());
         
@@ -219,17 +217,19 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 path
             );
 
-            if (remoteShasum && remoteShasum === chunkedFiles[0].shasum) {
-                logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);
-                continue;
-            } else if (remoteShasum && remoteShasum !== chunkedFiles[0].shasum) {
-                logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
-                await supabaseRepository.removeChunksByPath(
-                    param.owner,
-                    param.repo,
-                    branch,
-                    path
-                );
+            if (remoteShasum) {
+                if (remoteShasum === chunkedFiles[0].shasum) {
+                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);
+                    continue;
+                } else if (remoteShasum !== chunkedFiles[0].shasum) {
+                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
+                    await supabaseRepository.removeChunksByPath(
+                        param.owner,
+                        param.repo,
+                        branch,
+                        path
+                    );
+                }
             }
 
             // Process chunks in parallel with concurrency limit
@@ -251,13 +251,44 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const processChunk = async () => {
                     try {
                         logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
+                        
+                        const existingVectors: number[][] = [];
+                        const existingChunks: string[] = [];
+                        
+                        const chunksToProcess: string[] = [];
+                        
+                        for (const chunk of chunkedFile.chunks) {
+                            const vector = await supabaseRepository.getVectorOfChunkContent(
+                                param.owner,
+                                param.repo,
+                                chunk
+                            );
+                            if (vector.length > 0) {
+                                existingVectors.push(vector);
+                                existingChunks.push(chunk);
+                            } else {
+                                chunksToProcess.push(chunk);
+                            }
+                        }
 
-                        const embeddings = await this.dockerRepository.getEmbedding(
-                            param,
-                            chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
-                        );
+                        const cachedPercentage = (existingChunks.length / chunkedFile.chunks.length) * 100;
+                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}] - ${cachedPercentage.toFixed(1)}% cached`);
+                        
+                        let embeddings: number[][] = [];
+                        let chunks: string[] = [];
+                        if (chunksToProcess.length > 0) {
+                            const newEmbeddings = await this.dockerRepository.getEmbedding(
+                                param,
+                                chunksToProcess.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
+                            );
+                            embeddings = [...existingVectors, ...newEmbeddings];
+                            chunks = [...existingChunks, ...chunksToProcess];
+                        } else {
+                            embeddings = existingVectors;
+                            chunks = existingChunks;
+                        }
                         chunkedFile.vector = embeddings;
-
+                        chunkedFile.chunks = chunks;
                         logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
                         
                         await supabaseRepository.setChunkedFile(
@@ -329,7 +360,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 targetBranch
             );
             
-            
             logInfo(`📦 -> 📦 Duplicating chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
             await supabaseRepository.duplicateChunksByBranch(
                 param.owner,
@@ -344,7 +374,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     success: true,
                     executed: true,
                     steps: [
-                        `📦 -> 📦 ✅ Duplicated chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
+                        `Duplicated chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
                     ],
                 })
             );
@@ -356,7 +386,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     success: false,
                     executed: true,
                     errors: [
-                        `📦 -> 📦 ❌ Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
+                        `Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
                     ],
                 })
             );

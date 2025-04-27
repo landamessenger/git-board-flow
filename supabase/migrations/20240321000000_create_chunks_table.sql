@@ -105,4 +105,185 @@ BEGIN
     AND chunks.branch = branch_param
     ORDER BY chunks.path;
 END;
-$$; 
+$$;
+
+-- Create a function to delete all entries from a specific branch
+CREATE OR REPLACE FUNCTION delete_branch_entries(
+    owner_param TEXT,
+    repository_param TEXT,
+    branch_param TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM chunks
+    WHERE owner = owner_param
+    AND repository = repository_param
+    AND branch = branch_param;
+END;
+$$;
+
+-- Create a function to delete entries from a specific branch and path
+CREATE OR REPLACE FUNCTION delete_branch_path_entries(
+    owner_param TEXT,
+    repository_param TEXT,
+    branch_param TEXT,
+    path_param TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM chunks
+    WHERE owner = owner_param
+    AND repository = repository_param
+    AND branch = branch_param
+    AND path = path_param;
+END;
+$$;
+
+-- Create a function to duplicate all entries from one branch to another
+CREATE OR REPLACE FUNCTION duplicate_branch_entries(
+    owner_param TEXT,
+    repository_param TEXT,
+    source_branch_param TEXT,
+    target_branch_param TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    INSERT INTO chunks (
+        owner,
+        repository,
+        branch,
+        path,
+        type,
+        index,
+        chunk_index,
+        content,
+        shasum,
+        vector,
+        created_at,
+        updated_at
+    )
+    SELECT
+        owner,
+        repository,
+        target_branch_param AS branch, -- <--- aquí cambiamos el branch
+        path,
+        type,
+        index,
+        chunk_index,
+        content,
+        shasum,
+        vector,
+        CURRENT_TIMESTAMP, -- nuevo created_at
+        CURRENT_TIMESTAMP  -- nuevo updated_at
+    FROM chunks
+    WHERE owner = owner_param
+      AND repository = repository_param
+      AND branch = source_branch_param;
+END;
+$$;
+
+-- Create a function to duplicate entries from one branch and file (path) to another branch
+CREATE OR REPLACE FUNCTION duplicate_file_entries(
+    owner_param TEXT,
+    repository_param TEXT,
+    source_branch_param TEXT,
+    path_param TEXT,
+    target_branch_param TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    INSERT INTO chunks (
+        owner,
+        repository,
+        branch,
+        path,
+        type,
+        index,
+        chunk_index,
+        content,
+        shasum,
+        vector,
+        created_at,
+        updated_at
+    )
+    SELECT
+        owner,
+        repository,
+        target_branch_param AS branch, -- Cambiamos solo el branch
+        path,
+        type,
+        index,
+        chunk_index,
+        content,
+        shasum,
+        vector,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+    FROM chunks
+    WHERE owner = owner_param
+      AND repository = repository_param
+      AND branch = source_branch_param
+      AND path = path_param;
+END;
+$$;
+
+-- Create a function to count entries from a specific branch
+CREATE OR REPLACE FUNCTION count_branch_entries(
+    owner_param TEXT,
+    repository_param TEXT,
+    branch_param TEXT
+)
+RETURNS BIGINT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    entry_count BIGINT;
+BEGIN
+    SELECT COUNT(*)
+    INTO entry_count
+    FROM chunks
+    WHERE owner = owner_param
+      AND repository = repository_param
+      AND branch = branch_param;
+
+    RETURN entry_count;
+END;
+$$;
+
+-- Create a function to get the vector of a chunk's content
+CREATE OR REPLACE FUNCTION get_vector_of_chunk_content(
+    owner_param TEXT,
+    repository_param TEXT,
+    content_param TEXT
+)
+RETURNS vector(768)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    result_vector vector(768);
+BEGIN
+    -- Get the vector from the first matching chunk
+    SELECT vector INTO result_vector
+    FROM chunks
+    WHERE owner = owner_param
+    AND repository = repository_param
+    AND content = content_param
+    LIMIT 1;
+
+    RETURN result_vector;
+END;
+$$;
