@@ -235,6 +235,7 @@ export class DockerRepository {
     getContainerIdByName = async (param: Execution): Promise<string> => {
         try {
             const containers = await this.docker.listContainers({ all: true });
+            logDebugInfo('🐳 🟡 Containers: ' + JSON.stringify(containers, null, 2));
             const container = containers.find(container => 
                 container.Names.some(name => name === param.dockerConfig.getContainerName())
             );
