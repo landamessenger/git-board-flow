@@ -267,6 +267,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                                 chunk
                             );
                             if (vector.length > 0) {
+                                logDebugInfo(`cached vector: ${vector}`, true);
                                 existingVectors.push(vector);
                                 existingChunks.push(chunk);
                             } else {
