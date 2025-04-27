@@ -266,7 +266,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                                 param.repo,
                                 chunk
                             );
-                            if (vector) {
+                            if (vector.length > 0) {
                                 existingVectors.push(vector);
                                 existingChunks.push(chunk);
                             } else {
