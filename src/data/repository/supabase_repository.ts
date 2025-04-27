@@ -320,31 +320,20 @@ export class SupabaseRepository {
         sourceBranch: string,
         targetBranch: string,
     ): Promise<void> => {
-        try {
-            // First, check if there are any entries for the source branch
-            const { count, error: countError } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*', { count: 'exact', head: true })
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', sourceBranch);
+        let hasMoreChunks = true;
+        let offset = 0;
+        const limit = this.MAX_BATCH_SIZE;
+        let totalChunksProcessed = 0;
 
-            if (countError) {
-                logError(`Error checking source branch entries: ${JSON.stringify(countError, null, 2)}`);
-                throw countError;
-            }
-
-            if (count === 0) {
-                return; // No entries exist for source branch, exit early
-            }
-
-            // Get all chunks from the source branch
+        while (hasMoreChunks) {
+            // Get chunks from the source branch with pagination
             const { data: sourceChunks, error: fetchError } = await this.supabase
                 .from(this.CHUNKS_TABLE)
                 .select('*')
                 .eq('owner', owner)
                 .eq('repository', repository)
-                .eq('branch', sourceBranch);
+                .eq('branch', sourceBranch)
+                .range(offset, offset + limit - 1);
 
             if (fetchError) {
                 logError(`Error fetching chunks from source branch: ${JSON.stringify(fetchError, null, 2)}`);
@@ -352,7 +341,11 @@ export class SupabaseRepository {
             }
 
             if (!sourceChunks || sourceChunks.length === 0) {
-                return; // No chunks to duplicate
+                if (totalChunksProcessed === 0) {
+                    logInfo(`No chunks to duplicate from ${sourceBranch} to ${targetBranch}`);
+                }
+                hasMoreChunks = false;
+                continue;
             }
 
             // Prepare the chunks for insertion with the new branch
@@ -363,21 +356,20 @@ export class SupabaseRepository {
             }));
 
             // Insert the chunks in batches
-            const batchSize = this.MAX_BATCH_SIZE;
-            for (let i = 0; i < chunksToInsert.length; i += batchSize) {
-                const batch = chunksToInsert.slice(i, i + batchSize);
-                const { error: insertError } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .insert(batch);
+            const { error: insertError } = await this.supabase
+                .from(this.CHUNKS_TABLE)
+                .insert(chunksToInsert);
 
-                if (insertError) {
-                    logError(`Error inserting batch of chunks: ${JSON.stringify(insertError, null, 2)}`);
-                    throw insertError;
-                }
+            if (insertError) {
+                logError(`Error inserting batch of chunks: ${JSON.stringify(insertError, null, 2)}`);
+                throw insertError;
             }
-        } catch (error) {
-            logError(`Error duplicating chunks by branch: ${JSON.stringify(error, null, 2)}`);
-            throw error;
+
+            totalChunksProcessed += sourceChunks.length;
+            logInfo(`Processed ${totalChunksProcessed} chunks from ${sourceBranch} to ${targetBranch}`);
+            
+            // Move to the next page
+            offset += limit;
         }
     }
 
@@ -386,19 +378,14 @@ export class SupabaseRepository {
         repository: string,
         branch: string,
     ): Promise<void> => {
-        try {
-            const { error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .delete()
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch);
+        const { error } = await this.supabase
+            .from(this.CHUNKS_TABLE)
+            .delete()
+            .eq('owner', owner)
+            .eq('repository', repository)
+            .eq('branch', branch);
 
-            if (error) {
-                logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        } catch (error) {
+        if (error) {
             logError(`Error removing chunks by branch: ${JSON.stringify(error, null, 2)}`);
             throw error;
         }
