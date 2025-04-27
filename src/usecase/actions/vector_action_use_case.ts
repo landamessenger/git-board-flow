@@ -137,7 +137,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         // Find paths that exist in Supabase but not in the current branch
         const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
 
-        if (pathsToRemove.length > 0) {
+        if (pathsToRemove.length > 0 && remotePaths.length > 0) {
             logInfo(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
             
             for (const path of pathsToRemove) {
