@@ -333,6 +333,10 @@ export class SupabaseRepository {
                 .eq('owner', owner)
                 .eq('repository', repository)
                 .eq('branch', sourceBranch)
+                .order('path', { ascending: true })
+                .order('type', { ascending: true })
+                .order('index', { ascending: true })
+                .order('chunk_index', { ascending: true })
                 .range(offset, offset + limit - 1);
 
             if (fetchError) {
@@ -391,6 +395,10 @@ export class SupabaseRepository {
                 .eq('owner', owner)
                 .eq('repository', repository)
                 .eq('branch', branch)
+                .order('path', { ascending: true })
+                .order('type', { ascending: true })
+                .order('index', { ascending: true })
+                .order('chunk_index', { ascending: true })
                 .limit(limit)
                 .select('count');
 

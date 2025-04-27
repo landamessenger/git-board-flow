@@ -347,7 +347,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     success: true,
                     executed: true,
                     steps: [
-                        `📦 -> 📦 ✅ Duplicated chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
+                        `Duplicated chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
                     ],
                 })
             );
@@ -359,7 +359,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     success: false,
                     executed: true,
                     errors: [
-                        `📦 -> 📦 ❌ Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
+                        `Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
                     ],
                 })
             );
