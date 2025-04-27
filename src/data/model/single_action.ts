@@ -76,13 +76,12 @@ export class SingleAction {
 
     get validSingleAction(): boolean {
         return this.enabledSingleAction &&
-            this.issue > 0 &&
+            (this.issue > 0 || this.isSingleActionWithoutIssue) &&
             this.actions.indexOf(this.currentSingleAction) > -1;
     }
 
     get isSingleActionWithoutIssue(): boolean {
-        return this.enabledSingleAction && 
-            this.actionsWithoutIssue.indexOf(this.currentSingleAction) > -1;
+        return this.actionsWithoutIssue.indexOf(this.currentSingleAction) > -1;
     }
 
     get throwError(): boolean {

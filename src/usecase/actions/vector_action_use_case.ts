@@ -232,7 +232,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 );
             }
 
-            // Procesar chunks en paralelo con límite de concurrencia
+            // Process chunks in parallel with concurrency limit
             const systemInfo = await this.dockerRepository.getSystemInfo(param);
             const maxWorkers = systemInfo.parameters.max_workers as number;
             const chunkPromises: Promise<void>[] = [];
@@ -241,12 +241,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             for (let j = 0; j < chunkedFiles.length; j++) {
                 const chunkedFile = chunkedFiles[j];
                 const chunkProgress = ((j + 1) / chunkedFiles.length) * 100;
-                const currentChunkTime = Date.now();
-                const chunkElapsedTime = (currentChunkTime - startTime) / 1000;
-                const estimatedChunkTotalTime = (chunkElapsedTime / ((i * chunkedFiles.length) + j + 1)) * totalFiles;
-                const chunkRemainingTime = estimatedChunkTotalTime - chunkElapsedTime;
 
-                // Esperar si hemos alcanzado el límite de workers
+                // Wait if we have reached the limit of workers
                 while (activeWorkers >= maxWorkers) {
                     await Promise.race(chunkPromises);
                     activeWorkers = chunkPromises.filter(p => !p).length;
@@ -286,7 +282,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 });
             }
 
-            // Esperar a que todos los chunks del archivo actual se procesen
+            // Wait for all chunks of the current file to be processed
             await Promise.all(chunkPromises);
         }
 

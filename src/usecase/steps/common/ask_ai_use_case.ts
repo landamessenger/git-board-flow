@@ -149,7 +149,7 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
             // logInfo(`🔎 Embeddings: ${JSON.stringify(embeddings, null, 2)}`);
 
             const types = [
-                // 'line',
+                'line',
                 'block'
             ];
             const chunks: ChunkedFileChunk[] = [];
