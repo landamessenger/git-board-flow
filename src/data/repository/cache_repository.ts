@@ -1,7 +1,25 @@
 import * as cache from '@actions/cache';
 import { logDebugInfo, logError } from '../../utils/logger';
+import * as path from 'path';
+import * as os from 'os';
 
 export class CacheRepository {
+    private isGitHubActions(): boolean {
+        return process.env.GITHUB_ACTIONS === 'true';
+    }
+
+    private async ensureCacheDirectory(): Promise<boolean> {
+        try {
+            // For self-hosted runners, we need to set RUNNER_TEMP to a writable directory
+            const runnerTemp = process.env.RUNNER_TEMP || path.join(os.tmpdir(), 'actions');
+            process.env.RUNNER_TEMP = runnerTemp;
+            return true;
+        } catch (error) {
+            logError(`Error setting up cache directory: ${error}`);
+            return false;
+        }
+    }
+
     /**
      * Saves data to the GitHub Actions cache
      * @param key The unique key for the cache entry
@@ -9,6 +27,16 @@ export class CacheRepository {
      * @returns Promise<boolean> True if cache was saved successfully
      */
     async saveCache(key: string, paths: string[]): Promise<boolean> {
+        if (!this.isGitHubActions()) {
+            logDebugInfo('Not running in GitHub Actions environment, skipping cache save');
+            return true;
+        }
+
+        if (!await this.ensureCacheDirectory()) {
+            logError('Failed to set up cache directory');
+            return false;
+        }
+
         try {
             const cacheId = await cache.saveCache(paths, key);
             if (cacheId === -1) {
@@ -29,6 +57,16 @@ export class CacheRepository {
      * @returns Promise<boolean> True if cache was restored successfully
      */
     async restoreCache(key: string, paths: string[]): Promise<boolean> {
+        if (!this.isGitHubActions()) {
+            logDebugInfo('Not running in GitHub Actions environment, skipping cache restore');
+            return true;
+        }
+
+        if (!await this.ensureCacheDirectory()) {
+            logError('Failed to set up cache directory');
+            return false;
+        }
+
         try {
             const cacheKey = await cache.restoreCache(paths, key);
             if (!cacheKey) {
