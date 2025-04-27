@@ -301,6 +301,7 @@ export class DockerRepository {
                 img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:cached`)
             );
 
+            
             if (!image) {
                 logDebugInfo('🐳 🟡 No image to save');
                 return;
