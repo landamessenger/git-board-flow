@@ -382,63 +382,54 @@ export class SupabaseRepository {
         repository: string,
         branch: string,
     ): Promise<void> => {
-        let hasMoreChunks = true;
-        let offset = 0;
-        const limit = this.MAX_BATCH_SIZE;
-        let totalChunksRemoved = 0;
+        const { error } = await this.supabase
+            .rpc('delete_branch_entries', {
+                owner_param: owner,
+                repository_param: repository,
+                branch_param: branch
+            });
 
-        while (hasMoreChunks) {
-            // First, get a batch of chunks to delete
-            const { data: chunksToDelete, error: fetchError } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('path, type, index, chunk_index')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .order('path', { ascending: true })
-                .order('type', { ascending: true })
-                .order('index', { ascending: true })
-                .order('chunk_index', { ascending: true })
-                .range(offset, offset + limit - 1);
-
-            if (fetchError) {
-                logError(`Error fetching chunks to delete: ${JSON.stringify(fetchError, null, 2)}`);
-                throw fetchError;
-            }
-
-            if (!chunksToDelete || chunksToDelete.length === 0) {
-                if (totalChunksRemoved === 0) {
-                    logInfo(`No chunks to remove from branch ${branch}`);
-                }
-                hasMoreChunks = false;
-                continue;
-            }
-
-            // Delete the chunks using their composite key
-            for (const chunk of chunksToDelete) {
-                const { error: deleteError } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .delete()
-                    .eq('owner', owner)
-                    .eq('repository', repository)
-                    .eq('branch', branch)
-                    .eq('path', chunk.path)
-                    .eq('type', chunk.type)
-                    .eq('index', chunk.index)
-                    .eq('chunk_index', chunk.chunk_index);
-
-                if (deleteError) {
-                    logError(`Error removing chunk: ${JSON.stringify(deleteError, null, 2)}`);
-                    throw deleteError;
-                }
-            }
-
-            totalChunksRemoved += chunksToDelete.length;
-            logInfo(`Removed ${totalChunksRemoved} chunks from branch ${branch}`);
-            
-            // Move to the next batch
-            offset += limit;
+        if (error) {
+            logError(`Error removing chunks from branch: ${JSON.stringify(error, null, 2)}`);
+            throw error;
         }
+
+        logInfo(`Checking if all chunks are deleted from branch ${branch}`);
+
+         // Retry logic to ensure all chunks are deleted
+         const maxRetries = 5;
+         const retryDelay = 10000; // 1 second
+         let retryCount = 0;
+ 
+         while (retryCount < maxRetries) {
+             const { data: chunks, error: chunksError } = await this.supabase
+                 .from(this.CHUNKS_TABLE)
+                 .select('*')
+                 .eq('owner', owner)
+                 .eq('repository', repository)
+                 .eq('branch', branch)
+ 
+             if (chunksError) {
+                 logError(`Error checking chunks by branch: ${JSON.stringify(chunksError, null, 2)}`);
+                 throw chunksError;
+             }
+ 
+             if (!chunks || chunks.length === 0) {
+                 // No chunks found, deletion successful
+                 logInfo(`Removed all chunks from branch ${branch}`);
+                 return;
+             }
+ 
+             retryCount++;
+             if (retryCount < maxRetries) {
+                 logInfo(`Chunks still present for branch ${branch}, retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
+                 await new Promise(resolve => setTimeout(resolve, retryDelay));
+             }
+         }
+ 
+         // If we reach here, we've exhausted all retries and chunks still exist
+         logError(`There are still chunks left for this branch after ${maxRetries} attempts: ${branch}`);
+         throw new Error(`There are still chunks left for this branch after ${maxRetries} attempts: ${branch}`);
     }
 
     getDistinctPaths = async (
@@ -482,20 +473,15 @@ export class SupabaseRepository {
         branch: string,
         path: string,
     ): Promise<void> => {
-        try {
-            const { error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .delete()
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('path', path);
+        const { error } = await this.supabase
+            .from(this.CHUNKS_TABLE)
+            .delete()
+            .eq('owner', owner)
+            .eq('repository', repository)
+            .eq('branch', branch)
+            .eq('path', path);
 
-            if (error) {
-                throw error;
-            }
-        } catch (error) {
-            logError(`Error removing chunks by path: ${JSON.stringify(error, null, 2)}`);
+        if (error) {
             throw error;
         }
     }

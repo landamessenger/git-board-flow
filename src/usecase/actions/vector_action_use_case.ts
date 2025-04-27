@@ -332,14 +332,13 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 targetBranch
             );
             
-            /*
             logInfo(`📦 -> 📦 Duplicating chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
             await supabaseRepository.duplicateChunksByBranch(
                 param.owner,
                 param.repo,
                 sourceBranch,
                 targetBranch
-            );*/
+            );
 
             results.push(
                 new Result({

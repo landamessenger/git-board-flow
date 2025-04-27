@@ -105,4 +105,22 @@ BEGIN
     AND chunks.branch = branch_param
     ORDER BY chunks.path;
 END;
+$$;
+
+-- Create a function to delete all entries from a specific branch
+CREATE OR REPLACE FUNCTION delete_branch_entries(
+    owner_param TEXT,
+    repository_param TEXT,
+    branch_param TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM chunks
+    WHERE owner = owner_param
+    AND repository = repository_param
+    AND branch = branch_param;
+END;
 $$; 
