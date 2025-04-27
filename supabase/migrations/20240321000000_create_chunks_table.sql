@@ -262,3 +262,28 @@ BEGIN
     RETURN entry_count;
 END;
 $$;
+
+-- Create a function to get the vector of a chunk's content
+CREATE OR REPLACE FUNCTION get_vector_of_chunk_content(
+    owner_param TEXT,
+    repository_param TEXT,
+    content_param TEXT
+)
+RETURNS vector(768)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    result_vector vector(768);
+BEGIN
+    -- Get the vector from the first matching chunk
+    SELECT vector INTO result_vector
+    FROM chunks
+    WHERE owner = owner_param
+    AND repository = repository_param
+    AND content = content_param
+    LIMIT 1;
+
+    RETURN result_vector;
+END;
+$$;

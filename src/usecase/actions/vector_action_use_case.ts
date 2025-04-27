@@ -254,13 +254,41 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const processChunk = async () => {
                     try {
                         logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
+                        
+                        const existingVectors: number[][] = [];
+                        const existingChunks: string[] = [];
+                        
+                        const chunksToProcess: string[] = [];
+                        
+                        for (const chunk of chunkedFile.chunks) {
+                            const vector = await supabaseRepository.getVectorOfChunkContent(
+                                param.owner,
+                                param.repo,
+                                chunk
+                            );
+                            if (vector) {
+                                existingVectors.push(vector);
+                                existingChunks.push(chunk);
+                            } else {
+                                chunksToProcess.push(chunk);
+                            }
+                        }
 
-                        const embeddings = await this.dockerRepository.getEmbedding(
-                            param,
-                            chunkedFile.chunks.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
-                        );
+                        let embeddings: number[][] = [];
+                        let chunks: string[] = [];
+                        if (chunksToProcess.length > 0) {
+                            const newEmbeddings = await this.dockerRepository.getEmbedding(
+                                param,
+                                chunksToProcess.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
+                            );
+                            embeddings = [...existingVectors, ...newEmbeddings];
+                            chunks = [...existingChunks, ...chunksToProcess];
+                        } else {
+                            embeddings = existingVectors;
+                            chunks = existingChunks;
+                        }
                         chunkedFile.vector = embeddings;
-
+                        chunkedFile.chunks = chunks;
                         logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
                         
                         await supabaseRepository.setChunkedFile(
