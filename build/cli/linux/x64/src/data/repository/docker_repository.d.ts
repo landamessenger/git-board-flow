@@ -18,4 +18,13 @@ export declare class DockerRepository {
     private commitContainer;
     private saveContainerState;
     private restoreContainerState;
+    /**
+     * Valida si el sistema operativo y arquitectura actuales coinciden
+     * con los esperados. Devuelve un string formateado si coinciden, o undefined si no.
+     *
+     * @param expectedOs Ejemplo: "ubuntu-latest", "macos-latest", "windows-latest"
+     * @param expectedArch Ejemplo: "amd64", "arm64"
+     * @returns string (clave para la caché) o undefined si no coincide
+     */
+    private machineCachable;
 }
