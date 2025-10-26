@@ -42,6 +42,8 @@ export async function runGitHubAction(): Promise<void> {
     const dockerContainerName = getInput(INPUT_KEYS.DOCKER_CONTAINER_NAME);
     const dockerDomain = getInput(INPUT_KEYS.DOCKER_DOMAIN);
     const dockerPort = parseInt(getInput(INPUT_KEYS.DOCKER_PORT));
+    const dockerCacheOs = getInput(INPUT_KEYS.DOCKER_CACHE_OS);
+    const dockerCacheArch = getInput(INPUT_KEYS.DOCKER_CACHE_ARCH);
 
     /**
      * Single action
@@ -471,7 +473,7 @@ export async function runGitHubAction(): Promise<void> {
 
     const execution = new Execution(
         debug,
-        new DockerConfig(dockerContainerName, dockerDomain, dockerPort),
+        new DockerConfig(dockerContainerName, dockerDomain, dockerPort, dockerCacheOs, dockerCacheArch),
         new SingleAction(
             singleAction,
             singleActionIssue,

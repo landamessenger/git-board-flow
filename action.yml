@@ -374,6 +374,12 @@ inputs:
   docker-port:
     description: "Port of the Docker container to use."
     default: "8000"
+  docker-cache-os:
+    description: "OS of the Docker container to cache. Valid values: ubuntu-any-value, macos-any-value, windows-any-value"
+    default: "ubuntu-latest"
+  docker-cache-arch:
+    description: "Architecture of the Docker container to cache. Valid values: amd64, arm64, arm/v7, 386, s390x, ppc64le"
+    default: "amd64"
 runs:
   using: "node20"
   main: "build/github_action/index.js"

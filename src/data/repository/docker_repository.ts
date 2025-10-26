@@ -6,6 +6,7 @@ import { Execution } from '../model/execution';
 import { CACHE_KEYS } from '../../utils/constants';
 import { CacheRepository } from './cache_repository';
 import fs from 'fs';
+import * as os from 'os';
 
 interface EmbedRequest {
     instructions: string[];
@@ -374,5 +375,48 @@ export class DockerRepository {
             logError('Error restoring container state: ' + error);
             return false;
         }
+    }
+
+    /**
+     * Valida si el sistema operativo y arquitectura actuales coinciden
+     * con los esperados. Devuelve un string formateado si coinciden, o undefined si no.
+     *
+     * @param expectedOs Ejemplo: "ubuntu-latest", "macos-latest", "windows-latest"
+     * @param expectedArch Ejemplo: "amd64", "arm64"
+     * @returns string (clave para la caché) o undefined si no coincide
+     */
+    private machineCachable = (param: Execution): string | undefined => {
+        const platformMap: Record<string, string> = {
+            'ubuntu': 'linux',
+            'macos': 'darwin',
+            'windows': 'win32',
+        };
+
+        const archMap: Record<string, string> = {
+            'amd64': 'x64',
+            'arm64': 'arm64',
+            'arm/v7': 'arm',
+            '386': 'ia32',
+            's390x': 's390x',
+            'ppc64le': 'ppc64',
+        };
+
+        const expectedNodePlatform = Object.entries(platformMap).find(([prefix]) => 
+            param.dockerConfig.getCacheOs().includes(prefix)
+        )?.[1];
+        const expectedNodeArch = archMap[param.dockerConfig.getCacheArch()];
+
+        if (!expectedNodePlatform || !expectedNodeArch) {
+            return undefined; // no es una combinación reconocida
+        }
+
+        const currentPlatform = os.platform(); // ej: 'linux', 'darwin', 'win32'
+        const currentArch = os.arch();         // ej: 'x64', 'arm64', 'arm'
+
+        const matches =
+            currentPlatform === expectedNodePlatform &&
+            currentArch === expectedNodeArch;
+
+        return matches ? `${param.dockerConfig.getCacheOs()}-${param.dockerConfig.getCacheArch()}` : undefined;
     }
 }

@@ -189,6 +189,8 @@ export const INPUT_KEYS = {
     DOCKER_CONTAINER_NAME: 'docker-container-name',
     DOCKER_DOMAIN: 'docker-domain',
     DOCKER_PORT: 'docker-port',
+    DOCKER_CACHE_OS: 'docker-cache-os',
+    DOCKER_CACHE_ARCH: 'docker-cache-arch',
 
     // Single action
     SINGLE_ACTION: 'single-action',

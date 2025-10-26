@@ -50,6 +50,8 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     const dockerContainerName = additionalParams[INPUT_KEYS.DOCKER_CONTAINER_NAME] ?? actionInputs[INPUT_KEYS.DOCKER_CONTAINER_NAME];
     const dockerDomain = additionalParams[INPUT_KEYS.DOCKER_DOMAIN] ?? actionInputs[INPUT_KEYS.DOCKER_DOMAIN];
     const dockerPort = parseInt(additionalParams[INPUT_KEYS.DOCKER_PORT] ?? actionInputs[INPUT_KEYS.DOCKER_PORT]);
+    const dockerCacheOs = additionalParams[INPUT_KEYS.DOCKER_CACHE_OS] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_OS];
+    const dockerCacheArch = additionalParams[INPUT_KEYS.DOCKER_CACHE_ARCH] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_ARCH];
 
     /**
      * Single action
@@ -479,7 +481,13 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
 
     const execution = new Execution(
         debug,
-        new DockerConfig(dockerContainerName, dockerDomain, dockerPort),
+        new DockerConfig(
+            dockerContainerName,
+            dockerDomain,
+            dockerPort,
+            dockerCacheOs,
+            dockerCacheArch,
+        ),
         new SingleAction(
             singleAction,
             singleActionIssue,
