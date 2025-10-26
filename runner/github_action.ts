@@ -13,6 +13,7 @@
 
 import os from 'os';
 import { execSync } from 'child_process';
+import path from 'path';
 
 // Get current platform and architecture
 const platform = os.platform();
@@ -23,15 +24,18 @@ const arch = os.arch();
  */
 let execTarget: string | null = null;
 
+// Get the directory where this script is located
+const scriptDir = __dirname;
+
 // Determine the correct executable path based on platform and architecture
 if (platform === 'darwin') {
   execTarget = arch === 'arm64'
-    ? './build/github_action/macos/arm64/index.js'
-    : './build/github_action/macos/x64/index.js';
+    ? path.join(scriptDir, 'macos', 'arm64', 'index.js')
+    : path.join(scriptDir, 'macos', 'x64', 'index.js');
 } else if (platform === 'linux') {
   execTarget = arch === 'arm64'
-    ? './build/github_action/linux/arm64/index.js'
-    : './build/github_action/linux/x64/index.js';
+    ? path.join(scriptDir, 'linux', 'arm64', 'index.js')
+    : path.join(scriptDir, 'linux', 'x64', 'index.js');
 }
 
 // Validate that we have a valid executable path
