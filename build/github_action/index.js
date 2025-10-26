@@ -24,6 +24,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const os_1 = __importDefault(__nccwpck_require__(37));
 const child_process_1 = __nccwpck_require__(81);
+const path_1 = __importDefault(__nccwpck_require__(17));
 // Get current platform and architecture
 const platform = os_1.default.platform();
 const arch = os_1.default.arch();
@@ -31,16 +32,18 @@ const arch = os_1.default.arch();
  * Path to the executable that will be run based on platform and architecture
  */
 let execTarget = null;
+// Get the directory where this script is located
+const scriptDir = __dirname;
 // Determine the correct executable path based on platform and architecture
 if (platform === 'darwin') {
     execTarget = arch === 'arm64'
-        ? './build/github_action/macos/arm64/index.js'
-        : './build/github_action/macos/x64/index.js';
+        ? path_1.default.join(scriptDir, 'macos', 'arm64', 'index.js')
+        : path_1.default.join(scriptDir, 'macos', 'x64', 'index.js');
 }
 else if (platform === 'linux') {
     execTarget = arch === 'arm64'
-        ? './build/github_action/linux/arm64/index.js'
-        : './build/github_action/linux/x64/index.js';
+        ? path_1.default.join(scriptDir, 'linux', 'arm64', 'index.js')
+        : path_1.default.join(scriptDir, 'linux', 'x64', 'index.js');
 }
 // Validate that we have a valid executable path
 if (!execTarget) {
@@ -75,6 +78,13 @@ module.exports = require("child_process");
 /***/ ((module) => {
 
 module.exports = require("os");
+
+/***/ }),
+
+/***/ 17:
+/***/ ((module) => {
+
+module.exports = require("path");
 
 /***/ })
 
