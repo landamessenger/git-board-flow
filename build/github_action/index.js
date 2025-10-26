@@ -37,13 +37,13 @@ const scriptDir = __dirname;
 // Determine the correct executable path based on platform and architecture
 if (platform === 'darwin') {
     execTarget = arch === 'arm64'
-        ? path_1.default.join(scriptDir, 'build', 'github_action', 'macos', 'arm64', 'index.js')
-        : path_1.default.join(scriptDir, 'build', 'github_action', 'macos', 'x64', 'index.js');
+        ? path_1.default.join(scriptDir, 'macos', 'arm64', 'index.js')
+        : path_1.default.join(scriptDir, 'macos', 'x64', 'index.js');
 }
 else if (platform === 'linux') {
     execTarget = arch === 'arm64'
-        ? path_1.default.join(scriptDir, 'build', 'github_action', 'linux', 'arm64', 'index.js')
-        : path_1.default.join(scriptDir, 'build', 'github_action', 'linux', 'x64', 'index.js');
+        ? path_1.default.join(scriptDir, 'linux', 'arm64', 'index.js')
+        : path_1.default.join(scriptDir, 'linux', 'x64', 'index.js');
 }
 // Validate that we have a valid executable path
 if (!execTarget) {
