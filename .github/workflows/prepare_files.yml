@@ -12,7 +12,7 @@ concurrency:
 jobs:
   prepare-files-common:
     name: Update common compiled files
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +43,7 @@ jobs:
 
   prepare-files-linux-x64:
     name: Update Linux x64 compiled files
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
     needs: prepare-files-common
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +75,6 @@ jobs:
           committer_email: actions@github.com
           default_author: user_info
           message: 'gh-action: updated linux x64 compiled files'
-
 
   prepare-files-macos-x64:
     name: Update MacOS x64 compiled files
