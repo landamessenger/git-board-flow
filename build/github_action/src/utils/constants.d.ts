@@ -37,6 +37,8 @@ export declare const INPUT_KEYS: {
     readonly DOCKER_CONTAINER_NAME: "docker-container-name";
     readonly DOCKER_DOMAIN: "docker-domain";
     readonly DOCKER_PORT: "docker-port";
+    readonly DOCKER_CACHE_OS: "docker-cache-os";
+    readonly DOCKER_CACHE_ARCH: "docker-cache-arch";
     readonly SINGLE_ACTION: "single-action";
     readonly SINGLE_ACTION_ISSUE: "single-action-issue";
     readonly SINGLE_ACTION_VERSION: "single-action-version";
