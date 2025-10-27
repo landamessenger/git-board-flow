@@ -211,8 +211,34 @@ export class DockerRepository {
             await container.stop();
             await container.remove();
             logDebugInfo('🐳 ⚪ Docker container stopped');
+            
+            // Clean up dangling images after stopping
+            await this.cleanupDanglingImages();
         } catch (error) {
             logError('🐳 🔴 Error stopping container: ' + error);
+        }
+    }
+
+    private cleanupDanglingImages = async (): Promise<void> => {
+        try {
+            const images = await this.docker.listImages({ filters: { dangling: ['true'] } });
+            if (images.length > 0) {
+                logDebugInfo(`🐳 🟡 Found ${images.length} dangling images, cleaning up...`);
+                let removedCount = 0;
+                for (const image of images) {
+                    try {
+                        // Force remove to handle different Docker managers (OrbStack, Colima, Docker Desktop)
+                        await this.docker.getImage(image.Id).remove({ force: true });
+                        removedCount++;
+                        logDebugInfo(`🐳 🟡 Removed dangling image: ${image.Id.substring(0, 12)}`);
+                    } catch (error) {
+                        logDebugError(`Error removing dangling image ${image.Id}: ${error}`);
+                    }
+                }
+                logDebugInfo(`🐳 🟢 Dangling images cleanup completed: ${removedCount}/${images.length} removed`);
+            }
+        } catch (error) {
+            logDebugError('Error cleaning up dangling images: ' + error);
         }
     }
 
@@ -271,9 +297,22 @@ export class DockerRepository {
         return response.data;
     }
 
+    /**
+     * Clean up manually all dangling images from the Docker system.
+     * Useful to free space in different managers (OrbStack, Colima, Docker Desktop).
+     */
+    cleanupAllDanglingImages = async (): Promise<void> => {
+        logDebugInfo('🐳 🟡 Starting manual cleanup of all dangling images...');
+        await this.cleanupDanglingImages();
+    }
+
     private commitContainer = async (containerId: string, param: Execution): Promise<void> => {
         try {
             const container = this.docker.getContainer(containerId);
+            
+            // Remove previous cached image if it exists
+            await this.removeCachedImage(param);
+            
             await container.commit({
                 repo: param.dockerConfig.getContainerName(),
                 tag: 'cached'
@@ -282,6 +321,23 @@ export class DockerRepository {
         } catch (error) {
             logError('Error committing container: ' + error);
             throw error;
+        }
+    }
+
+    private removeCachedImage = async (param: Execution): Promise<void> => {
+        try {
+            const images = await this.docker.listImages();
+            const cachedImage = images.find(img => 
+                img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:cached`)
+            );
+            
+            if (cachedImage) {
+                // Force remove to handle different Docker managers (OrbStack, Colima, Docker Desktop)
+                await this.docker.getImage(`${param.dockerConfig.getContainerName()}:cached`).remove({ force: true });
+                logDebugInfo('🐳 🟡 Removed previous cached image');
+            }
+        } catch (error) {
+            logDebugError('Error removing cached image: ' + error);
         }
     }
 
@@ -346,6 +402,9 @@ export class DockerRepository {
                 return false;
             }
 
+            // Eliminar imagen cached anterior si existe para evitar duplicados
+            await this.removeCachedImage(param);
+
             // Load the image from the tar file
             const readStream = fs.createReadStream(tarPath);
             await this.docker.loadImage(readStream);
@@ -378,8 +437,8 @@ export class DockerRepository {
     }
 
     /**
-     * Valida si el sistema operativo y arquitectura actuales coinciden
-     * con los esperados. Devuelve un string formateado si coinciden, o undefined si no.
+     * Validate if the current operating system and architecture match the expected ones.
+     * Return a formatted string if they match, or undefined if they don't.
      *
      * @param expectedOs Ejemplo: "ubuntu-latest", "macos-latest", "windows-latest"
      * @param expectedArch Ejemplo: "amd64", "arm64"

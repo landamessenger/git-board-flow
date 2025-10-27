@@ -11,16 +11,23 @@ export declare class DockerRepository {
     private getContainer;
     private waitForContainer;
     stopContainer: (param: Execution) => Promise<void>;
+    private cleanupDanglingImages;
     isContainerRunning: (param: Execution) => Promise<boolean>;
     getContainerIdByName: (param: Execution) => Promise<string>;
     getEmbedding: (param: Execution, textInstructionsPairs: [string, string][]) => Promise<number[][]>;
     getSystemInfo: (param: Execution) => Promise<any>;
+    /**
+     * Clean up manually all dangling images from the Docker system.
+     * Useful to free space in different managers (OrbStack, Colima, Docker Desktop).
+     */
+    cleanupAllDanglingImages: () => Promise<void>;
     private commitContainer;
+    private removeCachedImage;
     private saveContainerState;
     private restoreContainerState;
     /**
-     * Valida si el sistema operativo y arquitectura actuales coinciden
-     * con los esperados. Devuelve un string formateado si coinciden, o undefined si no.
+     * Validate if the current operating system and architecture match the expected ones.
+     * Return a formatted string if they match, or undefined if they don't.
      *
      * @param expectedOs Ejemplo: "ubuntu-latest", "macos-latest", "windows-latest"
      * @param expectedArch Ejemplo: "amd64", "arm64"
