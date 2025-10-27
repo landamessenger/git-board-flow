@@ -331,7 +331,7 @@ export const INPUT_KEYS = {
     CHORE_TREE: 'chore-tree',
 
     // Commit
-    COMMIT_PREFIX_BUILDER: 'commit-prefix-builder',
+    COMMIT_PREFIX_TRANSFORMS: 'commit-prefix-transforms',
 
     // Issue
     BRANCH_MANAGEMENT_ALWAYS: 'branch-management-always',

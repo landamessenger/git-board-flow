@@ -10,8 +10,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  prepare-files-common:
-    name: Update common compiled files
+  prepare-files:
+    name: Update compiled files
     runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@v4
@@ -27,8 +27,8 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build Common Platform Files
-        run: npm run build-common
+      - name: Build Files
+        run: npm run build
 
       - name: Force add build directory
         run: git add -f ./build/
@@ -39,109 +39,4 @@ jobs:
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
-          message: 'gh-action: updated common compiled files'
-
-  prepare-files-linux-x64:
-    name: Update Linux x64 compiled files
-    runs-on: [self-hosted, Linux]
-    needs: prepare-files-common
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Pull latest changes
-        run: |
-          git config --global user.email "efraespada@gmail.com"
-          git config --global user.name "Efra Espada"
-          git pull --no-ff --no-edit
-
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Build Linux Files
-        run: npm run build-linux-x64
-
-      - name: Force add build directory
-        run: git add -f ./build/
-
-      - name: Commit updated dist directory
-        uses: EndBug/add-and-commit@v9
-        with:
-          committer_name: GitHub Actions
-          committer_email: actions@github.com
-          default_author: user_info
-          message: 'gh-action: updated linux x64 compiled files'
-
-  prepare-files-macos-x64:
-    name: Update MacOS x64 compiled files
-    runs-on: [self-hosted, macOS, X64]
-    needs: prepare-files-linux-x64
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Pull latest changes
-        run: |
-          git config --global user.email "efraespada@gmail.com"
-          git config --global user.name "Efra Espada"
-          git pull --no-ff --no-edit
-
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Build MacOS Files
-        run: npm run build-macos-x64
-
-      - name: Force add build directory
-        run: git add -f ./build/
-
-      - name: Commit updated dist directory
-        uses: EndBug/add-and-commit@v9
-        with:
-          committer_name: GitHub Actions
-          committer_email: actions@github.com
-          default_author: user_info
-          message: 'gh-action: updated macos x64 compiled files'
-  
-  prepare-files-macos-arm64:
-    name: Update MacOS arm64 compiled files
-    runs-on: [self-hosted, macOS, ARM64]
-    needs: prepare-files-macos-x64
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Pull latest changes
-        run: |
-          git config --global user.email "efraespada@gmail.com"
-          git config --global user.name "Efra Espada"
-          git pull --no-ff --no-edit
-
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Build MacOS Files
-        run: npm run build-macos-arm64
-
-      - name: Force add build directory
-        run: git add -f ./build/
-
-      - name: Commit updated dist directory
-        uses: EndBug/add-and-commit@v9
-        with:
-          committer_name: GitHub Actions
-          committer_email: actions@github.com
-          default_author: user_info
-          message: 'gh-action: updated macos arm64 compiled files'
+          message: 'gh-action: updated compiled files'

@@ -70,8 +70,7 @@ jobs:
         uses: landamessenger/git-board-flow@master
         with:
           project-urls: https://github.com/orgs/landamessenger/projects/2, https://github.com/orgs/landamessenger/projects/3
-          commit-prefix-builder: |
-            branchName.replace("/", "-");
+          commit-prefix-transforms: "replace-slash"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
 ```
@@ -104,8 +103,7 @@ jobs:
         uses: landamessenger/git-board-flow@master
         with:
           project-urls: https://github.com/orgs/landamessenger/projects/2, https://github.com/orgs/landamessenger/projects/3
-          commit-prefix-builder: |
-            branchName.replace("/", "-");
+          commit-prefix-transforms: "replace-slash"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
 ```
@@ -136,13 +134,78 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-token-personal: ${{ secrets.REPO_PAT }}
-          commit-prefix-builder: |
-            branchName.replace("/", "-");
+          commit-prefix-transforms: "replace-slash"
 ```
 
-- Warning received if the prefix of the commit does not match the one defined from `commit-prefix-builder`.
+- Warning received if the prefix of the commit does not match the one defined from `commit-prefix-transforms`.
 
 <p align="center"><img width="80%" vspace="10" src="https://github.com/landamessenger/git-board-flow/raw/master/images/issue_commit_warning.png"></p>
+
+---
+
+## Commit Prefix Transforms
+
+Git Board Flow allows you to customize how branch names are transformed into commit prefixes using the `commit-prefix-transforms` parameter. You can apply multiple transformations sequentially to achieve the desired format.
+
+### Available Transformations
+
+| Transform | Description | Example |
+|----------|-------------|---------|
+| `replace-slash` | Replace "/" with "-" | `feature/user-auth` → `feature-user-auth` |
+| `replace-all` | Replace all special chars with "-" | `feature/user_auth!` → `feature-user-auth-` |
+| `lowercase` | Convert to lowercase | `Feature/User-Auth` → `feature/user-auth` |
+| `uppercase` | Convert to uppercase | `feature/user-auth` → `FEATURE/USER-AUTH` |
+| `kebab-case` | Clean kebab-case format | `Feature/User_Auth` → `feature-user-auth` |
+| `snake-case` | Convert to snake_case | `feature/user-auth` → `feature_user_auth` |
+| `camel-case` | Convert to camelCase | `feature/user-auth` → `featureUserAuth` |
+| `trim` | Remove leading/trailing spaces | ` feature/user-auth ` → `feature/user-auth` |
+| `remove-numbers` | Remove all numbers | `feature/123-user-auth` → `feature/-user-auth` |
+| `remove-special` | Remove all special characters | `feature/user-auth!` → `featureuserauth` |
+| `remove-spaces` | Remove all spaces | `feature/ user auth ` → `feature/userauth` |
+| `remove-dashes` | Remove all dashes | `feature-user-auth` → `featureuserauth` |
+| `remove-underscores` | Remove all underscores | `feature_user_auth` → `featureuserauth` |
+| `clean-dashes` | Clean multiple dashes | `feature--user---auth` → `feature-user-auth` |
+| `clean-underscores` | Clean multiple underscores | `feature__user___auth` → `feature_user_auth` |
+| `prefix` | Add prefix | `user-auth` → `prefix-user-auth` |
+| `suffix` | Add suffix | `user-auth` → `user-auth-suffix` |
+
+### Usage Examples
+
+#### Single Transformation
+```yaml
+commit-prefix-transforms: "replace-slash"
+# Result: feature/user-auth → feature-user-auth
+```
+
+#### Multiple Transformations
+```yaml
+commit-prefix-transforms: "replace-all,lowercase,clean-dashes"
+# Result: Feature/User_Auth! → feature-user-auth
+```
+
+#### Advanced Example
+```yaml
+commit-prefix-transforms: "replace-all,remove-numbers,clean-dashes,kebab-case"
+# Result: feature/123-user-auth_v2.0 → feature-user-auth-v
+```
+
+#### Custom Workflow Examples
+```yaml
+# For clean commit prefixes
+commit-prefix-transforms: "replace-all,kebab-case"
+
+# For snake_case convention
+commit-prefix-transforms: "replace-all,snake-case"
+
+# For camelCase convention  
+commit-prefix-transforms: "replace-all,camel-case"
+
+# For uppercase convention
+commit-prefix-transforms: "replace-all,uppercase,clean-dashes"
+```
+
+### Default Behavior
+If no `commit-prefix-transforms` is specified, the default `replace-slash` transformation is applied, maintaining backward compatibility with existing configurations.
 
 ---
 

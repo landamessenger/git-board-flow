@@ -442,9 +442,9 @@ export async function runGitHubAction(): Promise<void> {
     /**
      * Prefix builder
      */
-    let commitPrefixBuilder = getInput(INPUT_KEYS.COMMIT_PREFIX_BUILDER) ?? '';
+    let commitPrefixBuilder = getInput(INPUT_KEYS.COMMIT_PREFIX_TRANSFORMS) ?? '';
     if (commitPrefixBuilder.length === 0) {
-        commitPrefixBuilder = 'branchName.replace("/", "-");';
+        commitPrefixBuilder = 'replace-slash';
     }
 
     /**

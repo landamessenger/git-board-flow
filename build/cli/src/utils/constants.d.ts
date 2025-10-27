@@ -153,7 +153,7 @@ export declare const INPUT_KEYS: {
     readonly RELEASE_TREE: "release-tree";
     readonly DOCS_TREE: "docs-tree";
     readonly CHORE_TREE: "chore-tree";
-    readonly COMMIT_PREFIX_BUILDER: "commit-prefix-builder";
+    readonly COMMIT_PREFIX_TRANSFORMS: "commit-prefix-transforms";
     readonly BRANCH_MANAGEMENT_ALWAYS: "branch-management-always";
     readonly REOPEN_ISSUE_ON_PUSH: "reopen-issue-on-push";
     readonly DESIRED_ASSIGNEES_COUNT: "desired-assignees-count";

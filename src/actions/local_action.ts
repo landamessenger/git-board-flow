@@ -450,9 +450,9 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     /**
      * Prefix builder
      */
-    let commitPrefixBuilder = additionalParams[INPUT_KEYS.COMMIT_PREFIX_BUILDER] ?? actionInputs[INPUT_KEYS.COMMIT_PREFIX_BUILDER] ?? '';
+    let commitPrefixBuilder = additionalParams[INPUT_KEYS.COMMIT_PREFIX_TRANSFORMS] ?? actionInputs[INPUT_KEYS.COMMIT_PREFIX_TRANSFORMS] ?? '';
     if (commitPrefixBuilder.length === 0) {
-        commitPrefixBuilder = 'branchName.replace("/", "-");';
+        commitPrefixBuilder = 'replace-slash';
     }
 
     /**
