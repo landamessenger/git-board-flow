@@ -93,7 +93,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
             
             // Push to registry
             logInfo(`🐳 🟡 Pushing AI container image to registry: ${imageName}`);
-            await this.dockerRepository.pushImageToRegistry(param.owner, imageName);
+            await this.dockerRepository.pushImageToRegistry(param, imageName);
             
             logInfo(`🐳 🟢 AI container image successfully built and pushed: ${imageName}`);
         } catch (error) {

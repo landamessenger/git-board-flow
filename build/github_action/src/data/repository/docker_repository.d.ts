@@ -37,5 +37,5 @@ export declare class DockerRepository {
     /**
      * Push an image to the registry
      */
-    pushImageToRegistry: (organization_name: string, imageName: string) => Promise<void>;
+    pushImageToRegistry: (param: Execution, imageName: string) => Promise<void>;
 }

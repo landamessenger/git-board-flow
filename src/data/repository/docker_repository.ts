@@ -423,28 +423,8 @@ export class DockerRepository {
     /**
      * Authenticate with GitHub Container Registry
      */
-    private authenticateWithRegistry = async (organizationName: string): Promise<void> => {
+    private authenticateWithRegistry = async (organizationName: string, token: string): Promise<void> => {
         try {
-            let token = process.env.GITHUB_TOKEN;
-            
-            // If no token in environment, try to read from file
-            if (!token) {
-                try {
-                    const fs = require('fs');
-                    const tokenPath = path.join(process.cwd(), '.github_token');
-                    if (fs.existsSync(tokenPath)) {
-                        token = fs.readFileSync(tokenPath, 'utf8').trim();
-                        logDebugInfo(`🐳 🟡 Using token from .github_token file`);
-                    }
-                } catch (error) {
-                    // Ignore file read errors
-                }
-            }
-            
-            if (!token) {
-                throw new Error('GITHUB_TOKEN environment variable or .github_token file is required for registry authentication');
-            }
-
             logDebugInfo(`🐳 🟡 Authenticating with GitHub Container Registry as ${organizationName}`);
             
             // Execute docker login command and capture output
@@ -475,12 +455,12 @@ export class DockerRepository {
     /**
      * Push an image to the registry
      */
-    pushImageToRegistry = async (organization_name: string, imageName: string): Promise<void> => {
+    pushImageToRegistry = async (param: Execution, imageName: string): Promise<void> => {
         try {
             logDebugInfo(`🐳 🟡 Pushing image to registry: ${imageName}`);
             
             // Authenticate with registry first
-            await this.authenticateWithRegistry(organization_name);
+            await this.authenticateWithRegistry(param.owner, param.tokens.token);
             
             // Tag the image with the full registry name
             const registryImageName = `ghcr.io/${imageName}`;
