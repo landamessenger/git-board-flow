@@ -37,7 +37,7 @@ program
 
 program
   .command('build-ai')
-  .description('Build AI')
+  .description('Build AI container and execute vector indexing')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .action(async (options) => {    
@@ -54,7 +54,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
-      [INPUT_KEYS.TOKEN]: process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
       repo: {
         owner: gitInfo.owner,
@@ -63,11 +63,11 @@ program
       issue: {
         number: 1,
       },
-    }
+    };
 
-    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Indexing';
+    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Container Build';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [
-      `Processing code blocks on ${gitInfo.owner}/${gitInfo.repo}...`,
+      `Building AI container for ${gitInfo.owner}/${gitInfo.repo}...`,
     ];
 
     await runLocalAction(params);

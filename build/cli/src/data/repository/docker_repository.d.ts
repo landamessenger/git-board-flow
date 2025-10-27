@@ -2,12 +2,17 @@ import { Execution } from '../model/execution';
 export declare class DockerRepository {
     private docker;
     private readonly dockerDir;
-    private cacheRepository;
     constructor();
+    private isGitHubActions;
+    private isSelfHostedRunner;
+    private shouldUsePrebuiltImage;
+    private shouldUseLocalImage;
+    getArchitectureType(): string;
     startContainer: (param: Execution) => Promise<void>;
     private runContainer;
     private imageExists;
-    private buildImage;
+    private pullPrebuiltImage;
+    buildImage: (param: Execution, imageName?: string) => Promise<void>;
     private getContainer;
     private waitForContainer;
     stopContainer: (param: Execution) => Promise<void>;
@@ -21,17 +26,16 @@ export declare class DockerRepository {
      * Useful to free space in different managers (OrbStack, Colima, Docker Desktop).
      */
     cleanupAllDanglingImages: () => Promise<void>;
-    private commitContainer;
-    private removeCachedImage;
-    private saveContainerState;
-    private restoreContainerState;
     /**
-     * Validate if the current operating system and architecture match the expected ones.
-     * Return a formatted string if they match, or undefined if they don't.
-     *
-     * @param expectedOs Ejemplo: "ubuntu-latest", "macos-latest", "windows-latest"
-     * @param expectedArch Ejemplo: "amd64", "arm64"
-     * @returns string (clave para la caché) o undefined si no coincide
+     * Check if an image exists in the registry by attempting to pull it
      */
-    private machineCachable;
+    checkImageInRegistry: (imageName: string) => Promise<boolean>;
+    /**
+     * Authenticate with GitHub Container Registry
+     */
+    private authenticateWithRegistry;
+    /**
+     * Push an image to the registry
+     */
+    pushImageToRegistry: (organization_name: string, imageName: string) => Promise<void>;
 }

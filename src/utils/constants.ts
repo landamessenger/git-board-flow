@@ -361,8 +361,3 @@ export const ACTIONS = {
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',
 } as const; 
-
-export const CACHE_KEYS = {
-    DOCKER_VECTOR: 'docker_vector',
-    DOCKER_DATABASE: 'docker_database',
-} as const; 
