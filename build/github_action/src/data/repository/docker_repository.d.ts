@@ -30,6 +30,7 @@ export declare class DockerRepository {
      * Check if an image exists in the registry by attempting to pull it
      */
     checkImageInRegistry: (organizationName: string, imageName: string, token: string) => Promise<boolean>;
+    cleanupIncompleteLayers: (imageName: string) => Promise<void>;
     /**
      * Authenticate with GitHub Container Registry
      */
