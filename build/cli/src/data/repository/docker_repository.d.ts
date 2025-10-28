@@ -10,9 +10,11 @@ export declare class DockerRepository {
     getArchitectureType(): string;
     startContainer: (param: Execution) => Promise<void>;
     private runContainer;
-    private imageExists;
+    imageExists: (param: Execution) => Promise<boolean>;
+    getImageName(param: Execution): string;
+    getImageNameWithTag(param: Execution): string;
     private pullPrebuiltImage;
-    buildImage: (param: Execution, imageName?: string) => Promise<void>;
+    buildImage: (param: Execution) => Promise<void>;
     private getContainer;
     private waitForContainer;
     stopContainer: (param: Execution) => Promise<void>;
@@ -29,7 +31,7 @@ export declare class DockerRepository {
     /**
      * Check if an image exists in the registry by attempting to pull it
      */
-    checkImageInRegistry: (organizationName: string, imageName: string, token: string) => Promise<boolean>;
+    checkImageInRegistry: (param: Execution) => Promise<boolean>;
     cleanupIncompleteLayers: (imageName: string) => Promise<void>;
     /**
      * Authenticate with GitHub Container Registry

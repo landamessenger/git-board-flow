@@ -5,7 +5,5 @@ export declare class PrepareAIContainerUseCase implements ParamUseCase<Execution
     taskId: string;
     private dockerRepository;
     invoke(param: Execution): Promise<Result[]>;
-    private getImageName;
-    private checkImageInRegistry;
     private buildAndPushImage;
 }
