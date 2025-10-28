@@ -535,7 +535,6 @@ export class DockerRepository {
                     const pushProcess = spawn('docker', [
                         'push',
                         '--disable-content-trust',
-                        '--max-concurrent-uploads', '1',
                         registryImageName,
                     ], {
                         stdio: 'inherit',
@@ -545,6 +544,7 @@ export class DockerRepository {
                             DOCKER_CLI_EXPERIMENTAL: 'enabled',
                             DOCKER_CLIENT_TIMEOUT: '1800',
                             COMPOSE_HTTP_TIMEOUT: '1800',
+                            DOCKER_MAX_CONCURRENT_UPLOADS: '1'
                         }
                     });
                     
