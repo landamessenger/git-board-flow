@@ -551,6 +551,7 @@ export class DockerRepository {
                     const pushProcess = spawn('docker', [
                         'push',
                         '--disable-content-trust',
+                        '--platform', `${dockerPlatform}`,
                         registryImageName,
                     ], {
                         stdio: 'inherit',
