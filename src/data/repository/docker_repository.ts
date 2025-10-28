@@ -420,19 +420,39 @@ export class DockerRepository {
             logDebugInfo(`🐳 🟡 Executing pull command: ${pullCommand}`);
             
             try {
-                // Use spawn instead of execSync for real-time output
-                const pullProcess = spawn('docker', ['pull', registryImageName], {
-                    stdio: 'inherit' // This will show real-time output
+                // Use spawn with platform-specific pull to check if image exists for current architecture
+                const archType = this.getArchitectureType();
+                const dockerPlatform = `linux/${archType}`;
+                
+                const pullProcess = spawn('docker', ['pull', '--platform', dockerPlatform, registryImageName], {
+                    stdio: 'pipe' // Capture output to check for architecture errors
                 });
                 
                 const exists = await new Promise<boolean>((resolve, reject) => {
+                    let output = '';
+                    let errorOutput = '';
+                    
+                    pullProcess.stdout?.on('data', (data) => {
+                        output += data.toString();
+                    });
+                    
+                    pullProcess.stderr?.on('data', (data) => {
+                        errorOutput += data.toString();
+                    });
+                    
                     pullProcess.on('close', (code: number) => {
                         if (code === 0) {
-                            logDebugInfo(`🐳 🟢 Image found in registry: ${registryImageName}`);
+                            logDebugInfo(`🐳 🟢 Image found in registry for ${dockerPlatform}: ${registryImageName}`);
                             resolve(true);
                         } else {
-                            logDebugInfo(`🐳 🟡 Image not found in registry (exit code: ${code})`);
-                            resolve(false);
+                            // Check if it's an architecture mismatch error
+                            if (errorOutput.includes('no matching manifest') || errorOutput.includes('not found')) {
+                                logDebugInfo(`🐳 🟡 Image not found in registry for ${dockerPlatform}: ${registryImageName}`);
+                                resolve(false);
+                            } else {
+                                logDebugInfo(`🐳 🟡 Image pull failed (exit code: ${code}): ${errorOutput}`);
+                                resolve(false);
+                            }
                         }
                     });
                     

@@ -11,11 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Instala solo huggingface-hub para descargar el modelo
-RUN pip install --no-cache-dir huggingface-hub
+# Instala dependencias para descargar el modelo
+RUN pip install --no-cache-dir huggingface-hub InstructorEmbedding
 
 # Pre-descarga el modelo (layer compartida entre arquitecturas)
-RUN python -c "from huggingface_hub import hf_hub_download; hf_hub_download('hkunlp/instructor-xl', 'pytorch_model.bin')"
+RUN python -c "from InstructorEmbedding import INSTRUCTOR; model = INSTRUCTOR('hkunlp/instructor-xl', device='cpu'); print('Model downloaded and cached')"
 
 # ===== STAGE 2: Runtime específico =====
 FROM python:3.11-slim as runtime
