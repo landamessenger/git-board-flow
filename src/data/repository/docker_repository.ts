@@ -534,11 +534,12 @@ export class DockerRepository {
             
             logDebugInfo(`🐳 🟡 Tagged image as: ${registryImageName}`);
             
-            // Get architecture for platform-specific push
+            // Get architecture for platform-specific push (use linux platform for Docker)
             const archType = this.getArchitectureType();
+            const dockerPlatform = `linux/${archType}`;
             
             // Push to registry using direct command with real-time progress and retry
-            const pushCommand = `docker push --platform ${archType} ${registryImageName}`;
+            const pushCommand = `docker push --platform ${dockerPlatform} ${registryImageName}`;
             logDebugInfo(`🐳 🟡 Executing push command: ${pushCommand}`);
             
             const maxRetries = 10;
@@ -550,7 +551,6 @@ export class DockerRepository {
                     const pushProcess = spawn('docker', [
                         'push',
                         '--disable-content-trust',
-                        '--platform', `${archType}`,
                         registryImageName,
                     ], {
                         stdio: 'inherit',
