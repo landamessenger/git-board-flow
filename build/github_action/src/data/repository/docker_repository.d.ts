@@ -15,30 +15,15 @@ export declare class DockerRepository {
     getImageNameWithTag(param: Execution): string;
     private pullPrebuiltImage;
     buildImage: (param: Execution) => Promise<void>;
+    checkImageInRegistry: (param: Execution) => Promise<boolean>;
+    pushImageToRegistry: (param: Execution, imageName: string) => Promise<void>;
+    private authenticateWithRegistry;
     private getContainer;
     private waitForContainer;
-    stopContainer: (param: Execution) => Promise<void>;
-    private cleanupDanglingImages;
-    isContainerRunning: (param: Execution) => Promise<boolean>;
-    getContainerIdByName: (param: Execution) => Promise<string>;
+    private getContainerIdByName;
+    isContainerRunning(param: Execution): Promise<boolean>;
     getEmbedding: (param: Execution, textInstructionsPairs: [string, string][]) => Promise<number[][]>;
     getSystemInfo: (param: Execution) => Promise<any>;
-    /**
-     * Clean up manually all dangling images from the Docker system.
-     * Useful to free space in different managers (OrbStack, Colima, Docker Desktop).
-     */
-    cleanupAllDanglingImages: () => Promise<void>;
-    /**
-     * Check if an image exists in the registry by attempting to pull it
-     */
-    checkImageInRegistry: (param: Execution) => Promise<boolean>;
-    cleanupIncompleteLayers: (imageName: string) => Promise<void>;
-    /**
-     * Authenticate with GitHub Container Registry
-     */
-    private authenticateWithRegistry;
-    /**
-     * Push an image to the registry
-     */
-    pushImageToRegistry: (param: Execution, imageName: string) => Promise<void>;
+    stopContainer: (param: Execution) => Promise<void>;
+    private cleanupDanglingImages;
 }
