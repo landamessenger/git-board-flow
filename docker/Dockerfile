@@ -11,10 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Instala dependencias para descargar el modelo
-RUN pip install --no-cache-dir torch numpy huggingface-hub InstructorEmbedding
+# Instala dependencias base (layer pequeña)
+RUN pip install --no-cache-dir torch numpy
 
-# Pre-descarga el modelo (layer compartida entre arquitecturas)
+# Instala dependencias de ML (layer mediana)
+RUN pip install --no-cache-dir sentence-transformers huggingface-hub
+
+# Instala InstructorEmbedding (layer pequeña)
+RUN pip install --no-cache-dir InstructorEmbedding
+
+# Pre-descarga el modelo (layer grande pero separada)
 RUN python -c "from InstructorEmbedding import INSTRUCTOR; model = INSTRUCTOR('hkunlp/instructor-xl', device='cpu'); print('Model downloaded and cached')"
 
 # ===== STAGE 2: Runtime específico =====
