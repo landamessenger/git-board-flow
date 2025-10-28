@@ -534,8 +534,11 @@ export class DockerRepository {
             
             logDebugInfo(`🐳 🟡 Tagged image as: ${registryImageName}`);
             
+            // Get architecture for platform-specific push
+            const archType = this.getArchitectureType();
+            
             // Push to registry using direct command with real-time progress and retry
-            const pushCommand = `docker push ${registryImageName}`;
+            const pushCommand = `docker push --platform ${archType} ${registryImageName}`;
             logDebugInfo(`🐳 🟡 Executing push command: ${pushCommand}`);
             
             const maxRetries = 10;
@@ -547,6 +550,7 @@ export class DockerRepository {
                     const pushProcess = spawn('docker', [
                         'push',
                         '--disable-content-trust',
+                        '--platform', `${archType}`,
                         registryImageName,
                     ], {
                         stdio: 'inherit',
@@ -554,16 +558,16 @@ export class DockerRepository {
                             ...process.env,
                             DOCKER_BUILDKIT: '0',
                             DOCKER_CLI_EXPERIMENTAL: 'enabled',
-                            DOCKER_CLIENT_TIMEOUT: '1800',
-                            COMPOSE_HTTP_TIMEOUT: '1800',
+                            DOCKER_CLIENT_TIMEOUT: '3600',
+                            COMPOSE_HTTP_TIMEOUT: '3600',
                             DOCKER_MAX_CONCURRENT_UPLOADS: '1'
                         }
                     });
                     
                     const timeoutId = setTimeout(() => {
                         pushProcess.kill('SIGTERM');
-                        logError(`🐳 🔴 Push timeout after 30 minutes`);
-                    }, 1800000); // 30 minutes
+                        logError(`🐳 🔴 Push timeout after 120 minutes`);
+                    }, 7200000); // 120 minutes
                     
                     await new Promise((resolve, reject) => {
                         pushProcess.on('close', (code: number) => {
