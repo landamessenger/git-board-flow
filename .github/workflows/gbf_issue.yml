@@ -27,4 +27,5 @@ jobs:
           supabase-url: ${{ secrets.SUPABASE_URL }}
           supabase-key: ${{ secrets.SUPABASE_KEY }}
           token: ${{ secrets.PAT }}
+          classic-token: ${{ secrets.CLASSIC_TOKEN }}
 

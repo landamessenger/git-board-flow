@@ -58,6 +58,7 @@ export async function runGitHubAction(): Promise<void> {
      * Tokens
      */
     const token = getInput(INPUT_KEYS.TOKEN, {required: true});
+    const classicToken = getInput(INPUT_KEYS.CLASSIC_TOKEN);
 
     /**
      * AI
@@ -522,7 +523,10 @@ export async function runGitHubAction(): Promise<void> {
             imagesCommitDocs,
             imagesCommitChore,
         ),
-        new Tokens(token),
+        new Tokens(
+            token,
+            classicToken,
+        ),
         new Ai(
             openrouterApiKey,
             openrouterModel,

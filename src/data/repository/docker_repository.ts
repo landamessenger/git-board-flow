@@ -460,7 +460,7 @@ export class DockerRepository {
             logDebugInfo(`🐳 🟡 Pushing image to registry: ${imageName}`);
             
             // Authenticate with registry first
-            await this.authenticateWithRegistry(param.owner, param.tokens.token);
+            await this.authenticateWithRegistry(param.owner, param.tokens.classicToken);
             
             // Tag the image with the full registry name
             const registryImageName = `ghcr.io/${imageName}`;

@@ -40,6 +40,7 @@ program
   .description('Build AI container and execute vector indexing')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('-c, --classic-token <classictoken>', 'Classic personal access token', process.env.CLASSIC_TOKEN)
   .action(async (options) => {    
     const gitInfo = getGitInfo();
     
@@ -55,6 +56,7 @@ program
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.CLASSIC_TOKEN]: options.classictoken || process.env.CLASSIC_TOKEN,
       [INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
       repo: {
         owner: gitInfo.owner,
