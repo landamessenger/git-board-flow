@@ -29,7 +29,7 @@ export declare class DockerRepository {
     /**
      * Check if an image exists in the registry by attempting to pull it
      */
-    checkImageInRegistry: (imageName: string) => Promise<boolean>;
+    checkImageInRegistry: (organizationName: string, imageName: string, token: string) => Promise<boolean>;
     /**
      * Authenticate with GitHub Container Registry
      */
