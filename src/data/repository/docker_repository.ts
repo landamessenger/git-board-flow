@@ -442,6 +442,37 @@ export class DockerRepository {
         }
     }
 
+    cleanupIncompleteLayers = async (imageName: string): Promise<void> => {
+        try {
+            logDebugInfo(`🐳 🟡 Cleaning up incomplete layers for: ${imageName}`);
+            
+            // Remove the local image to force a clean rebuild
+            try {
+                const image = this.docker.getImage(imageName);
+                await image.remove({ force: true });
+                logDebugInfo(`🐳 🟡 Removed local image: ${imageName}`);
+            } catch (error) {
+                logDebugInfo(`🐳 🟡 Local image not found or already removed: ${imageName}`);
+            }
+            
+            // Also try to remove the image without ghcr.io prefix
+            const registryImageName = `ghcr.io/${imageName}`;
+            try {
+                const localImage = this.docker.getImage(registryImageName);
+                await localImage.remove({ force: true });
+                logDebugInfo(`🐳 🟡 Removed local image: ${registryImageName}`);
+            } catch (error) {
+                logDebugInfo(`🐳 🟡 Local image not found or already removed: ${registryImageName}`);
+            }
+            
+            // Clean up any dangling images
+            await this.cleanupDanglingImages();
+            
+        } catch (error) {
+            logDebugInfo(`🐳 🟡 Error cleaning up incomplete layers: ${error}`);
+        }
+    }
+
     /**
      * Authenticate with GitHub Container Registry
      */
@@ -519,6 +550,7 @@ export class DockerRepository {
                                 logDebugInfo(`🐳 🟢 Image pushed successfully: ${registryImageName}`);
                                 resolve(code);
                             } else {
+                                logError(`🐳 🔴 Docker push failed with exit code ${code}`);
                                 reject(new Error(`Docker push failed with exit code ${code}`));
                             }
                         });
@@ -539,11 +571,26 @@ export class DockerRepository {
                     if (retryCount < maxRetries) {
                         const waitTime = retryCount * 30; // 30, 60, 90 seconds
                         logDebugInfo(`🐳 🟡 Retrying push in ${waitTime} seconds... (attempt ${retryCount + 1}/${maxRetries})`);
+                        
+                        // Clean up any incomplete layers before retry
+                        logDebugInfo(`🐳 🟡 Cleaning up incomplete layers before retry...`);
+                        await this.cleanupIncompleteLayers(imageName);
+                        
                         await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
                         
                         // Re-authenticate before retry
                         logDebugInfo(`🐳 🟡 Re-authenticating before retry...`);
                         await this.authenticateWithRegistry(param.owner, param.tokens.classicToken);
+                        
+                        // Rebuild the image before retry
+                        logDebugInfo(`🐳 🟡 Rebuilding image before retry...`);
+                        await this.buildImage(param, imageName);
+                        
+                        // Re-tag the image for registry
+                        logDebugInfo(`🐳 🟡 Re-tagging image for registry...`);
+                        const image = this.docker.getImage(imageName);
+                        await image.tag({ repo: registryImageName, tag: 'latest' });
+                        
                     } else {
                         logError(`🐳 🔴 Docker push failed after ${maxRetries} attempts`);
                         throw error;
