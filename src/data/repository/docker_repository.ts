@@ -396,24 +396,46 @@ export class DockerRepository {
     /**
      * Check if an image exists in the registry by attempting to pull it
      */
-    checkImageInRegistry = async (imageName: string): Promise<boolean> => {
+    checkImageInRegistry = async (organizationName: string, imageName: string, token: string): Promise<boolean> => {
         try {
             logDebugInfo(`🐳 🟡 Checking if image exists in registry: ${imageName}`);
             
-            // Try to pull the image to check if it exists
-            const stream = await this.docker.pull(imageName);
-            await new Promise((resolve, reject) => {
-                this.docker.modem.followProgress(stream, (err: any, res: any) => {
-                    if (err) {
-                        logDebugInfo(`🐳 🟡 Image not found in registry: ${err.message}`);
-                        resolve(false);
-                    } else {
-                        logDebugInfo(`🐳 🟢 Image found in registry: ${imageName}`);
-                        resolve(true);
-                    }
+            // Authenticate first before checking
+            await this.authenticateWithRegistry(organizationName, token);
+            
+            // Use direct docker pull command with real-time output
+            const registryImageName = `ghcr.io/${imageName}`;
+            const pullCommand = `docker pull ${registryImageName}`;
+            logDebugInfo(`🐳 🟡 Executing pull command: ${pullCommand}`);
+            
+            try {
+                // Use spawn instead of execSync for real-time output
+                const pullProcess = spawn('docker', ['pull', registryImageName], {
+                    stdio: 'inherit' // This will show real-time output
                 });
-            });
-            return true;
+                
+                const exists = await new Promise<boolean>((resolve, reject) => {
+                    pullProcess.on('close', (code: number) => {
+                        if (code === 0) {
+                            logDebugInfo(`🐳 🟢 Image found in registry: ${registryImageName}`);
+                            resolve(true);
+                        } else {
+                            logDebugInfo(`🐳 🟡 Image not found in registry (exit code: ${code})`);
+                            resolve(false);
+                        }
+                    });
+                    
+                    pullProcess.on('error', (error: Error) => {
+                        logDebugInfo(`🐳 🟡 Image not found in registry: ${error.message}`);
+                        resolve(false);
+                    });
+                });
+                
+                return exists;
+            } catch (error: any) {
+                logDebugInfo(`🐳 🟡 Image not found in registry: ${error.message}`);
+                return false;
+            }
         } catch (error) {
             logDebugInfo(`🐳 🟡 Image not found in registry: ${error}`);
             return false;
