@@ -149,7 +149,7 @@ export class DockerRepository {
     }
 
     getImageName(param: Execution): string {
-        return `${param.owner}/manager-ai`;
+        return `${param.dockerConfig.getContainerName()}`;
     }
 
     getImageNameWithTag(param: Execution): string {
@@ -159,10 +159,11 @@ export class DockerRepository {
     private pullPrebuiltImage = async (param: Execution): Promise<boolean> => {
         try {
             const imageName = this.getImageNameWithTag(param);
-            logDebugInfo(`🐳 🟡 Pulling prebuilt image: ${imageName}`);
+            const registryImageName = `ghcr.io/${param.owner}/${imageName}`;
+            logDebugInfo(`🐳 🟡 Pulling prebuilt image: ${registryImageName}`);
             
-            // Try to pull from Docker Hub or GitHub Container Registry
-            const stream = await this.docker.pull(imageName);
+            // Try to pull from GitHub Container Registry
+            const stream = await this.docker.pull(registryImageName);
             await new Promise((resolve, reject) => {
                 this.docker.modem.followProgress(stream, (err: any, res: any) => {
                     if (err) {
@@ -414,7 +415,7 @@ export class DockerRepository {
             await this.authenticateWithRegistry(param.owner, param.tokens.classicToken);
             
             // Use direct docker pull command with real-time output
-            const registryImageName = `ghcr.io/${imageName}`;
+            const registryImageName = `ghcr.io/${param.owner}/${imageName}`;
             const pullCommand = `docker pull ${registryImageName}`;
             logDebugInfo(`🐳 🟡 Executing pull command: ${pullCommand}`);
             
@@ -527,7 +528,7 @@ export class DockerRepository {
             await this.authenticateWithRegistry(param.owner, param.tokens.classicToken);
             
             // Tag the image with the full registry name
-            const registryImageName = `ghcr.io/${imageName}`;
+            const registryImageName = `ghcr.io/${param.owner}/${imageName}`;
             const image = this.docker.getImage(imageName);
             await image.tag({ repo: registryImageName, tag: 'latest' });
             

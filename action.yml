@@ -370,7 +370,7 @@ inputs:
     default: "true"
   docker-container-name:
     description: "Name of the Docker container to use."
-    default: "git-board-flow"
+    default: "manager-ai"
   docker-domain:
     description: "Domain of the Docker container to use."
     default: "localhost"
