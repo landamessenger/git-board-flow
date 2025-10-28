@@ -531,16 +531,26 @@ export class DockerRepository {
             
             while (retryCount < maxRetries) {
                 try {
-                    // Use spawn instead of execSync for real-time output with longer timeout
                     const { spawn } = require('child_process');
-                    const pushProcess = spawn('docker', ['push', registryImageName], {
-                        stdio: 'inherit' // This will show real-time output
+                    const pushProcess = spawn('docker', [
+                        'push',
+                        '--disable-content-trust',
+                        '--max-concurrent-uploads', '1',
+                        registryImageName,
+                    ], {
+                        stdio: 'inherit',
+                        env: {
+                            ...process.env,
+                            DOCKER_BUILDKIT: '0',
+                            DOCKER_CLI_EXPERIMENTAL: 'enabled',
+                            DOCKER_CLIENT_TIMEOUT: '1800',
+                            COMPOSE_HTTP_TIMEOUT: '1800',
+                        }
                     });
                     
-                    // Set a longer timeout for large images
                     const timeoutId = setTimeout(() => {
                         pushProcess.kill('SIGTERM');
-                        logError(`🐳 🔴 Push timeout after 100 minutes`);
+                        logError(`🐳 🔴 Push timeout after 30 minutes`);
                     }, 1800000); // 30 minutes
                     
                     await new Promise((resolve, reject) => {
@@ -569,7 +579,7 @@ export class DockerRepository {
                     logError(`🐳 🔴 Docker push attempt ${retryCount} failed: ${error.message}`);
                     
                     if (retryCount < maxRetries) {
-                        const waitTime = retryCount * 30; // 30, 60, 90 seconds
+                        const waitTime = retryCount * 120; // 2, 4, 6 minutes for large layers
                         logDebugInfo(`🐳 🟡 Retrying push in ${waitTime} seconds... (attempt ${retryCount + 1}/${maxRetries})`);
                         
                         // Clean up any incomplete layers before retry
