@@ -76,7 +76,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
             
             // Try to pull the image to check if it exists
             const exists = await this.dockerRepository.checkImageInRegistry(param.owner, imageName, param.tokens.classicToken);
-            return exists;
+            return false;
         } catch (error) {
             logDebugInfo(`🐳 🟡 Image not found in registry: ${error}`);
             return false;
@@ -89,7 +89,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
             logInfo(`🐳 🟡 Building AI container image: ${imageName}`);
             
             // Build the image
-            await this.dockerRepository.buildImage(param, imageName);
+            // await this.dockerRepository.buildImage(param, imageName);
             
             // Push to registry
             logInfo(`🐳 🟡 Pushing AI container image to registry: ${imageName}`);
