@@ -66,7 +66,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
 
     private getImageName(param: Execution): string {
         const archType = this.dockerRepository.getArchitectureType();
-        return `${param.owner}/${param.repo}/manager-${archType}-ai:latest`;
+        return `${param.owner}/manager-${archType}-ai:latest`;
     }
 
     private async checkImageInRegistry(param: Execution): Promise<boolean> {
