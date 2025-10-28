@@ -15,7 +15,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
 
         try {
             // Check if image already exists in registry
-            const imageExistsInRegistry = await this.checkImageInRegistry(param);
+            const imageExistsInRegistry = await this.dockerRepository.checkImageInRegistry(param);
             
             if (imageExistsInRegistry) {
                 logInfo('🐳 🟢 AI container image already exists in registry, skipping build');
@@ -25,7 +25,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
                         success: true,
                         executed: true,
                         steps: [
-                            `AI container image already exists in registry: ${this.getImageName(param)}`,
+                            `AI container image already exists in registry: ${this.dockerRepository.getImageName(param)}`,
                         ],
                     })
                 );
@@ -42,7 +42,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
                     success: true,
                     executed: true,
                     steps: [
-                        `AI container image built and pushed to registry: ${this.getImageName(param)}`,
+                        `AI container image built and pushed to registry: ${this.dockerRepository.getImageName(param)}`,
                     ],
                 })
             );
@@ -64,32 +64,19 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
         return results;
     }
 
-    private getImageName(param: Execution): string {
-        const archType = this.dockerRepository.getArchitectureType();
-        return `${param.owner}/manager-${archType}-ai:latest`;
-    }
-
-    private async checkImageInRegistry(param: Execution): Promise<boolean> {
-        try {
-            const imageName = this.getImageName(param);
-            logDebugInfo(`🐳 🟡 Checking if image exists in registry: ${imageName}`);
-            
-            // Try to pull the image to check if it exists
-            const exists = await this.dockerRepository.checkImageInRegistry(param.owner, imageName, param.tokens.classicToken);
-            return false;
-        } catch (error) {
-            logDebugInfo(`🐳 🟡 Image not found in registry: ${error}`);
-            return false;
-        }
-    }
-
     private async buildAndPushImage(param: Execution): Promise<void> {
         try {
-            const imageName = this.getImageName(param);
+            const imageName = this.dockerRepository.getImageName(param);
             logInfo(`🐳 🟡 Building AI container image: ${imageName}`);
             
             // Build the image
-            // await this.dockerRepository.buildImage(param, imageName);
+            const imageExists = await this.dockerRepository.imageExists(param);
+            if (!imageExists) {
+                logDebugInfo('🐳 🟡 Local image not found, building...');
+                await this.dockerRepository.buildImage(param);
+            } else {
+                logDebugInfo('🐳 🟢 Local image already exists, skipping build');
+            }
             
             // Push to registry
             logInfo(`🐳 🟡 Pushing AI container image to registry: ${imageName}`);

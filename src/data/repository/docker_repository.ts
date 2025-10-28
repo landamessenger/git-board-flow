@@ -141,16 +141,25 @@ export class DockerRepository {
         logDebugInfo('🐳 🟢 Docker container is ready');
     }
 
-    private imageExists = async (param: Execution): Promise<boolean> => {
+     imageExists = async (param: Execution): Promise<boolean> => {
         const images = await this.docker.listImages();
         return images.some(img => 
-            img.RepoTags && img.RepoTags.includes(`${param.dockerConfig.getContainerName()}:latest`)
+            img.RepoTags && img.RepoTags.includes(this.getImageNameWithTag(param))
         );
+    }
+
+    getImageName(param: Execution): string {
+        const archType = this.getArchitectureType();
+        return `${param.owner}/manager-${archType}-ai`;
+    }
+
+    getImageNameWithTag(param: Execution): string {
+        return `${this.getImageName(param)}:latest`;
     }
 
     private pullPrebuiltImage = async (param: Execution): Promise<boolean> => {
         try {
-            const imageName = `${param.dockerConfig.getContainerName()}:latest`;
+            const imageName = this.getImageNameWithTag(param);
             logDebugInfo(`🐳 🟡 Pulling prebuilt image: ${imageName}`);
             
             // Try to pull from Docker Hub or GitHub Container Registry
@@ -173,17 +182,17 @@ export class DockerRepository {
         }
     }
 
-    buildImage = async (param: Execution, imageName?: string): Promise<void> => {
-        const finalImageName = imageName || `${param.dockerConfig.getContainerName()}:latest`;
+    buildImage = async (param: Execution): Promise<void> => {
+        const imageName = this.getImageNameWithTag(param);
         const archType = this.getArchitectureType();
-        logDebugInfo(`🐳 🟡 Building Docker image: ${finalImageName} for architecture: ${archType}`);
+        logDebugInfo(`🐳 🟡 Building Docker image: ${imageName} for architecture: ${archType}`);
         
         // Build the image with explicit tagging and platform
         const stream = await this.docker.buildImage({
             context: this.dockerDir,
             src: ['Dockerfile', 'requirements.txt', 'main.py'],
         }, { 
-            t: finalImageName,
+            t: imageName,
             dockerfile: 'Dockerfile',
             buildargs: {},
             nocache: false, // Enable Docker's built-in cache
@@ -210,12 +219,12 @@ export class DockerRepository {
         try {
             const images = await this.docker.listImages();
             const actionImage = images.find(img => 
-                img.RepoTags && img.RepoTags.includes(finalImageName)
+                img.RepoTags && img.RepoTags.includes(imageName)
             );
             
             if (!actionImage) {
-                logError(`🐳 🔴 Image ${finalImageName} not found after build`);
-                throw new Error(`Image ${finalImageName} not found after build`);
+                logError(`🐳 🔴 Image ${imageName} not found after build`);
+                throw new Error(`Image ${imageName} not found after build`);
             }
             
             logDebugInfo('🐳 🟢 Image exists and is properly tagged');
@@ -227,13 +236,14 @@ export class DockerRepository {
 
     private getContainer = async (param: Execution): Promise<Container> => {
         const containerId = await this.getContainerIdByName(param);
+        const imageName = this.getImageNameWithTag(param);
         if (containerId) {
-            logDebugInfo(`🐳 🟡 Container already exists... ${param.dockerConfig.getContainerName()}:${param.dockerConfig.getPort()}`);
+            logDebugInfo(`🐳 🟡 Container already exists... ${imageName}`);
             return this.docker.getContainer(containerId);
         }
-        logDebugInfo(`🐳 🟡 Creating container... ${param.dockerConfig.getContainerName()}:${param.dockerConfig.getPort()}`);
+        logDebugInfo(`🐳 🟡 Creating container... ${imageName}`);
         return this.docker.createContainer({
-            Image: `${param.dockerConfig.getContainerName()}:latest`,
+            Image: imageName,
             ExposedPorts: {
                 [`${param.dockerConfig.getPort()}/tcp`]: {}
             },
@@ -242,7 +252,7 @@ export class DockerRepository {
                     [`${param.dockerConfig.getPort()}/tcp`]: [{ HostPort: param.dockerConfig.getPort().toString() }]
                 }
             },
-            name: param.dockerConfig.getContainerName()
+            name: this.getImageName(param)
         });
     }
 
@@ -333,7 +343,7 @@ export class DockerRepository {
         try {
             const containers = await this.docker.listContainers({ all: true });
             const container = containers.find(container => 
-                container.Names.some(name => name === `/${param.dockerConfig.getContainerName()}`)
+                container.Names.some(name => name === `/${this.getImageName(param)}`)
             );
             return container?.State === 'running' || false;
         } catch (error) {
@@ -346,7 +356,7 @@ export class DockerRepository {
         try {
             const containers = await this.docker.listContainers({ all: true });
             const container = containers.find(container => 
-                container.Names.some(name => name === `/${param.dockerConfig.getContainerName()}`)
+                container.Names.some(name => name === `/${this.getImageName(param)}`)
             );
             return container?.Id || '';
         } catch (error) {
@@ -396,12 +406,13 @@ export class DockerRepository {
     /**
      * Check if an image exists in the registry by attempting to pull it
      */
-    checkImageInRegistry = async (organizationName: string, imageName: string, token: string): Promise<boolean> => {
+    checkImageInRegistry = async (param: Execution): Promise<boolean> => {
         try {
+            const imageName = this.getImageNameWithTag(param);
             logDebugInfo(`🐳 🟡 Checking if image exists in registry: ${imageName}`);
             
             // Authenticate first before checking
-            await this.authenticateWithRegistry(organizationName, token);
+            await this.authenticateWithRegistry(param.owner, param.tokens.classicToken);
             
             // Use direct docker pull command with real-time output
             const registryImageName = `ghcr.io/${imageName}`;
@@ -447,6 +458,7 @@ export class DockerRepository {
             logDebugInfo(`🐳 🟡 Cleaning up incomplete layers for: ${imageName}`);
             
             // Remove the local image to force a clean rebuild
+            /*
             try {
                 const image = this.docker.getImage(imageName);
                 await image.remove({ force: true });
@@ -463,7 +475,7 @@ export class DockerRepository {
                 logDebugInfo(`🐳 🟡 Removed local image: ${registryImageName}`);
             } catch (error) {
                 logDebugInfo(`🐳 🟡 Local image not found or already removed: ${registryImageName}`);
-            }
+            }*/
             
             // Clean up any dangling images
             await this.cleanupDanglingImages();
@@ -594,7 +606,7 @@ export class DockerRepository {
                         
                         // Rebuild the image before retry
                         logDebugInfo(`🐳 🟡 Rebuilding image before retry...`);
-                        await this.buildImage(param, imageName);
+                        await this.buildImage(param);
                         
                         // Re-tag the image for registry
                         logDebugInfo(`🐳 🟡 Re-tagging image for registry...`);

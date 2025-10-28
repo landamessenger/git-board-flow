@@ -13,10 +13,6 @@ export class DockerConfig {
         this.cacheArch = cacheArch;
     }
 
-    public getContainerName(): string {
-        return this.containerName;
-    }
-
     public getDomain(): string {
         return this.domain;
     }
