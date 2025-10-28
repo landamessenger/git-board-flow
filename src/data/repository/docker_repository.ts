@@ -600,7 +600,6 @@ export class DockerRepository {
                         logDebugInfo(`🐳 🟡 Re-tagging image for registry...`);
                         const image = this.docker.getImage(imageName);
                         await image.tag({ repo: registryImageName, tag: 'latest' });
-                        
                     } else {
                         logError(`🐳 🔴 Docker push failed after ${maxRetries} attempts`);
                         throw error;
