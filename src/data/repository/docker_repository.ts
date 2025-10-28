@@ -491,34 +491,64 @@ export class DockerRepository {
             
             logDebugInfo(`🐳 🟡 Tagged image as: ${registryImageName}`);
             
-            // Push to registry using direct command with real-time progress
+            // Push to registry using direct command with real-time progress and retry
             const pushCommand = `docker push ${registryImageName}`;
             logDebugInfo(`🐳 🟡 Executing push command: ${pushCommand}`);
             
-            try {
-                // Use spawn instead of execSync for real-time output
-                const { spawn } = require('child_process');
-                const pushProcess = spawn('docker', ['push', registryImageName], {
-                    stdio: 'inherit' // This will show real-time output
-                });
-                
-                await new Promise((resolve, reject) => {
-                    pushProcess.on('close', (code: number) => {
-                        if (code === 0) {
-                            logDebugInfo(`🐳 🟢 Image pushed successfully: ${registryImageName}`);
-                            resolve(code);
-                        } else {
-                            reject(new Error(`Docker push failed with exit code ${code}`));
-                        }
+            const maxRetries = 10;
+            let retryCount = 0;
+            
+            while (retryCount < maxRetries) {
+                try {
+                    // Use spawn instead of execSync for real-time output with longer timeout
+                    const { spawn } = require('child_process');
+                    const pushProcess = spawn('docker', ['push', registryImageName], {
+                        stdio: 'inherit' // This will show real-time output
                     });
                     
-                    pushProcess.on('error', (error: Error) => {
-                        reject(error);
+                    // Set a longer timeout for large images
+                    const timeoutId = setTimeout(() => {
+                        pushProcess.kill('SIGTERM');
+                        logError(`🐳 🔴 Push timeout after 100 minutes`);
+                    }, 1800000); // 30 minutes
+                    
+                    await new Promise((resolve, reject) => {
+                        pushProcess.on('close', (code: number) => {
+                            clearTimeout(timeoutId);
+                            if (code === 0) {
+                                logDebugInfo(`🐳 🟢 Image pushed successfully: ${registryImageName}`);
+                                resolve(code);
+                            } else {
+                                reject(new Error(`Docker push failed with exit code ${code}`));
+                            }
+                        });
+                        
+                        pushProcess.on('error', (error: Error) => {
+                            clearTimeout(timeoutId);
+                            reject(error);
+                        });
                     });
-                });
-            } catch (error: any) {
-                logError(`🐳 🔴 Docker push error: ${error.message}`);
-                throw error;
+                    
+                    // If we get here, push was successful
+                    break;
+                    
+                } catch (error: any) {
+                    retryCount++;
+                    logError(`🐳 🔴 Docker push attempt ${retryCount} failed: ${error.message}`);
+                    
+                    if (retryCount < maxRetries) {
+                        const waitTime = retryCount * 30; // 30, 60, 90 seconds
+                        logDebugInfo(`🐳 🟡 Retrying push in ${waitTime} seconds... (attempt ${retryCount + 1}/${maxRetries})`);
+                        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+                        
+                        // Re-authenticate before retry
+                        logDebugInfo(`🐳 🟡 Re-authenticating before retry...`);
+                        await this.authenticateWithRegistry(param.owner, param.tokens.classicToken);
+                    } else {
+                        logError(`🐳 🔴 Docker push failed after ${maxRetries} attempts`);
+                        throw error;
+                    }
+                }
             }
         } catch (error) {
             logError(`🐳 🔴 Error pushing image to registry: ${error}`);
