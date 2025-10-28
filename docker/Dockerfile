@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala dependencias para descargar el modelo
-RUN pip install --no-cache-dir torch huggingface-hub InstructorEmbedding
+RUN pip install --no-cache-dir torch numpy huggingface-hub InstructorEmbedding
 
 # Pre-descarga el modelo (layer compartida entre arquitecturas)
 RUN python -c "from InstructorEmbedding import INSTRUCTOR; model = INSTRUCTOR('hkunlp/instructor-xl', device='cpu'); print('Model downloaded and cached')"
