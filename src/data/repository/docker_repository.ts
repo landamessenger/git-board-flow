@@ -149,7 +149,7 @@ export class DockerRepository {
     }
 
     getImageName(param: Execution): string {
-        return `${param.dockerConfig.getContainerName()}`;
+        return param.dockerConfig.getContainerName();
     }
 
     getImageNameWithTag(param: Execution): string {
