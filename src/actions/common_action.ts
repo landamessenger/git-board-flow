@@ -18,6 +18,11 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
     await execution.setup();
 
     if (execution.runnedByToken) {
+        if (execution.isSingleAction && execution.singleAction.validSingleAction) {
+            logInfo(`User from token (${execution.tokenUser}) matches actor. Executing single action.`);
+            results.push(...await new SingleActionUseCase().invoke(execution));
+            return results;
+        }
         logInfo(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
         return results;
     }
