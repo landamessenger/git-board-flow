@@ -20,7 +20,7 @@ jobs:
       - name: Set up DOCKER_HOST as output
         id: docker-env
         run: |
-          echo "docker_host=unix://${HOME}/.colima/default/docker.sock" >> $GITHUB_OUTPUT
+          echo "docker_host=unix://${HOME}/.orbstack/run/docker.sock" >> $GITHUB_OUTPUT
 
       - name: Update AI knowledge
         uses: ./
