@@ -299,9 +299,9 @@ inputs:
   images-commit-hotfix:
     description: "Image URLs to display in hotfix action commit comments."
     default: "" 
-  commit-prefix-builder:
-    description: "Enable commit prefix generation."
-    default: "branchName.replace(\"/\", \"-\");"
+  commit-prefix-transforms:
+    description: "List of transformations to apply sequentially for commit prefix generation. Options: replace-slash, replace-all, lowercase, uppercase, kebab-case, snake-case, camel-case, trim, remove-numbers, clean-dashes, etc."
+    default: "replace-slash"
   reopen-issue-on-push:
     description: "Reopens a closed issue when changes are pushed to the branch associated with the issue."
     default: "true"
@@ -323,6 +323,9 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
+  classic-token:
+    description: "Classic token for authentication with GitHub Container Registry"
+    default: ""
   supabase-key:
     description: "Supabase key for AI operations."
     default: ""
@@ -374,6 +377,12 @@ inputs:
   docker-port:
     description: "Port of the Docker container to use."
     default: "8000"
+  docker-cache-os:
+    description: "OS of the Docker container to cache. Valid values: ubuntu-any-value, macos-any-value, windows-any-value"
+    default: "ubuntu-latest"
+  docker-cache-arch:
+    description: "Architecture of the Docker container to cache. Valid values: amd64, arm64, arm/v7, 386, s390x, ppc64le"
+    default: "amd64"
 runs:
   using: "node20"
   main: "build/github_action/index.js"

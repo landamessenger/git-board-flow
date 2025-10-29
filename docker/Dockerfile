@@ -22,7 +22,7 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Pre-descarga el modelo durante la build
-RUN python -c "from main import load_model; load_model()"
+RUN python -c "from InstructorEmbedding import INSTRUCTOR; model = INSTRUCTOR('hkunlp/instructor-xl', device='cpu'); print('Model downloaded and cached during build')"
 
 # Expone el puerto de la API
 EXPOSE 8000

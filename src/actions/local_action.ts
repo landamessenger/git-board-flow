@@ -50,6 +50,8 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     const dockerContainerName = additionalParams[INPUT_KEYS.DOCKER_CONTAINER_NAME] ?? actionInputs[INPUT_KEYS.DOCKER_CONTAINER_NAME];
     const dockerDomain = additionalParams[INPUT_KEYS.DOCKER_DOMAIN] ?? actionInputs[INPUT_KEYS.DOCKER_DOMAIN];
     const dockerPort = parseInt(additionalParams[INPUT_KEYS.DOCKER_PORT] ?? actionInputs[INPUT_KEYS.DOCKER_PORT]);
+    const dockerCacheOs = additionalParams[INPUT_KEYS.DOCKER_CACHE_OS] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_OS];
+    const dockerCacheArch = additionalParams[INPUT_KEYS.DOCKER_CACHE_ARCH] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_ARCH];
 
     /**
      * Single action
@@ -64,6 +66,7 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      * Tokens
      */
     const token = additionalParams[INPUT_KEYS.TOKEN] ?? actionInputs[INPUT_KEYS.TOKEN];
+    const classicToken = additionalParams[INPUT_KEYS.CLASSIC_TOKEN] ?? actionInputs[INPUT_KEYS.CLASSIC_TOKEN];
 
     /**
      * AI
@@ -448,9 +451,9 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     /**
      * Prefix builder
      */
-    let commitPrefixBuilder = additionalParams[INPUT_KEYS.COMMIT_PREFIX_BUILDER] ?? actionInputs[INPUT_KEYS.COMMIT_PREFIX_BUILDER] ?? '';
+    let commitPrefixBuilder = additionalParams[INPUT_KEYS.COMMIT_PREFIX_TRANSFORMS] ?? actionInputs[INPUT_KEYS.COMMIT_PREFIX_TRANSFORMS] ?? '';
     if (commitPrefixBuilder.length === 0) {
-        commitPrefixBuilder = 'branchName.replace("/", "-");';
+        commitPrefixBuilder = 'replace-slash';
     }
 
     /**
@@ -479,7 +482,13 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
 
     const execution = new Execution(
         debug,
-        new DockerConfig(dockerContainerName, dockerDomain, dockerPort),
+        new DockerConfig(
+            dockerContainerName,
+            dockerDomain,
+            dockerPort,
+            dockerCacheOs,
+            dockerCacheArch,
+        ),
         new SingleAction(
             singleAction,
             singleActionIssue,
@@ -530,7 +539,10 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             imagesCommitDocs,
             imagesCommitChore,
         ),
-        new Tokens(token),
+        new Tokens(
+            token,
+            classicToken,
+        ),
         new Ai(
             openrouterApiKey,
             openrouterModel,

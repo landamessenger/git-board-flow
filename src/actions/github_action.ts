@@ -42,6 +42,8 @@ export async function runGitHubAction(): Promise<void> {
     const dockerContainerName = getInput(INPUT_KEYS.DOCKER_CONTAINER_NAME);
     const dockerDomain = getInput(INPUT_KEYS.DOCKER_DOMAIN);
     const dockerPort = parseInt(getInput(INPUT_KEYS.DOCKER_PORT));
+    const dockerCacheOs = getInput(INPUT_KEYS.DOCKER_CACHE_OS);
+    const dockerCacheArch = getInput(INPUT_KEYS.DOCKER_CACHE_ARCH);
 
     /**
      * Single action
@@ -56,6 +58,7 @@ export async function runGitHubAction(): Promise<void> {
      * Tokens
      */
     const token = getInput(INPUT_KEYS.TOKEN, {required: true});
+    const classicToken = getInput(INPUT_KEYS.CLASSIC_TOKEN);
 
     /**
      * AI
@@ -440,9 +443,9 @@ export async function runGitHubAction(): Promise<void> {
     /**
      * Prefix builder
      */
-    let commitPrefixBuilder = getInput(INPUT_KEYS.COMMIT_PREFIX_BUILDER) ?? '';
+    let commitPrefixBuilder = getInput(INPUT_KEYS.COMMIT_PREFIX_TRANSFORMS) ?? '';
     if (commitPrefixBuilder.length === 0) {
-        commitPrefixBuilder = 'branchName.replace("/", "-");';
+        commitPrefixBuilder = 'replace-slash';
     }
 
     /**
@@ -471,7 +474,7 @@ export async function runGitHubAction(): Promise<void> {
 
     const execution = new Execution(
         debug,
-        new DockerConfig(dockerContainerName, dockerDomain, dockerPort),
+        new DockerConfig(dockerContainerName, dockerDomain, dockerPort, dockerCacheOs, dockerCacheArch),
         new SingleAction(
             singleAction,
             singleActionIssue,
@@ -520,7 +523,10 @@ export async function runGitHubAction(): Promise<void> {
             imagesCommitDocs,
             imagesCommitChore,
         ),
-        new Tokens(token),
+        new Tokens(
+            token,
+            classicToken,
+        ),
         new Ai(
             openrouterApiKey,
             openrouterModel,

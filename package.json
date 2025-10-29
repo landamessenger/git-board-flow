@@ -1,17 +1,13 @@
 {
   "name": "git-board-flow",
-  "version": "1.0.50",
+  "version": "1.0.51",
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "build/github_action/index.js",
   "bin": {
     "git-board-flow": "./build/cli/index.js"
   },
   "scripts": {
-    "build-macos-x64": "ncc build src/actions/github_action.ts -o build/github_action/macos/x64 && ncc build src/cli.ts -o build/cli/macos/x64",
-    "build-macos-arm64": "ncc build src/actions/github_action.ts -o build/github_action/macos/arm64 && ncc build src/cli.ts -o build/cli/macos/arm64",
-    "build-linux-x64": "ncc build src/actions/github_action.ts -o build/github_action/linux/x64 && ncc build src/cli.ts -o build/cli/linux/x64",
-    "build-linux-arm64": "ncc build src/actions/github_action.ts -o build/github_action/linux/arm64 && ncc build src/cli.ts -o build/cli/linux/arm64",
-    "build-common": "ncc build runner/github_action.ts -o build/github_action && ncc build runner/cli.ts -o build/cli && chmod +x build/cli/index.js"
+    "build": "ncc build src/actions/github_action.ts -o build/github_action && ncc build src/cli.ts -o build/cli && chmod +x build/cli/index.js"
   },
   "keywords": [],
   "author": "Landa Messenger",
@@ -33,7 +29,6 @@
     "commander": "^12.0.0",
     "dockerode": "^4.0.5",
     "dotenv": "^16.5.0",
-    "isolated-vm": "^5.0.1",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

@@ -37,12 +37,15 @@ export declare const INPUT_KEYS: {
     readonly DOCKER_CONTAINER_NAME: "docker-container-name";
     readonly DOCKER_DOMAIN: "docker-domain";
     readonly DOCKER_PORT: "docker-port";
+    readonly DOCKER_CACHE_OS: "docker-cache-os";
+    readonly DOCKER_CACHE_ARCH: "docker-cache-arch";
     readonly SINGLE_ACTION: "single-action";
     readonly SINGLE_ACTION_ISSUE: "single-action-issue";
     readonly SINGLE_ACTION_VERSION: "single-action-version";
     readonly SINGLE_ACTION_TITLE: "single-action-title";
     readonly SINGLE_ACTION_CHANGELOG: "single-action-changelog";
     readonly TOKEN: "token";
+    readonly CLASSIC_TOKEN: "classic-token";
     readonly OPENROUTER_API_KEY: "openrouter-api-key";
     readonly OPENROUTER_MODEL: "openrouter-model";
     readonly AI_PULL_REQUEST_DESCRIPTION: "ai-pull-request-description";
@@ -151,7 +154,7 @@ export declare const INPUT_KEYS: {
     readonly RELEASE_TREE: "release-tree";
     readonly DOCS_TREE: "docs-tree";
     readonly CHORE_TREE: "chore-tree";
-    readonly COMMIT_PREFIX_BUILDER: "commit-prefix-builder";
+    readonly COMMIT_PREFIX_TRANSFORMS: "commit-prefix-transforms";
     readonly BRANCH_MANAGEMENT_ALWAYS: "branch-management-always";
     readonly REOPEN_ISSUE_ON_PUSH: "reopen-issue-on-push";
     readonly DESIRED_ASSIGNEES_COUNT: "desired-assignees-count";
@@ -166,6 +169,7 @@ export declare const ERRORS: {
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
+    readonly COMPILE_VECTOR_SERVER: "compile_vector_server";
     readonly VECTOR: "vector_action";
     readonly VECTOR_LOCAL: "vector_local";
     readonly VECTOR_REMOVAL: "vector_removal";

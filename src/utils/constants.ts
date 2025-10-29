@@ -189,6 +189,8 @@ export const INPUT_KEYS = {
     DOCKER_CONTAINER_NAME: 'docker-container-name',
     DOCKER_DOMAIN: 'docker-domain',
     DOCKER_PORT: 'docker-port',
+    DOCKER_CACHE_OS: 'docker-cache-os',
+    DOCKER_CACHE_ARCH: 'docker-cache-arch',
 
     // Single action
     SINGLE_ACTION: 'single-action',
@@ -199,6 +201,7 @@ export const INPUT_KEYS = {
 
     // Tokens
     TOKEN: 'token',
+    CLASSIC_TOKEN: 'classic-token',
 
     // AI
     OPENROUTER_API_KEY: 'openrouter-api-key',
@@ -329,7 +332,7 @@ export const INPUT_KEYS = {
     CHORE_TREE: 'chore-tree',
 
     // Commit
-    COMMIT_PREFIX_BUILDER: 'commit-prefix-builder',
+    COMMIT_PREFIX_TRANSFORMS: 'commit-prefix-transforms',
 
     // Issue
     BRANCH_MANAGEMENT_ALWAYS: 'branch-management-always',
@@ -352,6 +355,7 @@ export const ERRORS = {
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
+    COMPILE_VECTOR_SERVER: 'compile_vector_server',
     VECTOR: 'vector_action',
     VECTOR_LOCAL: 'vector_local',
     VECTOR_REMOVAL: 'vector_removal',

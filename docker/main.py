@@ -65,9 +65,23 @@ class VectorizeRequest(BaseModel):
 # Function to load the model
 def load_model():
     try:
-        model_state["status"] = "downloading"
-        model_state["message"] = "Downloading model..."
-        logger.info(model_state["message"])
+        # Check if model is already downloaded (ubicación real confirmada)
+        cache_dir = os.environ.get('HF_HOME', '/cache/huggingface')
+        model_path = os.path.join(cache_dir, 'hub', 'models--hkunlp--instructor-xl')
+        
+        # Verificar que el modelo existe
+        model_exists = os.path.exists(model_path)
+        
+        if model_exists:
+            model_state["status"] = "loading"
+            model_state["message"] = "Loading pre-downloaded model..."
+            logger.info(f"Model already downloaded, loading from cache... Cache dir: {cache_dir}")
+            logger.info(f"Cache contents: {os.listdir(cache_dir) if os.path.exists(cache_dir) else 'Cache dir not found'}")
+        else:
+            model_state["status"] = "downloading"
+            model_state["message"] = "Downloading model..."
+            logger.info(f"Model not found in cache, downloading... Cache dir: {cache_dir}")
+            logger.info(f"Cache contents: {os.listdir(cache_dir) if os.path.exists(cache_dir) else 'Cache dir not found'}")
 
         try:
             # Instance of the model with different initialization
