@@ -169,6 +169,7 @@ export declare const ERRORS: {
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
+    readonly COMPILE_VECTOR_SERVER: "compile_vector_server";
     readonly VECTOR: "vector_action";
     readonly VECTOR_LOCAL: "vector_local";
     readonly VECTOR_REMOVAL: "vector_removal";

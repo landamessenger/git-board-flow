@@ -8,15 +8,21 @@ export declare class DockerRepository {
     private shouldUsePrebuiltImage;
     private shouldUseLocalImage;
     getArchitectureType(): string;
+    prepareLocalVectorServer: (param: Execution) => Promise<void>;
+    private checkMultiArchImageInRegistry;
+    checkVersionExistsInRegistry: (param: Execution) => Promise<boolean>;
     startContainer: (param: Execution) => Promise<void>;
     private runContainer;
     imageExists: (param: Execution) => Promise<boolean>;
     getImageName(param: Execution): string;
     getImageNameWithTag(param: Execution): string;
+    private generateImageVersion;
+    private generateImageTags;
     private pullPrebuiltImage;
     buildImage: (param: Execution) => Promise<void>;
-    checkImageInRegistry: (param: Execution) => Promise<boolean>;
-    pushImageToRegistry: (param: Execution, imageName: string) => Promise<void>;
+    private checkDockerBuildxAvailable;
+    private buildMultiArchImage;
+    private ensureMultiPlatformBuilder;
     private authenticateWithRegistry;
     private getContainer;
     private waitForContainer;
@@ -26,4 +32,5 @@ export declare class DockerRepository {
     getSystemInfo: (param: Execution) => Promise<any>;
     stopContainer: (param: Execution) => Promise<void>;
     private cleanupDanglingImages;
+    private cleanupBuildxBuilder;
 }

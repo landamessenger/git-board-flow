@@ -34,6 +34,45 @@ program
   .name(COMMAND)
   .description(`CLI tool for ${TITLE}`)
   .version('1.0.0');
+  program
+  .command('compile-vector-server')
+  .description('Compile vector server container')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('-c, --classic-token <classictoken>', 'Classic personal access token', process.env.CLASSIC_TOKEN)
+  .action(async (options) => {    
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+    
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug.toString(),
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.COMPILE_VECTOR_SERVER,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
+      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
+      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.CLASSIC_TOKEN]: options.classictoken || process.env.CLASSIC_TOKEN,
+      [INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
+      repo: {
+        owner: gitInfo.owner,
+        repo: gitInfo.repo,
+      },
+      issue: {
+        number: 1,
+      },
+    };
+
+    params[INPUT_KEYS.WELCOME_TITLE] = '👷🛠️ Vector Server Container Build';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [
+      `Building vector server container for ${gitInfo.owner}/${gitInfo.repo}...`,
+    ];
+
+    await runLocalAction(params);
+  });
 
 program
   .command('build-ai')

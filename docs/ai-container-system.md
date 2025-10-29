@@ -54,17 +54,71 @@ git-board-flow build-ai --skip-vector
 git-board-flow build-ai --debug
 ```
 
+### 5. Verify Multi-Architecture Support
+
+```bash
+# Check if Docker Buildx is available
+docker buildx version
+
+# If not available, install Docker Buildx
+# On macOS with Homebrew:
+brew install docker-buildx
+
+# On Ubuntu/Debian:
+sudo apt-get install docker-buildx-plugin
+
+# Verify multi-architecture build capability
+docker buildx ls
+```
+
+#### OrbStack Users
+
+If you're using OrbStack and encounter the error "Multi-platform build is not supported for the docker driver", the system will automatically:
+
+1. **Create a custom builder**: Automatically creates a `git-board-flow-multiarch` builder with `docker-container` driver
+2. **Handle multi-platform builds**: Uses the custom builder for `linux/amd64` and `linux/arm64` platforms
+3. **Clean up resources**: Removes the custom builder when stopping containers
+
+**Manual setup (optional):**
+```bash
+# Create a multi-platform builder manually
+docker buildx create --name git-board-flow-multiarch --driver docker-container --platform linux/amd64,linux/arm64
+
+# Start the builder
+docker buildx inspect --bootstrap git-board-flow-multiarch
+
+# Use the builder
+docker buildx use git-board-flow-multiarch
+```
+
 ## 🏗️ Architecture
 
 ### Multi-Architecture Support
 
-The AI container system supports multiple architectures:
+The AI container system automatically builds and supports multiple architectures using Docker Buildx:
 
 | Architecture | Platform | Status | Use Case |
 |--------------|----------|--------|----------|
 | **linux/amd64** | Ubuntu x64, macOS x64 | ✅ Supported | GitHub-hosted runners, most servers |
 | **linux/arm64** | macOS ARM64 (M1/M2), Linux ARM64 | ✅ Supported | Apple Silicon, ARM servers |
 | **linux/arm/v7** | Raspberry Pi, ARM32 | ✅ Supported | IoT devices, embedded systems |
+
+#### Automatic Multi-Architecture Builds
+
+The system automatically detects if Docker Buildx is available and builds images for both `linux/amd64` and `linux/arm64` platforms simultaneously. This ensures:
+
+- **Consistent image sizes**: Both architectures are built from the same Dockerfile
+- **Optimized performance**: Each architecture gets its native optimized binaries
+- **Single manifest**: Docker automatically creates a multi-architecture manifest
+- **Fallback support**: If Buildx is not available, falls back to single-architecture builds
+
+#### Benefits of Multi-Architecture Builds
+
+- **Reduced size differences**: Eliminates the ~6.7GB difference between Intel and Apple Silicon builds
+- **Native optimization**: Each architecture gets optimized PyTorch wheels and dependencies
+- **Single command**: One build command creates images for both platforms
+- **Registry efficiency**: Single manifest entry in GitHub Container Registry
+- **Developer experience**: Works seamlessly across different development machines
 
 ### Automatic Architecture Detection
 
@@ -82,7 +136,30 @@ node -e "console.log(process.platform + '/' + process.arch)"
 
 ### Container Naming Convention
 ```
-{organization_name}-manager-{arch_type}-ai:latest
+{organization_name}-manager-ai:{version}
+```
+
+### Image Versioning Strategy
+
+The system uses a sophisticated versioning strategy based on the context:
+
+| Context | Version Format | Example | Description |
+|---------|----------------|---------|-------------|
+| **Release** | `v{version}` | `v1.2.3` | Semantic version from release |
+| **Hotfix** | `v{version}` | `v1.2.4` | Semantic version from hotfix |
+| **Development** | `{commit-sha}` | `a1b2c3d4` | First 8 chars of commit SHA |
+| **Fallback** | `latest` | `latest` | When no specific version available |
+
+### Multi-Tag Strategy
+
+For release and hotfix builds, the system creates multiple tags:
+
+```bash
+# Example for release v1.2.3:
+ghcr.io/org/org-manager-ai:v1.2.3        # Specific version
+ghcr.io/org/org-manager-ai:latest        # Latest release
+ghcr.io/org/org-manager-ai:v1.2.3-amd64  # Architecture-specific
+ghcr.io/org/org-manager-ai:v1.2.3-arm64  # Architecture-specific
 ```
 
 **Architecture Types:**
@@ -91,9 +168,18 @@ node -e "console.log(process.platform + '/' + process.arch)"
 - `armv7`: Linux ARM32 (Raspberry Pi)
 
 **Examples:**
-- `git-board-flow-manager-amd64-ai:latest`
-- `git-board-flow-manager-arm64-ai:latest`
-- `git-board-flow-manager-armv7-ai:latest`
+- `git-board-flow-manager-ai:v1.2.3` (release)
+- `git-board-flow-manager-ai:latest` (latest release)
+- `git-board-flow-manager-ai:a1b2c3d4` (development build)
+
+### Versioning Benefits
+
+- **🔍 Traceability**: Easy to track which code version is running
+- **🔄 Rollback**: Quick rollback to previous stable versions
+- **🏷️ Tagging**: Multiple tags for different use cases
+- **📊 Monitoring**: Better monitoring and debugging capabilities
+- **🔒 Stability**: Pin to specific versions in production
+- **🚀 Development**: Use commit SHA for development builds
 
 ### Environment Behavior
 

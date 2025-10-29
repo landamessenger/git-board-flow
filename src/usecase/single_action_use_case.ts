@@ -23,11 +23,10 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (param.singleAction.isVectorAction) {
-                // First prepare AI container
+            if (param.singleAction.isCompileVectorServerAction) {
                 results.push(...await new PrepareAIContainerUseCase().invoke(param));
-
-                // Then execute vector action
+            } else if (param.singleAction.isVectorAction) {
+                // results.push(...await new PrepareLocalVectorServerUseCase().invoke(param));
                 results.push(...await new VectorActionUseCase().invoke(param));
             } else if (param.singleAction.isDeployedAction) {
                 results.push(...await new DeployedActionUseCase().invoke(param));

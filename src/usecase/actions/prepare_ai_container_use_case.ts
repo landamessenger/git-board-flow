@@ -13,22 +13,40 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
         const results: Result[] = [];
 
         try {
-            const imageExistsInRegistry = await this.dockerRepository.checkImageInRegistry(param);
+            const version = param.singleAction.version;
+            if (version.length === 0) {
+                logError(`No version specified, skipping version check`);
+                results.push(new Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`No version specified, skipping build`],
+                }));
+                return results;
+            }
 
-            /*
-            if (imageExistsInRegistry) {
-                logInfo('🐳 🟢 Image for current architecture already exists in registry, skipping build');
+            const imageName = this.dockerRepository.getImageNameWithTag(param);
+            
+            logInfo(`🐳 🟡 Checking if v${version} already exists in registry...`);
+            logInfo(`🐳 🟡 Image: ${imageName}`);
+            
+            const versionExists = await this.dockerRepository.checkVersionExistsInRegistry(param);
+            
+            if (versionExists) {
+                logInfo(`🐳 🟢 v${version} already exists in registry, skipping build`);
                 results.push(new Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [`Image for current arch already exists in registry: ${this.dockerRepository.getImageName(param)}`],
+                    steps: [`v${version} already exists in registry: ${imageName}`],
                 }));
                 return results;
-            }*/
+            } else {
+                logInfo(`🐳 🟡 v${version} not found in registry, proceeding with build...`);
+            }
 
-            logInfo('🐳 🟡 Building and pushing new image for current architecture...');
-            await this.buildAndPushImage(param);
+            logInfo('🐳 🟡 Building and pushing new image...');
+            await this.dockerRepository.buildImage(param);
 
             results.push(new Result({
                 id: this.taskId,
@@ -49,7 +67,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
         return results;
     }
 
-    private async buildAndPushImage(param: Execution): Promise<void> {
+    /*private async buildAndPushImage(param: Execution): Promise<void> {
         const imageName = this.dockerRepository.getImageName(param);
 
         const localExists = await this.dockerRepository.imageExists(param);
@@ -61,6 +79,6 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
         }
 
         logInfo('🐳 🟡 Pushing image to registry...');
-        await this.dockerRepository.pushImageToRegistry(param, imageName);
-    }
+        // await this.dockerRepository.pushImageToRegistry(param, imageName);
+    }*/
 }

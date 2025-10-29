@@ -46,6 +46,10 @@ export class SingleAction {
         return this.currentSingleAction === ACTIONS.DEPLOYED;
     }
 
+    get isCompileVectorServerAction(): boolean {
+        return this.currentSingleAction === ACTIONS.COMPILE_VECTOR_SERVER;
+    }
+
     get isVectorAction(): boolean {
         return this.currentSingleAction === ACTIONS.VECTOR || this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
     }

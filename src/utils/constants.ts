@@ -355,6 +355,7 @@ export const ERRORS = {
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
+    COMPILE_VECTOR_SERVER: 'compile_vector_server',
     VECTOR: 'vector_action',
     VECTOR_LOCAL: 'vector_local',
     VECTOR_REMOVAL: 'vector_removal',
