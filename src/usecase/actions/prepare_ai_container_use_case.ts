@@ -15,6 +15,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
         try {
             const imageExistsInRegistry = await this.dockerRepository.checkImageInRegistry(param);
 
+            /*
             if (imageExistsInRegistry) {
                 logInfo('🐳 🟢 Image for current architecture already exists in registry, skipping build');
                 results.push(new Result({
@@ -24,7 +25,7 @@ export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result
                     steps: [`Image for current arch already exists in registry: ${this.dockerRepository.getImageName(param)}`],
                 }));
                 return results;
-            }
+            }*/
 
             logInfo('🐳 🟡 Building and pushing new image for current architecture...');
             await this.buildAndPushImage(param);
