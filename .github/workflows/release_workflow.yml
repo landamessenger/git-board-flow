@@ -111,7 +111,7 @@ jobs:
   tag:
     name: Publish version
     runs-on: ubuntu-latest
-    needs: [ prepare-compiled-files ]
+    needs: [ prepare-compiled-files, compile-vector-server ]
     steps:
       - name: Git Board Flow - Create Tag
         uses: ./
