@@ -105,6 +105,10 @@ jobs:
         with:
           debug: ${{ vars.DEBUG }}
           single-action: 'compile_vector_server'
+          single-action-version: '${{ github.event.inputs.version }}'
+          single-action-title: '${{ github.event.inputs.title }}'
+          single-action-changelog: '${{ github.event.inputs.changelog }}'
+          single-action-issue: '${{ github.event.inputs.issue }}'
           token: ${{ secrets.PAT }}
           classic-token: ${{ secrets.CLASSIC_TOKEN }}
 
