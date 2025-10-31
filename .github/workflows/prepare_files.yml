@@ -5,6 +5,8 @@ on:
     branches:
       - '**'
       - '!release/*'
+      - '!hotfix/*'
+      - '!master'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
