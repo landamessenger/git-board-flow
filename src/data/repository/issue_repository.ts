@@ -642,118 +642,107 @@ export class IssueRepository {
             logDebugInfo(`Issue Type Description: ${issueTypeDescription}`);
             logDebugInfo(`Issue Type Color: ${issueTypeColor}`);
 
-            try {
-                // Try to update the issue with the issue type using GraphQL
-                const issueId = await this.getId(owner, repository, issueNumber, token);
-                
-                // First, try to find existing issue types in the organization
-                const { organization } = await octokit.graphql<{ 
-                    organization: { 
-                        id: string, 
-                        issueTypes: { 
-                            nodes: { id: string, name: string }[] 
-                        } 
+            // Try to update the issue with the issue type using GraphQL
+            const issueId = await this.getId(owner, repository, issueNumber, token);
+            
+            // First, try to find existing issue types in the organization
+            const { organization } = await octokit.graphql<{ 
+                organization: { 
+                    id: string, 
+                    issueTypes: { 
+                        nodes: { id: string, name: string }[] 
                     } 
-                }>(`
-                    query ($owner: String!) {
-                        organization(login: $owner) {
-                            id
-                            issueTypes(first: 20) {
-                                nodes {
-                                    id
-                                    name
-                                }
+                } 
+            }>(`
+                query ($owner: String!) {
+                    organization(login: $owner) {
+                        id
+                        issueTypes(first: 20) {
+                            nodes {
+                                id
+                                name
                             }
                         }
-                    }
-                `, { owner });
-
-                logDebugInfo(`Organization ID: ${organization.id}`);
-                logDebugInfo(`Organization issue types: ${JSON.stringify(organization.issueTypes.nodes)}`);
-
-                // Check if the issue type already exists
-                const existingType = organization.issueTypes.nodes.find((type: { name: string }) => 
-                    type.name.toLowerCase() === issueType.toLowerCase()
-                );
-
-                let issueTypeId;
-                if (existingType) {
-                    issueTypeId = existingType.id;
-                    logDebugInfo(`Found existing issue type "${issueType}" with ID: ${issueTypeId}`);
-                } else {
-                    // Try to create the issue type using GraphQL
-                    
-                    try {
-                        logDebugInfo(`Creating new issue type "${issueType}" for organization ${owner}...`);
-                        
-                        const createResult = await octokit.graphql<{ 
-                            createIssueType: { 
-                                issueType: { id: string } 
-                            } 
-                        }>(`
-                            mutation ($ownerId: ID!, $name: String!, $description: String!, $color: IssueTypeColor!, $isEnabled: Boolean!) {
-                                createIssueType(input: {
-                                    ownerId: $ownerId, 
-                                    name: $name,
-                                    description: $description,
-                                    color: $color,
-                                    isEnabled: $isEnabled
-                                }) {
-                                    issueType {
-                                        id
-                                    }
-                                }
-                            }
-                        `, { 
-                            ownerId: organization.id, 
-                            name: issueType,
-                            description: issueTypeDescription,
-                            color: issueTypeColor.toUpperCase(),
-                            isEnabled: true,
-                        });
-                        
-                        issueTypeId = createResult.createIssueType.issueType.id;
-                        logDebugInfo(`Created new issue type "${issueType}" with ID: ${issueTypeId}`);
-                    } catch (createError) {
-                        logError(`Failed to create issue type "${issueType}": ${createError}`);
-                        // If creation fails, we'll fall back to using labels
-                        logDebugInfo(`Falling back to using labels for issue type classification`);
-                        return;
                     }
                 }
+            `, { owner });
 
-                // Update the issue with the issue type using GraphQL
-                await octokit.graphql(`
-                    mutation ($issueId: ID!, $issueTypeId: ID!) {
-                        updateIssueIssueType(input: {
-                            issueId: $issueId, 
-                            issueTypeId: $issueTypeId
-                        }) {
-                            issue {
-                                id
+            logDebugInfo(`Organization ID: ${organization.id}`);
+            logDebugInfo(`Organization issue types: ${JSON.stringify(organization.issueTypes.nodes)}`);
+
+            // Check if the issue type already exists
+            const existingType = organization.issueTypes.nodes.find((type: { name: string }) => 
+                type.name.toLowerCase() === issueType.toLowerCase()
+            );
+
+            let issueTypeId;
+            if (existingType) {
+                issueTypeId = existingType.id;
+                logDebugInfo(`Found existing issue type "${issueType}" with ID: ${issueTypeId}`);
+            } else {
+                // Try to create the issue type using GraphQL
+                
+                try {
+                    logDebugInfo(`Creating new issue type "${issueType}" for organization ${owner}...`);
+                    
+                    const createResult = await octokit.graphql<{ 
+                        createIssueType: { 
+                            issueType: { id: string } 
+                        } 
+                    }>(`
+                        mutation ($ownerId: ID!, $name: String!, $description: String!, $color: IssueTypeColor!, $isEnabled: Boolean!) {
+                            createIssueType(input: {
+                                ownerId: $ownerId, 
+                                name: $name,
+                                description: $description,
+                                color: $color,
+                                isEnabled: $isEnabled
+                            }) {
                                 issueType {
                                     id
-                                    name
                                 }
                             }
                         }
-                    }
-                `, {
-                    issueId,
-                    issueTypeId,
-                });
-
-                logDebugInfo(`Successfully updated issue type to ${issueType}`);
-            } catch (updateError) {
-                logError(`Failed to update issue type via GraphQL: ${updateError}`);
-                
-                // Fallback: If issue type update fails, we can still ensure the appropriate labels are set
-                logDebugInfo(`Falling back to label-based classification for issue ${issueNumber}`);
-                
-                // The labels should already be set by the calling code, so we just log this
-                logDebugInfo(`Issue type classification will be handled through labels: ${issueType}`);
-                throw updateError;
+                    `, { 
+                        ownerId: organization.id, 
+                        name: issueType,
+                        description: issueTypeDescription,
+                        color: issueTypeColor.toUpperCase(),
+                        isEnabled: true,
+                    });
+                    
+                    issueTypeId = createResult.createIssueType.issueType.id;
+                    logDebugInfo(`Created new issue type "${issueType}" with ID: ${issueTypeId}`);
+                } catch (createError) {
+                    logError(`Failed to create issue type "${issueType}": ${createError}`);
+                    // If creation fails, we'll fall back to using labels
+                    logDebugInfo(`Falling back to using labels for issue type classification`);
+                    return;
+                }
             }
+
+            // Update the issue with the issue type using GraphQL
+            await octokit.graphql(`
+                mutation ($issueId: ID!, $issueTypeId: ID!) {
+                    updateIssueIssueType(input: {
+                        issueId: $issueId, 
+                        issueTypeId: $issueTypeId
+                    }) {
+                        issue {
+                            id
+                            issueType {
+                                id
+                                name
+                            }
+                        }
+                    }
+                }
+            `, {
+                issueId,
+                issueTypeId,
+            });
+
+            logDebugInfo(`Successfully updated issue type to ${issueType}`);
         } catch (error) {
             logError(`Failed to update issue type: ${error}`);
             // Don't throw the error to prevent breaking the main flow
