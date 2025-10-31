@@ -1,6 +1,6 @@
 import { Execution } from "../../../data/model/execution";
 import { IssueRepository } from "../../../data/repository/issue_repository";
-import { logDebugInfo, logError } from "../../../utils/logger";
+import { logError } from "../../../utils/logger";
 import { ContentInterface } from "./content_interface";
 
 export abstract class IssueContentInterface extends ContentInterface {
@@ -21,16 +21,12 @@ export abstract class IssueContentInterface extends ContentInterface {
                 return undefined;
             }
 
-            logDebugInfo(`Number getter: ${number}`);
-
             const description = await this.issueRepository.getDescription(
                 execution.owner,
                 execution.repo,
                 number,
                 execution.tokens.token,
             )
-
-            logDebugInfo(`Description getter: ${description}`);
 
             return this.getContent(description)
         } catch (error) {
