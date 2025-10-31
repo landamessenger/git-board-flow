@@ -38,6 +38,8 @@ program
   .command('compile-vector-server')
   .description('Compile vector server container')
   .option('-d, --debug', 'Debug mode', false)
+  .option('-p, --platforms <platforms>', 'Platforms', 'linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/s390x')
+  .option('-v, --version <version>', 'Version', 'latest')
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('-c, --classic-token <classictoken>', 'Classic personal access token', process.env.CLASSIC_TOKEN)
   .action(async (options) => {    
@@ -51,6 +53,7 @@ program
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.COMPILE_VECTOR_SERVER,
+      [INPUT_KEYS.SINGLE_ACTION_VERSION]: options.version,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,

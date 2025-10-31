@@ -1,7 +1,7 @@
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
 import { DockerRepository } from '../../data/repository/docker_repository';
-import { logDebugInfo, logError, logInfo } from '../../utils/logger';
+import { logError, logInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 
 export class PrepareAIContainerUseCase implements ParamUseCase<Execution, Result[]> {

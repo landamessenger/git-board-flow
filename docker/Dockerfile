@@ -1,31 +1,30 @@
 FROM python:3.11-slim
 
-# Opcional: define la ruta de cache huggingface
 ENV HF_HOME=/cache/huggingface
 
-# Instala dependencias necesarias
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     gcc \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Crea directorios
+# Create working directory
 WORKDIR /app
 
-# Copia dependencias e instala
+# Copy and install dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Copia el código
+# Copy code
 COPY . .
 
-# Pre-descarga el modelo durante la build
+# Pre-download the model during build
 RUN python -c "from InstructorEmbedding import INSTRUCTOR; model = INSTRUCTOR('hkunlp/instructor-xl', device='cpu'); print('Model downloaded and cached during build')"
 
-# Expone el puerto de la API
+# Expose port
 EXPOSE 8000
 
-# Comando para ejecutar la aplicación
+# Command to execute the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
