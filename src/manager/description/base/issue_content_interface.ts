@@ -10,19 +10,7 @@ export abstract class IssueContentInterface extends ContentInterface {
         try {
             let number = -1
             if (execution.isSingleAction) {
-                if (execution.isIssue) {
-                    logDebugInfo(`Issue getter: ${execution.issue.number}`);
-                    number = execution.issue.number
-                } else if (execution.isPullRequest) {
-                    logDebugInfo(`Pull request getter: ${execution.pullRequest.number}`);
-                    number = execution.pullRequest.number
-                } else if (execution.isPush) {
-                    logDebugInfo(`Push getter: ${execution.issueNumber}`);
-                    number = execution.issueNumber
-                } else {
-                    logDebugInfo(`Single action getter: ${execution.singleAction.issue}`);
-                    number = execution.singleAction.issue
-                }
+                number = execution.issueNumber
             } else if (execution.isIssue) {
                 number = execution.issue.number
             } else if (execution.isPullRequest) {
@@ -32,6 +20,8 @@ export abstract class IssueContentInterface extends ContentInterface {
             } else {
                 return undefined;
             }
+
+            logDebugInfo(`Number getter: ${number}`);
 
             const description = await this.issueRepository.getDescription(
                 execution.owner,

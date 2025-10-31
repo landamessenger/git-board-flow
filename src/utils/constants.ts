@@ -177,6 +177,18 @@ export const DEFAULT_IMAGE_CONFIG = {
     }
 };
 
+export const WORKFLOW_STATUS = {
+    IN_PROGRESS: 'in_progress',
+    QUEUED: 'queued',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    CANCELLED: 'cancelled',
+    SKIPPED: 'skipped',
+    TIMED_OUT: 'timed_out',
+};
+
+export const WORKFLOW_ACTIVE_STATUSES = [WORKFLOW_STATUS.IN_PROGRESS, WORKFLOW_STATUS.QUEUED];
+
 export const INPUT_KEYS = {
     // Debug
     DEBUG: 'debug',
