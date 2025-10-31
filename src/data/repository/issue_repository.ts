@@ -637,6 +637,10 @@ export class IssueRepository {
 
             const octokit = github.getOctokit(token);
             logDebugInfo(`Setting issue type for issue ${issueNumber} to ${issueType}`);
+            logDebugInfo(`Creating new issue type "${issueType}" for organization ${owner}...`);
+            logDebugInfo(`Issue Type: ${issueType}`);
+            logDebugInfo(`Issue Type Description: ${issueTypeDescription}`);
+            logDebugInfo(`Issue Type Color: ${issueTypeColor}`);
 
             try {
                 // Try to update the issue with the issue type using GraphQL
@@ -664,6 +668,9 @@ export class IssueRepository {
                     }
                 `, { owner });
 
+                logDebugInfo(`Organization ID: ${organization.id}`);
+                logDebugInfo(`Organization issue types: ${JSON.stringify(organization.issueTypes.nodes)}`);
+
                 // Check if the issue type already exists
                 const existingType = organization.issueTypes.nodes.find((type: { name: string }) => 
                     type.name.toLowerCase() === issueType.toLowerCase()
@@ -675,11 +682,7 @@ export class IssueRepository {
                     logDebugInfo(`Found existing issue type "${issueType}" with ID: ${issueTypeId}`);
                 } else {
                     // Try to create the issue type using GraphQL
-                    logDebugInfo(`Creating new issue type "${issueType}" for organization ${owner}...`);
-                    logDebugInfo(`Organization ID: ${organization.id}`);
-                    logDebugInfo(`Issue Type: ${issueType}`);
-                    logDebugInfo(`Issue Type Description: ${issueTypeDescription}`);
-                    logDebugInfo(`Issue Type Color: ${issueTypeColor}`);
+                    
                     try {
                         logDebugInfo(`Creating new issue type "${issueType}" for organization ${owner}...`);
                         
@@ -688,12 +691,13 @@ export class IssueRepository {
                                 issueType: { id: string } 
                             } 
                         }>(`
-                            mutation ($organizationId: ID!, $name: String!, $description: String!, $color: String!) {
+                            mutation ($ownerId: ID!, $name: String!, $description: String!, $color: String!, $isEnabled: Boolean!) {
                                 createIssueType(input: {
-                                    organizationId: $organizationId, 
+                                    ownerId: $ownerId, 
                                     name: $name,
                                     description: $description,
-                                    color: $color
+                                    color: $color,
+                                    isEnabled: $isEnabled
                                 }) {
                                     issueType {
                                         id
@@ -701,10 +705,11 @@ export class IssueRepository {
                                 }
                             }
                         `, { 
-                            organizationId: organization.id, 
+                            ownerId: organization.id, 
                             name: issueType,
                             description: issueTypeDescription,
-                            color: issueTypeColor,
+                            color: issueTypeColor.toUpperCase(),
+                            isEnabled: true,
                         });
                         
                         issueTypeId = createResult.createIssueType.issueType.id;
@@ -747,12 +752,14 @@ export class IssueRepository {
                 
                 // The labels should already be set by the calling code, so we just log this
                 logDebugInfo(`Issue type classification will be handled through labels: ${issueType}`);
+                throw updateError;
             }
         } catch (error) {
             logError(`Failed to update issue type: ${error}`);
             // Don't throw the error to prevent breaking the main flow
             // The issue will still be processed with labels
             logDebugInfo(`Continuing with issue processing despite issue type update failure`);
+            throw error;
         }
     }
 }
