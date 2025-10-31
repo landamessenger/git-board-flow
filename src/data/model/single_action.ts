@@ -79,10 +79,6 @@ export class SingleAction {
 
     get enabledSingleAction(): boolean {
         logDebugInfo(`Enabled single action: ${this.currentSingleAction.length > 0}`);
-        logDebugInfo(`Current single action: ${this.currentSingleAction}`);
-        logDebugInfo(`Actions: ${this.actions.join(', ')}`);
-        logDebugInfo(`Actions index: ${this.actions.indexOf(this.currentSingleAction)}`);
-        logDebugInfo(`Valid single action: ${this.enabledSingleAction && (this.issue > 0 || this.isSingleActionWithoutIssue) && this.actions.indexOf(this.currentSingleAction) > -1}`);
         return this.currentSingleAction.length > 0;
     }
 
