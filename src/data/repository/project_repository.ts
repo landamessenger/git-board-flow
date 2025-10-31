@@ -271,7 +271,7 @@ export class ProjectRepository {
         const contentId = await this.getContentId(project, owner, repo, issueOrPullRequestNumber, token);
         if (!contentId) {
             logError(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
-            return false; 
+            throw new Error(`Content ID not found for issue or pull request #${issueOrPullRequestNumber}.`);
         }
 
         logDebugInfo(`Content ID: ${contentId}`);
@@ -338,7 +338,7 @@ export class ProjectRepository {
 
         if (!targetField) {
             logError(`Field '${fieldName}' not found or is not a single-select field.`);
-            return false;
+            throw new Error(`Field '${fieldName}' not found or is not a single-select field.`);
         }
 
         const targetOption = targetField.options.find(
@@ -349,7 +349,7 @@ export class ProjectRepository {
 
         if (!targetOption) {
             logError(`Option '${fieldValue}' not found for field '${fieldName}'.`);
-            return false;
+            throw new Error(`Option '${fieldValue}' not found for field '${fieldName}'.`);
         }
 
         // Now search for the item through all pages
@@ -370,7 +370,7 @@ export class ProjectRepository {
                 );
                 
                 if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
-                    // logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
+                    logDebugInfo(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
                     return false;
                 }
                 break; // Found the item, no need to continue pagination

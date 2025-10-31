@@ -399,14 +399,40 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      * Issue Types
      */
     const issueTypeBug = additionalParams[INPUT_KEYS.ISSUE_TYPE_BUG] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_BUG];
+    const issueTypeBugDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_BUG_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_BUG_DESCRIPTION];
+    const issueTypeBugColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_BUG_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_BUG_COLOR];
+
     const issueTypeHotfix = additionalParams[INPUT_KEYS.ISSUE_TYPE_HOTFIX] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_HOTFIX];
+    const issueTypeHotfixDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_HOTFIX_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_HOTFIX_DESCRIPTION];
+    const issueTypeHotfixColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_HOTFIX_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_HOTFIX_COLOR];
+
     const issueTypeFeature = additionalParams[INPUT_KEYS.ISSUE_TYPE_FEATURE] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_FEATURE];
+    const issueTypeFeatureDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_FEATURE_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_FEATURE_DESCRIPTION];
+    const issueTypeFeatureColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_FEATURE_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_FEATURE_COLOR];
+
     const issueTypeDocumentation = additionalParams[INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION];
+    const issueTypeDocumentationDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION_DESCRIPTION];
+    const issueTypeDocumentationColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION_COLOR];
+
     const issueTypeMaintenance = additionalParams[INPUT_KEYS.ISSUE_TYPE_MAINTENANCE] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_MAINTENANCE];
+    const issueTypeMaintenanceDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_MAINTENANCE_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_MAINTENANCE_DESCRIPTION];
+    const issueTypeMaintenanceColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_MAINTENANCE_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_MAINTENANCE_COLOR];
+
     const issueTypeRelease = additionalParams[INPUT_KEYS.ISSUE_TYPE_RELEASE] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_RELEASE];
+    const issueTypeReleaseDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_RELEASE_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_RELEASE_DESCRIPTION];
+    const issueTypeReleaseColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_RELEASE_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_RELEASE_COLOR];
+
     const issueTypeQuestion = additionalParams[INPUT_KEYS.ISSUE_TYPE_QUESTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_QUESTION];
+    const issueTypeQuestionDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_QUESTION_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_QUESTION_DESCRIPTION];
+    const issueTypeQuestionColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_QUESTION_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_QUESTION_COLOR];
+
     const issueTypeHelp = additionalParams[INPUT_KEYS.ISSUE_TYPE_HELP] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_HELP];
+    const issueTypeHelpDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_HELP_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_HELP_DESCRIPTION];
+    const issueTypeHelpColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_HELP_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_HELP_COLOR];
+
     const issueTypeTask = additionalParams[INPUT_KEYS.ISSUE_TYPE_TASK] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_TASK];
+    const issueTypeTaskDescription = additionalParams[INPUT_KEYS.ISSUE_TYPE_TASK_DESCRIPTION] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_TASK_DESCRIPTION];
+    const issueTypeTaskColor = additionalParams[INPUT_KEYS.ISSUE_TYPE_TASK_COLOR] ?? actionInputs[INPUT_KEYS.ISSUE_TYPE_TASK_COLOR];
 
     /**
      * Locale
@@ -581,14 +607,32 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
         ),
         new IssueTypes(
             issueTypeTask,
+            issueTypeTaskDescription,
+            issueTypeTaskColor,
             issueTypeBug,
+            issueTypeBugDescription,
+            issueTypeBugColor,
             issueTypeFeature,
+            issueTypeFeatureDescription,
+            issueTypeFeatureColor,
             issueTypeDocumentation,
+            issueTypeDocumentationDescription,
+            issueTypeDocumentationColor,
             issueTypeMaintenance,
+            issueTypeMaintenanceDescription,
+            issueTypeMaintenanceColor,
             issueTypeHotfix,
+            issueTypeHotfixDescription,
+            issueTypeHotfixColor,
             issueTypeRelease,
+            issueTypeReleaseDescription,
+            issueTypeReleaseColor,
             issueTypeQuestion,
+            issueTypeQuestionDescription,
+            issueTypeQuestionColor,
             issueTypeHelp,
+            issueTypeHelpDescription,
+            issueTypeHelpColor,
         ),
         new Locale(issueLocale, pullRequestLocale),
         new SizeThresholds(

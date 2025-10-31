@@ -288,14 +288,40 @@ export const INPUT_KEYS = {
 
     // Issue Types
     ISSUE_TYPE_BUG: 'issue-type-bug',
+    ISSUE_TYPE_BUG_DESCRIPTION: 'issue-type-bug-description',
+    ISSUE_TYPE_BUG_COLOR: 'issue-type-bug-color',
+
     ISSUE_TYPE_HOTFIX: 'issue-type-hotfix',
+    ISSUE_TYPE_HOTFIX_DESCRIPTION: 'issue-type-hotfix-description',
+    ISSUE_TYPE_HOTFIX_COLOR: 'issue-type-hotfix-color',
+
     ISSUE_TYPE_FEATURE: 'issue-type-feature',
+    ISSUE_TYPE_FEATURE_DESCRIPTION: 'issue-type-feature-description',
+    ISSUE_TYPE_FEATURE_COLOR: 'issue-type-feature-color',
+
     ISSUE_TYPE_DOCUMENTATION: 'issue-type-documentation',
+    ISSUE_TYPE_DOCUMENTATION_DESCRIPTION: 'issue-type-documentation-description',
+    ISSUE_TYPE_DOCUMENTATION_COLOR: 'issue-type-documentation-color',
+
     ISSUE_TYPE_MAINTENANCE: 'issue-type-maintenance',
+    ISSUE_TYPE_MAINTENANCE_DESCRIPTION: 'issue-type-maintenance-description',
+    ISSUE_TYPE_MAINTENANCE_COLOR: 'issue-type-maintenance-color',
+
     ISSUE_TYPE_RELEASE: 'issue-type-release',
+    ISSUE_TYPE_RELEASE_DESCRIPTION: 'issue-type-release-description',
+    ISSUE_TYPE_RELEASE_COLOR: 'issue-type-release-color',
+
     ISSUE_TYPE_QUESTION: 'issue-type-question',
+    ISSUE_TYPE_QUESTION_DESCRIPTION: 'issue-type-question-description',
+    ISSUE_TYPE_QUESTION_COLOR: 'issue-type-question-color',
+
     ISSUE_TYPE_HELP: 'issue-type-help',
+    ISSUE_TYPE_HELP_DESCRIPTION: 'issue-type-help-description',
+    ISSUE_TYPE_HELP_COLOR: 'issue-type-help-color',
+
     ISSUE_TYPE_TASK: 'issue-type-task',
+    ISSUE_TYPE_TASK_DESCRIPTION: 'issue-type-task-description',
+    ISSUE_TYPE_TASK_COLOR: 'issue-type-task-color',
 
     // Locale
     ISSUES_LOCALE: 'issues-locale',
