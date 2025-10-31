@@ -83,8 +83,6 @@ export class SingleAction {
     }
 
     get validSingleAction(): boolean {
-        logDebugInfo(`Validating single action: ${this.currentSingleAction}`);
-        logDebugInfo(`Enabled single action: ${this.enabledSingleAction}`);
         logDebugInfo(`Issue: ${this.issue}`);
         logDebugInfo(`Single action without issue: ${this.isSingleActionWithoutIssue}`);
         logDebugInfo(`Actions: ${this.actions.join(', ')}`);
