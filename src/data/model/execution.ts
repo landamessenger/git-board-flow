@@ -245,18 +245,12 @@ export class Execution {
              * In the case of a single action, the issue number is set.
              */
             if (this.inputs?.[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
-                logDebugInfo(`inputs`);
                 this.issueNumber = this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
                 this.singleAction.issue = this.issueNumber;
-                logDebugInfo(`Single action issue number: ${this.issueNumber}`);
-                logDebugInfo(`Single action issue: ${this.singleAction.issue}`);
             } else if (this.isIssue) {
-                logDebugInfo(`isIssue`);
                 this.singleAction.isIssue = true;
                 this.issueNumber = this.issue.number;
                 this.singleAction.issue = this.issueNumber;
-                logDebugInfo(`Single action issue number: ${this.issueNumber}`);
-                logDebugInfo(`Single action issue: ${this.singleAction.issue}`);
             } else if (this.isPullRequest) {
                 this.singleAction.isPullRequest = true;
                 this.issueNumber = extractIssueNumberFromBranch(this.pullRequest.head);
@@ -281,9 +275,6 @@ export class Execution {
 
                 if (this.singleAction.isIssue) {
                     this.issueNumber = this.singleAction.issue;
-                    logDebugInfo(`not found`);
-                    logDebugInfo(`Single action issue number: ${this.issueNumber}`);
-                    logDebugInfo(`Single action issue: ${this.singleAction.issue}`);
                 } else if (this.singleAction.isPullRequest) {
                     const head = await issueRepository.getHeadBranch(
                         this.owner,
@@ -306,7 +297,6 @@ export class Execution {
         }
 
         this.previousConfiguration = await new ConfigurationHandler().get(this)
-        logDebugInfo(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
 
         /**
          * Get labels of issue

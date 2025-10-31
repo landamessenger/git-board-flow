@@ -24,12 +24,10 @@ export class ConfigurationHandler extends IssueContentInterface {
     get = async (execution: Execution): Promise<Config | undefined> => {
         try {
             const config = await this.internalGetter(execution)
-            logDebugInfo(`Configuration getter: ${config}`);
             if (config === undefined) {
                 return undefined;
             }
             const branchConfig = JSON.parse(config);
-            logDebugInfo(`Configuration getter: ${JSON.stringify(branchConfig, null, 2)}`);
             return new Config(branchConfig);
         } catch (error) {
             logError(`Error reading issue configuration: ${error}`);
