@@ -1,6 +1,6 @@
 import { Execution } from "../../../data/model/execution";
 import { IssueRepository } from "../../../data/repository/issue_repository";
-import { logError } from "../../../utils/logger";
+import { logDebugInfo, logError } from "../../../utils/logger";
 import { ContentInterface } from "./content_interface";
 
 export abstract class IssueContentInterface extends ContentInterface {
@@ -11,12 +11,16 @@ export abstract class IssueContentInterface extends ContentInterface {
             let number = -1
             if (execution.isSingleAction) {
                 if (execution.isIssue) {
+                    logDebugInfo(`Issue getter: ${execution.issue.number}`);
                     number = execution.issue.number
                 } else if (execution.isPullRequest) {
+                    logDebugInfo(`Pull request getter: ${execution.pullRequest.number}`);
                     number = execution.pullRequest.number
                 } else if (execution.isPush) {
+                    logDebugInfo(`Push getter: ${execution.issueNumber}`);
                     number = execution.issueNumber
                 } else {
+                    logDebugInfo(`Single action getter: ${execution.singleAction.issue}`);
                     number = execution.singleAction.issue
                 }
             } else if (execution.isIssue) {
@@ -35,6 +39,8 @@ export abstract class IssueContentInterface extends ContentInterface {
                 number,
                 execution.tokens.token,
             )
+
+            logDebugInfo(`Description getter: ${description}`);
 
             return this.getContent(description)
         } catch (error) {
