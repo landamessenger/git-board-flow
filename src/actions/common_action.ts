@@ -18,6 +18,16 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
     
     await execution.setup();
 
+    if (!execution.welcome) {
+        /**
+         * Wait for previous runs to finish
+         */
+        await waitForPreviousRuns(execution).catch((err) => {
+            logError(`Error waiting for previous runs: ${err}`);
+            process.exit(1);
+        });
+    }
+    
     if (execution.runnedByToken) {
         if (execution.isSingleAction && execution.singleAction.validSingleAction) {
             logInfo(`User from token (${execution.tokenUser}) matches actor. Executing single action.`);
@@ -53,14 +63,6 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
                 }
             )
         );
-    } else {
-        /**
-         * Wait for previous runs to finish
-         */
-        await waitForPreviousRuns(execution).catch((err) => {
-            logError(`Error waiting for previous runs: ${err}`);
-            process.exit(1);
-        });
     }
 
     try {
