@@ -15,7 +15,7 @@ concurrency:
 jobs:
   prepare-files:
     name: Update compiled files
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted, macOS, X64]
     steps:
       - uses: actions/checkout@v4
 

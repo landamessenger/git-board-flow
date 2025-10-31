@@ -86,7 +86,7 @@ jobs:
 
   compile-vector-server:
     name: Compile vector server
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: [self-hosted, macOS, X64]
     needs: prepare-compiled-files
     steps:
       - name: Checkout Repository
