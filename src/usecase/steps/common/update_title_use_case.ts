@@ -16,17 +16,19 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    let _title = ''
+                    let _title = await this.issueRepository.getTitle(
+                        param.owner,
+                        param.repo,
+                        param.issue.number,
+                        param.tokens.token,
+                    ) ?? param.issue.title;
                     let _version = ''
                     if (param.release.active) {
-                        _title = param.issue.title;
                         _version = param.release.version ?? 'Unknown Version';
                     } else if (param.hotfix.active) {
-                        _title = param.issue.title;
                         _version = param.hotfix.version ?? 'Unknown Version';
-                    } else {
-                        _title = param.issue.title;
                     }
+
                     const title = await this.issueRepository.updateTitleIssueFormat(
                         param.owner,
                         param.repo,
@@ -45,7 +47,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                                 success: true,
                                 executed: true,
                                 steps: [
-                                    `The issue's title was updated from \`${param.issue.title}\` to \`${title}\`.`,
+                                    `The issue's title was updated from \`${_title}\` to \`${title}\`.`,
                                 ]
                             })
                         )
