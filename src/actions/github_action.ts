@@ -391,14 +391,40 @@ export async function runGitHubAction(): Promise<void> {
      * Issue Types
      */
     const issueTypeBug = getInput(INPUT_KEYS.ISSUE_TYPE_BUG);
+    const issueTypeBugDescription = getInput(INPUT_KEYS.ISSUE_TYPE_BUG_DESCRIPTION);
+    const issueTypeBugColor = getInput(INPUT_KEYS.ISSUE_TYPE_BUG_COLOR);
+
     const issueTypeHotfix = getInput(INPUT_KEYS.ISSUE_TYPE_HOTFIX);
+    const issueTypeHotfixDescription = getInput(INPUT_KEYS.ISSUE_TYPE_HOTFIX_DESCRIPTION);
+    const issueTypeHotfixColor = getInput(INPUT_KEYS.ISSUE_TYPE_HOTFIX_COLOR);
+
     const issueTypeFeature = getInput(INPUT_KEYS.ISSUE_TYPE_FEATURE);
+    const issueTypeFeatureDescription = getInput(INPUT_KEYS.ISSUE_TYPE_FEATURE_DESCRIPTION);
+    const issueTypeFeatureColor = getInput(INPUT_KEYS.ISSUE_TYPE_FEATURE_COLOR);
+
     const issueTypeDocumentation = getInput(INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION);
+    const issueTypeDocumentationDescription = getInput(INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION_DESCRIPTION);
+    const issueTypeDocumentationColor = getInput(INPUT_KEYS.ISSUE_TYPE_DOCUMENTATION_COLOR);
+
     const issueTypeMaintenance = getInput(INPUT_KEYS.ISSUE_TYPE_MAINTENANCE);
+    const issueTypeMaintenanceDescription = getInput(INPUT_KEYS.ISSUE_TYPE_MAINTENANCE_DESCRIPTION);
+    const issueTypeMaintenanceColor = getInput(INPUT_KEYS.ISSUE_TYPE_MAINTENANCE_COLOR);
+
     const issueTypeRelease = getInput(INPUT_KEYS.ISSUE_TYPE_RELEASE);
+    const issueTypeReleaseDescription = getInput(INPUT_KEYS.ISSUE_TYPE_RELEASE_DESCRIPTION);
+    const issueTypeReleaseColor = getInput(INPUT_KEYS.ISSUE_TYPE_RELEASE_COLOR);
+
     const issueTypeQuestion = getInput(INPUT_KEYS.ISSUE_TYPE_QUESTION);
+    const issueTypeQuestionDescription = getInput(INPUT_KEYS.ISSUE_TYPE_QUESTION_DESCRIPTION);
+    const issueTypeQuestionColor = getInput(INPUT_KEYS.ISSUE_TYPE_QUESTION_COLOR);
+
     const issueTypeHelp = getInput(INPUT_KEYS.ISSUE_TYPE_HELP);
+    const issueTypeHelpDescription = getInput(INPUT_KEYS.ISSUE_TYPE_HELP_DESCRIPTION);
+    const issueTypeHelpColor = getInput(INPUT_KEYS.ISSUE_TYPE_HELP_COLOR);
+
     const issueTypeTask = getInput(INPUT_KEYS.ISSUE_TYPE_TASK);
+    const issueTypeTaskDescription = getInput(INPUT_KEYS.ISSUE_TYPE_TASK_DESCRIPTION);
+    const issueTypeTaskColor = getInput(INPUT_KEYS.ISSUE_TYPE_TASK_COLOR);
 
     /**
      * Locale
@@ -565,14 +591,32 @@ export async function runGitHubAction(): Promise<void> {
         ),
         new IssueTypes(
             issueTypeTask,
+            issueTypeTaskDescription,
+            issueTypeTaskColor,
             issueTypeBug,
+            issueTypeBugDescription,
+            issueTypeBugColor,
             issueTypeFeature,
+            issueTypeFeatureDescription,
+            issueTypeFeatureColor,
             issueTypeDocumentation,
+            issueTypeDocumentationDescription,
+            issueTypeDocumentationColor,
             issueTypeMaintenance,
+            issueTypeMaintenanceDescription,
+            issueTypeMaintenanceColor,
             issueTypeHotfix,
+            issueTypeHotfixDescription,
+            issueTypeHotfixColor,
             issueTypeRelease,
+            issueTypeReleaseDescription,
+            issueTypeReleaseColor,
             issueTypeQuestion,
+            issueTypeQuestionDescription,
+            issueTypeQuestionColor,
             issueTypeHelp,
+            issueTypeHelpDescription,
+            issueTypeHelpColor,
         ),
         new Locale(issueLocale, pullRequestLocale),
         new SizeThresholds(
