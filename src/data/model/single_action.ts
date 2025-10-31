@@ -1,5 +1,5 @@
 import { ACTIONS } from "../../utils/constants";
-import { logError } from "../../utils/logger";
+import { logDebugInfo, logError } from "../../utils/logger";
 
 export class SingleAction {
     currentSingleAction: string;
@@ -78,10 +78,23 @@ export class SingleAction {
     }
 
     get enabledSingleAction(): boolean {
+        logDebugInfo(`Enabled single action: ${this.currentSingleAction.length > 0}`);
+        logDebugInfo(`Current single action: ${this.currentSingleAction}`);
+        logDebugInfo(`Actions: ${this.actions.join(', ')}`);
+        logDebugInfo(`Actions index: ${this.actions.indexOf(this.currentSingleAction)}`);
+        logDebugInfo(`Valid single action: ${this.enabledSingleAction && (this.issue > 0 || this.isSingleActionWithoutIssue) && this.actions.indexOf(this.currentSingleAction) > -1}`);
         return this.currentSingleAction.length > 0;
     }
 
     get validSingleAction(): boolean {
+        logDebugInfo(`Validating single action: ${this.currentSingleAction}`);
+        logDebugInfo(`Enabled single action: ${this.enabledSingleAction}`);
+        logDebugInfo(`Issue: ${this.issue}`);
+        logDebugInfo(`Single action without issue: ${this.isSingleActionWithoutIssue}`);
+        logDebugInfo(`Actions: ${this.actions.join(', ')}`);
+        logDebugInfo(`Current single action: ${this.currentSingleAction}`);
+        logDebugInfo(`Actions index: ${this.actions.indexOf(this.currentSingleAction)}`);
+        logDebugInfo(`Valid single action: ${this.enabledSingleAction && (this.issue > 0 || this.isSingleActionWithoutIssue) && this.actions.indexOf(this.currentSingleAction) > -1}`);
         return this.enabledSingleAction &&
             (this.issue > 0 || this.isSingleActionWithoutIssue) &&
             this.actions.indexOf(this.currentSingleAction) > -1;
