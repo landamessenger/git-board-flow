@@ -78,17 +78,11 @@ export class SingleAction {
     }
 
     get enabledSingleAction(): boolean {
-        logDebugInfo(`Enabled single action: ${this.currentSingleAction.length > 0}`);
-        logDebugInfo(`Current single action: ${this.currentSingleAction}`);
-        logDebugInfo(`Actions: ${this.actions.join(', ')}`);
-        logDebugInfo(`Actions index: ${this.actions.indexOf(this.currentSingleAction)}`);
-        logDebugInfo(`Valid single action: ${this.enabledSingleAction && (this.issue > 0 || this.isSingleActionWithoutIssue) && this.actions.indexOf(this.currentSingleAction) > -1}`);
+        logDebugInfo(`currentSingleAction: ${this.currentSingleAction}`);
         return this.currentSingleAction.length > 0;
     }
 
     get validSingleAction(): boolean {
-        logDebugInfo(`Validating single action: ${this.currentSingleAction}`);
-        logDebugInfo(`Enabled single action: ${this.enabledSingleAction}`);
         logDebugInfo(`Issue: ${this.issue}`);
         logDebugInfo(`Single action without issue: ${this.isSingleActionWithoutIssue}`);
         logDebugInfo(`Actions: ${this.actions.join(', ')}`);
