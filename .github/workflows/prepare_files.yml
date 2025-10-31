@@ -5,9 +5,12 @@ on:
     branches:
       - '**'
       - '!release/*'
+      - '!hotfix/*'
+      - '!master'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   prepare-files:
