@@ -30,6 +30,16 @@ export declare const DEFAULT_IMAGE_CONFIG: {
         chore: string[];
     };
 };
+export declare const WORKFLOW_STATUS: {
+    IN_PROGRESS: string;
+    QUEUED: string;
+    COMPLETED: string;
+    FAILED: string;
+    CANCELLED: string;
+    SKIPPED: string;
+    TIMED_OUT: string;
+};
+export declare const WORKFLOW_ACTIVE_STATUSES: string[];
 export declare const INPUT_KEYS: {
     readonly DEBUG: "debug";
     readonly WELCOME_TITLE: "welcome-title";
