@@ -691,7 +691,7 @@ export class IssueRepository {
                                 issueType: { id: string } 
                             } 
                         }>(`
-                            mutation ($ownerId: ID!, $name: String!, $description: String!, $color: String!, $isEnabled: Boolean!) {
+                            mutation ($ownerId: ID!, $name: String!, $description: String!, $color: IssueTypeColor!, $isEnabled: Boolean!) {
                                 createIssueType(input: {
                                     ownerId: $ownerId, 
                                     name: $name,
