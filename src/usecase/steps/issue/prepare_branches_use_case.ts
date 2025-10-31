@@ -381,7 +381,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    reminders: [
+                    steps: [
                         `AI index was duplicated from \`${sourceBranch}\` to \`${targetBranch}\`.`,
                     ]
                 })
