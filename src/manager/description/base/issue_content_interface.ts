@@ -10,15 +10,7 @@ export abstract class IssueContentInterface extends ContentInterface {
         try {
             let number = -1
             if (execution.isSingleAction) {
-                if (execution.isIssue) {
-                    number = execution.issue.number
-                } else if (execution.isPullRequest) {
-                    number = execution.pullRequest.number
-                } else if (execution.isPush) {
-                    number = execution.issueNumber
-                } else {
-                    number = execution.singleAction.issue
-                }
+                number = execution.issueNumber
             } else if (execution.isIssue) {
                 number = execution.issue.number
             } else if (execution.isPullRequest) {

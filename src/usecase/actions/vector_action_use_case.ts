@@ -35,6 +35,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
+            await this.dockerRepository.prepareLocalVectorServer(param);
+
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {

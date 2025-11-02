@@ -30,6 +30,16 @@ export declare const DEFAULT_IMAGE_CONFIG: {
         chore: string[];
     };
 };
+export declare const WORKFLOW_STATUS: {
+    IN_PROGRESS: string;
+    QUEUED: string;
+    COMPLETED: string;
+    FAILED: string;
+    CANCELLED: string;
+    SKIPPED: string;
+    TIMED_OUT: string;
+};
+export declare const WORKFLOW_ACTIVE_STATUSES: string[];
 export declare const INPUT_KEYS: {
     readonly DEBUG: "debug";
     readonly WELCOME_TITLE: "welcome-title";
@@ -37,12 +47,15 @@ export declare const INPUT_KEYS: {
     readonly DOCKER_CONTAINER_NAME: "docker-container-name";
     readonly DOCKER_DOMAIN: "docker-domain";
     readonly DOCKER_PORT: "docker-port";
+    readonly DOCKER_CACHE_OS: "docker-cache-os";
+    readonly DOCKER_CACHE_ARCH: "docker-cache-arch";
     readonly SINGLE_ACTION: "single-action";
     readonly SINGLE_ACTION_ISSUE: "single-action-issue";
     readonly SINGLE_ACTION_VERSION: "single-action-version";
     readonly SINGLE_ACTION_TITLE: "single-action-title";
     readonly SINGLE_ACTION_CHANGELOG: "single-action-changelog";
     readonly TOKEN: "token";
+    readonly CLASSIC_TOKEN: "classic-token";
     readonly OPENROUTER_API_KEY: "openrouter-api-key";
     readonly OPENROUTER_MODEL: "openrouter-model";
     readonly AI_PULL_REQUEST_DESCRIPTION: "ai-pull-request-description";
@@ -115,14 +128,32 @@ export declare const INPUT_KEYS: {
     readonly SIZE_S_LABEL: "size-s-label";
     readonly SIZE_XS_LABEL: "size-xs-label";
     readonly ISSUE_TYPE_BUG: "issue-type-bug";
+    readonly ISSUE_TYPE_BUG_DESCRIPTION: "issue-type-bug-description";
+    readonly ISSUE_TYPE_BUG_COLOR: "issue-type-bug-color";
     readonly ISSUE_TYPE_HOTFIX: "issue-type-hotfix";
+    readonly ISSUE_TYPE_HOTFIX_DESCRIPTION: "issue-type-hotfix-description";
+    readonly ISSUE_TYPE_HOTFIX_COLOR: "issue-type-hotfix-color";
     readonly ISSUE_TYPE_FEATURE: "issue-type-feature";
+    readonly ISSUE_TYPE_FEATURE_DESCRIPTION: "issue-type-feature-description";
+    readonly ISSUE_TYPE_FEATURE_COLOR: "issue-type-feature-color";
     readonly ISSUE_TYPE_DOCUMENTATION: "issue-type-documentation";
+    readonly ISSUE_TYPE_DOCUMENTATION_DESCRIPTION: "issue-type-documentation-description";
+    readonly ISSUE_TYPE_DOCUMENTATION_COLOR: "issue-type-documentation-color";
     readonly ISSUE_TYPE_MAINTENANCE: "issue-type-maintenance";
+    readonly ISSUE_TYPE_MAINTENANCE_DESCRIPTION: "issue-type-maintenance-description";
+    readonly ISSUE_TYPE_MAINTENANCE_COLOR: "issue-type-maintenance-color";
     readonly ISSUE_TYPE_RELEASE: "issue-type-release";
+    readonly ISSUE_TYPE_RELEASE_DESCRIPTION: "issue-type-release-description";
+    readonly ISSUE_TYPE_RELEASE_COLOR: "issue-type-release-color";
     readonly ISSUE_TYPE_QUESTION: "issue-type-question";
+    readonly ISSUE_TYPE_QUESTION_DESCRIPTION: "issue-type-question-description";
+    readonly ISSUE_TYPE_QUESTION_COLOR: "issue-type-question-color";
     readonly ISSUE_TYPE_HELP: "issue-type-help";
+    readonly ISSUE_TYPE_HELP_DESCRIPTION: "issue-type-help-description";
+    readonly ISSUE_TYPE_HELP_COLOR: "issue-type-help-color";
     readonly ISSUE_TYPE_TASK: "issue-type-task";
+    readonly ISSUE_TYPE_TASK_DESCRIPTION: "issue-type-task-description";
+    readonly ISSUE_TYPE_TASK_COLOR: "issue-type-task-color";
     readonly ISSUES_LOCALE: "issues-locale";
     readonly PULL_REQUESTS_LOCALE: "pull-requests-locale";
     readonly SIZE_XXL_THRESHOLD_LINES: "size-xxl-threshold-lines";
@@ -151,7 +182,7 @@ export declare const INPUT_KEYS: {
     readonly RELEASE_TREE: "release-tree";
     readonly DOCS_TREE: "docs-tree";
     readonly CHORE_TREE: "chore-tree";
-    readonly COMMIT_PREFIX_BUILDER: "commit-prefix-builder";
+    readonly COMMIT_PREFIX_TRANSFORMS: "commit-prefix-transforms";
     readonly BRANCH_MANAGEMENT_ALWAYS: "branch-management-always";
     readonly REOPEN_ISSUE_ON_PUSH: "reopen-issue-on-push";
     readonly DESIRED_ASSIGNEES_COUNT: "desired-assignees-count";
@@ -166,6 +197,7 @@ export declare const ERRORS: {
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
+    readonly COMPILE_VECTOR_SERVER: "compile_vector_server";
     readonly VECTOR: "vector_action";
     readonly VECTOR_LOCAL: "vector_local";
     readonly VECTOR_REMOVAL: "vector_removal";

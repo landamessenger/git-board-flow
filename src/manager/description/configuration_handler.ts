@@ -1,6 +1,6 @@
 import { Config } from "../../data/model/config";
 import { Execution } from "../../data/model/execution";
-import { logError } from "../../utils/logger";
+import { logDebugInfo, logError } from "../../utils/logger";
 import { IssueContentInterface } from "./base/issue_content_interface";
 
 export class ConfigurationHandler extends IssueContentInterface {

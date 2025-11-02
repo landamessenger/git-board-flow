@@ -56,11 +56,9 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                         result.push(
                             new Result({
                                 id: this.taskId,
-                                success: false,
-                                executed: true,
-                                steps: [
-                                    `The issue was linked to [**${project?.title}**](${project?.url}) but there was an error moving it to the column \`${columnName}\`.`,
-                                ]
+                                success: true,
+                                executed: false,
+                                steps: []
                             })
                         )
                     }

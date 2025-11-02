@@ -1,15 +1,17 @@
 import { ACTIONS } from "../../utils/constants";
-import { logError } from "../../utils/logger";
+import { logDebugInfo, logError } from "../../utils/logger";
 
 export class SingleAction {
     currentSingleAction: string;
     actions: string[] = [
         ACTIONS.DEPLOYED,
+        ACTIONS.COMPILE_VECTOR_SERVER,
         ACTIONS.VECTOR,
         ACTIONS.VECTOR_LOCAL,
         ACTIONS.VECTOR_REMOVAL,
         ACTIONS.PUBLISH_GITHUB_ACTION,
         ACTIONS.CREATE_TAG,
+        ACTIONS.CREATE_RELEASE,
     ];
     /**
      * Actions that throw an error if the last step failed
@@ -28,6 +30,7 @@ export class SingleAction {
     actionsWithoutIssue: string[] = [
         ACTIONS.VECTOR,
         ACTIONS.VECTOR_LOCAL,
+        ACTIONS.COMPILE_VECTOR_SERVER,
     ];
 
     isIssue: boolean = false;
@@ -44,6 +47,10 @@ export class SingleAction {
 
     get isDeployedAction(): boolean {
         return this.currentSingleAction === ACTIONS.DEPLOYED;
+    }
+
+    get isCompileVectorServerAction(): boolean {
+        return this.currentSingleAction === ACTIONS.COMPILE_VECTOR_SERVER;
     }
 
     get isVectorAction(): boolean {

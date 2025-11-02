@@ -5,10 +5,6 @@ on:
     branches:
       - '**'
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   update-ai-knowledge:
     name: Git Board - Update AI Knowledge
@@ -20,12 +16,13 @@ jobs:
       - name: Set up DOCKER_HOST as output
         id: docker-env
         run: |
-          echo "docker_host=unix://${HOME}/.colima/default/docker.sock" >> $GITHUB_OUTPUT
+          echo "docker_host=unix://${HOME}/.orbstack/run/docker.sock" >> $GITHUB_OUTPUT
 
       - name: Update AI knowledge
         uses: ./
         env:
           DOCKER_HOST: ${{ steps.docker-env.outputs.docker_host }}
+          RUNNER_TEMP: ${{ github.workspace }}/.runner_temp
         with:
           debug: ${{ vars.DEBUG }}
           ai-ignore-files: build/*
@@ -36,3 +33,4 @@ jobs:
           supabase-url: ${{ secrets.SUPABASE_URL }}
           supabase-key: ${{ secrets.SUPABASE_KEY }}
           token: ${{ secrets.PAT }}
+          classic-token: ${{ secrets.CLASSIC_TOKEN }}

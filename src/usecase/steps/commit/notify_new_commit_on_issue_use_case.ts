@@ -4,7 +4,7 @@ import { IssueRepository } from "../../../data/repository/issue_repository";
 import { getRandomElement } from "../../../utils/list_utils";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
-import { ExecuteScriptUseCase } from "../common/execute_script_use_case";
+import { CommitPrefixBuilderUseCase } from "../common/execute_script_use_case";
 
 export class NotifyNewCommitOnIssueUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'NotifyNewCommitOnIssueUseCase';
@@ -26,7 +26,7 @@ export class NotifyNewCommitOnIssueUseCase implements ParamUseCase<Execution, Re
                 param.commitPrefixBuilderParams = {
                     branchName: branchName,
                 }
-                const executor = new ExecuteScriptUseCase();
+                const executor = new CommitPrefixBuilderUseCase();
                 const prefixResult = await executor.invoke(param);
                 commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
                 logDebugInfo(`Commit prefix: ${commitPrefix}`);

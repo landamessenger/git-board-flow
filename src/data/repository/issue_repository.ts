@@ -599,33 +599,65 @@ export class IssueRepository {
     ): Promise<void> => {
         try {
             let issueType = issueTypes.task
+            let issueTypeDescription = issueTypes.taskDescription
+            let issueTypeColor = issueTypes.taskColor
             if (labels.isHotfix) {
                 issueType = issueTypes.hotfix;
+                issueTypeDescription = issueTypes.hotfixDescription;
+                issueTypeColor = issueTypes.hotfixColor;
             } else if (labels.isRelease) {
                 issueType = issueTypes.release;
+                issueTypeDescription = issueTypes.releaseDescription;
+                issueTypeColor = issueTypes.releaseColor;
             } else if ((labels.isDocs || labels.isDocumentation)) {
                 issueType = issueTypes.documentation;
+                issueTypeDescription = issueTypes.documentationDescription;
+                issueTypeColor = issueTypes.documentationColor;
             } else if (labels.isChore || labels.isMaintenance) {
                 issueType = issueTypes.maintenance;
+                issueTypeDescription = issueTypes.maintenanceDescription;
+                issueTypeColor = issueTypes.maintenanceColor;
             } else if (labels.isBugfix || labels.isBug) {
                 issueType = issueTypes.bug;
+                issueTypeDescription = issueTypes.bugDescription;
+                issueTypeColor = issueTypes.bugColor;
             } else if (labels.isFeature || labels.isEnhancement) {
                 issueType = issueTypes.feature;
+                issueTypeDescription = issueTypes.featureDescription;
+                issueTypeColor = issueTypes.featureColor;
             } else if (labels.isHelp) {
                 issueType = issueTypes.help;
+                issueTypeDescription = issueTypes.helpDescription;
+                issueTypeColor = issueTypes.helpColor;
             } else if (labels.isQuestion) {
                 issueType = issueTypes.question;
+                issueTypeDescription = issueTypes.questionDescription;
+                issueTypeColor = issueTypes.questionColor;
             }
-            const issueId = await this.getId(owner, repository, issueNumber, token);
+
             const octokit = github.getOctokit(token);
-
             logDebugInfo(`Setting issue type for issue ${issueNumber} to ${issueType}`);
+            logDebugInfo(`Creating new issue type "${issueType}" for organization ${owner}...`);
+            logDebugInfo(`Issue Type: ${issueType}`);
+            logDebugInfo(`Issue Type Description: ${issueTypeDescription}`);
+            logDebugInfo(`Issue Type Color: ${issueTypeColor}`);
 
-            const { organization } = await octokit.graphql<{ organization: { id: string, issueTypes: { nodes: { id: string, name: string }[] } } }>(`
+            // Try to update the issue with the issue type using GraphQL
+            const issueId = await this.getId(owner, repository, issueNumber, token);
+            
+            // First, try to find existing issue types in the organization
+            const { organization } = await octokit.graphql<{ 
+                organization: { 
+                    id: string, 
+                    issueTypes: { 
+                        nodes: { id: string, name: string }[] 
+                    } 
+                } 
+            }>(`
                 query ($owner: String!) {
                     organization(login: $owner) {
                         id
-                        issueTypes(first: 10) {
+                        issueTypes(first: 20) {
                             nodes {
                                 id
                                 name
@@ -635,37 +667,67 @@ export class IssueRepository {
                 }
             `, { owner });
 
-            const issueTypeData = organization.issueTypes.nodes.find(type => 
+            logDebugInfo(`Organization ID: ${organization.id}`);
+            logDebugInfo(`Organization issue types: ${JSON.stringify(organization.issueTypes.nodes)}`);
+
+            // Check if the issue type already exists
+            const existingType = organization.issueTypes.nodes.find((type: { name: string }) => 
                 type.name.toLowerCase() === issueType.toLowerCase()
             );
 
             let issueTypeId;
-            if (!issueTypeData) {
-                logDebugInfo(`Issue type "${issueType}" not found in organization ${owner}. Creating it...`);
+            if (existingType) {
+                issueTypeId = existingType.id;
+                logDebugInfo(`Found existing issue type "${issueType}" with ID: ${issueTypeId}`);
+            } else {
+                // Try to create the issue type using GraphQL
                 
-                // Create the issue type
-                const createIssueTypeResult = await octokit.graphql<{ createIssueType: { issueType: { id: string } } }>(`
-                    mutation ($owner: String!, $name: String!) {
-                        createIssueType(input: {organizationId: $owner, name: $name}) {
-                            issueType {
-                                id
+                try {
+                    logDebugInfo(`Creating new issue type "${issueType}" for organization ${owner}...`);
+                    
+                    const createResult = await octokit.graphql<{ 
+                        createIssueType: { 
+                            issueType: { id: string } 
+                        } 
+                    }>(`
+                        mutation ($ownerId: ID!, $name: String!, $description: String!, $color: IssueTypeColor!, $isEnabled: Boolean!) {
+                            createIssueType(input: {
+                                ownerId: $ownerId, 
+                                name: $name,
+                                description: $description,
+                                color: $color,
+                                isEnabled: $isEnabled
+                            }) {
+                                issueType {
+                                    id
+                                }
                             }
                         }
-                    }
-                `, { 
-                    owner: organization.id, 
-                    name: issueType 
-                });
-                
-                issueTypeId = createIssueTypeResult.createIssueType.issueType.id;
-                logDebugInfo(`Created new issue type "${issueType}" with ID: ${issueTypeId}`);
-            } else {
-                issueTypeId = issueTypeData.id;
+                    `, { 
+                        ownerId: organization.id, 
+                        name: issueType,
+                        description: issueTypeDescription,
+                        color: issueTypeColor.toUpperCase(),
+                        isEnabled: true,
+                    });
+                    
+                    issueTypeId = createResult.createIssueType.issueType.id;
+                    logDebugInfo(`Created new issue type "${issueType}" with ID: ${issueTypeId}`);
+                } catch (createError) {
+                    logError(`Failed to create issue type "${issueType}": ${createError}`);
+                    // If creation fails, we'll fall back to using labels
+                    logDebugInfo(`Falling back to using labels for issue type classification`);
+                    return;
+                }
             }
 
+            // Update the issue with the issue type using GraphQL
             await octokit.graphql(`
                 mutation ($issueId: ID!, $issueTypeId: ID!) {
-                    updateIssueIssueType(input: {issueId: $issueId, issueTypeId: $issueTypeId}) {
+                    updateIssueIssueType(input: {
+                        issueId: $issueId, 
+                        issueTypeId: $issueTypeId
+                    }) {
                         issue {
                             id
                             issueType {
@@ -683,6 +745,9 @@ export class IssueRepository {
             logDebugInfo(`Successfully updated issue type to ${issueType}`);
         } catch (error) {
             logError(`Failed to update issue type: ${error}`);
+            // Don't throw the error to prevent breaking the main flow
+            // The issue will still be processed with labels
+            logDebugInfo(`Continuing with issue processing despite issue type update failure`);
             throw error;
         }
     }

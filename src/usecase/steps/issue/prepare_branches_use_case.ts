@@ -5,7 +5,7 @@ import { BranchRepository } from "../../../data/repository/branch_repository";
 import { SupabaseRepository } from "../../../data/repository/supabase_repository";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
-import { ExecuteScriptUseCase } from "../common/execute_script_use_case";
+import { CommitPrefixBuilderUseCase } from "../common/execute_script_use_case";
 import { MoveIssueToInProgressUseCase } from "./move_issue_to_in_progress";
 
 export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]> {
@@ -170,7 +170,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                 param.commitPrefixBuilderParams = {
                                     branchName: branchName,
                                 }
-                                const executor = new ExecuteScriptUseCase();
+                                const executor = new CommitPrefixBuilderUseCase();
                                 const prefixResult = await executor.invoke(param);
                                 commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
                             }
@@ -281,7 +281,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     param.commitPrefixBuilderParams = {
                         branchName: branchName,
                     }
-                    const executor = new ExecuteScriptUseCase();
+                    const executor = new CommitPrefixBuilderUseCase();
                     const prefixResult = await executor.invoke(param);
                     commitPrefix = prefixResult[prefixResult.length - 1].payload['scriptResult'].toString() ?? ''
                 }
@@ -381,7 +381,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    reminders: [
+                    steps: [
                         `AI index was duplicated from \`${sourceBranch}\` to \`${targetBranch}\`.`,
                     ]
                 })

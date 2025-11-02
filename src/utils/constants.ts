@@ -177,6 +177,18 @@ export const DEFAULT_IMAGE_CONFIG = {
     }
 };
 
+export const WORKFLOW_STATUS = {
+    IN_PROGRESS: 'in_progress',
+    QUEUED: 'queued',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    CANCELLED: 'cancelled',
+    SKIPPED: 'skipped',
+    TIMED_OUT: 'timed_out',
+};
+
+export const WORKFLOW_ACTIVE_STATUSES = [WORKFLOW_STATUS.IN_PROGRESS, WORKFLOW_STATUS.QUEUED];
+
 export const INPUT_KEYS = {
     // Debug
     DEBUG: 'debug',
@@ -189,6 +201,8 @@ export const INPUT_KEYS = {
     DOCKER_CONTAINER_NAME: 'docker-container-name',
     DOCKER_DOMAIN: 'docker-domain',
     DOCKER_PORT: 'docker-port',
+    DOCKER_CACHE_OS: 'docker-cache-os',
+    DOCKER_CACHE_ARCH: 'docker-cache-arch',
 
     // Single action
     SINGLE_ACTION: 'single-action',
@@ -199,6 +213,7 @@ export const INPUT_KEYS = {
 
     // Tokens
     TOKEN: 'token',
+    CLASSIC_TOKEN: 'classic-token',
 
     // AI
     OPENROUTER_API_KEY: 'openrouter-api-key',
@@ -285,14 +300,40 @@ export const INPUT_KEYS = {
 
     // Issue Types
     ISSUE_TYPE_BUG: 'issue-type-bug',
+    ISSUE_TYPE_BUG_DESCRIPTION: 'issue-type-bug-description',
+    ISSUE_TYPE_BUG_COLOR: 'issue-type-bug-color',
+
     ISSUE_TYPE_HOTFIX: 'issue-type-hotfix',
+    ISSUE_TYPE_HOTFIX_DESCRIPTION: 'issue-type-hotfix-description',
+    ISSUE_TYPE_HOTFIX_COLOR: 'issue-type-hotfix-color',
+
     ISSUE_TYPE_FEATURE: 'issue-type-feature',
+    ISSUE_TYPE_FEATURE_DESCRIPTION: 'issue-type-feature-description',
+    ISSUE_TYPE_FEATURE_COLOR: 'issue-type-feature-color',
+
     ISSUE_TYPE_DOCUMENTATION: 'issue-type-documentation',
+    ISSUE_TYPE_DOCUMENTATION_DESCRIPTION: 'issue-type-documentation-description',
+    ISSUE_TYPE_DOCUMENTATION_COLOR: 'issue-type-documentation-color',
+
     ISSUE_TYPE_MAINTENANCE: 'issue-type-maintenance',
+    ISSUE_TYPE_MAINTENANCE_DESCRIPTION: 'issue-type-maintenance-description',
+    ISSUE_TYPE_MAINTENANCE_COLOR: 'issue-type-maintenance-color',
+
     ISSUE_TYPE_RELEASE: 'issue-type-release',
+    ISSUE_TYPE_RELEASE_DESCRIPTION: 'issue-type-release-description',
+    ISSUE_TYPE_RELEASE_COLOR: 'issue-type-release-color',
+
     ISSUE_TYPE_QUESTION: 'issue-type-question',
+    ISSUE_TYPE_QUESTION_DESCRIPTION: 'issue-type-question-description',
+    ISSUE_TYPE_QUESTION_COLOR: 'issue-type-question-color',
+
     ISSUE_TYPE_HELP: 'issue-type-help',
+    ISSUE_TYPE_HELP_DESCRIPTION: 'issue-type-help-description',
+    ISSUE_TYPE_HELP_COLOR: 'issue-type-help-color',
+
     ISSUE_TYPE_TASK: 'issue-type-task',
+    ISSUE_TYPE_TASK_DESCRIPTION: 'issue-type-task-description',
+    ISSUE_TYPE_TASK_COLOR: 'issue-type-task-color',
 
     // Locale
     ISSUES_LOCALE: 'issues-locale',
@@ -329,7 +370,7 @@ export const INPUT_KEYS = {
     CHORE_TREE: 'chore-tree',
 
     // Commit
-    COMMIT_PREFIX_BUILDER: 'commit-prefix-builder',
+    COMMIT_PREFIX_TRANSFORMS: 'commit-prefix-transforms',
 
     // Issue
     BRANCH_MANAGEMENT_ALWAYS: 'branch-management-always',
@@ -352,6 +393,7 @@ export const ERRORS = {
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
+    COMPILE_VECTOR_SERVER: 'compile_vector_server',
     VECTOR: 'vector_action',
     VECTOR_LOCAL: 'vector_local',
     VECTOR_REMOVAL: 'vector_removal',

@@ -246,6 +246,7 @@ export class Execution {
              */
             if (this.inputs?.[INPUT_KEYS.SINGLE_ACTION_ISSUE]) {
                 this.issueNumber = this.inputs[INPUT_KEYS.SINGLE_ACTION_ISSUE];
+                this.singleAction.issue = this.issueNumber;
             } else if (this.isIssue) {
                 this.singleAction.isIssue = true;
                 this.issueNumber = this.issue.number;
@@ -273,7 +274,7 @@ export class Execution {
                 )
 
                 if (this.singleAction.isIssue) {
-                    this.issueNumber = this.singleAction.issue
+                    this.issueNumber = this.singleAction.issue;
                 } else if (this.singleAction.isPullRequest) {
                     const head = await issueRepository.getHeadBranch(
                         this.owner,
@@ -296,7 +297,6 @@ export class Execution {
         }
 
         this.previousConfiguration = await new ConfigurationHandler().get(this)
-        logDebugInfo(`Previous configuration: ${JSON.stringify(this.previousConfiguration, null, 2)}`);
 
         /**
          * Get labels of issue

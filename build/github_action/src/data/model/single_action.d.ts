@@ -20,6 +20,7 @@ export declare class SingleAction {
     title: string;
     changelog: string;
     get isDeployedAction(): boolean;
+    get isCompileVectorServerAction(): boolean;
     get isVectorAction(): boolean;
     get isVectorLocalAction(): boolean;
     get isVectorRemovalAction(): boolean;

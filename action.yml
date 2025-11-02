@@ -170,33 +170,97 @@ inputs:
   project-column-pull-request-in-progress:
     description: "Name of the project column for in progress pull requests."
     default: "In Progress"
+
   issue-type-task:
     description: "Name of the issue type for tasks."
     default: "Task"
+  issue-type-task-description:
+    description: "Description of the issue type for tasks."
+    default: "A specific piece of work or activity that needs to be completed to achieve project goals."
+  issue-type-task-color:
+    description: "Color of the issue type for tasks."
+    default: "blue"
+
   issue-type-bug:
     description: "Name of the issue type for bugs."
     default: "Bug"
+  issue-type-bug-description:
+    description: "Description of the issue type for bugs."
+    default: "An issue indicating a defect, error, or malfunction that needs to be investigated and fixed."
+  issue-type-bug-color:
+    description: "Color of the issue type for bugs."
+    default: "orange"
+
   issue-type-feature:
     description: "Name of the issue type for features."
     default: "Feature"
+  issue-type-feature-description:
+    description: "Description of the issue type for features."
+    default: "A new functionality, enhancement, or improvement requested for the project."
+  issue-type-feature-color:
+    description: "Color of the issue type for features."
+    default: "green"
+
   issue-type-documentation:
     description: "Name of the issue type for documentation."
     default: "Documentation"
+  issue-type-documentation-description:
+    description: "Description of the issue type for documentation."
+    default: "An update, addition, or correction needed in the project's documentation."
+  issue-type-documentation-color:
+    description: "Color of the issue type for documentation."
+    default: "pink"
+
   issue-type-maintenance:
     description: "Name of the issue type for maintenance."
     default: "Maintenance"
+  issue-type-maintenance-description:
+    description: "Description of the issue type for maintenance."
+    default: "A task related to refactoring, dependency updates, or other technical maintenance work."
+  issue-type-maintenance-color:
+    description: "Color of the issue type for maintenance."
+    default: "purple"
+
   issue-type-hotfix:
     description: "Name of the issue type for hotfixes."
     default: "Hotfix"
+  issue-type-hotfix-description:
+    description: "Description of the issue type for hotfixes."
+    default: "A quick and urgent fix applied to resolve a critical issue in production."
+  issue-type-hotfix-color:
+    description: "Color of the issue type for hotfixes."
+    default: "red"
+
   issue-type-release:
     description: "Name of the issue type for releases."
     default: "Release"
+  issue-type-release-description:
+    description: "Description of the issue type for releases."
+    default: "An issue representing a deployment or version release of the project."
+  issue-type-release-color:
+    description: "Color of the issue type for releases."
+    default: "yellow"
+
   issue-type-question:
     description: "Name of the issue type for questions."
     default: "Question"
+  issue-type-question-description:
+    description: "Description of the issue type for questions."
+    default: "A question or clarification request related to the project or its implementation."
+  issue-type-question-color:
+    description: "Color of the issue type for questions."
+    default: "gray"
+
   issue-type-help:
     description: "Name of the issue type for help."
     default: "Help"
+  issue-type-help-description:
+    description: "Description of the issue type for help."
+    default: "A request for support, guidance, or assistance regarding the project."
+  issue-type-help-color:
+    description: "Color of the issue type for help."
+    default: "purple"
+
   issues-locale:
     description: "Locale of the issues."
     default: "en-US"
@@ -299,9 +363,9 @@ inputs:
   images-commit-hotfix:
     description: "Image URLs to display in hotfix action commit comments."
     default: "" 
-  commit-prefix-builder:
-    description: "Enable commit prefix generation."
-    default: "branchName.replace(\"/\", \"-\");"
+  commit-prefix-transforms:
+    description: "List of transformations to apply sequentially for commit prefix generation. Options: replace-slash, replace-all, lowercase, uppercase, kebab-case, snake-case, camel-case, trim, remove-numbers, clean-dashes, etc."
+    default: "replace-slash"
   reopen-issue-on-push:
     description: "Reopens a closed issue when changes are pushed to the branch associated with the issue."
     default: "true"
@@ -323,6 +387,9 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
+  classic-token:
+    description: "Classic token for authentication with GitHub Container Registry"
+    default: ""
   supabase-key:
     description: "Supabase key for AI operations."
     default: ""
@@ -374,6 +441,12 @@ inputs:
   docker-port:
     description: "Port of the Docker container to use."
     default: "8000"
+  docker-cache-os:
+    description: "OS of the Docker container to cache. Valid values: ubuntu-any-value, macos-any-value, windows-any-value"
+    default: "ubuntu-latest"
+  docker-cache-arch:
+    description: "Architecture of the Docker container to cache. Valid values: amd64, arm64, arm/v7, 386, s390x, ppc64le"
+    default: "amd64"
 runs:
   using: "node20"
   main: "build/github_action/index.js"
