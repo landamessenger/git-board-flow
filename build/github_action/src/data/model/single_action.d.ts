@@ -27,6 +27,7 @@ export declare class SingleAction {
     get isPublishGithubAction(): boolean;
     get isCreateReleaseAction(): boolean;
     get isCreateTagAction(): boolean;
+    get isThinkAction(): boolean;
     get enabledSingleAction(): boolean;
     get validSingleAction(): boolean;
     get isSingleActionWithoutIssue(): boolean;

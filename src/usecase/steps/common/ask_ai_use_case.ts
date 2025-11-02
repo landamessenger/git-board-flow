@@ -292,6 +292,12 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
             } else if (param.pullRequest.isPullRequestReviewComment) {
                 number = param.pullRequest.number;
             }
+            logInfo(`🔎 Number: ${number}`);
+
+            logInfo(`🔎 Final response: ${finalResponse}`);
+            logInfo(`🔎 Related files: ${JSON.stringify(relatedFiles, null, 2)}`);
+            logInfo(`🔎 Work complete: ${workComplete}`);
+
 
             await this.issueRepository.addComment(
                 param.owner,

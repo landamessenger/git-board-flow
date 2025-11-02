@@ -400,4 +400,5 @@ export const ACTIONS = {
     PUBLISH_GITHUB_ACTION: 'publish_github_action',
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',
+    THINK: 'think_action',
 } as const; 

@@ -12,6 +12,7 @@ export class SingleAction {
         ACTIONS.PUBLISH_GITHUB_ACTION,
         ACTIONS.CREATE_TAG,
         ACTIONS.CREATE_RELEASE,
+        ACTIONS.THINK,
     ];
     /**
      * Actions that throw an error if the last step failed
@@ -31,6 +32,7 @@ export class SingleAction {
         ACTIONS.VECTOR,
         ACTIONS.VECTOR_LOCAL,
         ACTIONS.COMPILE_VECTOR_SERVER,
+        ACTIONS.THINK,
     ];
 
     isIssue: boolean = false;
@@ -75,6 +77,10 @@ export class SingleAction {
 
     get isCreateTagAction(): boolean {
         return this.currentSingleAction === ACTIONS.CREATE_TAG;
+    }
+
+    get isThinkAction(): boolean {
+        return this.currentSingleAction === ACTIONS.THINK;
     }
 
     get enabledSingleAction(): boolean {

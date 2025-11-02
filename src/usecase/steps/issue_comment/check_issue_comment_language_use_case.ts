@@ -81,6 +81,7 @@ The text is: ${commentBody}
 ${this.translatedKey}
 `;
 
+        logInfo(`🔎 Issue number: ${param.issue.number}`);
         await this.issueRepository.updateComment(
             param.owner,
             param.repo,

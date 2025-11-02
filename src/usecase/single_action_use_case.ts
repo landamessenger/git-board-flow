@@ -9,6 +9,7 @@ import { ParamUseCase } from "./base/param_usecase";
 import { PublishGithubActionUseCase } from "./actions/publish_github_action_use_case";
 import { CreateReleaseUseCase } from "./actions/create_release_use_case";
 import { CreateTagUseCase } from "./actions/create_tag_use_case";
+import { ThinkUseCase } from "./steps/common/think_use_case";
 
 export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'SingleActionUseCase';
@@ -36,6 +37,8 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 results.push(...await new CreateReleaseUseCase().invoke(param));
             } else if (param.singleAction.isCreateTagAction) {
                 results.push(...await new CreateTagUseCase().invoke(param));
+            } else if (param.singleAction.isThinkAction) {
+                results.push(...await new ThinkUseCase().invoke(param));
             }
         } catch (error) {
             logError(error);

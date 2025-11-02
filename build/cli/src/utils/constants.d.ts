@@ -204,4 +204,5 @@ export declare const ACTIONS: {
     readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";
+    readonly THINK: "think_action";
 };
