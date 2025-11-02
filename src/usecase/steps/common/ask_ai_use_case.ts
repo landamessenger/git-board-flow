@@ -206,23 +206,15 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 - Use the file tree to provide additional context if needed (e.g., to understand module relationships).
                 - Strive to find the most appropriate and complete solution to the user's question.
                 - When in doubt or if you need more context to provide a confident answer, request additional files.
-                - Provide your answer **only** in a JSON format, following this structure:
 
-                {
-                    "text_response": "Your detailed analysis or answer here.",
-                    "action": "none" | "analyze_files",
-                    "related_files": ["optional", "list", "of", "files"],
-                    "complete": true | false
-                }
-
-                ## Important guidelines for text_response
+                ## Guidelines for text_response
 
                 - Start your response directly with the answer or analysis, without introductory phrases like "Based on the provided code snippets..." or "Based on the file tree..."
                 - Be concise and direct in your response
                 - Focus on providing the information requested without unnecessary context or explanations
                 - If you need more information, state it directly without prefacing phrases
 
-                ## Explanation
+                ## Response logic
 
                 - If the provided code snippets and file tree are sufficient to confidently answer the question, set "complete": true and "action": "none".
                 - If you have any doubts or need more context to provide a complete and accurate answer, set "complete": false, "action": "analyze_files", and list the related file paths you need to investigate further in "related_files".
@@ -230,10 +222,6 @@ export class AskActionUseCase implements ParamUseCase<Execution, Result[]> {
                 - Do not invent file paths; only request files that logically relate to the question based on the information available.
                 - Always provide a "text_response" with your reasoning, even if requesting more files.
                 - When requesting additional files, explain in the text_response why you need those specific files to provide a better answer.
-
-                ## Important
-
-                - **Respond only with the JSON object**, without any extra commentary or text outside of the JSON.
                 - Prioritize accuracy and completeness over speed - it's better to request more files than to provide an incomplete or uncertain answer.
                 - If the current code snippets are not helpful, use the file tree structure to guide your search for relevant files.
 
