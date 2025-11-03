@@ -13,8 +13,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private fileRepository: FileRepository = new FileRepository();
     private issueRepository: IssueRepository = new IssueRepository();
     
-    private readonly MAX_ITERATIONS = 10;
-    private readonly MAX_FILES_TO_ANALYZE = 20;
+    private readonly MAX_ITERATIONS = 30; // Increased to allow deeper analysis
+    private readonly MAX_FILES_TO_ANALYZE = 50; // Increased file limit
+    private readonly MAX_CONSECUTIVE_SEARCHES = 3; // Max consecutive search_files without progress
     
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`);
@@ -97,9 +98,13 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             let allProposedChanges: ProposedChange[] = [];
             let currentContext = '';
             let finalAnalysis = '';
+            let consecutiveSearches = 0; // Track consecutive search_files without reading
+            let lastProgressIteration = 0; // Track last iteration with actual progress
+            let filesReadInIteration = 0;
 
             while (!complete && iteration < this.MAX_ITERATIONS) {
                 iteration++;
+                filesReadInIteration = 0;
                 logInfo(`🤔 Reasoning iteration ${iteration}/${this.MAX_ITERATIONS}`);
 
                 const thinkResponse = await this.performReasoningStep(
@@ -138,18 +143,30 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 // Execute action
                 switch (thinkResponse.action) {
                     case 'search_files':
+                        consecutiveSearches++;
                         if (thinkResponse.files_to_search && thinkResponse.files_to_search.length > 0) {
                             const foundFiles = this.searchFiles(thinkResponse.files_to_search, fileIndex);
                             logInfo(`🔍 Search results: Found ${foundFiles.length} files for terms: ${thinkResponse.files_to_search.join(', ')}`);
                             if (foundFiles.length > 0) {
                                 currentContext += `\n\nFound ${foundFiles.length} files matching search criteria:\n${foundFiles.map(f => `- ${f}`).join('\n')}`;
+                                
+                                // If found files after multiple searches, suggest reading them
+                                if (consecutiveSearches >= this.MAX_CONSECUTIVE_SEARCHES && foundFiles.length > 0) {
+                                    currentContext += `\n\n💡 Tip: You've searched ${consecutiveSearches} times. Consider reading some of the found files to proceed with analysis: ${foundFiles.slice(0, 5).join(', ')}`;
+                                }
                             } else {
-                                currentContext += `\n\nNo files found matching search criteria: ${thinkResponse.files_to_search.join(', ')}. Available files in repository: ${Array.from(repositoryFiles.keys()).slice(0, 20).join(', ')}...`;
+                                currentContext += `\n\nNo files found matching search criteria: ${thinkResponse.files_to_search.join(', ')}. Available files in repository: ${Array.from(repositoryFiles.keys()).slice(0, 30).join(', ')}...`;
+                                
+                                // If too many searches without finding files, provide full file list
+                                if (consecutiveSearches >= this.MAX_CONSECUTIVE_SEARCHES) {
+                                    currentContext += `\n\n📋 Here are all available files in the repository to help you:\n${Array.from(repositoryFiles.keys()).map((f, i) => `${i + 1}. ${f}`).slice(0, 100).join('\n')}${repositoryFiles.size > 100 ? '\n... and more' : ''}`;
+                                }
                             }
                         }
                         break;
 
                     case 'read_file':
+                        consecutiveSearches = 0; // Reset counter when reading files
                         if (thinkResponse.files_to_read && thinkResponse.files_to_read.length > 0) {
                             const filesToAnalyze = thinkResponse.files_to_read.slice(0, this.MAX_FILES_TO_ANALYZE - analyzedFiles.size);
                             logInfo(`📖 Reading ${filesToAnalyze.length} files: ${filesToAnalyze.join(', ')}`);
@@ -162,22 +179,36 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
                                 const content = repositoryFiles.get(filePath);
                                 if (content !== undefined) {
+                                    filesReadInIteration++;
                                     logDebugInfo(`✅ Reading file: ${filePath} (${content.length} chars)`);
-                                    currentContext += `\n\n=== File: ${filePath} ===\n${content.substring(0, 5000)}${content.length > 5000 ? '\n... (truncated)' : ''}`;
+                                    currentContext += `\n\n=== File: ${filePath} ===\n${content.substring(0, 8000)}${content.length > 8000 ? '\n... (truncated)' : ''}`;
+                                    lastProgressIteration = iteration;
                                 } else {
                                     logInfo(`❌ File not found in repository: ${filePath}`);
-                                    currentContext += `\n\n⚠️ File not found: ${filePath}. Please check the file path.`;
+                                    // Try to find similar file names
+                                    const fileName = filePath.split('/').pop() || '';
+                                    const similarFiles = Array.from(repositoryFiles.keys()).filter(f => 
+                                        f.toLowerCase().includes(fileName.toLowerCase()) || 
+                                        f.split('/').pop()?.toLowerCase().includes(fileName.toLowerCase())
+                                    ).slice(0, 5);
+                                    currentContext += `\n\n⚠️ File not found: ${filePath}. ${similarFiles.length > 0 ? `Similar files found: ${similarFiles.join(', ')}` : 'Please check the file path.'}`;
                                 }
                             }
                         }
                         break;
 
                     case 'analyze_code':
-                        if (thinkResponse.analyzed_files) {
+                        consecutiveSearches = 0; // Reset counter when analyzing
+                        if (thinkResponse.analyzed_files && thinkResponse.analyzed_files.length > 0) {
+                            const beforeCount = analyzedFiles.size;
                             for (const analysis of thinkResponse.analyzed_files) {
                                 if (!analyzedFiles.has(analysis.path)) {
                                     analyzedFiles.set(analysis.path, analysis);
                                 }
+                            }
+                            
+                            if (analyzedFiles.size > beforeCount) {
+                                lastProgressIteration = iteration;
                             }
                             
                             const findings = thinkResponse.analyzed_files
@@ -188,24 +219,41 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         break;
 
                     case 'propose_changes':
-                        if (thinkResponse.proposed_changes) {
+                        consecutiveSearches = 0; // Reset counter when proposing changes
+                        if (thinkResponse.proposed_changes && thinkResponse.proposed_changes.length > 0) {
                             allProposedChanges.push(...thinkResponse.proposed_changes);
                             const changesSummary = thinkResponse.proposed_changes
                                 .map(c => `${c.change_type} ${c.file_path}: ${c.description}`)
                                 .join('\n');
                             currentContext += `\n\nProposed changes:\n${changesSummary}`;
+                            lastProgressIteration = iteration;
                         }
                         break;
 
                     case 'complete':
                         complete = true;
                         finalAnalysis = thinkResponse.final_analysis || thinkResponse.reasoning;
+                        lastProgressIteration = iteration;
                         break;
                 }
 
-                // Prevent infinite loops
+                // Check for stagnation - if too many iterations without progress
+                const iterationsWithoutProgress = iteration - lastProgressIteration;
+                if (iterationsWithoutProgress > 5 && !complete && iteration > 5) {
+                    logInfo(`⚠️ No significant progress in last ${iterationsWithoutProgress} iterations (last progress at iteration ${lastProgressIteration}). Forcing completion.`);
+                    complete = true;
+                    if (!finalAnalysis) {
+                        finalAnalysis = `Analysis completed after ${iteration} iterations. Analyzed ${analyzedFiles.size} files, proposed ${allProposedChanges.length} changes.`;
+                    }
+                }
+
+                // Prevent infinite loops - check file limit
                 if (analyzedFiles.size >= this.MAX_FILES_TO_ANALYZE) {
                     logInfo(`Reached maximum files to analyze (${this.MAX_FILES_TO_ANALYZE})`);
+                    if (!complete) {
+                        complete = true;
+                        finalAnalysis = finalAnalysis || `Reached maximum file limit. Analyzed ${analyzedFiles.size} files, proposed ${allProposedChanges.length} changes.`;
+                    }
                     break;
                 }
             }

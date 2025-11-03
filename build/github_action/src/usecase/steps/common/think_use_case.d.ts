@@ -8,6 +8,7 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private issueRepository;
     private readonly MAX_ITERATIONS;
     private readonly MAX_FILES_TO_ANALYZE;
+    private readonly MAX_CONSECUTIVE_SEARCHES;
     invoke(param: Execution): Promise<Result[]>;
     private getIssueDescription;
     private buildFileIndex;
