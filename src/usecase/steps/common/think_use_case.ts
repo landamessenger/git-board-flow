@@ -140,22 +140,33 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     case 'search_files':
                         if (thinkResponse.files_to_search && thinkResponse.files_to_search.length > 0) {
                             const foundFiles = this.searchFiles(thinkResponse.files_to_search, fileIndex);
-                            currentContext += `\n\nFound ${foundFiles.length} files matching search criteria:\n${foundFiles.map(f => `- ${f}`).join('\n')}`;
+                            logInfo(`🔍 Search results: Found ${foundFiles.length} files for terms: ${thinkResponse.files_to_search.join(', ')}`);
+                            if (foundFiles.length > 0) {
+                                currentContext += `\n\nFound ${foundFiles.length} files matching search criteria:\n${foundFiles.map(f => `- ${f}`).join('\n')}`;
+                            } else {
+                                currentContext += `\n\nNo files found matching search criteria: ${thinkResponse.files_to_search.join(', ')}. Available files in repository: ${Array.from(repositoryFiles.keys()).slice(0, 20).join(', ')}...`;
+                            }
                         }
                         break;
 
                     case 'read_file':
                         if (thinkResponse.files_to_read && thinkResponse.files_to_read.length > 0) {
                             const filesToAnalyze = thinkResponse.files_to_read.slice(0, this.MAX_FILES_TO_ANALYZE - analyzedFiles.size);
+                            logInfo(`📖 Reading ${filesToAnalyze.length} files: ${filesToAnalyze.join(', ')}`);
                             
                             for (const filePath of filesToAnalyze) {
                                 if (analyzedFiles.has(filePath)) {
+                                    logDebugInfo(`⏭️ Skipping already analyzed file: ${filePath}`);
                                     continue; // Already analyzed
                                 }
 
                                 const content = repositoryFiles.get(filePath);
                                 if (content !== undefined) {
+                                    logDebugInfo(`✅ Reading file: ${filePath} (${content.length} chars)`);
                                     currentContext += `\n\n=== File: ${filePath} ===\n${content.substring(0, 5000)}${content.length > 5000 ? '\n... (truncated)' : ''}`;
+                                } else {
+                                    logInfo(`❌ File not found in repository: ${filePath}`);
+                                    currentContext += `\n\n⚠️ File not found: ${filePath}. Please check the file path.`;
                                 }
                             }
                         }

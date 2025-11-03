@@ -248,17 +248,28 @@ program
       return;
     }
 
-    const question = (options.question || []).join(' ');
+    // Helper function to clean CLI arguments that may have '=' prefix
+    const cleanArg = (value: any): string => {
+      if (!value) return '';
+      const str = String(value);
+      return str.startsWith('=') ? str.substring(1) : str;
+    };
+
+    const questionParts = (options.question || []).map(cleanArg);
+    const question = questionParts.join(' ');
 
     if (!question || question.length === 0) {
       console.log('❌ Please provide a question or prompt using -q or --question');
       return;
     }
 
+    const branch = cleanArg(options.branch);
+    const issueNumber = cleanArg(options.issue);
+
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.THINK,
-      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(options.issue),
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber) || 1,
       [INPUT_KEYS.SUPABASE_URL]: options?.supabaseUrl?.length > 0 ? options.supabaseUrl : process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: options?.supabaseKey?.length > 0 ? options.supabaseKey : process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options?.token?.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
@@ -278,24 +289,25 @@ program
         repo: gitInfo.repo,
       },
       commits: {
-        ref: `refs/heads/${options.branch}`,
+        ref: `refs/heads/${branch}`,
       },
     }
 
     // Set up issue context if provided
-    if (options.issue && parseInt(options.issue) > 0) {
+    const parsedIssueNumber = parseInt(issueNumber);
+    if (issueNumber && parsedIssueNumber > 0) {
       const issueRepository = new IssueRepository();
       const isIssue = await issueRepository.isIssue(
         gitInfo.owner,
         gitInfo.repo,
-        parseInt(options.issue),
+        parsedIssueNumber,
         params[INPUT_KEYS.TOKEN] ?? ''
       );
 
       if (isIssue) {
         params.eventName = 'issue';
         params.issue = {
-          number: parseInt(options.issue),
+          number: parsedIssueNumber,
         }
         params.comment = {
           body: question,
@@ -314,7 +326,7 @@ program
 
     params[INPUT_KEYS.WELCOME_TITLE] = '🤔 AI Reasoning Analysis';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [
-      `Starting deep code analysis for ${gitInfo.owner}/${gitInfo.repo}/${options.branch}...`,
+      `Starting deep code analysis for ${gitInfo.owner}/${gitInfo.repo}/${branch}...`,
       `Question: ${question.substring(0, 100)}${question.length > 100 ? '...' : ''}`,
     ];
 
