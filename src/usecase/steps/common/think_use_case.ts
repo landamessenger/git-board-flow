@@ -780,10 +780,6 @@ Be thorough, clear, and actionable.
             comment += `## 📝 Question\n\n${question}\n\n`;
         }
 
-        if (description && description !== question) {
-            comment += `## 📋 Context\n\n${description.substring(0, 1000)}${description.length > 1000 ? '...' : ''}\n\n`;
-        }
-
         comment += `---\n\n`;
 
         // MAIN CONTENT: Summary and conclusions
@@ -976,13 +972,121 @@ Be thorough, clear, and actionable.
         }
 
         if (change.suggested_code) {
+            const language = this.detectLanguageFromPath(change.file_path);
             formatted += `**Suggested Code**:\n\n`;
-            formatted += `\`\`\`\n${change.suggested_code}\n\`\`\`\n\n`;
+            formatted += `\`\`\`${language}\n${change.suggested_code}\n\`\`\`\n\n`;
         }
 
         formatted += `---\n\n`;
         
         return formatted;
+    }
+
+    /**
+     * Detect programming language from file path/extension
+     */
+    private detectLanguageFromPath(filePath: string): string {
+        const extension = filePath.split('.').pop()?.toLowerCase() || '';
+        
+        const languageMap: { [key: string]: string } = {
+            // TypeScript/JavaScript
+            'ts': 'typescript',
+            'tsx': 'tsx',
+            'js': 'javascript',
+            'jsx': 'jsx',
+            'mjs': 'javascript',
+            'cjs': 'javascript',
+            
+            // Python
+            'py': 'python',
+            'pyw': 'python',
+            'pyi': 'python',
+            
+            // Java/Kotlin
+            'java': 'java',
+            'kt': 'kotlin',
+            'kts': 'kotlin',
+            
+            // Go
+            'go': 'go',
+            
+            // Rust
+            'rs': 'rust',
+            
+            // C/C++
+            'c': 'c',
+            'cpp': 'cpp',
+            'cc': 'cpp',
+            'cxx': 'cpp',
+            'h': 'c',
+            'hpp': 'cpp',
+            'hxx': 'cpp',
+            
+            // C#
+            'cs': 'csharp',
+            
+            // Ruby
+            'rb': 'ruby',
+            
+            // PHP
+            'php': 'php',
+            
+            // Swift
+            'swift': 'swift',
+            
+            // Dart
+            'dart': 'dart',
+            
+            // Shell
+            'sh': 'bash',
+            'bash': 'bash',
+            'zsh': 'bash',
+            'fish': 'fish',
+            
+            // Configuration
+            'json': 'json',
+            'yaml': 'yaml',
+            'yml': 'yaml',
+            'toml': 'toml',
+            'xml': 'xml',
+            'ini': 'ini',
+            'conf': 'conf',
+            'config': 'conf',
+            
+            // Markup
+            'html': 'html',
+            'htm': 'html',
+            'css': 'css',
+            'scss': 'scss',
+            'sass': 'sass',
+            'less': 'less',
+            'md': 'markdown',
+            'markdown': 'markdown',
+            
+            // SQL
+            'sql': 'sql',
+            
+            // Docker
+            'dockerfile': 'dockerfile',
+            'docker': 'dockerfile',
+            
+            // Other
+            'txt': 'text',
+            'log': 'text',
+        };
+        
+        // Check for exact match
+        if (languageMap[extension]) {
+            return languageMap[extension];
+        }
+        
+        // Check for Dockerfile (no extension)
+        if (filePath.toLowerCase().includes('dockerfile')) {
+            return 'dockerfile';
+        }
+        
+        // Default to empty string if unknown
+        return '';
     }
 
     private getChangeTypeEmoji(changeType: string): string {

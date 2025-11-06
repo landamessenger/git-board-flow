@@ -19,5 +19,9 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private getActionEmoji;
     private formatActionName;
     private formatProposedChange;
+    /**
+     * Detect programming language from file path/extension
+     */
+    private detectLanguageFromPath;
     private getChangeTypeEmoji;
 }
