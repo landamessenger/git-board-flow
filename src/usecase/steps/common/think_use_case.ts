@@ -73,6 +73,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
+            logInfo(`🔎 Question: ${question}`);
+            logInfo(`🔎 Description: ${description}`);
+
             // Get full repository content
             logInfo(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);
             const repositoryFiles = await this.fileRepository.getRepositoryContent(
@@ -123,7 +126,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     break;
                 }
 
-                // Record step
+                // Record step with associated data for better comment formatting
                 const step: ThinkStep = {
                     step_number: iteration,
                     action: thinkResponse.action,
@@ -136,6 +139,17 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     findings: thinkResponse.reasoning,
                     timestamp: Date.now()
                 };
+                
+                // Attach proposals to step if they were generated in this step
+                if (thinkResponse.action === 'propose_changes' && thinkResponse.proposed_changes) {
+                    (step as any).proposals_in_step = thinkResponse.proposed_changes;
+                }
+                
+                // Attach file analysis to step if provided
+                if (thinkResponse.action === 'analyze_code' && thinkResponse.analyzed_files) {
+                    (step as any).file_analysis_in_step = thinkResponse.analyzed_files;
+                }
+                
                 steps.push(step);
 
                 logInfo(`🤔 Step ${iteration}: ${thinkResponse.action} - ${thinkResponse.reasoning.substring(0, 100)}...`);
@@ -221,7 +235,17 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     case 'propose_changes':
                         consecutiveSearches = 0; // Reset counter when proposing changes
                         if (thinkResponse.proposed_changes && thinkResponse.proposed_changes.length > 0) {
+                            // Store the index where these proposals start for proper ordering
+                            const startIndex = allProposedChanges.length;
                             allProposedChanges.push(...thinkResponse.proposed_changes);
+                            
+                            // Attach to step with start index for proper display order
+                            const currentStep = steps[steps.length - 1];
+                            if (currentStep) {
+                                (currentStep as any).proposals_in_step = thinkResponse.proposed_changes;
+                                (currentStep as any).proposals_start_index = startIndex;
+                            }
+                            
                             const changesSummary = thinkResponse.proposed_changes
                                 .map(c => `${c.change_type} ${c.file_path}: ${c.description}`)
                                 .join('\n');
@@ -263,6 +287,42 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 finalAnalysis = await this.generateFinalAnalysis(param, question, analyzedFiles, allProposedChanges, steps);
             }
 
+            // Format and post comprehensive reasoning comment
+            const formattedComment = this.formatReasoningComment(
+                question,
+                description,
+                steps,
+                analyzedFiles,
+                allProposedChanges,
+                finalAnalysis,
+                iteration
+            );
+
+            // Determine issue number
+            let issueNumber = param.issueNumber;
+            if (param.singleAction.isThinkAction && issueNumber <= 0) {
+                // Try to get from issue if available
+                issueNumber = param.issue?.number || 1;
+            }
+
+            // Post comment if we have a valid issue number and token
+            if (issueNumber > 0 && param.tokens.token) {
+                try {
+                    await this.issueRepository.addComment(
+                        param.owner,
+                        param.repo,
+                        issueNumber,
+                        formattedComment,
+                        param.tokens.token
+                    );
+                    logInfo(`✅ Posted reasoning comment to issue #${issueNumber}`);
+                } catch (error) {
+                    logError(`Failed to post comment to issue: ${error}`);
+                }
+            } else {
+                logInfo(`⏭️ Skipping comment post: issueNumber=${issueNumber}, hasToken=${!!param.tokens.token}`);
+            }
+
             results.push(
                 new Result({
                     id: this.taskId,
@@ -275,7 +335,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         proposed_changes: allProposedChanges,
                         final_analysis: finalAnalysis,
                         total_iterations: iteration,
-                        total_files_analyzed: analyzedFiles.size
+                        total_files_analyzed: analyzedFiles.size,
+                        comment_posted: issueNumber > 0
                     }
                 })
             );
@@ -489,6 +550,187 @@ Be thorough, clear, and actionable.
 
         const response = await this.aiRepository.ask(param.ai, prompt);
         return response || 'Analysis completed. Review the proposed changes and steps above.';
+    }
+
+    private formatReasoningComment(
+        question: string,
+        description: string,
+        steps: ThinkStep[],
+        analyzedFiles: Map<string, FileAnalysis>,
+        proposedChanges: ProposedChange[],
+        finalAnalysis: string,
+        totalIterations: number
+    ): string {
+        const GITHUB_COMMENT_MAX_LENGTH = 65500; // Leave some margin below 65536
+        let comment = '';
+
+        // Header
+        comment += `# 🤔 AI Reasoning Analysis\n\n`;
+        
+        if (question) {
+            comment += `## 📝 Question\n\n${question}\n\n`;
+        }
+
+        if (description && description !== question) {
+            comment += `## 📋 Context\n\n${description.substring(0, 1000)}${description.length > 1000 ? '...' : ''}\n\n`;
+        }
+
+        comment += `---\n\n`;
+
+        // Summary
+        comment += `## 📊 Analysis Summary\n\n`;
+        comment += `- **Total Iterations**: ${totalIterations}\n`;
+        comment += `- **Files Analyzed**: ${analyzedFiles.size}\n`;
+        comment += `- **Changes Proposed**: ${proposedChanges.length}\n\n`;
+
+        comment += `---\n\n`;
+
+        // Steps with interleaved proposals - similar to chat format
+        comment += `## 🔄 Reasoning Steps\n\n`;
+
+        let proposalIndex = 0;
+        const proposalShownFlags = new Set<number>();
+
+        for (const step of steps) {
+            comment += `### Step ${step.step_number}: ${this.getActionEmoji(step.action)} ${this.formatActionName(step.action)}\n\n`;
+            
+            // Show reasoning
+            if (step.reasoning) {
+                comment += `${step.reasoning}\n\n`;
+            }
+
+            // Show files involved
+            if (step.files_involved && step.files_involved.length > 0) {
+                const uniqueFiles = [...new Set(step.files_involved)];
+                comment += `**Files involved**:\n`;
+                uniqueFiles.forEach(file => {
+                    comment += `- \`${file}\`\n`;
+                });
+                comment += `\n`;
+            }
+
+            // Show file analysis for files read/analyzed in this step
+            if (step.action === 'analyze_code' || step.action === 'read_file') {
+                const relevantFiles = Array.from(analyzedFiles.values()).filter(f => 
+                    step.files_involved?.includes(f.path)
+                );
+                
+                // Also check if step has direct analysis data
+                const stepAnalysis = (step as any).file_analysis_in_step as FileAnalysis[] | undefined;
+                const filesToShow = stepAnalysis || relevantFiles;
+                
+                if (filesToShow.length > 0) {
+                    comment += `#### 📄 Analysis of Files\n\n`;
+                    filesToShow.forEach(file => {
+                        comment += `**\`${file.path}\`** (${file.relevance} relevance):\n`;
+                        comment += `${file.key_findings}\n\n`;
+                    });
+                }
+            }
+
+            // Show proposals if this step generated them (interleaved with steps)
+            const stepProposals = (step as any).proposals_in_step as ProposedChange[] | undefined;
+            const proposalsStartIndex = (step as any).proposals_start_index as number | undefined;
+            
+            if (stepProposals && stepProposals.length > 0) {
+                comment += `#### 💡 Proposed Changes from this Step\n\n`;
+                stepProposals.forEach((change) => {
+                    // Use the start index if available, otherwise find in array
+                    let globalIndex = proposalsStartIndex !== undefined 
+                        ? proposalsStartIndex + stepProposals.indexOf(change)
+                        : proposedChanges.indexOf(change);
+                    
+                    if (globalIndex >= 0 && globalIndex < proposedChanges.length && !proposalShownFlags.has(globalIndex)) {
+                        proposalShownFlags.add(globalIndex);
+                        proposalIndex++;
+                        comment += this.formatProposedChange(change, proposalIndex);
+                    }
+                });
+            }
+
+            comment += `\n---\n\n`;
+        }
+
+        // Show any remaining proposals that weren't attached to specific steps
+        const remainingProposals = proposedChanges.filter((_, idx) => !proposalShownFlags.has(idx));
+        if (remainingProposals.length > 0) {
+            comment += `## 💡 Additional Proposed Changes\n\n`;
+            remainingProposals.forEach((change) => {
+                proposalIndex++;
+                comment += this.formatProposedChange(change, proposalIndex);
+            });
+            comment += `\n---\n\n`;
+        }
+
+        // Final Analysis
+        if (finalAnalysis) {
+            comment += `## 🎯 Final Analysis & Recommendations\n\n`;
+            comment += `${finalAnalysis}\n\n`;
+            comment += `---\n\n`;
+        }
+
+        // Footer
+        comment += `---\n\n`;
+        comment += `*Analysis completed in ${totalIterations} iterations. Analyzed ${analyzedFiles.size} files and proposed ${proposedChanges.length} changes.*\n`;
+
+        // Truncate if too long
+        if (comment.length > GITHUB_COMMENT_MAX_LENGTH) {
+            const truncated = comment.substring(0, GITHUB_COMMENT_MAX_LENGTH - 200);
+            comment = truncated + `\n\n*[Comment truncated due to length limit]*\n`;
+        }
+
+        return comment;
+    }
+
+    private getActionEmoji(action: string): string {
+        const emojiMap: { [key: string]: string } = {
+            'search_files': '🔍',
+            'read_file': '📖',
+            'analyze_code': '🔬',
+            'propose_changes': '💡',
+            'complete': '✅'
+        };
+        return emojiMap[action] || '📝';
+    }
+
+    private formatActionName(action: string): string {
+        const nameMap: { [key: string]: string } = {
+            'search_files': 'Search Files',
+            'read_file': 'Read Files',
+            'analyze_code': 'Analyze Code',
+            'propose_changes': 'Propose Changes',
+            'complete': 'Complete'
+        };
+        return nameMap[action] || action;
+    }
+
+    private formatProposedChange(change: ProposedChange, index: number): string {
+        let formatted = `### ${index}. ${this.getChangeTypeEmoji(change.change_type)} ${change.change_type.toUpperCase()}: \`${change.file_path}\`\n\n`;
+        
+        formatted += `**Description**: ${change.description}\n\n`;
+        
+        if (change.reasoning) {
+            formatted += `**Reasoning**: ${change.reasoning}\n\n`;
+        }
+
+        if (change.suggested_code) {
+            formatted += `**Suggested Code**:\n\n`;
+            formatted += `\`\`\`\n${change.suggested_code}\n\`\`\`\n\n`;
+        }
+
+        formatted += `---\n\n`;
+        
+        return formatted;
+    }
+
+    private getChangeTypeEmoji(changeType: string): string {
+        const emojiMap: { [key: string]: string } = {
+            'create': '✨',
+            'modify': '📝',
+            'delete': '🗑️',
+            'refactor': '♻️'
+        };
+        return emojiMap[changeType] || '📝';
     }
 }
 

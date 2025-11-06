@@ -15,4 +15,9 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private searchFiles;
     private performReasoningStep;
     private generateFinalAnalysis;
+    private formatReasoningComment;
+    private getActionEmoji;
+    private formatActionName;
+    private formatProposedChange;
+    private getChangeTypeEmoji;
 }
