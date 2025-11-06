@@ -64951,34 +64951,6 @@ exports.ChunkedFile = ChunkedFile;
 
 /***/ }),
 
-/***/ 4370:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ChunkedFileChunk = void 0;
-class ChunkedFileChunk {
-    constructor(owner, repository, branch, path, type, index, chunkIndex, chunk, shasum, vector) {
-        this.shasum = '';
-        this.vector = [];
-        this.owner = owner;
-        this.repository = repository;
-        this.branch = branch;
-        this.path = path;
-        this.type = type;
-        this.index = index;
-        this.chunkIndex = chunkIndex;
-        this.chunk = chunk;
-        this.shasum = shasum;
-        this.vector = vector;
-    }
-}
-exports.ChunkedFileChunk = ChunkedFileChunk;
-
-
-/***/ }),
-
 /***/ 3993:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -69021,396 +68993,184 @@ exports.SupabaseRepository = void 0;
 const supabase_js_1 = __nccwpck_require__(1206);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
-const chunked_file_chunk_1 = __nccwpck_require__(4370);
 class SupabaseRepository {
     constructor(config) {
-        this.CHUNKS_TABLE = 'chunks';
+        this.AI_FILE_CACHE_TABLE = 'ai_file_cache';
         this.MAX_BATCH_SIZE = 500;
         this.DEFAULT_TIMEOUT = 30000; // 30 seconds
-        this.setChunkedFile = async (owner, repository, branch, chunkedFile) => {
+        /**
+         * Set or update AI file cache entry
+         * If SHA hasn't changed, this will update the entry
+         */
+        this.setAIFileCache = async (owner, repository, branch, fileInfo) => {
             try {
-                const insertPromises = chunkedFile.chunks.map(async (chunk, index) => {
-                    const { error } = await this.supabase
-                        .from(this.CHUNKS_TABLE)
-                        .insert({
-                        owner,
-                        repository,
-                        branch,
-                        path: chunkedFile.path,
-                        type: chunkedFile.type,
-                        index: chunkedFile.index,
-                        chunk_index: index,
-                        content: chunk,
-                        shasum: chunkedFile.shasum,
-                        vector: chunkedFile.vector[index],
-                        updated_at: new Date().toISOString()
-                    });
-                    if (error) {
-                        chunkedFile.vector = [];
-                        (0, logger_1.logError)(`Error inserting index ${chunkedFile.index} chunk ${index} for file ${chunkedFile.path}: ${JSON.stringify(chunkedFile, null, 2)}`);
-                        (0, logger_1.logError)(`Inserting error: ${JSON.stringify(error, null, 2)}`);
-                        throw error;
+                const { error } = await this.supabase
+                    .from(this.AI_FILE_CACHE_TABLE)
+                    .upsert({
+                    owner,
+                    repository,
+                    branch,
+                    file_name: fileInfo.file_name,
+                    path: fileInfo.path,
+                    sha: fileInfo.sha,
+                    description: fileInfo.description,
+                    consumes: fileInfo.consumes,
+                    consumed_by: fileInfo.consumed_by,
+                    last_updated: new Date().toISOString()
+                }, {
+                    onConflict: 'owner,repository,branch,path'
+                });
+                if (error) {
+                    (0, logger_1.logError)(`Error setting AI file cache for ${fileInfo.path}: ${JSON.stringify(error, null, 2)}`);
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error setting AI file cache ${fileInfo.path}: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
+        /**
+         * Get AI file cache entry by path
+         */
+        this.getAIFileCache = async (owner, repository, branch, filePath) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.AI_FILE_CACHE_TABLE)
+                    .select('*')
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('path', filePath)
+                    .single();
+                if (error) {
+                    if (error.code === 'PGRST116') {
+                        // No rows returned
+                        return null;
                     }
-                });
-                await Promise.all(insertPromises);
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
-                // throw error;
-            }
-        };
-        this.removeChunksByShasum = async (owner, repository, branch, shasum) => {
-            try {
-                const { error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .delete()
-                    .eq('owner', owner)
-                    .eq('repository', repository)
-                    .eq('branch', branch)
-                    .eq('shasum', shasum);
-                if (error) {
-                    throw error;
+                    (0, logger_1.logError)(`Error getting AI file cache: ${JSON.stringify(error, null, 2)}`);
+                    return null;
                 }
+                return data;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error removing chunks by shasum: ${JSON.stringify(error, null, 2)}`);
-                throw error;
+                (0, logger_1.logError)(`Error getting AI file cache: ${JSON.stringify(error, null, 2)}`);
+                return null;
             }
         };
-        this.getChunkedFileByShasum = async (owner, repository, branch, type, shasum) => {
+        /**
+         * Get all AI file cache entries for a branch
+         */
+        this.getAIFileCachesByBranch = async (owner, repository, branch) => {
             try {
                 const { data, error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
+                    .from(this.AI_FILE_CACHE_TABLE)
                     .select('*')
                     .eq('owner', owner)
                     .eq('repository', repository)
                     .eq('branch', branch)
-                    .eq('type', type)
-                    .eq('shasum', shasum)
-                    .order('chunk_index');
+                    .order('path');
                 if (error) {
-                    (0, logger_1.logError)(`Supabase error getting chunked file: ${JSON.stringify(error, null, 2)}`);
+                    (0, logger_1.logError)(`Error getting AI file caches by branch: ${JSON.stringify(error, null, 2)}`);
                     return [];
                 }
-                if (!data) {
-                    return [];
-                }
-                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.content, doc.shasum, doc.vector));
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-                return [];
-            }
-        };
-        this.getChunks = async (owner, repository, branch, path, type, index) => {
-            try {
-                const { data, error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .select('*')
-                    .eq('owner', owner)
-                    .eq('repository', repository)
-                    .eq('branch', branch)
-                    .eq('path', path)
-                    .eq('type', type)
-                    .eq('index', index)
-                    .order('chunk_index');
-                if (error) {
-                    (0, logger_1.logError)(`Supabase error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-                    return [];
-                }
-                if (!data) {
-                    return [];
-                }
-                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-                return [];
-            }
-        };
-        this.getChunksByShasum = async (owner, repository, branch, shasum) => {
-            try {
-                const { data, error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .select('*')
-                    .eq('owner', owner)
-                    .eq('repository', repository)
-                    .eq('branch', branch)
-                    .eq('shasum', shasum)
-                    .order('chunk_index');
-                if (error) {
-                    throw error;
-                }
-                if (!data) {
-                    return [];
-                }
-                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.chunk, doc.shasum, doc.vector));
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        };
-        this.updateVector = async (owner, repository, branch, path, index, chunkIndex, vector) => {
-            try {
-                const { error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .update({ vector })
-                    .eq('owner', owner)
-                    .eq('repository', repository)
-                    .eq('branch', branch)
-                    .eq('path', path)
-                    .eq('index', index)
-                    .eq('chunk_index', chunkIndex);
-                if (error) {
-                    throw error;
-                }
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error updating vector: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        };
-        this.matchChunks = async (owner, repository, branch, type, queryEmbedding, matchCount = 5) => {
-            try {
-                const { data, error } = await this.supabase
-                    .rpc('match_chunks', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    branch_param: branch,
-                    type_param: type,
-                    query_embedding: queryEmbedding,
-                    match_count: matchCount
-                });
-                if (error) {
-                    (0, logger_1.logError)(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);
-                    throw error;
-                }
-                return data.map((doc) => new chunked_file_chunk_1.ChunkedFileChunk(doc.owner, doc.repository, doc.branch, doc.path, doc.type, doc.index, doc.chunk_index, doc.content, doc.shasum, doc.vector));
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        };
-        this.duplicateChunksByBranch = async (owner, repository, sourceBranch, targetBranch) => {
-            const count = await this.countBranchEntries(owner, repository, sourceBranch);
-            (0, logger_1.logDebugInfo)(`Counting chunks in branch ${sourceBranch}: ${count}`);
-            if (count < 10000) {
-                await this.duplicateBranchEntries(owner, repository, sourceBranch, targetBranch);
-            }
-            else {
-                const filePaths = await this.getDistinctPaths(owner, repository, sourceBranch);
-                (0, logger_1.logDebugInfo)(`Counting files in branch ${sourceBranch}: ${filePaths.length}`);
-                for (const path of filePaths) {
-                    await this.duplicateFileEntries(owner, repository, sourceBranch, path, targetBranch);
-                }
-            }
-        };
-        this.removeChunksByBranch = async (owner, repository, branch) => {
-            const count = await this.countBranchEntries(owner, repository, branch);
-            (0, logger_1.logDebugInfo)(`Counting chunks in branch ${branch}: ${count}`);
-            if (count < 10000) {
-                await this.deleteBranchEntries(owner, repository, branch);
-            }
-            else {
-                const filePaths = await this.getDistinctPaths(owner, repository, branch);
-                (0, logger_1.logDebugInfo)(`Counting files in branch ${branch}: ${filePaths.length}`);
-                for (const path of filePaths) {
-                    await this.removeChunksByPath(owner, repository, branch, path);
-                }
-            }
-            (0, logger_1.logDebugInfo)(`Checking if all chunks are deleted from branch ${branch}`);
-            // Retry logic to ensure all chunks are deleted
-            const maxRetries = 5;
-            const retryDelay = 10000; // 1 second
-            let retryCount = 0;
-            while (retryCount < maxRetries) {
-                const { data: chunks, error: chunksError } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .select('*')
-                    .eq('owner', owner)
-                    .eq('repository', repository)
-                    .eq('branch', branch);
-                if (chunksError) {
-                    (0, logger_1.logError)(`Error checking chunks by branch: ${JSON.stringify(chunksError, null, 2)}`);
-                    throw chunksError;
-                }
-                if (!chunks || chunks.length === 0) {
-                    // No chunks found, deletion successful
-                    (0, logger_1.logDebugInfo)(`Removed all chunks from branch ${branch}`);
-                    return;
-                }
-                retryCount++;
-                if (retryCount < maxRetries) {
-                    (0, logger_1.logDebugInfo)(`Chunks still present for branch ${branch}, retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
-                }
-            }
-            // If we reach here, we've exhausted all retries and chunks still exist
-            (0, logger_1.logError)(`There are still chunks left for this branch after ${maxRetries} attempts: ${branch}`);
-            throw new Error(`There are still chunks left for this branch after ${maxRetries} attempts: ${branch}`);
-        };
-        this.getDistinctPaths = async (owner, repository, branch) => {
-            try {
-                const { data, error } = await this.supabase
-                    .rpc('get_distinct_paths', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    branch_param: branch
-                });
-                if (error) {
-                    (0, logger_1.logError)(`Error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
-                    return [];
-                }
-                if (!data) {
-                    (0, logger_1.logInfo)(`No data found for ${owner}/${repository}/${branch}`);
-                    return [];
-                }
-                const paths = data.map((doc) => doc.path);
-                return paths;
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Unexpected error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
-                if (error instanceof Error) {
-                    (0, logger_1.logError)(`Error details: ${error.message}`);
-                    (0, logger_1.logError)(`Error stack: ${error.stack}`);
-                }
-                return [];
-            }
-        };
-        this.removeChunksByPath = async (owner, repository, branch, path) => {
-            const { error } = await this.supabase
-                .rpc('delete_branch_path_entries', {
-                owner_param: owner,
-                repository_param: repository,
-                branch_param: branch,
-                path_param: path
-            });
-            (0, logger_1.logDebugInfo)(`Removed chunks: ${path} [${branch}]`);
-            if (error) {
-                (0, logger_1.logError)(`Error removing chunks by path: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        };
-        this.getShasumByPath = async (owner, repository, branch, path) => {
-            try {
-                const { data, error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .select('*')
-                    .eq('owner', owner)
-                    .eq('repository', repository)
-                    .eq('branch', branch)
-                    .eq('path', path)
-                    .order('index')
-                    .order('chunk_index')
-                    .limit(1);
-                if (error) {
-                    (0, logger_1.logError)(`Supabase error getting chunks by path: ${JSON.stringify(error, null, 2)}`);
-                    return undefined;
-                }
-                if (!data) {
-                    return undefined;
-                }
-                return data[0].shasum;
-            }
-            catch (error) {
-                // logError(`Error getting shasum by path: ${JSON.stringify(error, null, 2)}`);
-                return undefined;
-            }
-        };
-        this.countBranchEntries = async (owner, repository, branch) => {
-            try {
-                const { data, error } = await this.supabase
-                    .rpc('count_branch_entries', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    branch_param: branch
-                });
-                if (error) {
-                    (0, logger_1.logError)(`Error counting branch entries: ${JSON.stringify(error, null, 2)}`);
-                    return 0;
-                }
-                return data || 0;
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error counting branch entries: ${JSON.stringify(error, null, 2)}`);
-                return 0;
-            }
-        };
-        this.duplicateFileEntries = async (owner, repository, sourceBranch, path, targetBranch) => {
-            try {
-                (0, logger_1.logDebugInfo)(`Duplicating file entries: ${path} [${sourceBranch}] -> [${targetBranch}]`);
-                const { error } = await this.supabase
-                    .rpc('duplicate_file_entries', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    source_branch_param: sourceBranch,
-                    path_param: path,
-                    target_branch_param: targetBranch
-                });
-                if (error) {
-                    (0, logger_1.logError)(`Error duplicating file entries: ${JSON.stringify(error, null, 2)}`);
-                    throw error;
-                }
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error duplicating file entries: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        };
-        this.duplicateBranchEntries = async (owner, repository, sourceBranch, targetBranch) => {
-            try {
-                (0, logger_1.logDebugInfo)(`Duplicating branch entries for ${owner}/${repository}/${sourceBranch} to ${targetBranch}`);
-                const { error } = await this.supabase
-                    .rpc('duplicate_branch_entries', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    source_branch_param: sourceBranch,
-                    target_branch_param: targetBranch
-                });
-                if (error) {
-                    (0, logger_1.logError)(`Error duplicating branch entries: ${JSON.stringify(error, null, 2)}`);
-                    throw error;
-                }
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error duplicating branch entries: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        };
-        this.deleteBranchEntries = async (owner, repository, branch) => {
-            const { error } = await this.supabase
-                .rpc('delete_branch_entries', {
-                owner_param: owner,
-                repository_param: repository,
-                branch_param: branch
-            });
-            if (error) {
-                (0, logger_1.logError)(`Error removing chunks from branch: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        };
-        this.getVectorOfChunkContent = async (owner, repository, content) => {
-            try {
-                const { data, error } = await this.supabase
-                    .rpc('get_vector_of_chunk_content', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    content_param: content
-                });
-                if (error) {
-                    (0, logger_1.logError)(`Error getting vector of chunk content: ${JSON.stringify(error, null, 2)}`);
-                    throw error;
-                }
-                // If no data is found, return empty array
                 if (!data) {
                     return [];
                 }
                 return data;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error getting vector of chunk content: ${JSON.stringify(error, null, 2)}`);
+                (0, logger_1.logError)(`Error getting AI file caches by branch: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+        };
+        /**
+         * Remove AI file cache entry by path
+         */
+        this.removeAIFileCacheByPath = async (owner, repository, branch, filePath) => {
+            try {
+                const { error } = await this.supabase
+                    .from(this.AI_FILE_CACHE_TABLE)
+                    .delete()
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('branch', branch)
+                    .eq('path', filePath);
+                if (error) {
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error removing AI file cache by path: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
+        /**
+         * Duplicate AI file cache entries from one branch to another
+         */
+        this.duplicateAIFileCacheByBranch = async (owner, repository, sourceBranch, targetBranch) => {
+            try {
+                const { error } = await this.supabase
+                    .rpc('duplicate_ai_file_cache_by_branch', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    source_branch_param: sourceBranch,
+                    target_branch_param: targetBranch
+                });
+                if (error) {
+                    (0, logger_1.logError)(`Error duplicating AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error duplicating AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
+        /**
+         * Remove all AI file cache entries for a branch
+         */
+        this.removeAIFileCacheByBranch = async (owner, repository, branch) => {
+            try {
+                const { error } = await this.supabase
+                    .rpc('delete_ai_file_cache_by_branch', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    branch_param: branch
+                });
+                if (error) {
+                    (0, logger_1.logError)(`Error removing AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error removing AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        };
+        /**
+         * Get SHA by path (for checking if file is cached)
+         */
+        this.getShasumByPath = async (owner, repository, branch, path) => {
+            try {
+                const cached = await this.getAIFileCache(owner, repository, branch, path);
+                return cached?.sha;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting SHA by path: ${JSON.stringify(error, null, 2)}`);
+                return undefined;
+            }
+        };
+        /**
+         * Get distinct paths for a branch
+         */
+        this.getDistinctPaths = async (owner, repository, branch) => {
+            try {
+                const cachedFiles = await this.getAIFileCachesByBranch(owner, repository, branch);
+                return cachedFiles.map(file => file.path);
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
                 return [];
             }
         };
@@ -70107,11 +69867,14 @@ exports.VectorActionUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const file_repository_1 = __nccwpck_require__(1503);
 const supabase_repository_1 = __nccwpck_require__(9829);
+const ai_repository_1 = __nccwpck_require__(8307);
 const logger_1 = __nccwpck_require__(8836);
+const crypto_1 = __nccwpck_require__(6113);
 class VectorActionUseCase {
     constructor() {
         this.taskId = 'VectorActionUseCase';
         this.fileRepository = new file_repository_1.FileRepository();
+        this.aiRepository = new ai_repository_1.AiRepository();
         this.CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
         this.CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
         this.checkChunksInSupabase = async (param, branch, chunkedFilesMap) => {
@@ -70137,7 +69900,7 @@ class VectorActionUseCase {
                 (0, logger_1.logInfo)(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
                 for (const path of pathsToRemove) {
                     try {
-                        await supabaseRepository.removeChunksByPath(param.owner, param.repo, branch, path);
+                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, path);
                         (0, logger_1.logInfo)(`📦 ✅ Removed chunks for path: ${path}`);
                     }
                     catch (error) {
@@ -70176,9 +69939,18 @@ class VectorActionUseCase {
                 return results;
             }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
-            const processedChunkedFiles = [];
             const startTime = Date.now();
             const chunkedPaths = Array.from(chunkedFilesMap.keys());
+            // Step 1: Get all repository files once to build relationship map
+            (0, logger_1.logInfo)(`📦 Building relationship map from repository files...`);
+            const allRepositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), () => { }, // progress callback
+            () => { } // ignored files callback
+            );
+            // Step 2: Build relationship map once for all files
+            const relationshipMaps = this.buildRelationshipMap(allRepositoryFiles);
+            const consumesMap = relationshipMaps.consumes;
+            const consumedByMap = relationshipMaps.consumedBy;
+            (0, logger_1.logInfo)(`✅ Relationship map built for ${allRepositoryFiles.size} files`);
             for (let i = 0; i < chunkedPaths.length; i++) {
                 const path = chunkedPaths[i];
                 const chunkedFiles = chunkedFilesMap.get(path) || [];
@@ -70196,68 +69968,56 @@ class VectorActionUseCase {
                     }
                     else if (remoteShasum !== chunkedFiles[0].shasum) {
                         (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
-                        await supabaseRepository.removeChunksByPath(param.owner, param.repo, branch, path);
+                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, path);
                     }
                 }
-                // Process chunks in parallel with concurrency limit
-                const maxWorkers = 3;
-                const chunkPromises = [];
-                let activeWorkers = 0;
-                for (let j = 0; j < chunkedFiles.length; j++) {
-                    const chunkedFile = chunkedFiles[j];
-                    const chunkProgress = ((j + 1) / chunkedFiles.length) * 100;
-                    // Wait if we have reached the limit of workers
-                    while (activeWorkers >= maxWorkers) {
-                        await Promise.race(chunkPromises);
-                        activeWorkers = chunkPromises.filter(p => !p).length;
-                    }
-                    const processChunk = async () => {
+                // Generate AI cache for this file (only process once per file, not per chunk)
+                // Use the first chunkedFile to get the full content
+                if (chunkedFiles.length > 0) {
+                    const firstChunkedFile = chunkedFiles[0];
+                    const fileContent = firstChunkedFile.content;
+                    const filePath = firstChunkedFile.path;
+                    try {
+                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
+                        // Step 3: Extract imports for this file (from pre-built map)
+                        const consumes = consumesMap.get(filePath) || [];
+                        const consumedBy = consumedByMap.get(filePath) || [];
+                        // Step 4: Calculate SHA
+                        const currentSHA = this.calculateFileSHA(fileContent);
+                        // Step 5: Generate description using AI (with fallback)
+                        let description = this.generateBasicDescription(filePath);
                         try {
-                            (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
-                            const existingVectors = [];
-                            const existingChunks = [];
-                            const chunksToProcess = [];
-                            for (const chunk of chunkedFile.chunks) {
-                                const vector = await supabaseRepository.getVectorOfChunkContent(param.owner, param.repo, chunk);
-                                if (vector.length > 0) {
-                                    existingVectors.push(vector);
-                                    existingChunks.push(chunk);
-                                }
-                                else {
-                                    chunksToProcess.push(chunk);
-                                }
+                            const descriptionPrompt = `Analyze this code file and provide a brief description (1-2 sentences) of what it does:
+
+\`\`\`
+${fileContent.substring(0, 2000)}${fileContent.length > 2000 ? '...' : ''}
+\`\`\`
+
+Provide only a concise description in English, focusing on the main functionality.`;
+                            const aiDescription = await this.aiRepository.ask(param.ai, descriptionPrompt);
+                            if (aiDescription && aiDescription.trim().length > 0) {
+                                description = aiDescription.trim();
                             }
-                            const cachedPercentage = (existingChunks.length / chunkedFile.chunks.length) * 100;
-                            (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}] - ${cachedPercentage.toFixed(1)}% cached`);
-                            let embeddings = [];
-                            let chunks = [];
-                            if (chunksToProcess.length > 0) {
-                                embeddings = [...existingVectors];
-                                chunks = [...existingChunks, ...chunksToProcess];
-                            }
-                            else {
-                                embeddings = existingVectors;
-                                chunks = existingChunks;
-                            }
-                            chunkedFile.vector = embeddings;
-                            chunkedFile.chunks = chunks;
-                            (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
-                            await supabaseRepository.setChunkedFile(param.owner, param.repo, branch, chunkedFile);
-                            processedChunkedFiles.push(chunkedFile);
                         }
                         catch (error) {
-                            (0, logger_1.logError)(`Error processing chunk ${j + 1} of file ${path}: ${JSON.stringify(error, null, 2)}`);
+                            (0, logger_1.logError)(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                         }
-                    };
-                    const chunkPromise = processChunk();
-                    chunkPromises.push(chunkPromise);
-                    activeWorkers++;
-                    chunkPromise.finally(() => {
-                        activeWorkers--;
-                    });
+                        // Step 6: Save to Supabase
+                        const fileName = filePath.split('/').pop() || filePath;
+                        await supabaseRepository.setAIFileCache(param.owner, param.repo, branch, {
+                            file_name: fileName,
+                            path: filePath,
+                            sha: currentSHA,
+                            description: description,
+                            consumes: consumes,
+                            consumed_by: consumedBy
+                        });
+                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
+                    }
+                    catch (error) {
+                        (0, logger_1.logError)(`Error generating AI cache for ${path}: ${JSON.stringify(error, null, 2)}`);
+                    }
                 }
-                // Wait for all chunks of the current file to be processed
-                await Promise.all(chunkPromises);
             }
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
             (0, logger_1.logInfo)(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
@@ -70286,10 +70046,10 @@ class VectorActionUseCase {
             }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
             try {
-                (0, logger_1.logInfo)(`📦 -> 📦 Clearing possible existing chunks from ${targetBranch} for ${param.owner}/${param.repo}.`);
-                await supabaseRepository.removeChunksByBranch(param.owner, param.repo, targetBranch);
-                (0, logger_1.logInfo)(`📦 -> 📦 Duplicating chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
-                await supabaseRepository.duplicateChunksByBranch(param.owner, param.repo, sourceBranch, targetBranch);
+                (0, logger_1.logInfo)(`📦 -> 📦 Clearing possible existing AI cache from ${targetBranch} for ${param.owner}/${param.repo}.`);
+                await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, targetBranch);
+                (0, logger_1.logInfo)(`📦 -> 📦 Duplicating AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
+                await supabaseRepository.duplicateAIFileCacheByBranch(param.owner, param.repo, sourceBranch, targetBranch);
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -70367,6 +70127,245 @@ class VectorActionUseCase {
             }));
         }
         return results;
+    }
+    /**
+     * Extract imports from a file regardless of programming language
+     */
+    extractImportsFromFile(filePath, content) {
+        const imports = [];
+        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        const dir = filePath.split('/').slice(0, -1).join('/') || '';
+        // TypeScript/JavaScript
+        if (['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'].includes(ext)) {
+            const es6Imports = content.match(/import\s+.*?\s+from\s+['"]([^'"]+)['"]/g) || [];
+            es6Imports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path)
+                    imports.push(path);
+            });
+            const requireImports = content.match(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/g) || [];
+            requireImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path)
+                    imports.push(path);
+            });
+        }
+        // Python
+        if (['py', 'pyw', 'pyi'].includes(ext)) {
+            const pyImports = content.match(/(?:^|\n)\s*(?:import\s+\w+|from\s+[\w.]+)\s+import/gm) || [];
+            pyImports.forEach(match => {
+                const fromMatch = match.match(/from\s+([\w.]+)/);
+                if (fromMatch) {
+                    imports.push(fromMatch[1]);
+                }
+                else {
+                    const importMatch = match.match(/import\s+(\w+)/);
+                    if (importMatch)
+                        imports.push(importMatch[1]);
+                }
+            });
+        }
+        // Java
+        if (ext === 'java') {
+            const javaImports = content.match(/import\s+(?:static\s+)?[\w.]+\s*;/g) || [];
+            javaImports.forEach(match => {
+                const path = match.replace(/import\s+(?:static\s+)?/, '').replace(/\s*;/, '');
+                imports.push(path);
+            });
+        }
+        // Kotlin
+        if (['kt', 'kts'].includes(ext)) {
+            const ktImports = content.match(/import\s+[\w.]+\s*/g) || [];
+            ktImports.forEach(match => {
+                const path = match.replace(/import\s+/, '').trim();
+                imports.push(path);
+            });
+        }
+        // Go
+        if (ext === 'go') {
+            const goImports = content.match(/import\s*(?:\([^)]+\)|['"]([^'"]+)['"])/gs) || [];
+            goImports.forEach(match => {
+                const quoted = match.match(/['"]([^'"]+)['"]/);
+                if (quoted) {
+                    imports.push(quoted[1]);
+                }
+                else {
+                    const multiLine = match.match(/import\s*\(([^)]+)\)/s);
+                    if (multiLine) {
+                        const paths = multiLine[1].match(/['"]([^'"]+)['"]/g) || [];
+                        paths.forEach(p => {
+                            const path = p.match(/['"]([^'"]+)['"]/)?.[1];
+                            if (path)
+                                imports.push(path);
+                        });
+                    }
+                }
+            });
+        }
+        // Rust
+        if (ext === 'rs') {
+            const rustImports = content.match(/use\s+[\w:]+(?:::\*)?\s*;/g) || [];
+            rustImports.forEach(match => {
+                const path = match.replace(/use\s+/, '').replace(/\s*;/, '').split('::')[0];
+                imports.push(path);
+            });
+        }
+        // Ruby
+        if (ext === 'rb') {
+            const rubyImports = content.match(/(?:require|require_relative)\s+['"]([^'"]+)['"]/g) || [];
+            rubyImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path)
+                    imports.push(path);
+            });
+        }
+        // PHP
+        if (ext === 'php') {
+            const phpImports = content.match(/(?:use|require|include)(?:_once)?\s+['"]([^'"]+)['"]/g) || [];
+            phpImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path)
+                    imports.push(path);
+            });
+        }
+        // Swift
+        if (ext === 'swift') {
+            const swiftImports = content.match(/import\s+\w+/g) || [];
+            swiftImports.forEach(match => {
+                const path = match.replace(/import\s+/, '');
+                imports.push(path);
+            });
+        }
+        // Dart
+        if (ext === 'dart') {
+            const dartImports = content.match(/import\s+['"]([^'"]+)['"]/g) || [];
+            dartImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path)
+                    imports.push(path);
+            });
+        }
+        // Resolve relative imports to absolute paths
+        return imports.map(imp => {
+            if (!imp.startsWith('.') && !imp.startsWith('/')) {
+                if (dir) {
+                    const possiblePath = `${dir}/${imp}`.replace(/\/+/g, '/');
+                    return possiblePath;
+                }
+                return imp;
+            }
+            if (imp.startsWith('.')) {
+                const resolved = this.resolveRelativePath(dir, imp);
+                return resolved;
+            }
+            return imp;
+        }).filter(imp => imp && !imp.includes('node_modules') && !imp.startsWith('http'));
+    }
+    /**
+     * Resolve relative import path to absolute path
+     */
+    resolveRelativePath(baseDir, relativePath) {
+        if (!relativePath.startsWith('.')) {
+            return relativePath;
+        }
+        let path = baseDir || '';
+        const parts = relativePath.split('/');
+        for (const part of parts) {
+            if (part === '..') {
+                path = path.split('/').slice(0, -1).join('/');
+            }
+            else if (part === '.' || part === '') {
+                // Current directory, do nothing
+            }
+            else {
+                path = path ? `${path}/${part}` : part;
+            }
+        }
+        const withoutExt = path.replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '');
+        return withoutExt;
+    }
+    /**
+     * Build relationship map from all files by extracting imports
+     */
+    buildRelationshipMap(repositoryFiles) {
+        const consumesMap = new Map();
+        const consumedByMap = new Map();
+        // Initialize consumedBy map for all files
+        for (const filePath of repositoryFiles.keys()) {
+            consumedByMap.set(filePath, []);
+        }
+        for (const [filePath, content] of repositoryFiles.entries()) {
+            const imports = this.extractImportsFromFile(filePath, content);
+            const resolvedImports = [];
+            for (const imp of imports) {
+                const possiblePaths = [
+                    imp,
+                    `${imp}.ts`,
+                    `${imp}.tsx`,
+                    `${imp}.js`,
+                    `${imp}.jsx`,
+                    `${imp}/index.ts`,
+                    `${imp}/index.tsx`,
+                    `${imp}/index.js`,
+                    `${imp}/index.jsx`,
+                ];
+                for (const possiblePath of possiblePaths) {
+                    if (repositoryFiles.has(possiblePath)) {
+                        if (!resolvedImports.includes(possiblePath)) {
+                            resolvedImports.push(possiblePath);
+                        }
+                        const currentConsumers = consumedByMap.get(possiblePath) || [];
+                        if (!currentConsumers.includes(filePath)) {
+                            currentConsumers.push(filePath);
+                            consumedByMap.set(possiblePath, currentConsumers);
+                        }
+                        break;
+                    }
+                    for (const [repoPath] of repositoryFiles.entries()) {
+                        if (repoPath.includes(possiblePath) || possiblePath.includes(repoPath)) {
+                            if (!resolvedImports.includes(repoPath)) {
+                                resolvedImports.push(repoPath);
+                            }
+                            const currentConsumers = consumedByMap.get(repoPath) || [];
+                            if (!currentConsumers.includes(filePath)) {
+                                currentConsumers.push(filePath);
+                                consumedByMap.set(repoPath, currentConsumers);
+                            }
+                        }
+                    }
+                }
+            }
+            consumesMap.set(filePath, resolvedImports);
+        }
+        return { consumes: consumesMap, consumedBy: consumedByMap };
+    }
+    /**
+     * Calculate SHA256 hash of file content
+     */
+    calculateFileSHA(content) {
+        return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
+    }
+    /**
+     * Generate basic description from file path (fallback)
+     */
+    generateBasicDescription(filePath) {
+        const fileName = filePath.split('/').pop() || filePath;
+        const dir = filePath.split('/').slice(0, -1).join('/');
+        if (fileName.includes('use_case') || fileName.includes('usecase')) {
+            return `Use case: ${fileName.replace(/[._-]/g, ' ')}`;
+        }
+        else if (fileName.includes('repository')) {
+            return `Repository: ${fileName.replace(/[._-]/g, ' ')}`;
+        }
+        else if (fileName.includes('model')) {
+            return `Model: ${fileName.replace(/[._-]/g, ' ')}`;
+        }
+        else if (fileName.includes('action')) {
+            return `Action: ${fileName.replace(/[._-]/g, ' ')}`;
+        }
+        else {
+            return `File: ${fileName}. Located in ${dir || 'root'}.`;
+        }
     }
 }
 exports.VectorActionUseCase = VectorActionUseCase;
@@ -71900,61 +71899,28 @@ exports.ThinkTodoManager = ThinkTodoManager;
 /***/ }),
 
 /***/ 3841:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ThinkUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const file_repository_1 = __nccwpck_require__(1503);
 const issue_repository_1 = __nccwpck_require__(57);
+const supabase_repository_1 = __nccwpck_require__(9829);
 const logger_1 = __nccwpck_require__(8836);
 const think_code_manager_1 = __nccwpck_require__(8785);
 const think_todo_manager_1 = __nccwpck_require__(3618);
 const crypto_1 = __nccwpck_require__(6113);
-const fs = __importStar(__nccwpck_require__(7147));
-const path = __importStar(__nccwpck_require__(1017));
 class ThinkUseCase {
     constructor() {
         this.taskId = 'ThinkUseCase';
         this.aiRepository = new ai_repository_1.AiRepository();
         this.fileRepository = new file_repository_1.FileRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
+        this.supabaseRepository = null;
         this.MAX_ITERATIONS = 30; // Increased to allow deeper analysis
         this.MAX_FILES_TO_ANALYZE = 50; // Increased file limit
         this.MAX_CONSECUTIVE_SEARCHES = 3; // Max consecutive search_files without progress
@@ -72572,54 +72538,64 @@ class ThinkUseCase {
         return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
     }
     /**
-     * Get path to .AI cache file (in repository root)
+     * Initialize Supabase repository if config is available
      */
-    getAICachePath(param) {
-        // For now, we'll use a temporary approach - in production this should be in the repo root
-        // Since we're working with remote repos, we might need to handle this differently
-        // For local execution, we can use process.cwd() or a configurable path
-        const cacheDir = process.cwd();
-        return path.join(cacheDir, '.AI');
+    initSupabaseRepository(param) {
+        if (!this.supabaseRepository && param.supabaseConfig) {
+            this.supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
+        }
     }
     /**
-     * Load cache from .AI file
+     * Load cache from Supabase (or return empty map if Supabase not available)
      */
-    loadAICache(param) {
-        const cachePath = this.getAICachePath(param);
+    async loadAICache(param) {
+        this.initSupabaseRepository(param);
         const cache = new Map();
+        if (!this.supabaseRepository) {
+            (0, logger_1.logInfo)(`📂 Supabase not configured, starting with empty cache`);
+            return cache;
+        }
         try {
-            if (fs.existsSync(cachePath)) {
-                const content = fs.readFileSync(cachePath, 'utf-8');
-                const cacheData = JSON.parse(content);
-                for (const file of cacheData.files) {
-                    cache.set(file.path, file);
-                }
-                (0, logger_1.logInfo)(`📂 Loaded ${cache.size} files from .AI cache`);
+            const branch = param.commit.branch || param.branches.main;
+            const cachedFiles = await this.supabaseRepository.getAIFileCachesByBranch(param.owner, param.repo, branch);
+            for (const file of cachedFiles) {
+                cache.set(file.path, {
+                    path: file.path,
+                    sha: file.sha,
+                    description: file.description,
+                    consumes: file.consumes || [],
+                    consumed_by: file.consumed_by || []
+                });
             }
-            else {
-                (0, logger_1.logInfo)(`📂 No .AI cache file found, starting fresh`);
-            }
+            (0, logger_1.logInfo)(`📂 Loaded ${cache.size} files from Supabase cache`);
         }
         catch (error) {
-            (0, logger_1.logError)(`Error loading .AI cache: ${error}`);
+            (0, logger_1.logError)(`Error loading AI cache from Supabase: ${error}`);
         }
         return cache;
     }
     /**
-     * Save cache to .AI file
+     * Save cache entry to Supabase
      */
-    saveAICache(param, cache) {
-        const cachePath = this.getAICachePath(param);
+    async saveAICacheEntry(param, filePath, fileInfo, consumes, consumedBy) {
+        this.initSupabaseRepository(param);
+        if (!this.supabaseRepository) {
+            return; // Silently skip if Supabase not available
+        }
         try {
-            const cacheData = {
-                files: Array.from(cache.values()),
-                last_updated: Date.now()
-            };
-            fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2), 'utf-8');
-            (0, logger_1.logInfo)(`💾 Saved ${cache.size} files to .AI cache`);
+            const branch = param.commit.branch || param.branches.main;
+            const fileName = filePath.split('/').pop() || filePath;
+            await this.supabaseRepository.setAIFileCache(param.owner, param.repo, branch, {
+                file_name: fileName,
+                path: filePath,
+                sha: fileInfo.sha,
+                description: fileInfo.description,
+                consumes: consumes,
+                consumed_by: consumedBy
+            });
         }
         catch (error) {
-            (0, logger_1.logError)(`Error saving .AI cache: ${error}`);
+            (0, logger_1.logError)(`Error saving AI cache entry to Supabase for ${filePath}: ${error}`);
         }
     }
     /**
@@ -72709,8 +72685,8 @@ class ThinkUseCase {
                 return [];
             }
             (0, logger_1.logInfo)(`🔍 Analyzing ${relevantFiles.length} relevant files for structure and relationships...`);
-            // STEP 0: Load cache from .AI file
-            const cache = this.loadAICache(param);
+            // STEP 0: Load cache from Supabase
+            const cache = await this.loadAICache(param);
             // STEP 1: Build relationship map from imports (in memory, no AI needed)
             const relationshipMaps = this.buildRelationshipMap(repositoryFiles);
             const consumesMap = relationshipMaps.consumes;
@@ -72822,13 +72798,16 @@ Return a JSON array with this structure:
                                 });
                                 // Update cache
                                 if (filePath && currentSHA) {
-                                    cache.set(item.path, {
+                                    const cachedInfo = {
                                         path: item.path,
                                         sha: currentSHA,
                                         description: item.description,
                                         consumes: consumes,
                                         consumed_by: consumedBy
-                                    });
+                                    };
+                                    cache.set(item.path, cachedInfo);
+                                    // Save to Supabase
+                                    await this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
                                 }
                             }
                         }
@@ -72849,13 +72828,16 @@ Return a JSON array with this structure:
                                 consumed_by: consumedBy
                             });
                             // Update cache with fallback
-                            cache.set(path, {
+                            const cachedInfo = {
                                 path,
                                 sha: currentSHA,
                                 description: fallbackDesc,
                                 consumes: consumes,
                                 consumed_by: consumedBy
-                            });
+                            };
+                            cache.set(path, cachedInfo);
+                            // Save to Supabase
+                            await this.saveAICacheEntry(param, path, cachedInfo, consumes, consumedBy);
                         }
                     }
                 }
@@ -72884,8 +72866,8 @@ Return a JSON array with this structure:
                     }
                 }
             }
-            // STEP 4: Save updated cache
-            this.saveAICache(param, cache);
+            // STEP 4: Cache is saved incrementally during processing
+            // No need to save all at once since we're using Supabase
             if (allAnalyses.length > 0) {
                 (0, logger_1.logInfo)(`✅ Generated analysis for ${allAnalyses.length} files (${cachedAnalyses.length} from cache, ${filesNeedingAnalysis.length} from AI)`);
                 return allAnalyses;
@@ -72901,13 +72883,16 @@ Return a JSON array with this structure:
                 const currentSHA = content ? this.calculateFileSHA(content) : '';
                 // Update cache
                 if (content && currentSHA) {
-                    cache.set(item.path, {
+                    const cachedInfo = {
                         path: item.path,
                         sha: currentSHA,
                         description: item.description,
                         consumes: consumes,
                         consumed_by: consumedBy
-                    });
+                    };
+                    cache.set(item.path, cachedInfo);
+                    // Save to Supabase
+                    this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
                 }
                 return {
                     ...item,
@@ -72915,8 +72900,8 @@ Return a JSON array with this structure:
                     consumed_by: consumedBy
                 };
             });
-            // Save cache even in fallback
-            this.saveAICache(param, cache);
+            // Cache is saved incrementally during processing
+            // No need to save all at once since we're using Supabase
             return fallbackResults;
         }
         catch (error) {
@@ -73903,7 +73888,7 @@ class CloseIssueAfterMergingUseCase {
                 return result;
             }
             try {
-                await supabaseRepository.removeChunksByBranch(param.owner, param.repo, branch);
+                await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, branch);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -74411,7 +74396,7 @@ class PrepareBranchesUseCase {
                 return result;
             }
             try {
-                await supabaseRepository.duplicateChunksByBranch(param.owner, param.repo, sourceBranch, targetBranch);
+                await supabaseRepository.duplicateAIFileCacheByBranch(param.owner, param.repo, sourceBranch, targetBranch);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,

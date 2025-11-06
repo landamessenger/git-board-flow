@@ -6,6 +6,7 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private aiRepository;
     private fileRepository;
     private issueRepository;
+    private supabaseRepository;
     private readonly MAX_ITERATIONS;
     private readonly MAX_FILES_TO_ANALYZE;
     private readonly MAX_CONSECUTIVE_SEARCHES;
@@ -26,17 +27,17 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
      */
     private calculateFileSHA;
     /**
-     * Get path to .AI cache file (in repository root)
+     * Initialize Supabase repository if config is available
      */
-    private getAICachePath;
+    private initSupabaseRepository;
     /**
-     * Load cache from .AI file
+     * Load cache from Supabase (or return empty map if Supabase not available)
      */
     private loadAICache;
     /**
-     * Save cache to .AI file
+     * Save cache entry to Supabase
      */
-    private saveAICache;
+    private saveAICacheEntry;
     /**
      * Build relationship map from all files by extracting imports
      * Also builds reverse map (consumed_by)

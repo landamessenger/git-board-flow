@@ -84,7 +84,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
             return result;
         }
         try {
-            await supabaseRepository.removeChunksByBranch(param.owner, param.repo, branch);
+            await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, branch);
             result.push(
                 new Result({
                     id: this.taskId,

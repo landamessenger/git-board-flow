@@ -4,14 +4,13 @@ import { Result } from '../../../data/model/result';
 import { AiRepository } from '../../../data/repository/ai_repository';
 import { FileRepository } from '../../../data/repository/file_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
+import { SupabaseRepository, AICachedFileInfo } from '../../../data/repository/supabase_repository';
 import { logDebugInfo, logError, logInfo } from '../../../utils/logger';
 import { ParamUseCase } from '../../base/param_usecase';
 import { ThinkCodeManager } from './think_code_manager';
 import { ThinkTodoManager } from './think_todo_manager';
 import { CODEBASE_ANALYSIS_JSON_SCHEMA } from '../../../data/model/codebase_analysis_schema';
 import { createHash } from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
 
 /**
  * Interface for cached file information
@@ -34,6 +33,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private aiRepository: AiRepository = new AiRepository();
     private fileRepository: FileRepository = new FileRepository();
     private issueRepository: IssueRepository = new IssueRepository();
+    private supabaseRepository: SupabaseRepository | null = null;
     
     private readonly MAX_ITERATIONS = 30; // Increased to allow deeper analysis
     private readonly MAX_FILES_TO_ANALYZE = 50; // Increased file limit
@@ -783,59 +783,87 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     }
 
     /**
-     * Get path to .AI cache file (in repository root)
+     * Initialize Supabase repository if config is available
      */
-    private getAICachePath(param: Execution): string {
-        // For now, we'll use a temporary approach - in production this should be in the repo root
-        // Since we're working with remote repos, we might need to handle this differently
-        // For local execution, we can use process.cwd() or a configurable path
-        const cacheDir = process.cwd();
-        return path.join(cacheDir, '.AI');
+    private initSupabaseRepository(param: Execution): void {
+        if (!this.supabaseRepository && param.supabaseConfig) {
+            this.supabaseRepository = new SupabaseRepository(param.supabaseConfig);
+        }
     }
 
     /**
-     * Load cache from .AI file
+     * Load cache from Supabase (or return empty map if Supabase not available)
      */
-    private loadAICache(param: Execution): Map<string, CachedFileInfo> {
-        const cachePath = this.getAICachePath(param);
+    private async loadAICache(param: Execution): Promise<Map<string, CachedFileInfo>> {
+        this.initSupabaseRepository(param);
         const cache = new Map<string, CachedFileInfo>();
 
+        if (!this.supabaseRepository) {
+            logInfo(`📂 Supabase not configured, starting with empty cache`);
+            return cache;
+        }
+
         try {
-            if (fs.existsSync(cachePath)) {
-                const content = fs.readFileSync(cachePath, 'utf-8');
-                const cacheData: AICacheFile = JSON.parse(content);
-                
-                for (const file of cacheData.files) {
-                    cache.set(file.path, file);
-                }
-                
-                logInfo(`📂 Loaded ${cache.size} files from .AI cache`);
-            } else {
-                logInfo(`📂 No .AI cache file found, starting fresh`);
+            const branch = param.commit.branch || param.branches.main;
+            const cachedFiles = await this.supabaseRepository.getAIFileCachesByBranch(
+                param.owner,
+                param.repo,
+                branch
+            );
+
+            for (const file of cachedFiles) {
+                cache.set(file.path, {
+                    path: file.path,
+                    sha: file.sha,
+                    description: file.description,
+                    consumes: file.consumes || [],
+                    consumed_by: file.consumed_by || []
+                });
             }
+
+            logInfo(`📂 Loaded ${cache.size} files from Supabase cache`);
         } catch (error) {
-            logError(`Error loading .AI cache: ${error}`);
+            logError(`Error loading AI cache from Supabase: ${error}`);
         }
 
         return cache;
     }
 
     /**
-     * Save cache to .AI file
+     * Save cache entry to Supabase
      */
-    private saveAICache(param: Execution, cache: Map<string, CachedFileInfo>): void {
-        const cachePath = this.getAICachePath(param);
-        
-        try {
-            const cacheData: AICacheFile = {
-                files: Array.from(cache.values()),
-                last_updated: Date.now()
-            };
+    private async saveAICacheEntry(
+        param: Execution,
+        filePath: string,
+        fileInfo: CachedFileInfo,
+        consumes: string[],
+        consumedBy: string[]
+    ): Promise<void> {
+        this.initSupabaseRepository(param);
 
-            fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2), 'utf-8');
-            logInfo(`💾 Saved ${cache.size} files to .AI cache`);
+        if (!this.supabaseRepository) {
+            return; // Silently skip if Supabase not available
+        }
+
+        try {
+            const branch = param.commit.branch || param.branches.main;
+            const fileName = filePath.split('/').pop() || filePath;
+
+            await this.supabaseRepository.setAIFileCache(
+                param.owner,
+                param.repo,
+                branch,
+                {
+                    file_name: fileName,
+                    path: filePath,
+                    sha: fileInfo.sha,
+                    description: fileInfo.description,
+                    consumes: consumes,
+                    consumed_by: consumedBy
+                }
+            );
         } catch (error) {
-            logError(`Error saving .AI cache: ${error}`);
+            logError(`Error saving AI cache entry to Supabase for ${filePath}: ${error}`);
         }
     }
 
@@ -945,8 +973,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`🔍 Analyzing ${relevantFiles.length} relevant files for structure and relationships...`);
             
-            // STEP 0: Load cache from .AI file
-            const cache = this.loadAICache(param);
+            // STEP 0: Load cache from Supabase
+            const cache = await this.loadAICache(param);
             
             // STEP 1: Build relationship map from imports (in memory, no AI needed)
             const relationshipMaps = this.buildRelationshipMap(repositoryFiles);
@@ -1079,13 +1107,16 @@ Return a JSON array with this structure:
                                 
                                 // Update cache
                                 if (filePath && currentSHA) {
-                                    cache.set(item.path, {
+                                    const cachedInfo: CachedFileInfo = {
                                         path: item.path,
                                         sha: currentSHA,
                                         description: item.description,
                                         consumes: consumes,
                                         consumed_by: consumedBy
-                                    });
+                                    };
+                                    cache.set(item.path, cachedInfo);
+                                    // Save to Supabase
+                                    await this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
                                 }
                             }
                         }
@@ -1107,13 +1138,16 @@ Return a JSON array with this structure:
                             });
                             
                             // Update cache with fallback
-                            cache.set(path, {
+                            const cachedInfo: CachedFileInfo = {
                                 path,
                                 sha: currentSHA,
                                 description: fallbackDesc,
                                 consumes: consumes,
                                 consumed_by: consumedBy
-                            });
+                            };
+                            cache.set(path, cachedInfo);
+                            // Save to Supabase
+                            await this.saveAICacheEntry(param, path, cachedInfo, consumes, consumedBy);
                         }
                     }
                 } catch (error) {
@@ -1144,8 +1178,8 @@ Return a JSON array with this structure:
                 }
             }
             
-            // STEP 4: Save updated cache
-            this.saveAICache(param, cache);
+            // STEP 4: Cache is saved incrementally during processing
+            // No need to save all at once since we're using Supabase
             
             if (allAnalyses.length > 0) {
                 logInfo(`✅ Generated analysis for ${allAnalyses.length} files (${cachedAnalyses.length} from cache, ${filesNeedingAnalysis.length} from AI)`);
@@ -1164,13 +1198,16 @@ Return a JSON array with this structure:
                 
                 // Update cache
                 if (content && currentSHA) {
-                    cache.set(item.path, {
+                    const cachedInfo: CachedFileInfo = {
                         path: item.path,
                         sha: currentSHA,
                         description: item.description,
                         consumes: consumes,
                         consumed_by: consumedBy
-                    });
+                    };
+                    cache.set(item.path, cachedInfo);
+                    // Save to Supabase
+                    this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
                 }
                 
                 return {
@@ -1180,8 +1217,8 @@ Return a JSON array with this structure:
                 };
             });
             
-            // Save cache even in fallback
-            this.saveAICache(param, cache);
+            // Cache is saved incrementally during processing
+            // No need to save all at once since we're using Supabase
             
             return fallbackResults;
             

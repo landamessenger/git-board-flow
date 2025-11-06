@@ -3,12 +3,15 @@ import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
 import { FileRepository } from '../../data/repository/file_repository';
 import { SupabaseRepository } from '../../data/repository/supabase_repository';
+import { AiRepository } from '../../data/repository/ai_repository';
 import { logError, logInfo, logSingleLine } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
+import { createHash } from 'crypto';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
     private fileRepository: FileRepository = new FileRepository();
+    private aiRepository: AiRepository = new AiRepository();
     private readonly CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
     private readonly CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
 
@@ -129,7 +132,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             
             for (const path of pathsToRemove) {
                 try {
-                    await supabaseRepository.removeChunksByPath(
+                    await supabaseRepository.removeAIFileCacheByPath(
                         param.owner,
                         param.repo,
                         branch,
@@ -182,9 +185,26 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         }
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
-        const processedChunkedFiles: ChunkedFile[] = [];
         const startTime = Date.now();
         const chunkedPaths = Array.from(chunkedFilesMap.keys());
+        
+        // Step 1: Get all repository files once to build relationship map
+        logInfo(`📦 Building relationship map from repository files...`);
+        const allRepositoryFiles = await this.fileRepository.getRepositoryContent(
+            param.owner,
+            param.repo,
+            param.tokens.token,
+            branch,
+            param.ai.getAiIgnoreFiles(),
+            () => {}, // progress callback
+            () => {}  // ignored files callback
+        );
+        
+        // Step 2: Build relationship map once for all files
+        const relationshipMaps = this.buildRelationshipMap(allRepositoryFiles);
+        const consumesMap = relationshipMaps.consumes;
+        const consumedByMap = relationshipMaps.consumedBy;
+        logInfo(`✅ Relationship map built for ${allRepositoryFiles.size} files`);
         
         for (let i = 0; i < chunkedPaths.length; i++) {
             const path = chunkedPaths[i];
@@ -210,7 +230,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     continue;
                 } else if (remoteShasum !== chunkedFiles[0].shasum) {
                     logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
-                    await supabaseRepository.removeChunksByPath(
+                    await supabaseRepository.removeAIFileCacheByPath(
                         param.owner,
                         param.repo,
                         branch,
@@ -219,84 +239,64 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             }
 
-            // Process chunks in parallel with concurrency limit
-            const maxWorkers = 3;
-            const chunkPromises: Promise<void>[] = [];
-            let activeWorkers = 0;
-
-            for (let j = 0; j < chunkedFiles.length; j++) {
-                const chunkedFile = chunkedFiles[j];
-                const chunkProgress = ((j + 1) / chunkedFiles.length) * 100;
-
-                // Wait if we have reached the limit of workers
-                while (activeWorkers >= maxWorkers) {
-                    await Promise.race(chunkPromises);
-                    activeWorkers = chunkPromises.filter(p => !p).length;
-                }
-
-                const processChunk = async () => {
+            // Generate AI cache for this file (only process once per file, not per chunk)
+            // Use the first chunkedFile to get the full content
+            if (chunkedFiles.length > 0) {
+                const firstChunkedFile = chunkedFiles[0];
+                const fileContent = firstChunkedFile.content;
+                const filePath = firstChunkedFile.path;
+                
+                try {
+                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
+                    
+                    // Step 3: Extract imports for this file (from pre-built map)
+                    const consumes = consumesMap.get(filePath) || [];
+                    const consumedBy = consumedByMap.get(filePath) || [];
+                    
+                    // Step 4: Calculate SHA
+                    const currentSHA = this.calculateFileSHA(fileContent);
+                    
+                    // Step 5: Generate description using AI (with fallback)
+                    let description = this.generateBasicDescription(filePath);
                     try {
-                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
-                        
-                        const existingVectors: number[][] = [];
-                        const existingChunks: string[] = [];
-                        
-                        const chunksToProcess: string[] = [];
-                        
-                        for (const chunk of chunkedFile.chunks) {
-                            const vector = await supabaseRepository.getVectorOfChunkContent(
-                                param.owner,
-                                param.repo,
-                                chunk
-                            );
-                            if (vector.length > 0) {
-                                existingVectors.push(vector);
-                                existingChunks.push(chunk);
-                            } else {
-                                chunksToProcess.push(chunk);
-                            }
-                        }
+                        const descriptionPrompt = `Analyze this code file and provide a brief description (1-2 sentences) of what it does:
 
-                        const cachedPercentage = (existingChunks.length / chunkedFile.chunks.length) * 100;
-                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}] - ${cachedPercentage.toFixed(1)}% cached`);
-                        
-                        let embeddings: number[][] = [];
-                        let chunks: string[] = [];
-                        if (chunksToProcess.length > 0) {
-                            embeddings = [...existingVectors];
-                            chunks = [...existingChunks, ...chunksToProcess];
-                        } else {
-                            embeddings = existingVectors;
-                            chunks = existingChunks;
-                        }
-                        chunkedFile.vector = embeddings;
-                        chunkedFile.chunks = chunks;
-                        logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
-                        
-                        await supabaseRepository.setChunkedFile(
-                            param.owner,
-                            param.repo,
-                            branch,
-                            chunkedFile
-                        );
+\`\`\`
+${fileContent.substring(0, 2000)}${fileContent.length > 2000 ? '...' : ''}
+\`\`\`
 
-                        processedChunkedFiles.push(chunkedFile);
+Provide only a concise description in English, focusing on the main functionality.`;
+                        
+                        const aiDescription = await this.aiRepository.ask(param.ai, descriptionPrompt);
+                        if (aiDescription && aiDescription.trim().length > 0) {
+                            description = aiDescription.trim();
+                        }
                     } catch (error) {
-                        logError(`Error processing chunk ${j + 1} of file ${path}: ${JSON.stringify(error, null, 2)}`);
+                        logError(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                     }
-                };
-
-                const chunkPromise = processChunk();
-                chunkPromises.push(chunkPromise);
-                activeWorkers++;
-
-                chunkPromise.finally(() => {
-                    activeWorkers--;
-                });
+                    
+                    // Step 6: Save to Supabase
+                    const fileName = filePath.split('/').pop() || filePath;
+                    await supabaseRepository.setAIFileCache(
+                        param.owner,
+                        param.repo,
+                        branch,
+                        {
+                            file_name: fileName,
+                            path: filePath,
+                            sha: currentSHA,
+                            description: description,
+                            consumes: consumes,
+                            consumed_by: consumedBy
+                        }
+                    );
+                    
+                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
+                    
+                } catch (error) {
+                    logError(`Error generating AI cache for ${path}: ${JSON.stringify(error, null, 2)}`);
+                }
             }
-
-            // Wait for all chunks of the current file to be processed
-            await Promise.all(chunkPromises);
         }
 
         const totalDurationSeconds = (Date.now() - startTime) / 1000;
@@ -335,15 +335,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
 
         try {
-            logInfo(`📦 -> 📦 Clearing possible existing chunks from ${targetBranch} for ${param.owner}/${param.repo}.`);
-            await supabaseRepository.removeChunksByBranch(
+            logInfo(`📦 -> 📦 Clearing possible existing AI cache from ${targetBranch} for ${param.owner}/${param.repo}.`);
+            await supabaseRepository.removeAIFileCacheByBranch(
                 param.owner,
                 param.repo,
                 targetBranch
             );
             
-            logInfo(`📦 -> 📦 Duplicating chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
-            await supabaseRepository.duplicateChunksByBranch(
+            logInfo(`📦 -> 📦 Duplicating AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
+            await supabaseRepository.duplicateAIFileCacheByBranch(
                 param.owner,
                 param.repo,
                 sourceBranch,
@@ -375,5 +375,261 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         }
 
         return results;
+    }
+
+    /**
+     * Extract imports from a file regardless of programming language
+     */
+    private extractImportsFromFile(filePath: string, content: string): string[] {
+        const imports: string[] = [];
+        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        const dir = filePath.split('/').slice(0, -1).join('/') || '';
+        
+        // TypeScript/JavaScript
+        if (['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'].includes(ext)) {
+            const es6Imports = content.match(/import\s+.*?\s+from\s+['"]([^'"]+)['"]/g) || [];
+            es6Imports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+            
+            const requireImports = content.match(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/g) || [];
+            requireImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // Python
+        if (['py', 'pyw', 'pyi'].includes(ext)) {
+            const pyImports = content.match(/(?:^|\n)\s*(?:import\s+\w+|from\s+[\w.]+)\s+import/gm) || [];
+            pyImports.forEach(match => {
+                const fromMatch = match.match(/from\s+([\w.]+)/);
+                if (fromMatch) {
+                    imports.push(fromMatch[1]);
+                } else {
+                    const importMatch = match.match(/import\s+(\w+)/);
+                    if (importMatch) imports.push(importMatch[1]);
+                }
+            });
+        }
+        
+        // Java
+        if (ext === 'java') {
+            const javaImports = content.match(/import\s+(?:static\s+)?[\w.]+\s*;/g) || [];
+            javaImports.forEach(match => {
+                const path = match.replace(/import\s+(?:static\s+)?/, '').replace(/\s*;/, '');
+                imports.push(path);
+            });
+        }
+        
+        // Kotlin
+        if (['kt', 'kts'].includes(ext)) {
+            const ktImports = content.match(/import\s+[\w.]+\s*/g) || [];
+            ktImports.forEach(match => {
+                const path = match.replace(/import\s+/, '').trim();
+                imports.push(path);
+            });
+        }
+        
+        // Go
+        if (ext === 'go') {
+            const goImports = content.match(/import\s*(?:\([^)]+\)|['"]([^'"]+)['"])/gs) || [];
+            goImports.forEach(match => {
+                const quoted = match.match(/['"]([^'"]+)['"]/);
+                if (quoted) {
+                    imports.push(quoted[1]);
+                } else {
+                    const multiLine = match.match(/import\s*\(([^)]+)\)/s);
+                    if (multiLine) {
+                        const paths = multiLine[1].match(/['"]([^'"]+)['"]/g) || [];
+                        paths.forEach(p => {
+                            const path = p.match(/['"]([^'"]+)['"]/)?.[1];
+                            if (path) imports.push(path);
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Rust
+        if (ext === 'rs') {
+            const rustImports = content.match(/use\s+[\w:]+(?:::\*)?\s*;/g) || [];
+            rustImports.forEach(match => {
+                const path = match.replace(/use\s+/, '').replace(/\s*;/, '').split('::')[0];
+                imports.push(path);
+            });
+        }
+        
+        // Ruby
+        if (ext === 'rb') {
+            const rubyImports = content.match(/(?:require|require_relative)\s+['"]([^'"]+)['"]/g) || [];
+            rubyImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // PHP
+        if (ext === 'php') {
+            const phpImports = content.match(/(?:use|require|include)(?:_once)?\s+['"]([^'"]+)['"]/g) || [];
+            phpImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // Swift
+        if (ext === 'swift') {
+            const swiftImports = content.match(/import\s+\w+/g) || [];
+            swiftImports.forEach(match => {
+                const path = match.replace(/import\s+/, '');
+                imports.push(path);
+            });
+        }
+        
+        // Dart
+        if (ext === 'dart') {
+            const dartImports = content.match(/import\s+['"]([^'"]+)['"]/g) || [];
+            dartImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // Resolve relative imports to absolute paths
+        return imports.map(imp => {
+            if (!imp.startsWith('.') && !imp.startsWith('/')) {
+                if (dir) {
+                    const possiblePath = `${dir}/${imp}`.replace(/\/+/g, '/');
+                    return possiblePath;
+                }
+                return imp;
+            }
+            
+            if (imp.startsWith('.')) {
+                const resolved = this.resolveRelativePath(dir, imp);
+                return resolved;
+            }
+            
+            return imp;
+        }).filter(imp => imp && !imp.includes('node_modules') && !imp.startsWith('http'));
+    }
+    
+    /**
+     * Resolve relative import path to absolute path
+     */
+    private resolveRelativePath(baseDir: string, relativePath: string): string {
+        if (!relativePath.startsWith('.')) {
+            return relativePath;
+        }
+        
+        let path = baseDir || '';
+        const parts = relativePath.split('/');
+        
+        for (const part of parts) {
+            if (part === '..') {
+                path = path.split('/').slice(0, -1).join('/');
+            } else if (part === '.' || part === '') {
+                // Current directory, do nothing
+            } else {
+                path = path ? `${path}/${part}` : part;
+            }
+        }
+        
+        const withoutExt = path.replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '');
+        return withoutExt;
+    }
+
+    /**
+     * Build relationship map from all files by extracting imports
+     */
+    private buildRelationshipMap(
+        repositoryFiles: Map<string, string>
+    ): { consumes: Map<string, string[]>, consumedBy: Map<string, string[]> } {
+        const consumesMap = new Map<string, string[]>();
+        const consumedByMap = new Map<string, string[]>();
+        
+        // Initialize consumedBy map for all files
+        for (const filePath of repositoryFiles.keys()) {
+            consumedByMap.set(filePath, []);
+        }
+        
+        for (const [filePath, content] of repositoryFiles.entries()) {
+            const imports = this.extractImportsFromFile(filePath, content);
+            const resolvedImports: string[] = [];
+            
+            for (const imp of imports) {
+                const possiblePaths = [
+                    imp,
+                    `${imp}.ts`,
+                    `${imp}.tsx`,
+                    `${imp}.js`,
+                    `${imp}.jsx`,
+                    `${imp}/index.ts`,
+                    `${imp}/index.tsx`,
+                    `${imp}/index.js`,
+                    `${imp}/index.jsx`,
+                ];
+                
+                for (const possiblePath of possiblePaths) {
+                    if (repositoryFiles.has(possiblePath)) {
+                        if (!resolvedImports.includes(possiblePath)) {
+                            resolvedImports.push(possiblePath);
+                        }
+                        const currentConsumers = consumedByMap.get(possiblePath) || [];
+                        if (!currentConsumers.includes(filePath)) {
+                            currentConsumers.push(filePath);
+                            consumedByMap.set(possiblePath, currentConsumers);
+                        }
+                        break;
+                    }
+                    
+                    for (const [repoPath] of repositoryFiles.entries()) {
+                        if (repoPath.includes(possiblePath) || possiblePath.includes(repoPath)) {
+                            if (!resolvedImports.includes(repoPath)) {
+                                resolvedImports.push(repoPath);
+                            }
+                            const currentConsumers = consumedByMap.get(repoPath) || [];
+                            if (!currentConsumers.includes(filePath)) {
+                                currentConsumers.push(filePath);
+                                consumedByMap.set(repoPath, currentConsumers);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            consumesMap.set(filePath, resolvedImports);
+        }
+        
+        return { consumes: consumesMap, consumedBy: consumedByMap };
+    }
+
+    /**
+     * Calculate SHA256 hash of file content
+     */
+    private calculateFileSHA(content: string): string {
+        return createHash('sha256').update(content).digest('hex');
+    }
+
+    /**
+     * Generate basic description from file path (fallback)
+     */
+    private generateBasicDescription(filePath: string): string {
+        const fileName = filePath.split('/').pop() || filePath;
+        const dir = filePath.split('/').slice(0, -1).join('/');
+        
+        if (fileName.includes('use_case') || fileName.includes('usecase')) {
+            return `Use case: ${fileName.replace(/[._-]/g, ' ')}`;
+        } else if (fileName.includes('repository')) {
+            return `Repository: ${fileName.replace(/[._-]/g, ' ')}`;
+        } else if (fileName.includes('model')) {
+            return `Model: ${fileName.replace(/[._-]/g, ' ')}`;
+        } else if (fileName.includes('action')) {
+            return `Action: ${fileName.replace(/[._-]/g, ' ')}`;
+        } else {
+            return `File: ${fileName}. Located in ${dir || 'root'}.`;
+        }
     }
 }

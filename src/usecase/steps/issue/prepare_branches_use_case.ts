@@ -375,7 +375,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
             return result;
         }
         try {
-            await supabaseRepository.duplicateChunksByBranch(param.owner, param.repo, sourceBranch, targetBranch);
+            await supabaseRepository.duplicateAIFileCacheByBranch(param.owner, param.repo, sourceBranch, targetBranch);
             result.push(
                 new Result({
                     id: this.taskId,

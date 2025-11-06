@@ -77,7 +77,7 @@ export class VectorActionRemovalUseCase implements ParamUseCase<Execution, Resul
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
 
-        await supabaseRepository.removeChunksByBranch(
+        await supabaseRepository.removeAIFileCacheByBranch(
             param.owner,
             param.repo,
             branch
