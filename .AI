@@ -1,0 +1,1834 @@
+{
+  "files": [
+    {
+      "path": "docker/main.py",
+      "sha": "532bc06afcfe8a71982e5ac5def57bfdac0ddd0d42445d6a252cf2a372acb26a",
+      "description": "Implements a FastAPI server for handling vectorization requests using an INSTRUCTOR model, with system resource optimization and model state management.",
+      "consumes": [],
+      "consumed_by": []
+    },
+    {
+      "path": "src/cli.ts",
+      "sha": "7c5b9f75b570850bbf427eb466edc7b7cc385e7c0a24df3df7af32df807bb99f",
+      "description": "CLI tool for executing various actions like building containers and interacting with AI, based on GitHub repository information.",
+      "consumes": [
+        "src/actions/local_action.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/constants.ts",
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": []
+    },
+    {
+      "path": "src/actions/common_action.ts",
+      "sha": "1b823300c893dfe50c481e1fdb4dce68be6b6f23e328afa2b2e752edac2bb02c",
+      "description": "Core logic for executing various GitHub actions, including issue, pull request, and commit workflows.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/usecase/commit_use_case.ts",
+        "src/usecase/issue_comment_use_case.ts",
+        "src/usecase/issue_use_case.ts",
+        "src/usecase/pull_request_review_comment_use_case.ts",
+        "src/usecase/pull_request_use_case.ts",
+        "src/usecase/single_action_use_case.ts",
+        "src/utils/logger.ts",
+        "src/utils/constants.ts",
+        "src/utils/queue_utils.ts"
+      ],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts"
+      ]
+    },
+    {
+      "path": "src/actions/local_action.ts",
+      "sha": "367c27004e5174d2493a8e97aabb39982d2557f78ea8fdbeb19d21d75a7c5cef",
+      "description": "Executes local actions with configurable parameters, handles Docker, AI, and project-related configurations.",
+      "consumes": [
+        "src/data/model/ai.ts",
+        "src/data/model/ai_response.ts",
+        "src/data/model/branches.ts",
+        "src/data/model/docker_config.ts",
+        "src/data/model/emoji.ts",
+        "src/data/model/execution.ts",
+        "src/data/model/hotfix.ts",
+        "src/data/model/images.ts",
+        "src/data/model/issue.ts",
+        "src/data/model/issue_types.ts",
+        "src/data/model/labels.ts",
+        "src/data/model/locale.ts",
+        "src/data/model/project_detail.ts",
+        "src/data/model/projects.ts",
+        "src/data/model/pull_request.ts",
+        "src/data/model/release.ts",
+        "src/data/model/single_action.ts",
+        "src/data/model/size_thresholds.ts",
+        "src/data/model/size_threshold.ts",
+        "src/data/model/supabase_config.ts",
+        "src/data/model/tokens.ts",
+        "src/data/model/welcome.ts",
+        "src/data/model/workflows.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/constants.ts",
+        "src/utils/logger.ts",
+        "src/utils/yml_utils.ts",
+        "src/actions/common_action.ts"
+      ],
+      "consumed_by": [
+        "src/cli.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/commit_use_case.ts",
+      "sha": "93772a2ed03aa21d861592182b931c30b7ebd5a5505ee8b3a96facc06e59b08e",
+      "description": "Handles commit-related workflows, including notifying issues about new commits and checking changes in issue size.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/issue_comment_use_case.ts",
+      "sha": "c8a8feeb44a06bb86deb734d123582b4ffc0b760231723776f91f8884056c853",
+      "description": "Manages issue comment workflows, including language checks and AI interactions for issue-related queries.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts"
+      ]
+    },
+    {
+      "path": "src/actions/github_action.ts",
+      "sha": "1c47a2b3ccd602cee72cbf46f180a2c77d90a9e9dce5f2fbaa9ce236f4ebce0b",
+      "description": "Executes GitHub actions with configurable inputs, handling Docker, AI, and project-related workflows.",
+      "consumes": [
+        "src/data/model/ai.ts",
+        "src/data/model/ai_response.ts",
+        "src/data/model/branches.ts",
+        "src/data/model/docker_config.ts",
+        "src/data/model/emoji.ts",
+        "src/data/model/execution.ts",
+        "src/data/model/hotfix.ts",
+        "src/data/model/images.ts",
+        "src/data/model/issue.ts",
+        "src/data/model/issue_types.ts",
+        "src/data/model/labels.ts",
+        "src/data/model/locale.ts",
+        "src/data/model/project_detail.ts",
+        "src/data/model/projects.ts",
+        "src/data/model/pull_request.ts",
+        "src/data/model/release.ts",
+        "src/data/model/result.ts",
+        "src/data/model/single_action.ts",
+        "src/data/model/size_thresholds.ts",
+        "src/data/model/size_threshold.ts",
+        "src/data/model/tokens.ts",
+        "src/data/model/workflows.ts",
+        "src/data/repository/project_repository.ts",
+        "src/usecase/steps/common/publish_resume_use_case.ts",
+        "src/usecase/steps/common/store_configuration_use_case.ts",
+        "src/utils/constants.ts",
+        "src/actions/common_action.ts",
+        "src/data/model/supabase_config.ts",
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": []
+    },
+    {
+      "path": "src/usecase/single_action_use_case.ts",
+      "sha": "056b8e45b9db5d7a27e90b5d8afb66587ec2d0a44723614d91bbf66f9032707f",
+      "description": "Handles specific single actions like creating releases, tags, and managing AI containers.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/actions/deployed_action_use_case.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/actions/prepare_ai_container_use_case.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/actions/publish_github_action_use_case.ts",
+        "src/usecase/actions/create_release_use_case.ts",
+        "src/usecase/actions/create_tag_use_case.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/pull_request_use_case.ts",
+      "sha": "eb189e9419c4ba11cc268def1de7a3886da20c4278a8caaaf415bb09ed5c80a2",
+      "description": "Manages pull request workflows, including updates to titles, assignments, linking to projects, and size checks.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/steps/common/update_title_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/pull_request/check_priority_pull_request_size_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_issue_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_project_use_case.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/pull_request_review_comment_use_case.ts",
+      "sha": "fca42c3799269dda51872bcd782388ee65089ecf9300cabe42f3fa952cd60dc2",
+      "description": "Handles pull request review comment workflows, including language checks for comments.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts"
+      ]
+    },
+    {
+      "path": "src/utils/content_utils.ts",
+      "sha": "d858e43c6bab4defea797c87c9b77783677feccb82ca1e67abe7c773cd5ccdfa",
+      "description": "Provides utility functions for extracting versions, release types, and formatting JSON as markdown blocks.",
+      "consumes": [],
+      "consumed_by": [
+        "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+        "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+        "src/usecase/steps/common/get_release_type_use_case.ts",
+        "src/usecase/steps/common/get_release_version_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/issue_use_case.ts",
+      "sha": "5e701a419637e625feaf1a3019d0a83fb030888238afda1bd9a707975e1f9d1f",
+      "description": "Manages issue workflows, including updates to titles, assignments, linking to projects, and branch preparation.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/steps/common/check_permissions_use_case.ts",
+        "src/usecase/steps/common/update_title_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/issue/check_priority_issue_size_use_case.ts",
+        "src/usecase/steps/issue/close_not_allowed_issue_use_case.ts",
+        "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+        "src/usecase/steps/issue/label_deployed_added_use_case.ts",
+        "src/usecase/steps/issue/link_issue_project_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts",
+        "src/usecase/steps/issue/remove_issue_branches_use_case.ts",
+        "src/usecase/steps/issue/remove_not_needed_branches_use_case.ts",
+        "src/usecase/steps/issue/update_issue_type_use_case.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts"
+      ]
+    },
+    {
+      "path": "src/utils/version_utils.ts",
+      "sha": "5e0a01d1d3a9a876751c9d2d01102ac146a9393aee9eb7b47709c0a0deb18207",
+      "description": "Provides utility functions for version management, including version incrementing and finding the latest version.",
+      "consumes": [
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": [
+        "src/data/repository/branch_repository.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/utils/yml_utils.ts",
+      "sha": "8a0b15c7f25717ff90acdc07e3bea0a08ff3437075d217b8f7d51433dff1e419",
+      "description": "Provides utility functions for loading and parsing YAML files, specifically for action configurations.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts"
+      ]
+    },
+    {
+      "path": "src/utils/list_utils.ts",
+      "sha": "936d008360c2718cbecd56204b8a6af8e3b0323fbdff7e46a92866fcea6db3a5",
+      "description": "Provides utility functions for working with lists, such as getting random elements from a list.",
+      "consumes": [],
+      "consumed_by": [
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/common/publish_resume_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/utils/label_utils.ts",
+      "sha": "03126d38f4a8ad29942997081ed2943641704bddf7d597c6379e0a1d9fd3ff06",
+      "description": "Provides utility functions for determining branch and issue types based on labels.",
+      "consumes": [
+        "src/data/model/execution.ts"
+      ],
+      "consumed_by": [
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/utils/queue_utils.ts",
+      "sha": "d953474b54d185cba0ba0d68d48c5fc17e78ccb0622a8e436f8ec6a518c8c765",
+      "description": "Provides utility functions for handling workflow queues, including waiting for previous runs to finish.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/repository/workflow_repository.ts",
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts"
+      ]
+    },
+    {
+      "path": "src/data/repository/ai_repository.ts",
+      "sha": "24ab3f9d7d00d26ae98e6231c801633c0525be52609a625ef42956046eab59c7",
+      "description": "Handles interactions with the OpenAI API, including sending prompts and parsing responses.",
+      "consumes": [
+        "src/utils/constants.ts",
+        "src/utils/logger.ts",
+        "src/data/model/ai.ts",
+        "src/data/model/ai_response.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts",
+        "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/base/param_usecase.ts",
+      "sha": "4bdbd3a5a354397ae4435e52091dd92f183101d48735b2093a4e4729ab7968b7",
+      "description": "Base interface for parameterized use cases, defining the structure for implementing use cases.",
+      "consumes": [],
+      "consumed_by": [
+        "src/usecase/commit_use_case.ts",
+        "src/usecase/issue_comment_use_case.ts",
+        "src/usecase/single_action_use_case.ts",
+        "src/usecase/pull_request_use_case.ts",
+        "src/usecase/pull_request_review_comment_use_case.ts",
+        "src/usecase/issue_use_case.ts",
+        "src/usecase/actions/prepare_ai_container_use_case.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/actions/create_tag_use_case.ts",
+        "src/usecase/actions/publish_github_action_use_case.ts",
+        "src/usecase/actions/create_release_use_case.ts",
+        "src/usecase/actions/vector_action_removal_use_case.ts",
+        "src/usecase/actions/deployed_action_use_case.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/issue/close_not_allowed_issue_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts",
+        "src/usecase/steps/issue/move_issue_to_in_progress.ts",
+        "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+        "src/usecase/steps/common/execute_script_use_case.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/issue/label_deployed_added_use_case.ts",
+        "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+        "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+        "src/usecase/steps/issue/remove_issue_branches_use_case.ts",
+        "src/usecase/steps/issue/remove_not_needed_branches_use_case.ts",
+        "src/usecase/steps/issue/check_priority_issue_size_use_case.ts",
+        "src/usecase/steps/issue/link_issue_project_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_priority_pull_request_size_use_case.ts",
+        "src/usecase/steps/common/get_release_type_use_case.ts",
+        "src/usecase/steps/common/check_permissions_use_case.ts",
+        "src/usecase/steps/issue/update_issue_type_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/steps/common/store_configuration_use_case.ts",
+        "src/usecase/steps/common/publish_resume_use_case.ts",
+        "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts",
+        "src/usecase/steps/common/get_release_version_use_case.ts",
+        "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_project_use_case.ts",
+        "src/usecase/steps/common/update_title_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/repository/file_repository.ts",
+      "sha": "1cb34659f2852e4362b627e4980685137cb020aaf63a6f9c5a62206a99cb9645",
+      "description": "Manages file and repository content retrieval, including file tree generation and chunking of repository content.",
+      "consumes": [
+        "src/utils/logger.ts",
+        "src/data/model/chunked_file.ts",
+        "src/data/model/chunked_file_chunk.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/repository/pull_request_repository.ts",
+      "sha": "d4307b637b88258481c0d9507c80a9e14ac05aba1dd48662a438f8f47b11e78e",
+      "description": "Handles GitHub pull request operations like updating branches, descriptions, reviewers, and retrieving changed files through the GitHub API.",
+      "consumes": [
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/graph/project_result.ts",
+      "sha": "2bf87a4b4b73fd8f5bdb679ef9ca443e97dfe8868011bdc583880afb704d14a5",
+      "description": "Defines a TypeScript type 'ProjectResult' that represents the structure of project data returned from GitHub GraphQL queries.",
+      "consumes": [],
+      "consumed_by": [
+        "src/data/repository/project_repository.ts"
+      ]
+    },
+    {
+      "path": "src/data/repository/project_repository.ts",
+      "sha": "86710925ccb542446b4f2d7f264081bd57eb063eac4b4a99acf851bba01bc945",
+      "description": "Manages GitHub project-related operations including fetching project details, linking content, and setting field values through GitHub's GraphQL API.",
+      "consumes": [
+        "src/utils/logger.ts",
+        "src/data/graph/project_result.ts",
+        "src/data/model/project_detail.ts"
+      ],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/usecase/actions/create_tag_use_case.ts",
+        "src/usecase/actions/publish_github_action_use_case.ts",
+        "src/usecase/actions/create_release_use_case.ts",
+        "src/data/model/execution.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/issue/move_issue_to_in_progress.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/issue/check_priority_issue_size_use_case.ts",
+        "src/usecase/steps/issue/link_issue_project_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_priority_pull_request_size_use_case.ts",
+        "src/usecase/steps/common/check_permissions_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_project_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/graph/add_project_item_response.ts",
+      "sha": "a73aa977fc59519be9d60be695ec2d3959d9588b551e7577fbb13fe11625c022",
+      "description": "Defines an interface 'AddProjectItemResponse' representing the structure of responses when adding items to a GitHub project via GraphQL.",
+      "consumes": [],
+      "consumed_by": []
+    },
+    {
+      "path": "src/utils/title_utils.ts",
+      "sha": "1dc7b882a5e3924ba65eef1602443cef2c25c77ffd52bdea2e35c96fe2fc19c2",
+      "description": "Provides utility functions for extracting issue numbers and versions from branch names used in Git workflows.",
+      "consumes": [
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": [
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/graph/ai_responses.ts",
+      "sha": "1ab1d67bae09fe62bf1164e997c1b7ad58c2bcd74e27ad205ef443c0c2700537",
+      "description": "Defines an interface 'PatchSummary' that represents AI-generated summaries and changes for specific file paths in code reviews.",
+      "consumes": [],
+      "consumed_by": [
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/graph/linked_branch_response.ts",
+      "sha": "c93bce75e798ce59b878d79a8dd95c0c3b9cd17a0c09a567181acacd1ed21cea",
+      "description": "Defines a TypeScript type 'LinkedBranchResponse' that represents the structure of responses when creating linked branches in GitHub.",
+      "consumes": [],
+      "consumed_by": []
+    },
+    {
+      "path": "src/data/repository/branch_repository.ts",
+      "sha": "bdda5ca5822eb0d6bc2664d1f6cf3959875c3acdb96e39a823084d84a40035d9",
+      "description": "Manages Git branch operations including creation, merging, and comparison through GitHub API and local Git commands.",
+      "consumes": [
+        "src/utils/logger.ts",
+        "src/utils/version_utils.ts",
+        "src/data/model/execution.ts",
+        "src/data/model/labels.ts",
+        "src/data/model/result.ts",
+        "src/data/model/size_thresholds.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/actions/deployed_action_use_case.ts",
+        "src/data/model/execution.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts",
+        "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+        "src/usecase/steps/issue/remove_issue_branches_use_case.ts",
+        "src/usecase/steps/issue/remove_not_needed_branches_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/ai.ts",
+      "sha": "bbe61f4bdbfd1135f745e2fc3d549f61d76b7bd2f5739e6b8c8af4636d4f5ae0",
+      "description": "Defines the 'Ai' class that stores configuration for AI-related operations including API keys, model selection, and routing preferences.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/data/model/execution.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/manager/description/configuration_handler.ts",
+      "sha": "4a736c466e0d33639fb954bc79d90adcc6c346b1a01fb92363b97f0c32f22d1a",
+      "description": "Handles reading and updating version control configuration settings stored in the description of GitHub issues.",
+      "consumes": [
+        "src/data/model/config.ts",
+        "src/data/model/execution.ts",
+        "src/utils/logger.ts",
+        "src/manager/description/base/issue_content_interface.ts"
+      ],
+      "consumed_by": [
+        "src/data/model/execution.ts",
+        "src/usecase/steps/common/store_configuration_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/manager/description/markdown_content_hotfix_handler.ts",
+      "sha": "42c2ceeb70c7ad917337f506d2c9bb219fb5659930fbeed56d8299e5b1a655ae",
+      "description": "Manages reading and updating Markdown content specifically for hotfix-related GitHub issues.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/utils/logger.ts",
+        "src/manager/description/base/issue_content_interface.ts"
+      ],
+      "consumed_by": []
+    },
+    {
+      "path": "src/utils/logger.ts",
+      "sha": "0d92bb196dfbe86faa512088626a00d478fcdf5515df107aff03a71042440bd4",
+      "description": "Provides logging functionality with different levels (info, debug, error) and supports both single line and multi-line logging.",
+      "consumes": [],
+      "consumed_by": [
+        "src/cli.ts",
+        "src/actions/common_action.ts",
+        "src/actions/local_action.ts",
+        "src/usecase/commit_use_case.ts",
+        "src/usecase/issue_comment_use_case.ts",
+        "src/actions/github_action.ts",
+        "src/usecase/single_action_use_case.ts",
+        "src/usecase/pull_request_use_case.ts",
+        "src/usecase/pull_request_review_comment_use_case.ts",
+        "src/usecase/issue_use_case.ts",
+        "src/utils/version_utils.ts",
+        "src/utils/queue_utils.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/data/repository/file_repository.ts",
+        "src/data/repository/pull_request_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/title_utils.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/manager/description/configuration_handler.ts",
+        "src/manager/description/markdown_content_hotfix_handler.ts",
+        "src/data/repository/docker_repository.ts",
+        "src/usecase/actions/prepare_ai_container_use_case.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/actions/create_tag_use_case.ts",
+        "src/usecase/actions/publish_github_action_use_case.ts",
+        "src/usecase/actions/create_release_use_case.ts",
+        "src/usecase/actions/vector_action_removal_use_case.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/usecase/actions/deployed_action_use_case.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/model/execution.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/issue/close_not_allowed_issue_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts",
+        "src/usecase/steps/issue/move_issue_to_in_progress.ts",
+        "src/data/model/single_action.ts",
+        "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+        "src/usecase/steps/common/execute_script_use_case.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/issue/label_deployed_added_use_case.ts",
+        "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+        "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+        "src/usecase/steps/issue/remove_issue_branches_use_case.ts",
+        "src/usecase/steps/issue/remove_not_needed_branches_use_case.ts",
+        "src/usecase/steps/issue/check_priority_issue_size_use_case.ts",
+        "src/usecase/steps/issue/link_issue_project_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_priority_pull_request_size_use_case.ts",
+        "src/usecase/steps/common/get_release_type_use_case.ts",
+        "src/usecase/steps/common/check_permissions_use_case.ts",
+        "src/usecase/steps/issue/update_issue_type_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/steps/common/store_configuration_use_case.ts",
+        "src/usecase/steps/common/publish_resume_use_case.ts",
+        "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts",
+        "src/usecase/steps/common/get_release_version_use_case.ts",
+        "src/manager/description/base/issue_content_interface.ts",
+        "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_project_use_case.ts",
+        "src/usecase/steps/common/update_title_use_case.ts",
+        "src/manager/description/base/content_interface.ts"
+      ]
+    },
+    {
+      "path": "src/utils/constants.ts",
+      "sha": "944bc63a76ba0ff7c3d5c185da4667b52cebbc8967f136b7b1184596205e21f1",
+      "description": "Defines constants used throughout the codebase including workflow statuses, input keys, and error messages.",
+      "consumes": [],
+      "consumed_by": [
+        "src/cli.ts",
+        "src/actions/common_action.ts",
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/usecase/actions/create_tag_use_case.ts",
+        "src/usecase/actions/publish_github_action_use_case.ts",
+        "src/usecase/actions/create_release_use_case.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/data/model/execution.ts",
+        "src/data/repository/workflow_repository.ts",
+        "src/data/model/single_action.ts"
+      ]
+    },
+    {
+      "path": "src/data/repository/docker_repository.ts",
+      "sha": "b16b92c58bb2048366031f6d357c96acb36ea622c5eade854d5197852c2ddec8",
+      "description": "Manages Docker container operations including building, running, and maintaining multi-architecture images for AI services.",
+      "consumes": [
+        "src/utils/logger.ts",
+        "src/data/model/execution.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/actions/prepare_ai_container_use_case.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/actions/prepare_ai_container_use_case.ts",
+      "sha": "2a532c4700cb64895212199eaedc5e3143cd28de806bcd4787e1380e1eadb920",
+      "description": "Implements a use case for preparing and managing Docker containers that run AI services, including version checking and image building.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/docker_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/single_action_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/branch_configuration.ts",
+      "sha": "6c7bc06ac4ccd8789fa094d1b6e8bc551daa12360756df17c3b0dcc00ded009a",
+      "description": "Defines the 'BranchConfiguration' class that represents the structure of branch configuration data including branch names and OIDs.",
+      "consumes": [],
+      "consumed_by": [
+        "src/data/model/config.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/issue.ts",
+      "sha": "9f39e21aef4058035d4b8def5d67fa7af4de6772d2417464810af75f92bd1617",
+      "description": "Defines the 'Issue' class that represents GitHub issue data and provides convenience methods for accessing issue properties.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/actions/vector_action_use_case.ts",
+      "sha": "045a14e306cf142307e692917cd658d2444cde611c9941e5b173bc41b2e38bea",
+      "description": "Implements a use case for processing and vectorizing code files, storing them in a database, and managing chunked data.",
+      "consumes": [
+        "src/data/model/chunked_file.ts",
+        "src/data/model/chunked_file_chunk.ts",
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/docker_repository.ts",
+        "src/data/repository/file_repository.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/single_action_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/actions/create_tag_use_case.ts",
+      "sha": "dbc57f58313d82fe8960ae251b226f703bb2b3ce899617a06bf752e50ec4768b",
+      "description": "Implements a use case for creating Git tags in a repository, typically for release management purposes.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/constants.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/single_action_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/ai_response.ts",
+      "sha": "f927ac4329284f1390c4e012e49aa656ffdadc1294bdde2783c2a1b981676e37",
+      "description": "Defines an interface 'AiResponse' that represents the structure of responses from AI services including text and related files.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/data/model/execution.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/hotfix.ts",
+      "sha": "78d9cc4f095edac62bea70a27885989a7e5a163d6f99a946e625240e7ba090b2",
+      "description": "Defines the Hotfix class, which represents a hotfix with properties like active status, version, and branch information.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/size_thresholds.ts",
+      "sha": "76d1e8c1a08838f7effd193f93721f171903b689fbf95a086279beba44a01a77",
+      "description": "Defines the SizeThresholds class, which holds size threshold values for various categories (e.g., xxl, xl, l, m, s, xs).",
+      "consumes": [
+        "src/data/model/size_thresholds.ts",
+        "src/data/model/size_threshold.ts"
+      ],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/data/model/size_thresholds.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/issue_types.ts",
+      "sha": "92d1168abb4022ba3bab1e318681e82b442a2273764da358c76aa81356b28731",
+      "description": "Defines the IssueTypes class, which categorizes issues with properties like type, description, and color.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/actions/publish_github_action_use_case.ts",
+      "sha": "3a964eadf1a7e29856b1296a5289bcb05fce8c9f5534eced7b26dc63e5f656c4",
+      "description": "Implements the PublishGithubActionUseCase class, which handles publishing GitHub actions by updating tags and releases.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/constants.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/single_action_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/workflow_run.ts",
+      "sha": "4752d2f5bc7b2e47220779d7d509fc4075e2faf8a7dad5d06f47a8e84041ad43",
+      "description": "Defines the WorkflowRun class, which represents a GitHub workflow run with properties like status, conclusion, and timestamps.",
+      "consumes": [],
+      "consumed_by": [
+        "src/data/repository/workflow_repository.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/actions/create_release_use_case.ts",
+      "sha": "ff2916b213ba9601f3eda1aff62781d829163d1b6a6d089d8c5d1af80a4cb3e8",
+      "description": "Implements the CreateReleaseUseCase class, which handles the creation of GitHub releases with version, title, and changelog.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/constants.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/single_action_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/actions/vector_action_removal_use_case.ts",
+      "sha": "86aaca12f10edb9916f3f3426461ea6292994a41429afddd6d8347ce12597d10",
+      "description": "Implements the VectorActionRemovalUseCase class, which removes vector data chunks associated with a branch.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": []
+    },
+    {
+      "path": "src/data/repository/supabase_repository.ts",
+      "sha": "d6991778040141da31bdc77333884a3c8c0e47a1607d3d3908dba38aa34994d7",
+      "description": "Defines the SupabaseRepository class, which handles interactions with Supabase for chunked file operations and vector management.",
+      "consumes": [
+        "src/utils/constants.ts",
+        "src/utils/logger.ts",
+        "src/data/model/chunked_file.ts",
+        "src/data/model/chunked_file_chunk.ts",
+        "src/data/model/supabase_config.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/actions/vector_action_removal_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts",
+        "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/milestone.ts",
+      "sha": "e642c28782f44d26981d5e349f909bf93e56c2b60d68fa9052494fc9c11a191f",
+      "description": "Defines the Milestone class, which represents a milestone with properties like id, title, and description.",
+      "consumes": [],
+      "consumed_by": [
+        "src/data/repository/issue_repository.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/actions/deployed_action_use_case.ts",
+      "sha": "ff251952fb0f1411b4017d0b99e4a57d4e9258fd90cb1877e7c8b1047c52f60f",
+      "description": "Implements the DeployedActionUseCase class, which manages deployed status labels and branch merging after deployment.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/single_action_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/chunked_file.ts",
+      "sha": "c9f9ad030fece322589aacc6696094078641970e5f0ce90d5f748b3c40134c64",
+      "description": "Defines the ChunkedFile class, which represents a file divided into chunks with properties like path, type, and content.",
+      "consumes": [],
+      "consumed_by": [
+        "src/data/repository/file_repository.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/data/repository/supabase_repository.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/tokens.ts",
+      "sha": "642406d38b1dccb80b3f00646f53a23e8f22d2e75304da23c89db1ff17550708",
+      "description": "Defines the Tokens class, which stores tokens for authentication, including a standard token and a classic token.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/locale.ts",
+      "sha": "f88d7ebc716ac2b96ebdd290b15fe5540e21202f811112b0973674aa3bebd2e0",
+      "description": "Defines the Locale class, which manages localization settings for issues and pull requests.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/commit.ts",
+      "sha": "24111fefca477805e1f0299b2b96da0f936a598f08a049101406488079494bfe",
+      "description": "Defines the Commit class, which provides details about a commit, such as branch reference and commit data.",
+      "consumes": [],
+      "consumed_by": [
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/branches.ts",
+      "sha": "924e71c669fa737ad039d32df02404e4ee8d696ff0973e212272977fba94819b",
+      "description": "Defines the Branches class, which manages branch-related configurations and default branch information.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/emoji.ts",
+      "sha": "405a8426594f002a07735a01b9ee712babe1936ce8a6d15a2170673b103ef0bb",
+      "description": "Defines the Emoji class, which manages emoji usage in titles and branch management.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/repository/issue_repository.ts",
+      "sha": "e6009fa222af4f8fac5525a9498031d66bc5c099f51ec39c7bd83d2b46725fcb",
+      "description": "Defines the IssueRepository class, which handles CRUD operations for issues, including labels, comments, and milestones.",
+      "consumes": [
+        "src/utils/logger.ts",
+        "src/data/model/labels.ts",
+        "src/data/model/milestone.ts",
+        "src/data/model/issue_types.ts"
+      ],
+      "consumed_by": [
+        "src/cli.ts",
+        "src/usecase/actions/deployed_action_use_case.ts",
+        "src/data/model/execution.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/issue/close_not_allowed_issue_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+        "src/usecase/steps/issue/link_issue_project_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/common/get_release_type_use_case.ts",
+        "src/usecase/steps/issue/update_issue_type_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/steps/common/publish_resume_use_case.ts",
+        "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts",
+        "src/usecase/steps/common/get_release_version_use_case.ts",
+        "src/manager/description/base/issue_content_interface.ts",
+        "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts",
+        "src/usecase/steps/common/update_title_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/execution.ts",
+      "sha": "f26d97caf89b5bfd48578113d978be5213a5da55c53579e2518ff6922126a71e",
+      "description": "Defines the Execution class, which orchestrates the execution of various actions and configurations in the workflow.",
+      "consumes": [
+        "src/manager/description/configuration_handler.ts",
+        "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+        "src/usecase/steps/common/get_release_type_use_case.ts",
+        "src/usecase/steps/common/get_release_version_use_case.ts",
+        "src/utils/constants.ts",
+        "src/utils/label_utils.ts",
+        "src/utils/logger.ts",
+        "src/utils/title_utils.ts",
+        "src/utils/version_utils.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/data/model/ai.ts",
+        "src/data/model/ai_response.ts",
+        "src/data/model/branches.ts",
+        "src/data/model/commit.ts",
+        "src/data/model/config.ts",
+        "src/data/model/docker_config.ts",
+        "src/data/model/emoji.ts",
+        "src/data/model/hotfix.ts",
+        "src/data/model/images.ts",
+        "src/data/model/issue.ts",
+        "src/data/model/issue_types.ts",
+        "src/data/model/labels.ts",
+        "src/data/model/locale.ts",
+        "src/data/model/projects.ts",
+        "src/data/model/pull_request.ts",
+        "src/data/model/release.ts",
+        "src/data/model/single_action.ts",
+        "src/data/model/size_thresholds.ts",
+        "src/data/model/supabase_config.ts",
+        "src/data/model/tokens.ts",
+        "src/data/model/welcome.ts",
+        "src/data/model/workflows.ts"
+      ],
+      "consumed_by": [
+        "src/actions/common_action.ts",
+        "src/actions/local_action.ts",
+        "src/usecase/commit_use_case.ts",
+        "src/usecase/issue_comment_use_case.ts",
+        "src/actions/github_action.ts",
+        "src/usecase/single_action_use_case.ts",
+        "src/usecase/pull_request_use_case.ts",
+        "src/usecase/pull_request_review_comment_use_case.ts",
+        "src/usecase/issue_use_case.ts",
+        "src/utils/label_utils.ts",
+        "src/utils/queue_utils.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/manager/description/configuration_handler.ts",
+        "src/manager/description/markdown_content_hotfix_handler.ts",
+        "src/data/repository/docker_repository.ts",
+        "src/usecase/actions/prepare_ai_container_use_case.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/actions/create_tag_use_case.ts",
+        "src/usecase/actions/publish_github_action_use_case.ts",
+        "src/usecase/actions/create_release_use_case.ts",
+        "src/usecase/actions/vector_action_removal_use_case.ts",
+        "src/usecase/actions/deployed_action_use_case.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+        "src/data/repository/workflow_repository.ts",
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/issue/close_not_allowed_issue_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts",
+        "src/usecase/steps/issue/move_issue_to_in_progress.ts",
+        "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+        "src/usecase/steps/common/execute_script_use_case.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/issue/label_deployed_added_use_case.ts",
+        "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+        "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+        "src/usecase/steps/issue/remove_issue_branches_use_case.ts",
+        "src/usecase/steps/issue/remove_not_needed_branches_use_case.ts",
+        "src/usecase/steps/issue/check_priority_issue_size_use_case.ts",
+        "src/usecase/steps/issue/link_issue_project_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_priority_pull_request_size_use_case.ts",
+        "src/usecase/steps/common/get_release_type_use_case.ts",
+        "src/usecase/steps/common/check_permissions_use_case.ts",
+        "src/usecase/steps/issue/update_issue_type_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/steps/common/store_configuration_use_case.ts",
+        "src/usecase/steps/common/publish_resume_use_case.ts",
+        "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts",
+        "src/usecase/steps/common/get_release_version_use_case.ts",
+        "src/manager/description/base/issue_content_interface.ts",
+        "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_project_use_case.ts",
+        "src/usecase/steps/common/update_title_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/labels.ts",
+      "sha": "c7dd0442ccf2f33022bb9869bf03285b42c878b24da279f76e69a2d5f4c04718",
+      "description": "Defines the Labels class, which manages labels for issues and pull requests, including size and priority labels.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/config.ts",
+      "sha": "1c0541e0572b7e739a59c9f7b362b3b9419b2675f9805c2c51d36924c3a61ccc",
+      "description": "Defines the Config class, which holds configuration data for branches, releases, and hotfixes.",
+      "consumes": [
+        "src/data/model/branch_configuration.ts",
+        "src/data/model/result.ts"
+      ],
+      "consumed_by": [
+        "src/manager/description/configuration_handler.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/images.ts",
+      "sha": "799cc417a740d8c2963b87a3b0cb6ca82fc6e8354356ae446578087150daaed7",
+      "description": "Defines a class to manage image-related configurations for issues, pull requests, and commits, including automatic actions and GIFs for different types of tasks.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/pull_request.ts",
+      "sha": "f287d9e8a190c7f0d58ef2d8c2ef43242cca147508028ce73d8207da133f26f1",
+      "description": "Represents a GitHub pull request, encapsulating properties like title, creator, merge status, and actions, and provides methods to interact with pull request data.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/project_detail.ts",
+      "sha": "06aa2bf14efd30d684cb9fc247066224ad6a03f466dc4a89b133436a2284288e",
+      "description": "Models project details with attributes such as ID, title, type, owner, URL, and project number, used to manage project-specific data.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/project_repository.ts",
+        "src/data/model/projects.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/welcome.ts",
+      "sha": "9d7afde8a86590054153535df530fed213ecf90004b305d9f0b7dff9cb3ecc6d",
+      "description": "Defines a simple class to manage welcome messages and titles, typically used for onboarding or greeting users in the application.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/docker_config.ts",
+      "sha": "3b7d4c0b866346a406f6c281b5c0c12aba1d69968a852761dae0239d845b9817",
+      "description": "Encapsulates Docker container configuration details such as container name, domain, port, and OS/architecture cache settings.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/workflows.ts",
+      "sha": "642b1ac7ad5051faf5d36fdb74704bdbdd3ff7ffc4cb2a31f247686ecbf6adfd",
+      "description": "Manages workflow configurations, specifically for release and hotfix workflows, used to handle different types of workflow processes.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/size_threshold.ts",
+      "sha": "a44f462722d96c40ca687f6ae500b7309a9aed1c55552461b7a1b3ac34f4a349",
+      "description": "Stores size thresholds for lines, files, and commits, used to categorize tasks or changes based on their size.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/size_thresholds.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+      "sha": "eb9a059751086b1ce1a83fa03f4a8975e4f98a226e0488bbe2f6d4160340134b",
+      "description": "Implements a use case to check the size of changes in an issue and update its labels and project task size based on predefined thresholds.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/commit_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/repository/workflow_repository.ts",
+      "sha": "9f4729cbef7862a5d3c0f085906594b97af8d99e92ac2e2d9464e5adb9a4f11e",
+      "description": "Provides methods to fetch and filter GitHub workflow runs, including active previous runs, for a given repository.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/workflow_run.ts",
+        "src/utils/constants.ts"
+      ],
+      "consumed_by": [
+        "src/utils/queue_utils.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+      "sha": "261182a5224c9401ea9c2b3f693218f01de6c726d26eff8d08afd451cc1aa958",
+      "description": "Implements a use case to notify users of new commits on an issue, including generating comments with relevant details and warnings.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/list_utils.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/steps/common/execute_script_use_case.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/commit_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/supabase_config.ts",
+      "sha": "e9e389b9f63770a3f2ce77e6c4b811aaea7bf7f3e2345fc5dc65d81fe329967c",
+      "description": "Encapsulates Supabase configuration details such as URL and API key, used to interact with Supabase services.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/data/graph/repository_response.ts",
+      "sha": "b56ba2074d1b44cdc72c360caba72e9c93fdc5b8261f3acb3d8f902bdc6c0fb9",
+      "description": "Defines a type for repository responses, including repository, issue, and ref details, used in GraphQL or API responses.",
+      "consumes": [],
+      "consumed_by": []
+    },
+    {
+      "path": "src/data/model/result.ts",
+      "sha": "8f8294b0f81139d88607c58c45730e46849075b0eab97c8b85ce037dd971f5f3",
+      "description": "Represents the result of an operation, including success status, steps, payload, and any errors, used to standardize response handling.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/common_action.ts",
+        "src/usecase/commit_use_case.ts",
+        "src/usecase/issue_comment_use_case.ts",
+        "src/actions/github_action.ts",
+        "src/usecase/single_action_use_case.ts",
+        "src/usecase/pull_request_use_case.ts",
+        "src/usecase/pull_request_review_comment_use_case.ts",
+        "src/usecase/issue_use_case.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/usecase/actions/prepare_ai_container_use_case.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/usecase/actions/create_tag_use_case.ts",
+        "src/usecase/actions/publish_github_action_use_case.ts",
+        "src/usecase/actions/create_release_use_case.ts",
+        "src/usecase/actions/vector_action_removal_use_case.ts",
+        "src/usecase/actions/deployed_action_use_case.ts",
+        "src/data/model/config.ts",
+        "src/usecase/steps/commit/check_changes_issue_size_use_case.ts",
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/issue/close_not_allowed_issue_use_case.ts",
+        "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts",
+        "src/usecase/steps/issue/move_issue_to_in_progress.ts",
+        "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+        "src/usecase/steps/common/execute_script_use_case.ts",
+        "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+        "src/usecase/steps/issue/label_deployed_added_use_case.ts",
+        "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+        "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+        "src/usecase/steps/issue/remove_issue_branches_use_case.ts",
+        "src/usecase/steps/issue/remove_not_needed_branches_use_case.ts",
+        "src/usecase/steps/issue/check_priority_issue_size_use_case.ts",
+        "src/usecase/steps/issue/link_issue_project_use_case.ts",
+        "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_issue_use_case.ts",
+        "src/usecase/steps/pull_request/check_priority_pull_request_size_use_case.ts",
+        "src/usecase/steps/common/get_release_type_use_case.ts",
+        "src/usecase/steps/common/check_permissions_use_case.ts",
+        "src/usecase/steps/issue/update_issue_type_use_case.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts",
+        "src/usecase/steps/common/publish_resume_use_case.ts",
+        "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts",
+        "src/usecase/steps/common/get_release_version_use_case.ts",
+        "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts",
+        "src/usecase/steps/pull_request/link_pull_request_project_use_case.ts",
+        "src/usecase/steps/common/update_title_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/close_not_allowed_issue_use_case.ts",
+      "sha": "392f757f4f69868629433ac44b6daf10ef79bacb91926248a5b7ef2d25796db4",
+      "description": "Implements a use case to close an issue if the author is not a project member, including adding a comment to notify the user.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/assign_members_to_issue_use_case.ts",
+      "sha": "c4542cb014b5f11bff897aaea4033adde4901d25890ab6332afff8684612f003",
+      "description": "Implements a use case to assign members to an issue or pull request, ensuring the required number of assignees are met.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts",
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/chunked_file_chunk.ts",
+      "sha": "a9b5fce21bd89bd22c00f06152f201a9e741cf865b5699dadca2ed3751b22068",
+      "description": "Represents a chunk of a file, including metadata like owner, repository, branch, path, and SHA checksum, used in file chunking operations.",
+      "consumes": [],
+      "consumed_by": [
+        "src/data/repository/file_repository.ts",
+        "src/usecase/actions/vector_action_use_case.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/usecase/steps/common/ask_ai_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/pull_request/check_changes_pull_request_size_use_case.ts",
+      "sha": "d0c84fac4996ec24a66bd7a69746e2848ebebd37488a7145c0bb128bcf124eda",
+      "description": "Implements a use case to check the size of changes in a pull request and update its labels and project task size based on predefined thresholds.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/prepare_branches_use_case.ts",
+      "sha": "9ea9a7a01061d2c4e13e7db83c50468819b8dd71c42c0842bf107edd5439e201",
+      "description": "Implements a use case to prepare branches for issues, including creating or renaming branches, and managing hotfix or release workflows.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts",
+        "src/usecase/steps/common/execute_script_use_case.ts",
+        "src/usecase/steps/issue/move_issue_to_in_progress.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/move_issue_to_in_progress.ts",
+      "sha": "e88fad12bcf7ffcb55a1d4654325ad7016b34c36a5b769e661c40d2265630803",
+      "description": "Implements a use case to move an issue to the 'In Progress' column in a GitHub project, updating the issue's status.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/steps/issue/prepare_branches_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/single_action.ts",
+      "sha": "61ccd0268b1c459afeca2f410dccbe74d834fd928a23582c794f86d970d75760",
+      "description": "Manages single actions within the system, including deployment, vector operations, and tag/release creation, with validation and error handling.",
+      "consumes": [
+        "src/utils/constants.ts",
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/close_issue_after_merging_use_case.ts",
+      "sha": "f86e1832a3042ee7f0278d2dd89834cc843957b79a97a86635e3b9e94491f9a0",
+      "description": "Closes an issue after a pull request is merged and removes associated branches.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/execute_script_use_case.ts",
+      "sha": "7ee39559b8a0a2dfff52ad279ce8983a82284393ae17a4a5e91480f0cb053aca",
+      "description": "Applies transformations to a branch name to generate a commit prefix based on predefined rules.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/steps/commit/notify_new_commit_on_issue_use_case.ts",
+        "src/usecase/steps/issue/prepare_branches_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/pull_request/update_pull_request_description_use_case.ts",
+      "sha": "34d450ec8460adf3664601d4624b60f9be7afcb716d0cc0c700901b03493b6cf",
+      "description": "Updates a pull request description with AI-generated content based on issue and code changes.",
+      "consumes": [
+        "src/data/graph/ai_responses.ts",
+        "src/data/model/ai.ts",
+        "src/data/model/ai_response.ts",
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/data/repository/file_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/data/repository/pull_request_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/label_deployed_added_use_case.ts",
+      "sha": "ddaa3cd47725bdade2e4a65db70ce61568a8556207269bc5db5c1a25439ded68",
+      "description": "Handles actions when a 'deployed' label is added to an issue, including logging deployment details.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/get_hotfix_version_use_case.ts",
+      "sha": "32853a7d0e1e50389482e82024fd7f2b775368d9de54841af23abd967ff0fe5c",
+      "description": "Extracts and validates the base and hotfix versions from an issue description.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/content_utils.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/label_deploy_added_use_case.ts",
+      "sha": "6491e45aa3840fc1f2e1a64430fa1258344efd703b00aee9b8c6bf28eb82fd5d",
+      "description": "Triggers workflows when a 'deploy' label is added to an issue, preparing for deployment.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/utils/content_utils.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/remove_issue_branches_use_case.ts",
+      "sha": "c99675d86229642241b6f517f54f62d28ee201a42bd9d88966b50fa6f6c6a56a",
+      "description": "Removes branches associated with a specific issue after its resolution.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/remove_not_needed_branches_use_case.ts",
+      "sha": "7e2aa6e691e3320dbe9b34d9a8850680c6cfa9bb768fbf2a3fea1072b3d75a2a",
+      "description": "Cleans up unnecessary branches related to an issue based on its title and branch patterns.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/branch_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/projects.ts",
+      "sha": "7865c474000f44344af19d49b079838dfa89a3fd3984bcfa0ca811c6025182b7",
+      "description": "Defines a class for managing project details and associated columns in GitHub projects.",
+      "consumes": [
+        "src/data/model/project_detail.ts"
+      ],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/check_priority_issue_size_use_case.ts",
+      "sha": "0f1426f953f06d3d1ecd0b50d42211a73fd9512c3b6675acf6fdd5604e9a449c",
+      "description": "Sets the priority of an issue in GitHub projects based on its label.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/link_issue_project_use_case.ts",
+      "sha": "956d6542b36675f57e2ab4fb555e40cf376e30405ecf7cdce9539816a223e92c",
+      "description": "Links an issue to a GitHub project and moves it to the appropriate column.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/assign_reviewers_to_issue_use_case.ts",
+      "sha": "4f43d3e5c643585ae11ec5d718f350842f97780db08b4d45ae15881546264fac",
+      "description": "Assigns reviewers to a pull request based on project members and required reviewer count.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/project_repository.ts",
+        "src/data/repository/pull_request_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/pull_request/link_pull_request_issue_use_case.ts",
+      "sha": "d2e78efcc108a7cccb35f856a2e19cb4bc43bea237b540ae36cc585751e3a52a",
+      "description": "Links a pull request to its associated issue and updates the description temporarily.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/pull_request_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/pull_request/check_priority_pull_request_size_use_case.ts",
+      "sha": "55da21497dc9feea1a140b36a9c751b01cdc3bdc646c386d36416648edcd3ddc",
+      "description": "Sets the priority of a pull request in GitHub projects based on its label.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/get_release_type_use_case.ts",
+      "sha": "a2cc43bb233f65abcfa0a17b9dae4eed769b7bb944cb91c4ac48325f2509048d",
+      "description": "Extracts the release type from an issue description to determine the kind of release.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/content_utils.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/check_permissions_use_case.ts",
+      "sha": "b98bf99412fb6599839d5e5599760061734dd2caf76bdefa026c51b0ec0f2ee5",
+      "description": "Verifies if the creator of an issue or pull request has the necessary permissions.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/data/model/release.ts",
+      "sha": "18addd1798b5b7df1932fb531364f2762bce8e3997b8ffab8f1722f9ccc655b9",
+      "description": "Defines a class representing release details, including type, version, and branch.",
+      "consumes": [],
+      "consumed_by": [
+        "src/actions/local_action.ts",
+        "src/actions/github_action.ts",
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue/update_issue_type_use_case.ts",
+      "sha": "d4afcb424599fd81b7de1ab4d5ffc3560f2db9c8312453d089776ef2eee6f708",
+      "description": "Updates the type of an issue based on its labels and other metadata.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/ask_ai_use_case.ts",
+      "sha": "7913fbb9abbf7c64a4fad34306abb04b4f14865e203e0b9b28d47014bbacb295",
+      "description": "Uses AI to analyze code snippets and provide responses to user questions in GitHub issues.",
+      "consumes": [
+        "src/data/model/ai_response.ts",
+        "src/data/model/chunked_file_chunk.ts",
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/data/repository/docker_repository.ts",
+        "src/data/repository/file_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/data/repository/supabase_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_comment_use_case.ts",
+        "src/usecase/single_action_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/store_configuration_use_case.ts",
+      "sha": "f1c87bc8ef653d9532faf003c53d29a4ad6421c8e9fbcf706a6b7c70b0a89da9",
+      "description": "Stores the latest configuration in the issue description for future reference.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/manager/description/configuration_handler.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/actions/github_action.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/publish_resume_use_case.ts",
+      "sha": "a02c9f5d3bad8f1066021beb6c3b9f4973d1ddb051d984cb047e374d847fed7f",
+      "description": "This file implements the `PublishResultUseCase` class, which is responsible for publishing a summary of actions taken on an issue or pull request, including comments, reminders, and errors, with optional images based on the context.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/list_utils.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/actions/github_action.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/pull_request_review_comment/check_pull_request_comment_language_use_case.ts",
+      "sha": "cf5710ff57ce48bb8fb8f07ad9f9478ab6fb029bbf467708ee856666d0e09fad",
+      "description": "This file contains the `CheckPullRequestCommentLanguageUseCase` class, which uses AI to check and translate pull request comments into the specified locale if they are not already in the correct language.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_review_comment_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/get_release_version_use_case.ts",
+      "sha": "99a92f0a9a3f978b10596cbe5e000656464a18e195759896eb9d0cac1e6c90df",
+      "description": "This file defines the `GetReleaseVersionUseCase` class, which extracts the release version from the description of an issue or pull request.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/content_utils.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/data/model/execution.ts"
+      ]
+    },
+    {
+      "path": "src/manager/description/base/issue_content_interface.ts",
+      "sha": "166f9113f78045fed275e0b9c297714a078c1ef25e9680a8299e65fa3ef0a79b",
+      "description": "This file provides the `IssueContentInterface` class, which serves as a base for managing and updating issue or pull request descriptions, including fetching and modifying content.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/logger.ts",
+        "src/manager/description/base/content_interface.ts"
+      ],
+      "consumed_by": [
+        "src/manager/description/configuration_handler.ts",
+        "src/manager/description/markdown_content_hotfix_handler.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/issue_comment/check_issue_comment_language_use_case.ts",
+      "sha": "753d7c79e1ff3a94856b724c14a1872b702fb7b7309700261278477ced393a94",
+      "description": "This file implements the `CheckIssueCommentLanguageUseCase` class, which uses AI to verify and translate issue comments into the specified locale if necessary.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/ai_repository.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/issue_comment_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/pull_request/link_pull_request_project_use_case.ts",
+      "sha": "4fa664bbbf0adeecd26016f073ab1eb7e7495648b81981985cdc3d1f10af1b82",
+      "description": "This file contains the `LinkPullRequestProjectUseCase` class, which links pull requests to specified projects and moves them to the appropriate project column.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/project_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/steps/common/update_title_use_case.ts",
+      "sha": "141beaa53ede03c45df2b0cc18e4e31e26803294dcd571b6508cd198d92ae1e7",
+      "description": "This file defines the `UpdateTitleUseCase` class, which updates the title of an issue or pull request, optionally adding emojis or version information based on the context.",
+      "consumes": [
+        "src/data/model/execution.ts",
+        "src/data/model/result.ts",
+        "src/data/repository/issue_repository.ts",
+        "src/utils/logger.ts",
+        "src/usecase/base/param_usecase.ts"
+      ],
+      "consumed_by": [
+        "src/usecase/pull_request_use_case.ts",
+        "src/usecase/issue_use_case.ts"
+      ]
+    },
+    {
+      "path": "src/manager/description/base/content_interface.ts",
+      "sha": "71f87c3f2aac20ff8fd788a531bdd3824d2b7cb4ed9b96054e442b1038261325",
+      "description": "This file provides the `ContentInterface` abstract class, which is a base class for managing and updating content within issue or pull request descriptions, including patterns for content extraction and modification.",
+      "consumes": [
+        "src/utils/logger.ts"
+      ],
+      "consumed_by": [
+        "src/manager/description/base/issue_content_interface.ts"
+      ]
+    },
+    {
+      "path": "src/usecase/base/usecase.ts",
+      "sha": "09984010ef430617c28fdccc9a1dd7e3fd33ba1d636776cad496dd459e77191d",
+      "description": "This file defines the `UseCase` interface, which serves as a contract for use case classes, requiring an `invoke` method to execute the use case logic.",
+      "consumes": [],
+      "consumed_by": []
+    }
+  ],
+  "last_updated": 1762414386951
+}

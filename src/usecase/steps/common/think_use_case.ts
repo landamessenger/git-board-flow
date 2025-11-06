@@ -9,6 +9,25 @@ import { ParamUseCase } from '../../base/param_usecase';
 import { ThinkCodeManager } from './think_code_manager';
 import { ThinkTodoManager } from './think_todo_manager';
 import { CODEBASE_ANALYSIS_JSON_SCHEMA } from '../../../data/model/codebase_analysis_schema';
+import { createHash } from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Interface for cached file information
+ */
+interface CachedFileInfo {
+    path: string;
+    sha: string;
+    description: string;
+    consumes: string[];  // Files this file imports
+    consumed_by: string[];  // Files that import this file
+}
+
+interface AICacheFile {
+    files: CachedFileInfo[];
+    last_updated: number;
+}
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ThinkUseCase';
@@ -583,14 +602,329 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     }
 
     /**
+     * Extract imports from a file regardless of programming language
+     */
+    private extractImportsFromFile(filePath: string, content: string): string[] {
+        const imports: string[] = [];
+        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        const dir = filePath.split('/').slice(0, -1).join('/') || '';
+        
+        // TypeScript/JavaScript
+        if (['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'].includes(ext)) {
+            // import ... from '...'
+            const es6Imports = content.match(/import\s+.*?\s+from\s+['"]([^'"]+)['"]/g) || [];
+            es6Imports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+            
+            // require('...')
+            const requireImports = content.match(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/g) || [];
+            requireImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // Python
+        if (['py', 'pyw', 'pyi'].includes(ext)) {
+            // import ... / from ... import ...
+            const pyImports = content.match(/(?:^|\n)\s*(?:import\s+\w+|from\s+[\w.]+)\s+import/gm) || [];
+            pyImports.forEach(match => {
+                const fromMatch = match.match(/from\s+([\w.]+)/);
+                if (fromMatch) {
+                    imports.push(fromMatch[1]);
+                } else {
+                    const importMatch = match.match(/import\s+(\w+)/);
+                    if (importMatch) imports.push(importMatch[1]);
+                }
+            });
+        }
+        
+        // Java
+        if (ext === 'java') {
+            const javaImports = content.match(/import\s+(?:static\s+)?[\w.]+\s*;/g) || [];
+            javaImports.forEach(match => {
+                const path = match.replace(/import\s+(?:static\s+)?/, '').replace(/\s*;/, '');
+                imports.push(path);
+            });
+        }
+        
+        // Kotlin
+        if (['kt', 'kts'].includes(ext)) {
+            const ktImports = content.match(/import\s+[\w.]+\s*/g) || [];
+            ktImports.forEach(match => {
+                const path = match.replace(/import\s+/, '').trim();
+                imports.push(path);
+            });
+        }
+        
+        // Go
+        if (ext === 'go') {
+            const goImports = content.match(/import\s*(?:\([^)]+\)|['"]([^'"]+)['"])/gs) || [];
+            goImports.forEach(match => {
+                const quoted = match.match(/['"]([^'"]+)['"]/);
+                if (quoted) {
+                    imports.push(quoted[1]);
+                } else {
+                    // Multi-line import block
+                    const multiLine = match.match(/import\s*\(([^)]+)\)/s);
+                    if (multiLine) {
+                        const paths = multiLine[1].match(/['"]([^'"]+)['"]/g) || [];
+                        paths.forEach(p => {
+                            const path = p.match(/['"]([^'"]+)['"]/)?.[1];
+                            if (path) imports.push(path);
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Rust
+        if (ext === 'rs') {
+            const rustImports = content.match(/use\s+[\w:]+(?:::\*)?\s*;/g) || [];
+            rustImports.forEach(match => {
+                const path = match.replace(/use\s+/, '').replace(/\s*;/, '').split('::')[0];
+                imports.push(path);
+            });
+        }
+        
+        // Ruby
+        if (ext === 'rb') {
+            const rubyImports = content.match(/(?:require|require_relative)\s+['"]([^'"]+)['"]/g) || [];
+            rubyImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // PHP
+        if (ext === 'php') {
+            const phpImports = content.match(/(?:use|require|include)(?:_once)?\s+['"]([^'"]+)['"]/g) || [];
+            phpImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // Swift
+        if (ext === 'swift') {
+            const swiftImports = content.match(/import\s+\w+/g) || [];
+            swiftImports.forEach(match => {
+                const path = match.replace(/import\s+/, '');
+                imports.push(path);
+            });
+        }
+        
+        // Dart
+        if (ext === 'dart') {
+            const dartImports = content.match(/import\s+['"]([^'"]+)['"]/g) || [];
+            dartImports.forEach(match => {
+                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
+                if (path) imports.push(path);
+            });
+        }
+        
+        // Resolve relative imports to absolute paths
+        return imports.map(imp => {
+            // Skip external packages (node_modules, stdlib, etc.)
+            if (!imp.startsWith('.') && !imp.startsWith('/')) {
+                // Try to resolve relative to current file
+                if (dir) {
+                    // Check if it's a relative path that needs resolution
+                    const possiblePath = `${dir}/${imp}`.replace(/\/+/g, '/');
+                    return possiblePath;
+                }
+                return imp;
+            }
+            
+            // Resolve relative paths
+            if (imp.startsWith('.')) {
+                const resolved = this.resolveRelativePath(dir, imp);
+                return resolved;
+            }
+            
+            return imp;
+        }).filter(imp => imp && !imp.includes('node_modules') && !imp.startsWith('http'));
+    }
+    
+    /**
+     * Resolve relative import path to absolute path
+     */
+    private resolveRelativePath(baseDir: string, relativePath: string): string {
+        if (!relativePath.startsWith('.')) {
+            return relativePath;
+        }
+        
+        let path = baseDir || '';
+        const parts = relativePath.split('/');
+        
+        for (const part of parts) {
+            if (part === '..') {
+                path = path.split('/').slice(0, -1).join('/');
+            } else if (part === '.' || part === '') {
+                // Current directory, do nothing
+            } else {
+                path = path ? `${path}/${part}` : part;
+            }
+        }
+        
+        // Remove file extension if present and add common extensions
+        const withoutExt = path.replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '');
+        
+        return withoutExt;
+    }
+
+    /**
+     * Calculate SHA256 hash of file content
+     */
+    private calculateFileSHA(content: string): string {
+        return createHash('sha256').update(content).digest('hex');
+    }
+
+    /**
+     * Get path to .AI cache file (in repository root)
+     */
+    private getAICachePath(param: Execution): string {
+        // For now, we'll use a temporary approach - in production this should be in the repo root
+        // Since we're working with remote repos, we might need to handle this differently
+        // For local execution, we can use process.cwd() or a configurable path
+        const cacheDir = process.cwd();
+        return path.join(cacheDir, '.AI');
+    }
+
+    /**
+     * Load cache from .AI file
+     */
+    private loadAICache(param: Execution): Map<string, CachedFileInfo> {
+        const cachePath = this.getAICachePath(param);
+        const cache = new Map<string, CachedFileInfo>();
+
+        try {
+            if (fs.existsSync(cachePath)) {
+                const content = fs.readFileSync(cachePath, 'utf-8');
+                const cacheData: AICacheFile = JSON.parse(content);
+                
+                for (const file of cacheData.files) {
+                    cache.set(file.path, file);
+                }
+                
+                logInfo(`📂 Loaded ${cache.size} files from .AI cache`);
+            } else {
+                logInfo(`📂 No .AI cache file found, starting fresh`);
+            }
+        } catch (error) {
+            logError(`Error loading .AI cache: ${error}`);
+        }
+
+        return cache;
+    }
+
+    /**
+     * Save cache to .AI file
+     */
+    private saveAICache(param: Execution, cache: Map<string, CachedFileInfo>): void {
+        const cachePath = this.getAICachePath(param);
+        
+        try {
+            const cacheData: AICacheFile = {
+                files: Array.from(cache.values()),
+                last_updated: Date.now()
+            };
+
+            fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2), 'utf-8');
+            logInfo(`💾 Saved ${cache.size} files to .AI cache`);
+        } catch (error) {
+            logError(`Error saving .AI cache: ${error}`);
+        }
+    }
+
+    /**
+     * Build relationship map from all files by extracting imports
+     * Also builds reverse map (consumed_by)
+     */
+    private buildRelationshipMap(
+        repositoryFiles: Map<string, string>
+    ): { consumes: Map<string, string[]>, consumedBy: Map<string, string[]> } {
+        const consumesMap = new Map<string, string[]>();
+        const consumedByMap = new Map<string, string[]>();
+        
+        logInfo(`🔗 Building relationship map from imports...`);
+        
+        // Initialize consumedBy map for all files
+        for (const filePath of repositoryFiles.keys()) {
+            consumedByMap.set(filePath, []);
+        }
+        
+        for (const [filePath, content] of repositoryFiles.entries()) {
+            const imports = this.extractImportsFromFile(filePath, content);
+            
+            // Resolve imports to actual file paths in the repository
+            const resolvedImports: string[] = [];
+            
+            for (const imp of imports) {
+                // Try to find matching file in repository
+                const possiblePaths = [
+                    imp,
+                    `${imp}.ts`,
+                    `${imp}.tsx`,
+                    `${imp}.js`,
+                    `${imp}.jsx`,
+                    `${imp}/index.ts`,
+                    `${imp}/index.tsx`,
+                    `${imp}/index.js`,
+                    `${imp}/index.jsx`,
+                ];
+                
+                for (const possiblePath of possiblePaths) {
+                    // Check exact match
+                    if (repositoryFiles.has(possiblePath)) {
+                        if (!resolvedImports.includes(possiblePath)) {
+                            resolvedImports.push(possiblePath);
+                        }
+                        // Update reverse map
+                        const currentConsumers = consumedByMap.get(possiblePath) || [];
+                        if (!currentConsumers.includes(filePath)) {
+                            currentConsumers.push(filePath);
+                            consumedByMap.set(possiblePath, currentConsumers);
+                        }
+                        break;
+                    }
+                    
+                    // Check if any file path contains this import
+                    for (const [repoPath] of repositoryFiles.entries()) {
+                        if (repoPath.includes(possiblePath) || possiblePath.includes(repoPath)) {
+                            if (!resolvedImports.includes(repoPath)) {
+                                resolvedImports.push(repoPath);
+                            }
+                            // Update reverse map
+                            const currentConsumers = consumedByMap.get(repoPath) || [];
+                            if (!currentConsumers.includes(filePath)) {
+                                currentConsumers.push(filePath);
+                                consumedByMap.set(repoPath, currentConsumers);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            consumesMap.set(filePath, resolvedImports);
+        }
+        
+        logInfo(`✅ Built relationship map for ${consumesMap.size} files`);
+        return { consumes: consumesMap, consumedBy: consumedByMap };
+    }
+
+    /**
      * Generate codebase analysis with file descriptions and relationships
      * This runs before the main reasoning loop to provide context
+     * Uses relationship map built from imports + AI descriptions in batches
      */
     private async generateCodebaseAnalysis(
         param: Execution,
         repositoryFiles: Map<string, string>,
         question: string
-    ): Promise<Array<{ path: string; description: string; relationships: string[] }>> {
+    ): Promise<Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }>> {
         try {
             // Filter relevant files (code files, not config/docs)
             const codeExtensions = ['.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.kt', '.go', '.rs', '.rb', '.php', '.swift', '.dart'];
@@ -610,95 +944,289 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             logInfo(`🔍 Analyzing ${relevantFiles.length} relevant files for structure and relationships...`);
+            
+            // STEP 0: Load cache from .AI file
+            const cache = this.loadAICache(param);
+            
+            // STEP 1: Build relationship map from imports (in memory, no AI needed)
+            const relationshipMaps = this.buildRelationshipMap(repositoryFiles);
+            const consumesMap = relationshipMaps.consumes;
+            const consumedByMap = relationshipMaps.consumedBy;
 
-            // Group files by directory for better context
-            const filesByDir = new Map<string, Array<{ path: string; content: string }>>();
-            relevantFiles.forEach(([path, content]) => {
-                const dir = path.split('/').slice(0, -1).join('/') || 'root';
-                if (!filesByDir.has(dir)) {
-                    filesByDir.set(dir, []);
+            // STEP 2: Identify files that need AI analysis (not in cache or SHA changed)
+            const filesNeedingAnalysis: Array<[string, string]> = [];
+            const cachedAnalyses: Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }> = [];
+            
+            for (const [filePath, content] of relevantFiles) {
+                const currentSHA = this.calculateFileSHA(content);
+                const cached = cache.get(filePath);
+                
+                if (cached && cached.sha === currentSHA) {
+                    // Use cached data
+                    const consumes = consumesMap.get(filePath) || [];
+                    const consumedBy = consumedByMap.get(filePath) || [];
+                    cachedAnalyses.push({
+                        path: filePath,
+                        description: cached.description,
+                        consumes: consumes,
+                        consumed_by: consumedBy
+                    });
+                } else {
+                    // Need to analyze with AI
+                    filesNeedingAnalysis.push([filePath, content]);
                 }
-                filesByDir.get(dir)!.push({ path, content });
-            });
+            }
+            
+            logInfo(`📊 Cache hit: ${cachedAnalyses.length} files, Need analysis: ${filesNeedingAnalysis.length} files`);
 
-            // Create analysis prompt
-            const filesList = relevantFiles.map(([path]) => path).join('\n');
-            const sampleContent = relevantFiles.slice(0, 10).map(([path, content]) => 
-                `\n## ${path}\n\`\`\`\n${content}\n\`\`\``
-            ).join('\n');
+            // STEP 3: Process files needing analysis in batches with AI (only for descriptions)
+            // Relationships come from the map we built
+            const BATCH_SIZE = 20; // Process 20 files at a time
+            const allAnalyses: Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }> = [...cachedAnalyses];
+            
+            // Create simplified schema for AI (only needs description, relationships come from map)
+            const FILE_DESCRIPTION_SCHEMA = {
+                "type": "array",
+                "description": "Array of file descriptions",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "File path relative to repository root"
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Brief description (1-2 sentences) of what the file does in English"
+                        }
+                    },
+                    "required": ["path", "description"],
+                    "additionalProperties": false
+                }
+            };
+            
+            for (let i = 0; i < filesNeedingAnalysis.length; i += BATCH_SIZE) {
+                const batch = filesNeedingAnalysis.slice(i, i + BATCH_SIZE);
+                const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+                const totalBatches = Math.ceil(relevantFiles.length / BATCH_SIZE);
+                
+                logInfo(`📝 Processing batch ${batchNumber}/${totalBatches} (${batch.length} files)...`);
+                
+                // Prepare batch content
+                const batchFilesList = batch.map(([path]) => path).join('\n');
+                const batchContent = batch.map(([path, content]) => 
+                    `\n## ${path}\n\`\`\`\n${content}\n\`\`\``
+                ).join('\n');
+                
+                const batchPrompt = `# Codebase Structure Analysis - Batch ${batchNumber}/${totalBatches}
 
-            const analysisPrompt = `# Codebase Structure Analysis
-
-You are analyzing a codebase to understand its structure, file relationships, and what each file does.
+You are analyzing a codebase to understand what each file does.
 
 ## User's Question:
 ${question}
 
-## Files to Analyze (${relevantFiles.length} files):
-${filesList}
+## Files to Analyze in this batch (${batch.length} files):
+${batchFilesList}
 
-## Sample File Contents (for context):
-${sampleContent}
+## File Contents:
+${batchContent}
 
 ## Task:
-For each file, provide:
-1. A brief description (1-2 sentences) of what the file does in English
-2. Key relationships/dependencies (what other files it imports or depends on)
-3. Its role in the codebase architecture
+For EACH of the ${batch.length} files listed above, provide a brief description (1-2 sentences) of what the file does in English.
 
 Focus on:
-- Main functionality of each file
+- Main functionality of the file
 - Key classes, functions, or exports
-- Dependencies and imports
-- How files relate to each other
+- Its role in the codebase architecture
 
 Return a JSON array with this structure:
 [
   {
     "path": "src/path/to/file.ts",
-    "description": "Brief description of what this file does",
-    "relationships": ["other/file.ts", "another/file.ts"]
+    "description": "Brief description of what this file does"
   },
   ...
 ]
 
-Keep descriptions concise (1-2 sentences max). Focus on the most important/relevant files first.`;
+**REQUIREMENTS**:
+- You MUST return a description for ALL ${batch.length} files in this batch
+- Keep descriptions concise (1-2 sentences max per file)
+- Focus on functionality, not relationships (relationships are handled separately)`;
 
-            // Use askJson() with codebase analysis schema for structured response
-            const response = await this.aiRepository.askJson(
-                param.ai, 
-                analysisPrompt,
-                CODEBASE_ANALYSIS_JSON_SCHEMA,
-                "codebase_analysis"
-            );
-            
-            if (response && Array.isArray(response) && response.length > 0) {
-                // Validate response structure
-                const validResponse = response.filter((item: any) => 
-                    item && 
-                    typeof item.path === 'string' && 
-                    typeof item.description === 'string' &&
-                    (item.relationships === undefined || Array.isArray(item.relationships))
-                );
-                
-                if (validResponse.length > 0) {
-                    logInfo(`✅ Generated analysis for ${validResponse.length} files`);
-                    return validResponse;
-                } else {
-                    logError(`⚠️ AI response structure invalid, falling back to descriptions`);
+                try {
+                    const batchResponse = await this.aiRepository.askJson(
+                        param.ai,
+                        batchPrompt,
+                        FILE_DESCRIPTION_SCHEMA,
+                        "file_descriptions"
+                    );
+                    
+                    if (batchResponse && Array.isArray(batchResponse)) {
+                        // Merge AI descriptions with relationship map and update cache
+                        for (const item of batchResponse) {
+                            if (item && typeof item.path === 'string' && typeof item.description === 'string') {
+                                const [filePath, content] = batch.find(([p]) => p === item.path) || [item.path, ''];
+                                const currentSHA = filePath && content ? this.calculateFileSHA(content) : '';
+                                const consumes = consumesMap.get(item.path) || [];
+                                const consumedBy = consumedByMap.get(item.path) || [];
+                                
+                                allAnalyses.push({
+                                    path: item.path,
+                                    description: item.description,
+                                    consumes: consumes,
+                                    consumed_by: consumedBy
+                                });
+                                
+                                // Update cache
+                                if (filePath && currentSHA) {
+                                    cache.set(item.path, {
+                                        path: item.path,
+                                        sha: currentSHA,
+                                        description: item.description,
+                                        consumes: consumes,
+                                        consumed_by: consumedBy
+                                    });
+                                }
+                            }
+                        }
+                        logInfo(`✅ Processed batch ${batchNumber}/${totalBatches}: ${batchResponse.length} files`);
+                    } else {
+                        logError(`⚠️ Batch ${batchNumber} failed, using fallback descriptions`);
+                        // Fallback for this batch
+                        for (const [path, content] of batch) {
+                            const currentSHA = this.calculateFileSHA(content);
+                            const consumes = consumesMap.get(path) || [];
+                            const consumedBy = consumedByMap.get(path) || [];
+                            const fallbackDesc = this.generateBasicDescription(path);
+                            
+                            allAnalyses.push({
+                                path,
+                                description: fallbackDesc,
+                                consumes: consumes,
+                                consumed_by: consumedBy
+                            });
+                            
+                            // Update cache with fallback
+                            cache.set(path, {
+                                path,
+                                sha: currentSHA,
+                                description: fallbackDesc,
+                                consumes: consumes,
+                                consumed_by: consumedBy
+                            });
+                        }
+                    }
+                } catch (error) {
+                    logError(`Error processing batch ${batchNumber}: ${error}`);
+                    // Fallback for this batch
+                    for (const [path, content] of batch) {
+                        const currentSHA = this.calculateFileSHA(content);
+                        const consumes = consumesMap.get(path) || [];
+                        const consumedBy = consumedByMap.get(path) || [];
+                        const fallbackDesc = this.generateBasicDescription(path);
+                        
+                        allAnalyses.push({
+                            path,
+                            description: fallbackDesc,
+                            consumes: consumes,
+                            consumed_by: consumedBy
+                        });
+                        
+                        // Update cache with fallback
+                        cache.set(path, {
+                            path,
+                            sha: currentSHA,
+                            description: fallbackDesc,
+                            consumes: consumes,
+                            consumed_by: consumedBy
+                        });
+                    }
                 }
+            }
+            
+            // STEP 4: Save updated cache
+            this.saveAICache(param, cache);
+            
+            if (allAnalyses.length > 0) {
+                logInfo(`✅ Generated analysis for ${allAnalyses.length} files (${cachedAnalyses.length} from cache, ${filesNeedingAnalysis.length} from AI)`);
+                return allAnalyses;
             }
 
             // Fallback: Generate simple descriptions based on file paths and basic content
             logInfo(`⚠️ AI analysis failed, generating fallback descriptions...`);
-            return this.generateFallbackFileDescriptions(relevantFiles);
+            const fallbackDescriptions = this.generateFallbackFileDescriptions(relevantFiles);
+            // Merge with relationship maps and update cache
+            const fallbackResults = fallbackDescriptions.map(item => {
+                const consumes = consumesMap.get(item.path) || [];
+                const consumedBy = consumedByMap.get(item.path) || [];
+                const content = repositoryFiles.get(item.path) || '';
+                const currentSHA = content ? this.calculateFileSHA(content) : '';
+                
+                // Update cache
+                if (content && currentSHA) {
+                    cache.set(item.path, {
+                        path: item.path,
+                        sha: currentSHA,
+                        description: item.description,
+                        consumes: consumes,
+                        consumed_by: consumedBy
+                    });
+                }
+                
+                return {
+                    ...item,
+                    consumes: consumes,
+                    consumed_by: consumedBy
+                };
+            });
+            
+            // Save cache even in fallback
+            this.saveAICache(param, cache);
+            
+            return fallbackResults;
             
         } catch (error) {
             logError(`Error generating codebase analysis: ${error}`);
             // Fallback to simple path-based analysis
             const relevantFiles = Array.from(repositoryFiles.entries())
                 .filter(([path]) => path.includes('/src/') || path.includes('/lib/'));
-            return this.generateFallbackFileDescriptions(relevantFiles);
+            const fallbackDescriptions = this.generateFallbackFileDescriptions(relevantFiles);
+            // Try to build relationship map even in fallback
+            try {
+                const relationshipMaps = this.buildRelationshipMap(repositoryFiles);
+                const consumes = relationshipMaps.consumes;
+                const consumedBy = relationshipMaps.consumedBy;
+                return fallbackDescriptions.map(item => ({
+                    ...item,
+                    consumes: consumes.get(item.path) || [],
+                    consumed_by: consumedBy.get(item.path) || []
+                }));
+            } catch {
+                return fallbackDescriptions;
+            }
+        }
+    }
+
+    /**
+     * Generate basic description from file path (fallback)
+     */
+    private generateBasicDescription(path: string): string {
+        const pathParts = path.split('/');
+        const fileName = pathParts[pathParts.length - 1];
+        const dir = pathParts.slice(0, -1).join('/');
+        
+        if (path.includes('/usecase/')) {
+            return `Use case for ${fileName.replace(/_/g, ' ').replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '')}. Handles business logic and orchestrates operations.`;
+        } else if (path.includes('/repository/')) {
+            return `Repository for ${fileName.replace(/_/g, ' ').replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '')}. Handles data access and external service interactions.`;
+        } else if (path.includes('/model/')) {
+            return `Data model: ${fileName.replace(/_/g, ' ').replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '')}. Defines data structures and interfaces.`;
+        } else if (path.includes('/utils/')) {
+            return `Utility functions: ${fileName.replace(/_/g, ' ').replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '')}. Provides helper functions and utilities.`;
+        } else if (path.includes('/actions/')) {
+            return `Action handler: ${fileName.replace(/_/g, ' ').replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '')}. Handles action execution and workflows.`;
+        } else {
+            return `File: ${fileName}. Located in ${dir || 'root'}.`;
         }
     }
 
@@ -707,50 +1235,16 @@ Keep descriptions concise (1-2 sentences max). Focus on the most important/relev
      */
     private generateFallbackFileDescriptions(
         files: Array<[string, string]>
-    ): Array<{ path: string; description: string; relationships: string[] }> {
-        const descriptions: Array<{ path: string; description: string; relationships: string[] }> = [];
+    ): Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }> {
+        const descriptions: Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }> = [];
         
-        for (const [path, content] of files) {
-            const pathParts = path.split('/');
-            const fileName = pathParts[pathParts.length - 1];
-            const dir = pathParts.slice(0, -1).join('/');
-            
-            // Extract imports/dependencies from content
-            const importMatches = content.match(/import.*from\s+['"]([^'"]+)['"]/g) || [];
-            const relationships = importMatches
-                .map(match => {
-                    const importPath = match.match(/['"]([^'"]+)['"]/)?.[1];
-                    if (importPath && importPath.startsWith('.')) {
-                        // Resolve relative imports
-                        const baseDir = dir;
-                        const resolvedPath = importPath.replace(/^\./, baseDir);
-                        return resolvedPath;
-                    }
-                    return null;
-                })
-                .filter((p): p is string => p !== null)
-                .slice(0, 5);
-
-            // Generate basic description based on path and content
-            let description = '';
-            if (path.includes('/usecase/')) {
-                description = `Use case for ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Handles business logic and orchestrates operations.`;
-            } else if (path.includes('/repository/')) {
-                description = `Repository for ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Handles data access and external service interactions.`;
-            } else if (path.includes('/model/')) {
-                description = `Data model: ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Defines data structures and interfaces.`;
-            } else if (path.includes('/utils/')) {
-                description = `Utility functions: ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Provides helper functions and utilities.`;
-            } else if (path.includes('/actions/')) {
-                description = `Action handler: ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Handles action execution and workflows.`;
-            } else {
-                description = `File: ${fileName}. Located in ${dir || 'root'}.`;
-            }
-
+        for (const [path] of files) {
+            const description = this.generateBasicDescription(path);
             descriptions.push({
                 path,
                 description,
-                relationships
+                consumes: [], // Will be filled by relationship map
+                consumed_by: [] // Will be filled by relationship map
             });
         }
 
@@ -761,7 +1255,7 @@ Keep descriptions concise (1-2 sentences max). Focus on the most important/relev
      * Format codebase analysis for inclusion in AI context
      */
     private formatCodebaseAnalysisForContext(
-        analysis: Array<{ path: string; description: string; relationships: string[] }>
+        analysis: Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }>
     ): string {
         if (analysis.length === 0) {
             return '';
@@ -770,9 +1264,12 @@ Keep descriptions concise (1-2 sentences max). Focus on the most important/relev
         const formatted: string[] = [];
         formatted.push(`## 📋 Codebase Analysis & File Relationships\n\n`);
         formatted.push(`This analysis provides context about the codebase structure to help you make informed decisions about which files to examine.\n\n`);
+        formatted.push(`**Relationship Types:**\n`);
+        formatted.push(`- **Consumes**: Files that this file imports/depends on\n`);
+        formatted.push(`- **Consumed By**: Files that import/depend on this file\n\n`);
 
         // Group by directory for better organization
-        const byDirectory = new Map<string, Array<{ path: string; description: string; relationships: string[] }>>();
+        const byDirectory = new Map<string, Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }>>();
         analysis.forEach(item => {
             const dir = item.path.split('/').slice(0, -1).join('/') || 'root';
             if (!byDirectory.has(dir)) {
@@ -790,9 +1287,15 @@ Keep descriptions concise (1-2 sentences max). Focus on the most important/relev
             
             for (const file of files) {
                 formatted.push(`- **\`${file.path}\`**: ${file.description}`);
-                if (file.relationships && file.relationships.length > 0) {
-                    formatted.push(`\n  - *Dependencies*: ${file.relationships.slice(0, 5).map(r => `\`${r}\``).join(', ')}${file.relationships.length > 5 ? '...' : ''}`);
+                
+                if (file.consumes && file.consumes.length > 0) {
+                    formatted.push(`\n  - *Consumes*: ${file.consumes.slice(0, 5).map(r => `\`${r}\``).join(', ')}${file.consumes.length > 5 ? '...' : ''}`);
                 }
+                
+                if (file.consumed_by && file.consumed_by.length > 0) {
+                    formatted.push(`\n  - *Consumed By*: ${file.consumed_by.slice(0, 5).map(r => `\`${r}\``).join(', ')}${file.consumed_by.length > 5 ? '...' : ''}`);
+                }
+                
                 formatted.push(`\n`);
             }
             formatted.push(`\n`);
