@@ -1,5 +1,5 @@
-export const COMMAND = 'git-board-flow'
-export const TITLE = 'Git Board Flow'
+export const COMMAND = 'giik'
+export const TITLE = 'Giik'
 export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
 
 export const DEFAULT_IMAGE_CONFIG = {
@@ -197,13 +197,6 @@ export const INPUT_KEYS = {
     WELCOME_TITLE: 'welcome-title',
     WELCOME_MESSAGES: 'welcome-messages',
 
-    // Docker
-    DOCKER_CONTAINER_NAME: 'docker-container-name',
-    DOCKER_DOMAIN: 'docker-domain',
-    DOCKER_PORT: 'docker-port',
-    DOCKER_CACHE_OS: 'docker-cache-os',
-    DOCKER_CACHE_ARCH: 'docker-cache-arch',
-
     // Single action
     SINGLE_ACTION: 'single-action',
     SINGLE_ACTION_ISSUE: 'single-action-issue',
@@ -393,10 +386,8 @@ export const ERRORS = {
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
-    COMPILE_VECTOR_SERVER: 'compile_vector_server',
     VECTOR: 'vector_action',
     VECTOR_LOCAL: 'vector_local',
-    VECTOR_REMOVAL: 'vector_removal',
     PUBLISH_GITHUB_ACTION: 'publish_github_action',
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',

@@ -1,5 +1,5 @@
-export declare const COMMAND = "git-board-flow";
-export declare const TITLE = "Git Board Flow";
+export declare const COMMAND = "giik";
+export declare const TITLE = "Giik";
 export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
@@ -44,11 +44,6 @@ export declare const INPUT_KEYS: {
     readonly DEBUG: "debug";
     readonly WELCOME_TITLE: "welcome-title";
     readonly WELCOME_MESSAGES: "welcome-messages";
-    readonly DOCKER_CONTAINER_NAME: "docker-container-name";
-    readonly DOCKER_DOMAIN: "docker-domain";
-    readonly DOCKER_PORT: "docker-port";
-    readonly DOCKER_CACHE_OS: "docker-cache-os";
-    readonly DOCKER_CACHE_ARCH: "docker-cache-arch";
     readonly SINGLE_ACTION: "single-action";
     readonly SINGLE_ACTION_ISSUE: "single-action-issue";
     readonly SINGLE_ACTION_VERSION: "single-action-version";
@@ -197,10 +192,8 @@ export declare const ERRORS: {
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
-    readonly COMPILE_VECTOR_SERVER: "compile_vector_server";
     readonly VECTOR: "vector_action";
     readonly VECTOR_LOCAL: "vector_local";
-    readonly VECTOR_REMOVAL: "vector_removal";
     readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";

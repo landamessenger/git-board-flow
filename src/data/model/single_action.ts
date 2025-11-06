@@ -5,10 +5,8 @@ export class SingleAction {
     currentSingleAction: string;
     actions: string[] = [
         ACTIONS.DEPLOYED,
-        ACTIONS.COMPILE_VECTOR_SERVER,
         ACTIONS.VECTOR,
         ACTIONS.VECTOR_LOCAL,
-        ACTIONS.VECTOR_REMOVAL,
         ACTIONS.PUBLISH_GITHUB_ACTION,
         ACTIONS.CREATE_TAG,
         ACTIONS.CREATE_RELEASE,
@@ -31,7 +29,6 @@ export class SingleAction {
     actionsWithoutIssue: string[] = [
         ACTIONS.VECTOR,
         ACTIONS.VECTOR_LOCAL,
-        ACTIONS.COMPILE_VECTOR_SERVER,
         ACTIONS.THINK,
     ];
 
@@ -51,20 +48,12 @@ export class SingleAction {
         return this.currentSingleAction === ACTIONS.DEPLOYED;
     }
 
-    get isCompileVectorServerAction(): boolean {
-        return this.currentSingleAction === ACTIONS.COMPILE_VECTOR_SERVER;
-    }
-
     get isVectorAction(): boolean {
         return this.currentSingleAction === ACTIONS.VECTOR || this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
     }
 
     get isVectorLocalAction(): boolean {
         return this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
-    }
-
-    get isVectorRemovalAction(): boolean {
-        return this.currentSingleAction === ACTIONS.VECTOR_REMOVAL;
     }
 
     get isPublishGithubAction(): boolean {

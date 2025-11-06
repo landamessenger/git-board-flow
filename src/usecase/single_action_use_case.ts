@@ -1,10 +1,8 @@
 import { Execution } from "../data/model/execution";
 import { Result } from "../data/model/result";
 import { logDebugInfo, logError, logInfo } from "../utils/logger";
-import { AskActionUseCase } from "./steps/common/ask_ai_use_case";
 import { DeployedActionUseCase } from "./actions/deployed_action_use_case";
 import { VectorActionUseCase } from "./actions/vector_action_use_case";
-import { PrepareAIContainerUseCase } from "./actions/prepare_ai_container_use_case";
 import { ParamUseCase } from "./base/param_usecase";
 import { PublishGithubActionUseCase } from "./actions/publish_github_action_use_case";
 import { CreateReleaseUseCase } from "./actions/create_release_use_case";
@@ -24,10 +22,7 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (param.singleAction.isCompileVectorServerAction) {
-                results.push(...await new PrepareAIContainerUseCase().invoke(param));
-            } else if (param.singleAction.isVectorAction) {
-                // results.push(...await new PrepareLocalVectorServerUseCase().invoke(param));
+            if (param.singleAction.isVectorAction) {
                 results.push(...await new VectorActionUseCase().invoke(param));
             } else if (param.singleAction.isDeployedAction) {
                 results.push(...await new DeployedActionUseCase().invoke(param));

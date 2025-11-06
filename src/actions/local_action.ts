@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { Ai } from '../data/model/ai';
 import { Branches } from '../data/model/branches';
-import { DockerConfig } from '../data/model/docker_config';
 import { Emoji } from '../data/model/emoji';
 import { Execution } from '../data/model/execution';
 import { Hotfix } from '../data/model/hotfix';
@@ -43,15 +42,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      */
     const welcomeTitle = additionalParams[INPUT_KEYS.WELCOME_TITLE] ?? actionInputs[INPUT_KEYS.WELCOME_TITLE];
     const welcomeMessages = additionalParams[INPUT_KEYS.WELCOME_MESSAGES] ?? actionInputs[INPUT_KEYS.WELCOME_MESSAGES];
-
-    /**
-     * Docker
-     */
-    const dockerContainerName = additionalParams[INPUT_KEYS.DOCKER_CONTAINER_NAME] ?? actionInputs[INPUT_KEYS.DOCKER_CONTAINER_NAME];
-    const dockerDomain = additionalParams[INPUT_KEYS.DOCKER_DOMAIN] ?? actionInputs[INPUT_KEYS.DOCKER_DOMAIN];
-    const dockerPort = parseInt(additionalParams[INPUT_KEYS.DOCKER_PORT] ?? actionInputs[INPUT_KEYS.DOCKER_PORT]);
-    const dockerCacheOs = additionalParams[INPUT_KEYS.DOCKER_CACHE_OS] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_OS];
-    const dockerCacheArch = additionalParams[INPUT_KEYS.DOCKER_CACHE_ARCH] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_ARCH];
 
     /**
      * Single action
@@ -508,13 +498,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
 
     const execution = new Execution(
         debug,
-        new DockerConfig(
-            dockerContainerName,
-            dockerDomain,
-            dockerPort,
-            dockerCacheOs,
-            dockerCacheArch,
-        ),
         new SingleAction(
             singleAction,
             singleActionIssue,

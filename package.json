@@ -4,7 +4,7 @@
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "build/github_action/index.js",
   "bin": {
-    "git-board-flow": "./build/cli/index.js"
+    "giik": "./build/cli/index.js"
   },
   "scripts": {
     "build": "ncc build src/actions/github_action.ts -o build/github_action && ncc build src/cli.ts -o build/cli && chmod +x build/cli/index.js"

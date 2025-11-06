@@ -1,16 +1,13 @@
 import { ChunkedFile } from '../../data/model/chunked_file';
-import { ChunkedFileChunk } from '../../data/model/chunked_file_chunk';
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
-import { DockerRepository } from '../../data/repository/docker_repository';
 import { FileRepository } from '../../data/repository/file_repository';
 import { SupabaseRepository } from '../../data/repository/supabase_repository';
-import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
+import { logError, logInfo, logSingleLine } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
-    private dockerRepository: DockerRepository = new DockerRepository();
     private fileRepository: FileRepository = new FileRepository();
     private readonly CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
     private readonly CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
@@ -35,8 +32,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            await this.dockerRepository.prepareLocalVectorServer(param);
-
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
@@ -44,21 +39,13 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 duplicationBranch = param.branches.development;
             }
 
-            await this.dockerRepository.startContainer(param);
-
-            const systemInfo = await this.dockerRepository.getSystemInfo(param);
-            const chunkSize = systemInfo.parameters.chunk_size as number;
-            const maxWorkers = systemInfo.parameters.max_workers as number;
-
-            logInfo(`🧑‍🏭 Max workers: ${maxWorkers}`);
-            logInfo(`🚚 Chunk size: ${chunkSize}`);
             logInfo(`📦 Getting chunks on ${param.owner}/${param.repo}/${branch}`);
 
             const chunkedFilesMap = await this.fileRepository.getChunkedRepositoryContent(
                 param.owner,
                 param.repo,
                 branch,
-                chunkSize,
+                -1,
                 param.tokens.token,
                 param.ai.getAiIgnoreFiles(),
                 (fileName: string) => {
@@ -101,8 +88,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     ],
                 })
             );
-        } finally {
-            await this.dockerRepository.stopContainer(param);
         }
 
         return results;
@@ -235,8 +220,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             // Process chunks in parallel with concurrency limit
-            const systemInfo = await this.dockerRepository.getSystemInfo(param);
-            const maxWorkers = systemInfo.parameters.max_workers as number;
+            const maxWorkers = 3;
             const chunkPromises: Promise<void>[] = [];
             let activeWorkers = 0;
 
@@ -279,11 +263,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                         let embeddings: number[][] = [];
                         let chunks: string[] = [];
                         if (chunksToProcess.length > 0) {
-                            const newEmbeddings = await this.dockerRepository.getEmbedding(
-                                param,
-                                chunksToProcess.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
-                            );
-                            embeddings = [...existingVectors, ...newEmbeddings];
+                            embeddings = [...existingVectors];
                             chunks = [...existingChunks, ...chunksToProcess];
                         } else {
                             embeddings = existingVectors;
