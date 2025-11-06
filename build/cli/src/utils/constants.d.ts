@@ -50,7 +50,6 @@ export declare const INPUT_KEYS: {
     readonly SINGLE_ACTION_TITLE: "single-action-title";
     readonly SINGLE_ACTION_CHANGELOG: "single-action-changelog";
     readonly TOKEN: "token";
-    readonly CLASSIC_TOKEN: "classic-token";
     readonly OPENROUTER_API_KEY: "openrouter-api-key";
     readonly OPENROUTER_MODEL: "openrouter-model";
     readonly AI_PULL_REQUEST_DESCRIPTION: "ai-pull-request-description";

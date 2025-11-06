@@ -56,7 +56,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      * Tokens
      */
     const token = additionalParams[INPUT_KEYS.TOKEN] ?? actionInputs[INPUT_KEYS.TOKEN];
-    const classicToken = additionalParams[INPUT_KEYS.CLASSIC_TOKEN] ?? actionInputs[INPUT_KEYS.CLASSIC_TOKEN];
 
     /**
      * AI
@@ -550,7 +549,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
         ),
         new Tokens(
             token,
-            classicToken,
         ),
         new Ai(
             openrouterApiKey,

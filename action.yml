@@ -387,9 +387,6 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
-  classic-token:
-    description: "Classic token for authentication with GitHub Container Registry"
-    default: ""
   supabase-key:
     description: "Supabase key for AI operations."
     default: ""

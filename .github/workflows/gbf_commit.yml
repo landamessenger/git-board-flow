@@ -22,4 +22,3 @@ jobs:
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           token: ${{ secrets.PAT }}
-          classic-token: ${{ secrets.CLASSIC_TOKEN }}

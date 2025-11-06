@@ -64149,7 +64149,6 @@ async function runLocalAction(additionalParams) {
      * Tokens
      */
     const token = additionalParams[constants_1.INPUT_KEYS.TOKEN] ?? actionInputs[constants_1.INPUT_KEYS.TOKEN];
-    const classicToken = additionalParams[constants_1.INPUT_KEYS.CLASSIC_TOKEN] ?? actionInputs[constants_1.INPUT_KEYS.CLASSIC_TOKEN];
     /**
      * AI
      */
@@ -64516,7 +64515,7 @@ async function runLocalAction(additionalParams) {
     if (supabaseUrl.length > 0 && supabaseKey.length > 0) {
         supabaseConfig = new supabase_config_1.SupabaseConfig(supabaseUrl, supabaseKey);
     }
-    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue, singleActionVersion, singleActionTitle, singleActionChangelog), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount, additionalParams), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout, additionalParams), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token, classicToken), new ai_1.Ai(openrouterApiKey, openrouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, Object.keys(providerRouting).length > 0 ? providerRouting : undefined), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeTaskDescription, issueTypeTaskColor, issueTypeBug, issueTypeBugDescription, issueTypeBugColor, issueTypeFeature, issueTypeFeatureDescription, issueTypeFeatureColor, issueTypeDocumentation, issueTypeDocumentationDescription, issueTypeDocumentationColor, issueTypeMaintenance, issueTypeMaintenanceDescription, issueTypeMaintenanceColor, issueTypeHotfix, issueTypeHotfixDescription, issueTypeHotfixColor, issueTypeRelease, issueTypeReleaseDescription, issueTypeReleaseColor, issueTypeQuestion, issueTypeQuestionDescription, issueTypeQuestionColor, issueTypeHelp, issueTypeHelpDescription, issueTypeHelpColor), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress), supabaseConfig, new welcome_1.Welcome(welcomeTitle, welcomeMessages), additionalParams);
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue, singleActionVersion, singleActionTitle, singleActionChangelog), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount, additionalParams), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout, additionalParams), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(openrouterApiKey, openrouterModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, Object.keys(providerRouting).length > 0 ? providerRouting : undefined), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeTaskDescription, issueTypeTaskColor, issueTypeBug, issueTypeBugDescription, issueTypeBugColor, issueTypeFeature, issueTypeFeatureDescription, issueTypeFeatureColor, issueTypeDocumentation, issueTypeDocumentationDescription, issueTypeDocumentationColor, issueTypeMaintenance, issueTypeMaintenanceDescription, issueTypeMaintenanceColor, issueTypeHotfix, issueTypeHotfixDescription, issueTypeHotfixColor, issueTypeRelease, issueTypeReleaseDescription, issueTypeReleaseColor, issueTypeQuestion, issueTypeQuestionDescription, issueTypeQuestionColor, issueTypeHelp, issueTypeHelpDescription, issueTypeHelpColor), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress), supabaseConfig, new welcome_1.Welcome(welcomeTitle, welcomeMessages), additionalParams);
     const results = await (0, common_action_1.mainRun)(execution);
     let content = '';
     const stepsContent = results
@@ -64622,7 +64621,6 @@ program
     .description(`${constants_1.TITLE} - Build AI container and execute vector indexing`)
     .option('-d, --debug', 'Debug mode', false)
     .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-    .option('-c, --classic-token <classictoken>', 'Classic personal access token', process.env.CLASSIC_TOKEN)
     .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
@@ -64636,7 +64634,6 @@ program
         [constants_1.INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
         [constants_1.INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
         [constants_1.INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-        [constants_1.INPUT_KEYS.CLASSIC_TOKEN]: options.classictoken || process.env.CLASSIC_TOKEN,
         [constants_1.INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
         repo: {
             owner: gitInfo.owner,
@@ -66334,9 +66331,8 @@ exports.THINK_RESPONSE_JSON_SCHEMA = {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Tokens = void 0;
 class Tokens {
-    constructor(token, classicToken) {
+    constructor(token) {
         this.token = token;
-        this.classicToken = classicToken;
     }
 }
 exports.Tokens = Tokens;
@@ -75965,7 +75961,6 @@ exports.INPUT_KEYS = {
     SINGLE_ACTION_CHANGELOG: 'single-action-changelog',
     // Tokens
     TOKEN: 'token',
-    CLASSIC_TOKEN: 'classic-token',
     // AI
     OPENROUTER_API_KEY: 'openrouter-api-key',
     OPENROUTER_MODEL: 'openrouter-model',

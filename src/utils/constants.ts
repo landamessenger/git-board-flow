@@ -206,7 +206,6 @@ export const INPUT_KEYS = {
 
     // Tokens
     TOKEN: 'token',
-    CLASSIC_TOKEN: 'classic-token',
 
     // AI
     OPENROUTER_API_KEY: 'openrouter-api-key',
