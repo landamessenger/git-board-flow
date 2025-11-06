@@ -786,7 +786,7 @@ Be thorough, clear, and actionable.
 
         comment += `---\n\n`;
 
-        // Summary
+        // MAIN CONTENT: Summary and conclusions
         comment += `## 📊 Analysis Summary\n\n`;
         comment += `- **Total Iterations**: ${totalIterations}\n`;
         comment += `- **Files Analyzed**: ${analyzedFiles.size}\n`;
@@ -799,16 +799,72 @@ Be thorough, clear, and actionable.
         }
         
         comment += `\n---\n\n`;
-        
-        // TODO List Section
-        if (todoStats.total > 0) {
-            comment += `## 📋 TODO List Progress\n\n`;
-            comment += todoManager.getSummary();
-            comment += `\n\n---\n\n`;
+
+        // Final Analysis & Conclusions (main content)
+        if (finalAnalysis) {
+            comment += `## 🎯 Final Analysis & Conclusions\n\n`;
+            comment += `${finalAnalysis}\n\n`;
+            comment += `---\n\n`;
+        } else {
+            // Fallback summary if no final analysis
+            comment += `## 🎯 Summary\n\n`;
+            comment += `Analysis completed after ${totalIterations} iterations. `;
+            comment += `Analyzed ${analyzedFiles.size} file${analyzedFiles.size !== 1 ? 's' : ''} and `;
+            comment += `proposed ${proposedChanges.length} change${proposedChanges.length !== 1 ? 's' : ''}.\n\n`;
+            comment += `---\n\n`;
         }
 
-        // Steps with interleaved proposals - similar to chat format
-        comment += `## 🔄 Reasoning Steps\n\n`;
+        // Proposed Changes (main content)
+        if (proposedChanges.length > 0) {
+            comment += `## 💡 Proposed Changes\n\n`;
+            proposedChanges.forEach((change, idx) => {
+                comment += this.formatProposedChange(change, idx + 1);
+            });
+            comment += `\n---\n\n`;
+        } else {
+            comment += `## 💡 Proposed Changes\n\n`;
+            comment += `No specific code changes were proposed. The analysis focused on understanding the codebase structure and requirements.\n\n`;
+            comment += `---\n\n`;
+        }
+
+        // Analyzed Files Summary (if relevant)
+        if (analyzedFiles.size > 0 && analyzedFiles.size <= 10) {
+            comment += `## 📄 Analyzed Files\n\n`;
+            Array.from(analyzedFiles.values()).forEach(file => {
+                comment += `- **\`${file.path}\`** (${file.relevance} relevance): ${file.key_findings.substring(0, 200)}${file.key_findings.length > 200 ? '...' : ''}\n`;
+            });
+            comment += `\n---\n\n`;
+        }
+
+        // TODO List Summary (if relevant)
+        if (todoStats.total > 0) {
+            comment += `## 📋 TODO List Summary\n\n`;
+            const completedTodos = todoManager.getTodosByStatus('completed');
+            const activeTodos = todoManager.getActiveTodos();
+            
+            if (completedTodos.length > 0) {
+                comment += `### ✅ Completed Tasks\n\n`;
+                completedTodos.forEach(todo => {
+                    comment += `- ${todo.content}\n`;
+                });
+                comment += `\n`;
+            }
+            
+            if (activeTodos.length > 0) {
+                comment += `### 🔄 Active/Pending Tasks\n\n`;
+                activeTodos.forEach(todo => {
+                    comment += `- ${todo.status === 'in_progress' ? '🔄' : '⏳'} ${todo.content}\n`;
+                });
+                comment += `\n`;
+            }
+            
+            comment += `---\n\n`;
+        }
+
+        // COLLAPSED SECTION: Detailed Reasoning Steps
+        comment += `<details>\n<summary><strong>🔄 Detailed Reasoning Steps (${steps.length} steps) - Click to expand</strong></summary>\n\n`;
+        comment += `\n\n*This section contains the detailed step-by-step reasoning process. It's collapsed by default to keep the main analysis focused.*\n\n`;
+        comment += `---\n\n`;
 
         let proposalIndex = 0;
         const proposalShownFlags = new Set<number>();
@@ -816,89 +872,73 @@ Be thorough, clear, and actionable.
         for (const step of steps) {
             comment += `### Step ${step.step_number}: ${this.getActionEmoji(step.action)} ${this.formatActionName(step.action)}\n\n`;
             
-            // Show reasoning
+            // Show reasoning (truncated for collapsed section)
             if (step.reasoning) {
-                comment += `${step.reasoning}\n\n`;
+                const reasoningText = step.reasoning.length > 500 
+                    ? `${step.reasoning.substring(0, 500)}...` 
+                    : step.reasoning;
+                comment += `${reasoningText}\n\n`;
             }
 
-            // Show files involved
+            // Show files involved (simplified)
             if (step.files_involved && step.files_involved.length > 0) {
                 const uniqueFiles = [...new Set(step.files_involved)];
-                comment += `**Files involved**:\n`;
-                uniqueFiles.forEach(file => {
-                    comment += `- \`${file}\`\n`;
-                });
-                comment += `\n`;
+                comment += `**Files**: ${uniqueFiles.map(f => `\`${f}\``).join(', ')}\n\n`;
             }
 
-            // Show file analysis for files read/analyzed in this step
+            // Show file analysis (simplified)
             if (step.action === 'analyze_code' || step.action === 'read_file') {
                 const relevantFiles = Array.from(analyzedFiles.values()).filter(f => 
                     step.files_involved?.includes(f.path)
                 );
                 
-                // Also check if step has direct analysis data
                 const stepAnalysis = (step as any).file_analysis_in_step as FileAnalysis[] | undefined;
                 const filesToShow = stepAnalysis || relevantFiles;
                 
                 if (filesToShow.length > 0) {
-                    comment += `#### 📄 Analysis of Files\n\n`;
-                    filesToShow.forEach(file => {
-                        comment += `**\`${file.path}\`** (${file.relevance} relevance):\n`;
-                        comment += `${file.key_findings}\n\n`;
+                    comment += `**Analysis**: `;
+                    filesToShow.forEach((file, idx) => {
+                        if (idx > 0) comment += ` | `;
+                        comment += `\`${file.path}\` (${file.relevance}): ${file.key_findings.substring(0, 100)}${file.key_findings.length > 100 ? '...' : ''}`;
                     });
+                    comment += `\n\n`;
                 }
             }
 
-            // Show proposals if this step generated them (interleaved with steps)
+            // Show proposals (simplified reference)
             const stepProposals = (step as any).proposals_in_step as ProposedChange[] | undefined;
-            const proposalsStartIndex = (step as any).proposals_start_index as number | undefined;
-            
             if (stepProposals && stepProposals.length > 0) {
-                comment += `#### 💡 Proposed Changes from this Step\n\n`;
+                comment += `**Proposed Changes**: ${stepProposals.map(c => `${c.change_type} \`${c.file_path}\``).join(', ')}\n\n`;
+                
+                // Mark as shown
                 stepProposals.forEach((change) => {
-                    // Use the start index if available, otherwise find in array
-                    let globalIndex = proposalsStartIndex !== undefined 
-                        ? proposalsStartIndex + stepProposals.indexOf(change)
-                        : proposedChanges.indexOf(change);
-                    
-                    if (globalIndex >= 0 && globalIndex < proposedChanges.length && !proposalShownFlags.has(globalIndex)) {
+                    const globalIndex = proposedChanges.indexOf(change);
+                    if (globalIndex >= 0) {
                         proposalShownFlags.add(globalIndex);
-                        proposalIndex++;
-                        comment += this.formatProposedChange(change, proposalIndex);
                     }
                 });
             }
 
-            comment += `\n---\n\n`;
-        }
-
-        // Show any remaining proposals that weren't attached to specific steps
-        const remainingProposals = proposedChanges.filter((_, idx) => !proposalShownFlags.has(idx));
-        if (remainingProposals.length > 0) {
-            comment += `## 💡 Additional Proposed Changes\n\n`;
-            remainingProposals.forEach((change) => {
-                proposalIndex++;
-                comment += this.formatProposedChange(change, proposalIndex);
-            });
-            comment += `\n---\n\n`;
-        }
-
-        // Final Analysis
-        if (finalAnalysis) {
-            comment += `## 🎯 Final Analysis & Recommendations\n\n`;
-            comment += `${finalAnalysis}\n\n`;
             comment += `---\n\n`;
         }
 
-        // Footer
+        comment += `\n</details>\n\n`;
         comment += `---\n\n`;
+
+        // Footer
         comment += `*Analysis completed in ${totalIterations} iterations. Analyzed ${analyzedFiles.size} files and proposed ${proposedChanges.length} changes.*\n`;
 
         // Truncate if too long
         if (comment.length > GITHUB_COMMENT_MAX_LENGTH) {
-            const truncated = comment.substring(0, GITHUB_COMMENT_MAX_LENGTH - 200);
-            comment = truncated + `\n\n*[Comment truncated due to length limit]*\n`;
+            // Try to keep main content, truncate collapsed section
+            const mainContent = comment.substring(0, comment.indexOf('<details>'));
+            const truncated = mainContent + `\n\n<details>\n<summary><strong>🔄 Detailed Reasoning Steps - Truncated due to length</strong></summary>\n\n*Steps section was truncated due to comment length limits.*\n\n</details>\n\n`;
+            if (truncated.length > GITHUB_COMMENT_MAX_LENGTH) {
+                // If still too long, truncate main content
+                const finalTruncated = truncated.substring(0, GITHUB_COMMENT_MAX_LENGTH - 200);
+                return finalTruncated + `\n\n*[Comment truncated due to length limit]*\n`;
+            }
+            return truncated;
         }
 
         return comment;
