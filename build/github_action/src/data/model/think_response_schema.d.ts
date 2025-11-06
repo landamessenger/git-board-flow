@@ -82,6 +82,49 @@ export declare const THINK_RESPONSE_JSON_SCHEMA: {
             type: string;
             description: string;
         };
+        todo_updates: {
+            type: string;
+            description: string;
+            properties: {
+                create: {
+                    type: string;
+                    items: {
+                        type: string;
+                        properties: {
+                            content: {
+                                type: string;
+                            };
+                            status: {
+                                type: string;
+                                enum: string[];
+                            };
+                        };
+                        required: string[];
+                    };
+                    description: string;
+                };
+                update: {
+                    type: string;
+                    items: {
+                        type: string;
+                        properties: {
+                            id: {
+                                type: string;
+                            };
+                            status: {
+                                type: string;
+                                enum: string[];
+                            };
+                            notes: {
+                                type: string;
+                            };
+                        };
+                        required: string[];
+                    };
+                    description: string;
+                };
+            };
+        };
     };
     required: string[];
     additionalProperties: boolean;

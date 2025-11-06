@@ -6,6 +6,8 @@ import { FileRepository } from '../../../data/repository/file_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
 import { logDebugInfo, logError, logInfo } from '../../../utils/logger';
 import { ParamUseCase } from '../../base/param_usecase';
+import { ThinkCodeManager } from './think_code_manager';
+import { ThinkTodoManager } from './think_todo_manager';
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ThinkUseCase';
@@ -90,6 +92,14 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`📚 Loaded ${repositoryFiles.size} files from repository`);
 
+            // Initialize code manager with repository files
+            const codeManager = new ThinkCodeManager();
+            codeManager.initialize(repositoryFiles);
+
+            // Initialize TODO manager
+            const todoManager = new ThinkTodoManager();
+            // AI will create initial TODOs in first iteration if needed
+
             // Build file index for quick lookup
             const fileIndex = this.buildFileIndex(repositoryFiles);
             
@@ -104,6 +114,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             let consecutiveSearches = 0; // Track consecutive search_files without reading
             let lastProgressIteration = 0; // Track last iteration with actual progress
             let filesReadInIteration = 0;
+            let seenActions: Map<string, number> = new Map(); // Track action patterns to detect repetition
 
             while (!complete && iteration < this.MAX_ITERATIONS) {
                 iteration++;
@@ -114,16 +125,60 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     param,
                     question,
                     description,
-                    repositoryFiles,
+                    codeManager,
+                    todoManager,
                     fileIndex,
                     analyzedFiles,
                     currentContext,
-                    iteration
+                    iteration,
+                    steps
                 ) as ThinkResponse;
 
                 if (!thinkResponse) {
                     logError('No response from AI reasoning step');
                     break;
+                }
+
+                // Handle TODO updates (can be included with any action)
+                if (thinkResponse.todo_updates) {
+                    // Create new TODOs
+                    if (thinkResponse.todo_updates.create) {
+                        for (const todo of thinkResponse.todo_updates.create) {
+                            const createdTodo = todoManager.createTodo(todo.content, todo.status || 'pending');
+                            logInfo(`✅ Created TODO: [${createdTodo.id}] ${todo.content}`);
+                        }
+                        logInfo(`📋 Created ${thinkResponse.todo_updates.create.length} new TODO items`);
+                    }
+                    
+                    // Update existing TODOs
+                    if (thinkResponse.todo_updates.update) {
+                        let successCount = 0;
+                        let failedIds: string[] = [];
+                        
+                        for (const update of thinkResponse.todo_updates.update) {
+                            const success = todoManager.updateTodo(update.id, {
+                                status: update.status,
+                                notes: update.notes
+                            });
+                            if (success) {
+                                successCount++;
+                            } else {
+                                failedIds.push(update.id);
+                            }
+                        }
+                        
+                        if (successCount > 0) {
+                            logInfo(`📋 Successfully updated ${successCount} TODO items`);
+                        }
+                        
+                        if (failedIds.length > 0) {
+                            // Show available TODO IDs to help the AI
+                            const allTodos = todoManager.getAllTodos();
+                            const availableIds = allTodos.map(t => t.id).join(', ');
+                            logInfo(`⚠️ Failed to update ${failedIds.length} TODO items. Available IDs: ${availableIds}`);
+                            currentContext += `\n\n⚠️ TODO Update Error: Could not find TODO(s) with ID(s): ${failedIds.join(', ')}. Available TODO IDs are: ${availableIds}. Please use the EXACT ID from the TODO list above.`;
+                        }
+                    }
                 }
 
                 // Record step with associated data for better comment formatting
@@ -154,6 +209,11 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
                 logInfo(`🤔 Step ${iteration}: ${thinkResponse.action} - ${thinkResponse.reasoning.substring(0, 100)}...`);
 
+                // Track action patterns to detect repetition
+                const actionKey = `${thinkResponse.action}_${thinkResponse.files_to_search?.join(',') || thinkResponse.files_to_read?.join(',') || 'general'}`;
+                const actionCount = seenActions.get(actionKey) || 0;
+                seenActions.set(actionKey, actionCount + 1);
+                
                 // Execute action
                 switch (thinkResponse.action) {
                     case 'search_files':
@@ -161,12 +221,23 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         if (thinkResponse.files_to_search && thinkResponse.files_to_search.length > 0) {
                             const foundFiles = this.searchFiles(thinkResponse.files_to_search, fileIndex);
                             logInfo(`🔍 Search results: Found ${foundFiles.length} files for terms: ${thinkResponse.files_to_search.join(', ')}`);
+                            
+                            // Detect if we're repeating the same search
+                            if (actionCount > 1) {
+                                currentContext += `\n\n⚠️ WARNING: You've already searched for "${thinkResponse.files_to_search.join(', ')}" ${actionCount} times. `;
+                                if (foundFiles.length > 0) {
+                                    currentContext += `These files were found previously. Consider READING them instead of searching again.`;
+                                } else {
+                                    currentContext += `No files found. Consider trying different search terms or reading files from the list above.`;
+                                }
+                            }
+                            
                             if (foundFiles.length > 0) {
                                 currentContext += `\n\nFound ${foundFiles.length} files matching search criteria:\n${foundFiles.map(f => `- ${f}`).join('\n')}`;
                                 
                                 // If found files after multiple searches, suggest reading them
                                 if (consecutiveSearches >= this.MAX_CONSECUTIVE_SEARCHES && foundFiles.length > 0) {
-                                    currentContext += `\n\n💡 Tip: You've searched ${consecutiveSearches} times. Consider reading some of the found files to proceed with analysis: ${foundFiles.slice(0, 5).join(', ')}`;
+                                    currentContext += `\n\n💡 IMPORTANT: You've searched ${consecutiveSearches} times. You MUST read some of the found files now to proceed with analysis. Suggested files: ${foundFiles.slice(0, 5).join(', ')}`;
                                 }
                             } else {
                                 currentContext += `\n\nNo files found matching search criteria: ${thinkResponse.files_to_search.join(', ')}. Available files in repository: ${Array.from(repositoryFiles.keys()).slice(0, 30).join(', ')}...`;
@@ -191,11 +262,23 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                                     continue; // Already analyzed
                                 }
 
-                                const content = repositoryFiles.get(filePath);
+                                // Get content from virtual files (includes applied changes)
+                                const content = codeManager.getFileContent(filePath);
                                 if (content !== undefined) {
                                     filesReadInIteration++;
-                                    logDebugInfo(`✅ Reading file: ${filePath} (${content.length} chars)`);
-                                    currentContext += `\n\n=== File: ${filePath} ===\n${content.substring(0, 8000)}${content.length > 8000 ? '\n... (truncated)' : ''}`;
+                                    const isModified = codeManager.isFileModified(filePath);
+                                    const modificationNote = isModified ? ` [MODIFIED - ${codeManager.getFileChanges(filePath).length} change(s) applied]` : '';
+                                    logDebugInfo(`✅ Reading file: ${filePath} (${content.length} chars)${modificationNote}`);
+                                    
+                                    // Show current state with applied changes
+                                    currentContext += `\n\n=== File: ${filePath}${modificationNote} ===\n${content.substring(0, 8000)}${content.length > 8000 ? '\n... (truncated)' : ''}`;
+                                    
+                                    // If file was modified, show what changed
+                                    if (isModified) {
+                                        const changes = codeManager.getFileChanges(filePath);
+                                        currentContext += `\n\n⚠️ This file has been modified in previous steps. Changes applied: ${changes.map(c => `${c.change_type}: ${c.description}`).join(', ')}`;
+                                    }
+                                    
                                     lastProgressIteration = iteration;
                                 } else {
                                     logInfo(`❌ File not found in repository: ${filePath}`);
@@ -235,21 +318,68 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     case 'propose_changes':
                         consecutiveSearches = 0; // Reset counter when proposing changes
                         if (thinkResponse.proposed_changes && thinkResponse.proposed_changes.length > 0) {
+                            // Filter out changes that have already been applied
+                            const newChanges = thinkResponse.proposed_changes.filter(change => 
+                                !codeManager.hasChangeBeenApplied(change)
+                            );
+                            
+                            if (newChanges.length === 0) {
+                                logInfo(`⚠️ All proposed changes have already been applied. Skipping duplicates.`);
+                                currentContext += `\n\n⚠️ All proposed changes in this step have already been applied in previous iterations. Please propose NEW changes or move to the next step.`;
+                                break;
+                            }
+                            
+                            // Apply changes to virtual codebase
+                            let appliedCount = 0;
+                            for (const change of newChanges) {
+                                if (codeManager.applyChange(change)) {
+                                    appliedCount++;
+                                    allProposedChanges.push(change);
+                                }
+                            }
+                            
+                            logInfo(`✅ Applied ${appliedCount} new changes to virtual codebase (${newChanges.length - appliedCount} skipped)`);
+                            
+                            // Auto-update TODOs based on applied changes
+                            todoManager.autoUpdateFromChanges(newChanges.slice(0, appliedCount));
+                            
                             // Store the index where these proposals start for proper ordering
-                            const startIndex = allProposedChanges.length;
-                            allProposedChanges.push(...thinkResponse.proposed_changes);
+                            const startIndex = allProposedChanges.length - appliedCount;
+                            const appliedChanges = newChanges.slice(0, appliedCount);
                             
                             // Attach to step with start index for proper display order
                             const currentStep = steps[steps.length - 1];
                             if (currentStep) {
-                                (currentStep as any).proposals_in_step = thinkResponse.proposed_changes;
+                                (currentStep as any).proposals_in_step = appliedChanges;
                                 (currentStep as any).proposals_start_index = startIndex;
                             }
                             
-                            const changesSummary = thinkResponse.proposed_changes
+                            const changesSummary = appliedChanges
                                 .map(c => `${c.change_type} ${c.file_path}: ${c.description}`)
                                 .join('\n');
-                            currentContext += `\n\nProposed changes:\n${changesSummary}`;
+                            currentContext += `\n\n✅ Applied ${appliedCount} new changes to codebase:\n${changesSummary}`;
+                            
+                            // Add context about code state
+                            currentContext += codeManager.getContextForAI();
+                            
+                            lastProgressIteration = iteration;
+                        }
+                        break;
+
+                    case 'update_todos':
+                        consecutiveSearches = 0; // Reset counter when updating TODOs
+                        // Note: TODO updates are handled before the switch statement
+                        // This case is mainly for when action is explicitly update_todos
+                        if (thinkResponse.todo_updates && (
+                            !thinkResponse.files_to_search && 
+                            !thinkResponse.files_to_read && 
+                            !thinkResponse.analyzed_files && 
+                            !thinkResponse.proposed_changes
+                        )) {
+                            // Pure TODO update action - warn if this happens too often
+                            logInfo(`📋 Pure TODO update action (no other work done)`);
+                            currentContext += `\n\n📋 TODO list updated. Current status:\n${todoManager.getContextForAI()}`;
+                            currentContext += `\n\n⚠️ **NOTE**: You updated TODOs but didn't do any actual work. In the next iteration, DO THE WORK: search for files, read files, analyze code, or propose changes related to the active TODOs.`;
                             lastProgressIteration = iteration;
                         }
                         break;
@@ -270,6 +400,16 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         finalAnalysis = `Analysis completed after ${iteration} iterations. Analyzed ${analyzedFiles.size} files, proposed ${allProposedChanges.length} changes.`;
                     }
                 }
+                
+                // Check if stuck in TODO update loop
+                const recentActions = steps.slice(-3).map(s => s.action);
+                const allUpdateTodos = recentActions.every(a => a === 'update_todos');
+                if (allUpdateTodos && recentActions.length >= 3 && iteration > 3) {
+                    logInfo(`⚠️ Detected loop: ${recentActions.length} consecutive update_todos actions. Warning AI to do actual work.`);
+                    const activeTodos = todoManager.getActiveTodos();
+                    const todoIds = activeTodos.map(t => t.id).join(', ');
+                    currentContext += `\n\n⚠️ **STOP UPDATING TODOs AND DO ACTUAL WORK**: You've been updating TODOs repeatedly. Pick a TODO to work on (IDs: ${todoIds}) and DO THE WORK: search for files, read files, analyze code, or propose changes. Stop just updating TODO status!`;
+                }
 
                 // Prevent infinite loops - check file limit
                 if (analyzedFiles.size >= this.MAX_FILES_TO_ANALYZE) {
@@ -284,7 +424,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
             // Generate final comprehensive response
             if (!finalAnalysis && complete) {
-                finalAnalysis = await this.generateFinalAnalysis(param, question, analyzedFiles, allProposedChanges, steps);
+                finalAnalysis = await this.generateFinalAnalysis(param, question, analyzedFiles, allProposedChanges, steps, todoManager);
             }
 
             // Format and post comprehensive reasoning comment
@@ -295,7 +435,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 analyzedFiles,
                 allProposedChanges,
                 finalAnalysis,
-                iteration
+                iteration,
+                todoManager
             );
 
             // Determine issue number
@@ -432,24 +573,54 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         param: Execution,
         question: string,
         description: string,
-        repositoryFiles: Map<string, string>,
+        codeManager: ThinkCodeManager,
+        todoManager: ThinkTodoManager,
         fileIndex: Map<string, string[]>,
         analyzedFiles: Map<string, FileAnalysis>,
         currentContext: string,
-        iteration: number
+        iteration: number,
+        previousSteps: ThinkStep[]
     ): Promise<ThinkResponse | undefined> {
         
         const analyzedFilesList = Array.from(analyzedFiles.values());
         const analyzedFilesSummary = analyzedFilesList.length > 0
-            ? `\n\nPreviously analyzed files:\n${analyzedFilesList.map(f => `- ${f.path} (${f.relevance}): ${f.key_findings}`).join('\n')}`
+            ? `\n\nPreviously analyzed files (${analyzedFilesList.length}):\n${analyzedFilesList.map(f => `- ${f.path} (${f.relevance}): ${f.key_findings.substring(0, 150)}...`).join('\n')}`
             : '';
 
-        const fileListSummary = `\n\nAvailable files in repository (${repositoryFiles.size} files):\n${Array.from(repositoryFiles.keys()).slice(0, 50).join('\n')}${repositoryFiles.size > 50 ? `\n... and ${repositoryFiles.size - 50} more files` : ''}`;
+        const codeStats = codeManager.getStats();
+        const codeStateInfo = codeManager.getContextForAI();
+        const todoContext = todoManager.getContextForAI();
+        const todoStats = todoManager.getStats();
+
+        // Build summary of previous steps to avoid repetition
+        const stepsSummary = previousSteps.length > 0
+            ? `\n\n## Previous Steps Taken (${previousSteps.length}):\n${previousSteps.slice(-5).map(s => 
+                `- Step ${s.step_number}: ${s.action} - ${s.reasoning.substring(0, 100)}...`
+            ).join('\n')}${previousSteps.length > 5 ? `\n... and ${previousSteps.length - 5} more steps` : ''}`
+            : '';
+
+        const fileListSummary = `\n\nAvailable files in repository (${codeStats.totalFiles} files):\n${Array.from(codeManager.getAllFiles().keys()).slice(0, 50).join('\n')}${codeStats.totalFiles > 50 ? `\n... and ${codeStats.totalFiles - 50} more files` : ''}`;
 
         const prompt = `
 # Code Analysis Assistant
 
 You are an advanced code analysis assistant similar to Cursor's Auto agent. Your role is to perform deep analysis of codebases and propose thoughtful changes.
+
+**CRITICAL CONCEPTS**:
+
+1. **VIRTUAL CODEBASE**: You are working with a VIRTUAL CODEBASE. When you propose changes, they are automatically applied to the code in memory. Subsequent steps will see the MODIFIED code, not the original. This allows you to build upon previous changes incrementally.
+
+2. **TODO LIST SYSTEM**: You have a TODO list system to track high-level tasks. Each task in the TODO list may require multiple reasoning steps (search, read, analyze, propose). Use this to:
+   - Create TODOs in your first iteration to break down the problem
+   - Update TODO status as you make progress (pending → in_progress → completed)
+   - Link your actions to TODOs to show which task you're working on
+   - This helps you understand where you are in the overall process, even if you need many steps per task
+
+3. **TWO-LEVEL REASONING**: 
+   - **High-level (TODO list)**: What major tasks need to be done?
+   - **Low-level (reasoning steps)**: How do I accomplish each task? (search, read, analyze, propose)
+
+${todoStats.total > 0 ? `\n${todoContext}\n\n**CRITICAL**: To work on a TODO, use its EXACT ID (shown above) when updating. Don't just update status - DO THE ACTUAL WORK (search, read, analyze, propose) in the same response where you update the TODO.` : iteration === 1 ? `\n\n## 📋 TODO List\n\n**IMPORTANT**: In your first response, you should create a TODO list breaking down the problem into manageable tasks. Use the \`todo_updates.create\` field to create initial TODOs. Each TODO represents a high-level task that may require multiple reasoning steps to complete.` : ''}
 
 ## Current Task
 
@@ -460,31 +631,63 @@ ${description ? `### Context/Issue Description:\n\`\`\`\n${description}\n\`\`\``
 ${question}
 \`\`\`
 
-## Reasoning Process (Iteration ${iteration})
+## Reasoning Process (Iteration ${iteration}/${this.MAX_ITERATIONS})
 
-${iteration === 1 ? 'You are starting your analysis. Begin by understanding the question and identifying what files or areas of the codebase might be relevant.' : `You have been analyzing this problem. Previous context:\n${currentContext.substring(0, 3000)}${currentContext.length > 3000 ? '\n... (truncated for brevity)' : ''}`}
+${iteration === 1 ? 'You are starting your analysis. Begin by understanding the question and identifying what files or areas of the codebase might be relevant.' : `You have been analyzing this problem through ${iteration - 1} previous iterations.`}
+
+${stepsSummary}
+
+${codeStats.totalChanges > 0 ? `\n\n## ⚠️ CODE STATE: ${codeStats.totalChanges} changes have been applied to ${codeStats.modifiedFiles} files\n\n${codeStateInfo}\n\n**IMPORTANT**: When you read files, you will see the MODIFIED version with all previous changes applied. Build upon this modified code, don't repeat changes that have already been made.` : ''}
 
 ${analyzedFilesSummary}
+
+${iteration > 1 ? `\n\n## Previous Iteration Context:\n${currentContext.substring(0, 4000)}${currentContext.length > 4000 ? '\n... (truncated for brevity)' : ''}` : ''}
 
 ${fileListSummary}
 
 ## Your Analysis Approach
 
-1. **search_files**: Use when you need to find files by name, pattern, or path. Be specific about what you're looking for.
-2. **read_file**: Use when you need to examine specific files in detail to understand their implementation.
-3. **analyze_code**: Use when you've read files and want to document your findings about them.
-4. **propose_changes**: Use when you have enough context to suggest specific code changes.
-5. **complete**: Use when your analysis is finished and you have a comprehensive understanding.
+1. **search_files**: Use when you need to find files by name, pattern, or path. Be specific. AVOID searching for the same terms repeatedly.
+2. **read_file**: Use when you need to examine specific files. The files you read will show the CURRENT STATE (with all applied changes from previous steps).
+3. **analyze_code**: Use when you've read files and want to document findings. Focus on understanding relationships and dependencies.
+4. **propose_changes**: Use when you have enough context. **CRITICAL**: Only propose NEW changes that build upon what's already been done. Don't repeat changes that were already applied.
+5. **update_todos** (or include with other actions): 
+   - Create TODOs ONLY in your first iteration to break down the problem
+   - Update TODO status when you START working on it (in_progress) or COMPLETE it (completed)
+   - **IMPORTANT**: Use the EXACT TODO ID from the list above (e.g., "todo_1"), NOT numeric IDs
+   - Include todo_updates in the SAME response where you do the actual work
+6. **complete**: Use when your analysis is finished and you have a comprehensive understanding. All TODOs should be completed or cancelled.
 
-## Instructions
+## Critical Instructions
 
-- Think step by step about what you need to understand
-- When searching, use specific file names, directory names, or patterns
-- When analyzing, focus on understanding relationships, dependencies, and how code works
-- When proposing changes, be specific about what needs to change and why
-- Always provide clear reasoning for each step
-- Consider the full context of the codebase, not just individual files
-- Think about edge cases, dependencies, and potential impacts
+- **USE TODO LIST CORRECTLY**: 
+  - Create TODOs in iteration 1 to break down the problem into manageable tasks
+  - **IMPORTANT**: When updating TODOs, you MUST use the EXACT ID shown in the TODO list (e.g., "todo_1", "todo_2"). Do NOT use numeric IDs like "1" or "2"
+  - Each TODO represents a high-level task that may require multiple reasoning steps (search, read, analyze, propose)
+  
+- **WORK ON TODOS, DON'T JUST UPDATE THEM**:
+  - When a TODO is "pending" or "in_progress", DO REAL WORK: search for files, read files, analyze code, propose changes
+  - Only update TODO status when you actually START working on it (mark "in_progress") or COMPLETE it (mark "completed")
+  - Don't waste iterations just updating TODO status - do the actual work!
+  
+- **TRACK PROGRESS**: 
+  - When you START working on a TODO: mark it "in_progress" AND then do the work (search, read, analyze, propose)
+  - When you COMPLETE work on a TODO: mark it "completed" 
+  - Update TODOs in the same response where you do the work, don't create separate "update_todos" actions
+
+- **AVOID REPETITION**: Don't search for the same files repeatedly. Don't propose changes that have already been applied. Don't try to update TODOs with wrong IDs.
+
+- **BUILD INCREMENTALLY**: Each step should build upon the previous one. Read files that were modified in previous steps to see the current state.
+
+- **PROGRESS FORWARD**: If you've already analyzed files, move to proposing changes. Don't re-analyze the same code.
+
+- **SEE THE MODIFIED CODE**: When you read files after changes have been applied, you'll see the modified version. Use this to understand the current state and propose the NEXT logical step.
+
+- **BE SPECIFIC**: When proposing changes, be very specific about what needs to change and provide suggested_code.
+
+- **THINK DEEPLY**: Don't just propose generic changes. Analyze the code structure, dependencies, and relationships before proposing changes.
+
+- **FOCUS ON ACTIVE TODOS**: Work on TODOs that are "pending" or "in_progress". Complete them by doing real work, not just updating status.
 
 ## Important
 
@@ -492,6 +695,9 @@ ${fileListSummary}
 - Be thorough but efficient - don't request files you don't need
 - Build understanding incrementally
 - Connect insights across multiple files when relevant
+- Each iteration should advance the analysis, not repeat previous steps
+- You can include \`todo_updates\` alongside any action (not just when action is 'update_todos')
+- When creating TODOs, make them specific and actionable (e.g., "Analyze authentication system" not "Do stuff")
 `;
 
         try {
@@ -508,7 +714,8 @@ ${fileListSummary}
         question: string,
         analyzedFiles: Map<string, FileAnalysis>,
         proposedChanges: ProposedChange[],
-        steps: ThinkStep[]
+        steps: ThinkStep[],
+        todoManager: ThinkTodoManager
     ): Promise<string> {
         
         const prompt = `
@@ -523,6 +730,7 @@ ${question}
 - Total steps taken: ${steps.length}
 - Files analyzed: ${analyzedFiles.size}
 - Proposed changes: ${proposedChanges.length}
+- TODO list: ${todoManager.getSummary()}
 
 ## Analyzed Files:
 ${Array.from(analyzedFiles.values()).map(f => `- ${f.path} (${f.relevance}): ${f.key_findings}`).join('\n')}
@@ -559,7 +767,8 @@ Be thorough, clear, and actionable.
         analyzedFiles: Map<string, FileAnalysis>,
         proposedChanges: ProposedChange[],
         finalAnalysis: string,
-        totalIterations: number
+        totalIterations: number,
+        todoManager: ThinkTodoManager
     ): string {
         const GITHUB_COMMENT_MAX_LENGTH = 65500; // Leave some margin below 65536
         let comment = '';
@@ -581,9 +790,22 @@ Be thorough, clear, and actionable.
         comment += `## 📊 Analysis Summary\n\n`;
         comment += `- **Total Iterations**: ${totalIterations}\n`;
         comment += `- **Files Analyzed**: ${analyzedFiles.size}\n`;
-        comment += `- **Changes Proposed**: ${proposedChanges.length}\n\n`;
-
-        comment += `---\n\n`;
+        comment += `- **Changes Proposed**: ${proposedChanges.length}\n`;
+        
+        // TODO List Summary
+        const todoStats = todoManager.getStats();
+        if (todoStats.total > 0) {
+            comment += `- **TODO Tasks**: ${todoStats.total} (${todoStats.completed} completed, ${todoStats.in_progress} in progress, ${todoStats.pending} pending)\n`;
+        }
+        
+        comment += `\n---\n\n`;
+        
+        // TODO List Section
+        if (todoStats.total > 0) {
+            comment += `## 📋 TODO List Progress\n\n`;
+            comment += todoManager.getSummary();
+            comment += `\n\n---\n\n`;
+        }
 
         // Steps with interleaved proposals - similar to chat format
         comment += `## 🔄 Reasoning Steps\n\n`;

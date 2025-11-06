@@ -12,11 +12,22 @@ export interface ProposedChange {
 }
 export interface ThinkResponse {
     reasoning: string;
-    action: 'search_files' | 'read_file' | 'analyze_code' | 'propose_changes' | 'complete';
+    action: 'search_files' | 'read_file' | 'analyze_code' | 'propose_changes' | 'complete' | 'update_todos';
     files_to_search?: string[];
     files_to_read?: string[];
     analyzed_files?: FileAnalysis[];
     proposed_changes?: ProposedChange[];
+    todo_updates?: {
+        create?: Array<{
+            content: string;
+            status?: 'pending' | 'in_progress';
+        }>;
+        update?: Array<{
+            id: string;
+            status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+            notes?: string;
+        }>;
+    };
     complete: boolean;
     final_analysis?: string;
 }
@@ -27,4 +38,19 @@ export interface ThinkStep {
     files_involved?: string[];
     findings?: string;
     timestamp: number;
+}
+export interface ThinkTodoItem {
+    id: string;
+    content: string;
+    status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+    created_at: number;
+    updated_at: number;
+    completed_at?: number;
+    related_files?: string[];
+    related_changes?: string[];
+    notes?: string;
+}
+export interface ThinkTodoList {
+    items: ThinkTodoItem[];
+    last_updated: number;
 }
