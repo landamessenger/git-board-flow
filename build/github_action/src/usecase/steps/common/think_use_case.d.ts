@@ -13,6 +13,19 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private getIssueDescription;
     private buildFileIndex;
     private searchFiles;
+    /**
+     * Generate codebase analysis with file descriptions and relationships
+     * This runs before the main reasoning loop to provide context
+     */
+    private generateCodebaseAnalysis;
+    /**
+     * Generate fallback file descriptions when AI analysis fails
+     */
+    private generateFallbackFileDescriptions;
+    /**
+     * Format codebase analysis for inclusion in AI context
+     */
+    private formatCodebaseAnalysisForContext;
     private performReasoningStep;
     private generateFinalAnalysis;
     private formatReasoningComment;

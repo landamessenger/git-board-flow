@@ -8,6 +8,7 @@ import { logDebugInfo, logError, logInfo } from '../../../utils/logger';
 import { ParamUseCase } from '../../base/param_usecase';
 import { ThinkCodeManager } from './think_code_manager';
 import { ThinkTodoManager } from './think_todo_manager';
+import { CODEBASE_ANALYSIS_JSON_SCHEMA } from '../../../data/model/codebase_analysis_schema';
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ThinkUseCase';
@@ -103,13 +104,25 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             // Build file index for quick lookup
             const fileIndex = this.buildFileIndex(repositoryFiles);
             
+            // STEP 0: Generate codebase analysis and file relationships
+            logInfo(`🔍 Step 0: Analyzing codebase structure and file relationships...`);
+            const codebaseAnalysis = await this.generateCodebaseAnalysis(
+                param,
+                repositoryFiles,
+                question
+            );
+            logInfo(`✅ Codebase analysis completed. Analyzed ${codebaseAnalysis.length} files.`);
+            
+            // Format codebase analysis for context
+            const codebaseAnalysisText = this.formatCodebaseAnalysisForContext(codebaseAnalysis);
+            
             // Reasoning process
             const steps: ThinkStep[] = [];
             let iteration = 0;
             let complete = false;
             let analyzedFiles: Map<string, FileAnalysis> = new Map();
             let allProposedChanges: ProposedChange[] = [];
-            let currentContext = '';
+            let currentContext = codebaseAnalysisText; // Start with codebase analysis
             let finalAnalysis = '';
             let consecutiveSearches = 0; // Track consecutive search_files without reading
             let lastProgressIteration = 0; // Track last iteration with actual progress
@@ -569,6 +582,227 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         return Array.from(foundFiles);
     }
 
+    /**
+     * Generate codebase analysis with file descriptions and relationships
+     * This runs before the main reasoning loop to provide context
+     */
+    private async generateCodebaseAnalysis(
+        param: Execution,
+        repositoryFiles: Map<string, string>,
+        question: string
+    ): Promise<Array<{ path: string; description: string; relationships: string[] }>> {
+        try {
+            // Filter relevant files (code files, not config/docs)
+            const codeExtensions = ['.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.kt', '.go', '.rs', '.rb', '.php', '.swift', '.dart'];
+            const relevantFiles = Array.from(repositoryFiles.entries())
+                .filter(([path]) => {
+                    const ext = path.split('.').pop()?.toLowerCase() || '';
+                    return codeExtensions.includes(`.${ext}`) || 
+                           path.includes('/src/') || 
+                           path.includes('/lib/') ||
+                           path.includes('/usecase/') ||
+                           path.includes('/repository/');
+                });
+
+            if (relevantFiles.length === 0) {
+                logInfo(`⚠️ No relevant code files found for analysis`);
+                return [];
+            }
+
+            logInfo(`🔍 Analyzing ${relevantFiles.length} relevant files for structure and relationships...`);
+
+            // Group files by directory for better context
+            const filesByDir = new Map<string, Array<{ path: string; content: string }>>();
+            relevantFiles.forEach(([path, content]) => {
+                const dir = path.split('/').slice(0, -1).join('/') || 'root';
+                if (!filesByDir.has(dir)) {
+                    filesByDir.set(dir, []);
+                }
+                filesByDir.get(dir)!.push({ path, content });
+            });
+
+            // Create analysis prompt
+            const filesList = relevantFiles.map(([path]) => path).join('\n');
+            const sampleContent = relevantFiles.slice(0, 10).map(([path, content]) => 
+                `\n## ${path}\n\`\`\`\n${content}\n\`\`\``
+            ).join('\n');
+
+            const analysisPrompt = `# Codebase Structure Analysis
+
+You are analyzing a codebase to understand its structure, file relationships, and what each file does.
+
+## User's Question:
+${question}
+
+## Files to Analyze (${relevantFiles.length} files):
+${filesList}
+
+## Sample File Contents (for context):
+${sampleContent}
+
+## Task:
+For each file, provide:
+1. A brief description (1-2 sentences) of what the file does in English
+2. Key relationships/dependencies (what other files it imports or depends on)
+3. Its role in the codebase architecture
+
+Focus on:
+- Main functionality of each file
+- Key classes, functions, or exports
+- Dependencies and imports
+- How files relate to each other
+
+Return a JSON array with this structure:
+[
+  {
+    "path": "src/path/to/file.ts",
+    "description": "Brief description of what this file does",
+    "relationships": ["other/file.ts", "another/file.ts"]
+  },
+  ...
+]
+
+Keep descriptions concise (1-2 sentences max). Focus on the most important/relevant files first.`;
+
+            // Use askJson() with codebase analysis schema for structured response
+            const response = await this.aiRepository.askJson(
+                param.ai, 
+                analysisPrompt,
+                CODEBASE_ANALYSIS_JSON_SCHEMA,
+                "codebase_analysis"
+            );
+            
+            if (response && Array.isArray(response) && response.length > 0) {
+                // Validate response structure
+                const validResponse = response.filter((item: any) => 
+                    item && 
+                    typeof item.path === 'string' && 
+                    typeof item.description === 'string' &&
+                    (item.relationships === undefined || Array.isArray(item.relationships))
+                );
+                
+                if (validResponse.length > 0) {
+                    logInfo(`✅ Generated analysis for ${validResponse.length} files`);
+                    return validResponse;
+                } else {
+                    logError(`⚠️ AI response structure invalid, falling back to descriptions`);
+                }
+            }
+
+            // Fallback: Generate simple descriptions based on file paths and basic content
+            logInfo(`⚠️ AI analysis failed, generating fallback descriptions...`);
+            return this.generateFallbackFileDescriptions(relevantFiles);
+            
+        } catch (error) {
+            logError(`Error generating codebase analysis: ${error}`);
+            // Fallback to simple path-based analysis
+            const relevantFiles = Array.from(repositoryFiles.entries())
+                .filter(([path]) => path.includes('/src/') || path.includes('/lib/'));
+            return this.generateFallbackFileDescriptions(relevantFiles);
+        }
+    }
+
+    /**
+     * Generate fallback file descriptions when AI analysis fails
+     */
+    private generateFallbackFileDescriptions(
+        files: Array<[string, string]>
+    ): Array<{ path: string; description: string; relationships: string[] }> {
+        const descriptions: Array<{ path: string; description: string; relationships: string[] }> = [];
+        
+        for (const [path, content] of files) {
+            const pathParts = path.split('/');
+            const fileName = pathParts[pathParts.length - 1];
+            const dir = pathParts.slice(0, -1).join('/');
+            
+            // Extract imports/dependencies from content
+            const importMatches = content.match(/import.*from\s+['"]([^'"]+)['"]/g) || [];
+            const relationships = importMatches
+                .map(match => {
+                    const importPath = match.match(/['"]([^'"]+)['"]/)?.[1];
+                    if (importPath && importPath.startsWith('.')) {
+                        // Resolve relative imports
+                        const baseDir = dir;
+                        const resolvedPath = importPath.replace(/^\./, baseDir);
+                        return resolvedPath;
+                    }
+                    return null;
+                })
+                .filter((p): p is string => p !== null)
+                .slice(0, 5);
+
+            // Generate basic description based on path and content
+            let description = '';
+            if (path.includes('/usecase/')) {
+                description = `Use case for ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Handles business logic and orchestrates operations.`;
+            } else if (path.includes('/repository/')) {
+                description = `Repository for ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Handles data access and external service interactions.`;
+            } else if (path.includes('/model/')) {
+                description = `Data model: ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Defines data structures and interfaces.`;
+            } else if (path.includes('/utils/')) {
+                description = `Utility functions: ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Provides helper functions and utilities.`;
+            } else if (path.includes('/actions/')) {
+                description = `Action handler: ${fileName.replace(/_/g, ' ').replace('.ts', '')}. Handles action execution and workflows.`;
+            } else {
+                description = `File: ${fileName}. Located in ${dir || 'root'}.`;
+            }
+
+            descriptions.push({
+                path,
+                description,
+                relationships
+            });
+        }
+
+        return descriptions;
+    }
+
+    /**
+     * Format codebase analysis for inclusion in AI context
+     */
+    private formatCodebaseAnalysisForContext(
+        analysis: Array<{ path: string; description: string; relationships: string[] }>
+    ): string {
+        if (analysis.length === 0) {
+            return '';
+        }
+
+        const formatted: string[] = [];
+        formatted.push(`## 📋 Codebase Analysis & File Relationships\n\n`);
+        formatted.push(`This analysis provides context about the codebase structure to help you make informed decisions about which files to examine.\n\n`);
+
+        // Group by directory for better organization
+        const byDirectory = new Map<string, Array<{ path: string; description: string; relationships: string[] }>>();
+        analysis.forEach(item => {
+            const dir = item.path.split('/').slice(0, -1).join('/') || 'root';
+            if (!byDirectory.has(dir)) {
+                byDirectory.set(dir, []);
+            }
+            byDirectory.get(dir)!.push(item);
+        });
+
+        // Sort directories for consistent output
+        const sortedDirs = Array.from(byDirectory.keys()).sort();
+
+        for (const dir of sortedDirs) {
+            const files = byDirectory.get(dir)!;
+            formatted.push(`### ${dir || 'Root'}\n\n`);
+            
+            for (const file of files) {
+                formatted.push(`- **\`${file.path}\`**: ${file.description}`);
+                if (file.relationships && file.relationships.length > 0) {
+                    formatted.push(`\n  - *Dependencies*: ${file.relationships.slice(0, 5).map(r => `\`${r}\``).join(', ')}${file.relationships.length > 5 ? '...' : ''}`);
+                }
+                formatted.push(`\n`);
+            }
+            formatted.push(`\n`);
+        }
+
+        formatted.push(`\n**Use this analysis to understand the codebase structure and identify relevant files for the task.**\n\n`);
+
+        return formatted.join('');
+    }
+
     private async performReasoningStep(
         param: Execution,
         question: string,
@@ -591,6 +825,10 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         const codeStateInfo = codeManager.getContextForAI();
         const todoContext = todoManager.getContextForAI();
         const todoStats = todoManager.getStats();
+        
+        // Get codebase analysis from initial step (stored in currentContext at start)
+        const codebaseAnalysisMatch = currentContext.match(/## 📋 Codebase Analysis & File Relationships\n\n([\s\S]*?)(?=\n##|$)/);
+        const codebaseAnalysis = codebaseAnalysisMatch ? codebaseAnalysisMatch[1] : '';
 
         // Build summary of previous steps to avoid repetition
         const stepsSummary = previousSteps.length > 0
@@ -619,6 +857,8 @@ You are an advanced code analysis assistant similar to Cursor's Auto agent. Your
 3. **TWO-LEVEL REASONING**: 
    - **High-level (TODO list)**: What major tasks need to be done?
    - **Low-level (reasoning steps)**: How do I accomplish each task? (search, read, analyze, propose)
+
+${codebaseAnalysis ? `\n\n## 📋 Codebase Analysis & File Relationships\n\n${codebaseAnalysis}\n\n**This analysis helps you understand the codebase structure and relationships between files. Use it to make informed decisions about which files to examine for the task.**\n\n` : ''}
 
 ${todoStats.total > 0 ? `\n${todoContext}\n\n**CRITICAL**: To work on a TODO, use its EXACT ID (shown above) when updating. Don't just update status - DO THE ACTUAL WORK (search, read, analyze, propose) in the same response where you update the TODO.` : iteration === 1 ? `\n\n## 📋 TODO List\n\n**IMPORTANT**: In your first response, you should create a TODO list breaking down the problem into manageable tasks. Use the \`todo_updates.create\` field to create initial TODOs. Each TODO represents a high-level task that may require multiple reasoning steps to complete.` : ''}
 

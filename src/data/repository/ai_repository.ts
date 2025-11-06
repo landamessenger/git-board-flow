@@ -69,7 +69,12 @@ export class AiRepository {
         }
     }
 
-    askJson = async (ai: Ai, prompt: string): Promise<any | undefined> => {
+    askJson = async (
+        ai: Ai, 
+        prompt: string, 
+        schema?: any, 
+        schemaName: string = "ai_response"
+    ): Promise<any | undefined> => {
         const model = ai.getOpenRouterModel();
         const apiKey = ai.getOpenRouterApiKey();
         const providerRouting = ai.getProviderRouting();
@@ -85,6 +90,9 @@ export class AiRepository {
 
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
+        // Use provided schema or default to AI_RESPONSE_JSON_SCHEMA
+        const responseSchema = schema || AI_RESPONSE_JSON_SCHEMA;
+
         try {
             const requestBody: any = {
                 model: model,
@@ -94,8 +102,8 @@ export class AiRepository {
                 response_format: {
                     type: "json_schema",
                     json_schema: {
-                        name: "ai_response",
-                        schema: AI_RESPONSE_JSON_SCHEMA,
+                        name: schemaName,
+                        schema: responseSchema,
                         strict: true
                     }
                 }
