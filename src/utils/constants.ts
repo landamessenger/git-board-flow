@@ -1,5 +1,5 @@
-export const COMMAND = 'git-board-flow'
-export const TITLE = 'Git Board Flow'
+export const COMMAND = 'giik'
+export const TITLE = 'Giik'
 export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
 
 export const DEFAULT_IMAGE_CONFIG = {
@@ -197,13 +197,6 @@ export const INPUT_KEYS = {
     WELCOME_TITLE: 'welcome-title',
     WELCOME_MESSAGES: 'welcome-messages',
 
-    // Docker
-    DOCKER_CONTAINER_NAME: 'docker-container-name',
-    DOCKER_DOMAIN: 'docker-domain',
-    DOCKER_PORT: 'docker-port',
-    DOCKER_CACHE_OS: 'docker-cache-os',
-    DOCKER_CACHE_ARCH: 'docker-cache-arch',
-
     // Single action
     SINGLE_ACTION: 'single-action',
     SINGLE_ACTION_ISSUE: 'single-action-issue',
@@ -213,7 +206,6 @@ export const INPUT_KEYS = {
 
     // Tokens
     TOKEN: 'token',
-    CLASSIC_TOKEN: 'classic-token',
 
     // AI
     OPENROUTER_API_KEY: 'openrouter-api-key',
@@ -393,11 +385,32 @@ export const ERRORS = {
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
-    COMPILE_VECTOR_SERVER: 'compile_vector_server',
-    VECTOR: 'vector_action',
-    VECTOR_LOCAL: 'vector_local',
-    VECTOR_REMOVAL: 'vector_removal',
+    AI_CACHE: 'ai_cache_action',
+    AI_CACHE_LOCAL: 'ai_cache_local_action',
     PUBLISH_GITHUB_ACTION: 'publish_github_action',
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',
+    THINK: 'think_action',
+} as const; 
+
+export const PROMPTS = {
+    CODE_BASE_ANALYSIS: `
+You are a technical code analysis assistant.
+
+Your task is to analyze the content of the following source code file in depth.
+
+Provide a precise and highly technical explanation of what the code does, including:
+- Its main purpose and functionality.
+- A breakdown of the logic and flow (step by step or module by module).
+- How each class, function, or major block interacts with the rest.
+- The technologies, frameworks, or libraries it uses and how.
+- Any relevant algorithms, patterns, or data structures implemented.
+- Potential edge cases, performance considerations, or hidden behaviors.
+- Dependencies and external integrations (APIs, services, databases, etc.).
+- Any implicit assumptions or limitations found in the implementation.
+
+Focus exclusively on *accurate technical analysis and understanding*, not on summarizing in simple language.
+
+Do not propose improvements, changes, or fixes in this stage — your only goal is to explain exactly what the code does and how it works.
+    `,
 } as const; 

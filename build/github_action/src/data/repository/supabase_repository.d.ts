@@ -1,27 +1,61 @@
-import { ChunkedFile } from '../model/chunked_file';
-import { ChunkedFileChunk } from '../model/chunked_file_chunk';
 import { SupabaseConfig } from '../model/supabase_config';
+export interface AICachedFileInfo {
+    owner: string;
+    repository: string;
+    branch: string;
+    file_name: string;
+    path: string;
+    sha: string;
+    description: string;
+    consumes: string[];
+    consumed_by: string[];
+    created_at?: string;
+    last_updated?: string;
+}
 export declare class SupabaseRepository {
-    private readonly CHUNKS_TABLE;
+    private readonly AI_FILE_CACHE_TABLE;
     private readonly MAX_BATCH_SIZE;
     private readonly DEFAULT_TIMEOUT;
     private supabase;
     constructor(config: SupabaseConfig);
-    setChunkedFile: (owner: string, repository: string, branch: string, chunkedFile: ChunkedFile) => Promise<void>;
-    removeChunksByShasum: (owner: string, repository: string, branch: string, shasum: string) => Promise<void>;
-    getChunkedFileByShasum: (owner: string, repository: string, branch: string, type: string, shasum: string) => Promise<ChunkedFileChunk[]>;
-    getChunks: (owner: string, repository: string, branch: string, path: string, type: string, index: number) => Promise<ChunkedFileChunk[]>;
-    getChunksByShasum: (owner: string, repository: string, branch: string, shasum: string) => Promise<ChunkedFileChunk[]>;
-    updateVector: (owner: string, repository: string, branch: string, path: string, index: number, chunkIndex: number, vector: number[]) => Promise<void>;
-    matchChunks: (owner: string, repository: string, branch: string, type: string, queryEmbedding: number[], matchCount?: number) => Promise<ChunkedFileChunk[]>;
-    duplicateChunksByBranch: (owner: string, repository: string, sourceBranch: string, targetBranch: string) => Promise<void>;
-    removeChunksByBranch: (owner: string, repository: string, branch: string) => Promise<void>;
-    getDistinctPaths: (owner: string, repository: string, branch: string) => Promise<string[]>;
-    removeChunksByPath: (owner: string, repository: string, branch: string, path: string) => Promise<void>;
+    /**
+     * Set or update AI file cache entry
+     * If SHA hasn't changed, this will update the entry
+     */
+    setAIFileCache: (owner: string, repository: string, branch: string, fileInfo: {
+        file_name: string;
+        path: string;
+        sha: string;
+        description: string;
+        consumes: string[];
+        consumed_by: string[];
+    }) => Promise<void>;
+    /**
+     * Get AI file cache entry by path
+     */
+    getAIFileCache: (owner: string, repository: string, branch: string, filePath: string) => Promise<AICachedFileInfo | null>;
+    /**
+     * Get all AI file cache entries for a branch
+     */
+    getAIFileCachesByBranch: (owner: string, repository: string, branch: string) => Promise<AICachedFileInfo[]>;
+    /**
+     * Remove AI file cache entry by path
+     */
+    removeAIFileCacheByPath: (owner: string, repository: string, branch: string, filePath: string) => Promise<void>;
+    /**
+     * Duplicate AI file cache entries from one branch to another
+     */
+    duplicateAIFileCacheByBranch: (owner: string, repository: string, sourceBranch: string, targetBranch: string) => Promise<void>;
+    /**
+     * Remove all AI file cache entries for a branch
+     */
+    removeAIFileCacheByBranch: (owner: string, repository: string, branch: string) => Promise<void>;
+    /**
+     * Get SHA by path (for checking if file is cached)
+     */
     getShasumByPath: (owner: string, repository: string, branch: string, path: string) => Promise<string | undefined>;
-    private countBranchEntries;
-    private duplicateFileEntries;
-    private duplicateBranchEntries;
-    private deleteBranchEntries;
-    getVectorOfChunkContent: (owner: string, repository: string, content: string) => Promise<number[]>;
+    /**
+     * Get distinct paths for a branch
+     */
+    getDistinctPaths: (owner: string, repository: string, branch: string) => Promise<string[]>;
 }

@@ -20,13 +20,12 @@ export declare class SingleAction {
     title: string;
     changelog: string;
     get isDeployedAction(): boolean;
-    get isCompileVectorServerAction(): boolean;
-    get isVectorAction(): boolean;
-    get isVectorLocalAction(): boolean;
-    get isVectorRemovalAction(): boolean;
+    get isAiCacheAction(): boolean;
+    get isAiCacheLocalAction(): boolean;
     get isPublishGithubAction(): boolean;
     get isCreateReleaseAction(): boolean;
     get isCreateTagAction(): boolean;
+    get isThinkAction(): boolean;
     get enabledSingleAction(): boolean;
     get validSingleAction(): boolean;
     get isSingleActionWithoutIssue(): boolean;

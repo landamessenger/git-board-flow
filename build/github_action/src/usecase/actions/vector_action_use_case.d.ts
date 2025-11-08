@@ -3,12 +3,14 @@ import { Result } from '../../data/model/result';
 import { ParamUseCase } from '../base/param_usecase';
 export declare class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string;
-    private dockerRepository;
     private fileRepository;
-    private readonly CODE_INSTRUCTION_BLOCK;
-    private readonly CODE_INSTRUCTION_LINE;
+    private aiRepository;
+    private fileImportAnalyzer;
+    private fileCacheManager;
+    private codebaseAnalyzer;
+    constructor();
     invoke(param: Execution): Promise<Result[]>;
-    private checkChunksInSupabase;
-    private uploadChunksToSupabase;
-    private duplicateChunksToBranch;
+    private checkAICacheInSupabase;
+    private uploadAICacheToSupabase;
+    private duplicateAICacheToBranch;
 }

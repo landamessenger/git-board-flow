@@ -1,5 +1,5 @@
-export declare const COMMAND = "git-board-flow";
-export declare const TITLE = "Git Board Flow";
+export declare const COMMAND = "giik";
+export declare const TITLE = "Giik";
 export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
@@ -44,18 +44,12 @@ export declare const INPUT_KEYS: {
     readonly DEBUG: "debug";
     readonly WELCOME_TITLE: "welcome-title";
     readonly WELCOME_MESSAGES: "welcome-messages";
-    readonly DOCKER_CONTAINER_NAME: "docker-container-name";
-    readonly DOCKER_DOMAIN: "docker-domain";
-    readonly DOCKER_PORT: "docker-port";
-    readonly DOCKER_CACHE_OS: "docker-cache-os";
-    readonly DOCKER_CACHE_ARCH: "docker-cache-arch";
     readonly SINGLE_ACTION: "single-action";
     readonly SINGLE_ACTION_ISSUE: "single-action-issue";
     readonly SINGLE_ACTION_VERSION: "single-action-version";
     readonly SINGLE_ACTION_TITLE: "single-action-title";
     readonly SINGLE_ACTION_CHANGELOG: "single-action-changelog";
     readonly TOKEN: "token";
-    readonly CLASSIC_TOKEN: "classic-token";
     readonly OPENROUTER_API_KEY: "openrouter-api-key";
     readonly OPENROUTER_MODEL: "openrouter-model";
     readonly AI_PULL_REQUEST_DESCRIPTION: "ai-pull-request-description";
@@ -197,11 +191,13 @@ export declare const ERRORS: {
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
-    readonly COMPILE_VECTOR_SERVER: "compile_vector_server";
-    readonly VECTOR: "vector_action";
-    readonly VECTOR_LOCAL: "vector_local";
-    readonly VECTOR_REMOVAL: "vector_removal";
+    readonly AI_CACHE: "ai_cache_action";
+    readonly AI_CACHE_LOCAL: "ai_cache_local_action";
     readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";
+    readonly THINK: "think_action";
+};
+export declare const PROMPTS: {
+    readonly CODE_BASE_ANALYSIS: "\nYou are a technical code analysis assistant.\n\nYour task is to analyze the content of the following source code file in depth.\n\nProvide a precise and highly technical explanation of what the code does, including:\n- Its main purpose and functionality.\n- A breakdown of the logic and flow (step by step or module by module).\n- How each class, function, or major block interacts with the rest.\n- The technologies, frameworks, or libraries it uses and how.\n- Any relevant algorithms, patterns, or data structures implemented.\n- Potential edge cases, performance considerations, or hidden behaviors.\n- Dependencies and external integrations (APIs, services, databases, etc.).\n- Any implicit assumptions or limitations found in the implementation.\n\nFocus exclusively on *accurate technical analysis and understanding*, not on summarizing in simple language.\n\nDo not propose improvements, changes, or fixes in this stage — your only goal is to explain exactly what the code does and how it works.\n    ";
 };

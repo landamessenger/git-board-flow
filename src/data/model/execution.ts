@@ -16,7 +16,6 @@ import { Ai } from "./ai";
 import { Branches } from "./branches";
 import { Commit } from "./commit";
 import { Config } from "./config";
-import { DockerConfig } from "./docker_config";
 import { Emoji } from "./emoji";
 import { Hotfix } from "./hotfix";
 import { Images } from "./images";
@@ -65,7 +64,6 @@ export class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
-    dockerConfig: DockerConfig;
     supabaseConfig: SupabaseConfig | undefined;
     inputs: any | undefined;
 
@@ -177,7 +175,6 @@ export class Execution {
 
     constructor(
         debug: boolean,
-        dockerConfig: DockerConfig,
         singleAction: SingleAction,
         commitPrefixBuilder: string,
         issue: Issue,
@@ -200,7 +197,6 @@ export class Execution {
         inputs: any | undefined
     ) {
         this.debug = debug;
-        this.dockerConfig = dockerConfig;
         this.singleAction = singleAction;
         this.commitPrefixBuilder = commitPrefixBuilder;
         this.issue = issue;
