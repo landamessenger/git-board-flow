@@ -6,14 +6,28 @@ import { SupabaseRepository } from '../../data/repository/supabase_repository';
 import { AiRepository } from '../../data/repository/ai_repository';
 import { logError, logInfo, logSingleLine } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
-import { createHash } from 'crypto';
+import { FileImportAnalyzer } from '../steps/common/services/file_import_analyzer';
+import { FileCacheManager } from '../steps/common/services/file_cache_manager';
+import { CodebaseAnalyzer } from '../steps/common/services/codebase_analyzer';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
     private fileRepository: FileRepository = new FileRepository();
     private aiRepository: AiRepository = new AiRepository();
+    private fileImportAnalyzer: FileImportAnalyzer = new FileImportAnalyzer();
+    private fileCacheManager: FileCacheManager = new FileCacheManager();
+    private codebaseAnalyzer: CodebaseAnalyzer;
     private readonly CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
     private readonly CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
+    
+    constructor() {
+        // Initialize CodebaseAnalyzer with dependencies
+        this.codebaseAnalyzer = new CodebaseAnalyzer(
+            this.aiRepository,
+            this.fileImportAnalyzer,
+            this.fileCacheManager
+        );
+    }
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
@@ -201,7 +215,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         );
         
         // Step 2: Build relationship map once for all files
-        const relationshipMaps = this.buildRelationshipMap(allRepositoryFiles);
+        const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(allRepositoryFiles);
         const consumesMap = relationshipMaps.consumes;
         const consumedByMap = relationshipMaps.consumedBy;
         logInfo(`✅ Relationship map built for ${allRepositoryFiles.size} files`);
@@ -254,10 +268,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     const consumedBy = consumedByMap.get(filePath) || [];
                     
                     // Step 4: Calculate SHA
-                    const currentSHA = this.calculateFileSHA(fileContent);
+                    const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
                     
                     // Step 5: Generate description using AI (with fallback)
-                    let description = this.generateBasicDescription(filePath);
+                    let description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                     try {
                         // Create schema for single file description
                         const FILE_DESCRIPTION_SCHEMA = {
@@ -397,259 +411,9 @@ Provide only a concise description in English, focusing on the main functionalit
         return results;
     }
 
-    /**
-     * Extract imports from a file regardless of programming language
-     */
-    private extractImportsFromFile(filePath: string, content: string): string[] {
-        const imports: string[] = [];
-        const ext = filePath.split('.').pop()?.toLowerCase() || '';
-        const dir = filePath.split('/').slice(0, -1).join('/') || '';
-        
-        // TypeScript/JavaScript
-        if (['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'].includes(ext)) {
-            const es6Imports = content.match(/import\s+.*?\s+from\s+['"]([^'"]+)['"]/g) || [];
-            es6Imports.forEach(match => {
-                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
-                if (path) imports.push(path);
-            });
-            
-            const requireImports = content.match(/require\s*\(\s*['"]([^'"]+)['"]\s*\)/g) || [];
-            requireImports.forEach(match => {
-                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
-                if (path) imports.push(path);
-            });
-        }
-        
-        // Python
-        if (['py', 'pyw', 'pyi'].includes(ext)) {
-            const pyImports = content.match(/(?:^|\n)\s*(?:import\s+\w+|from\s+[\w.]+)\s+import/gm) || [];
-            pyImports.forEach(match => {
-                const fromMatch = match.match(/from\s+([\w.]+)/);
-                if (fromMatch) {
-                    imports.push(fromMatch[1]);
-                } else {
-                    const importMatch = match.match(/import\s+(\w+)/);
-                    if (importMatch) imports.push(importMatch[1]);
-                }
-            });
-        }
-        
-        // Java
-        if (ext === 'java') {
-            const javaImports = content.match(/import\s+(?:static\s+)?[\w.]+\s*;/g) || [];
-            javaImports.forEach(match => {
-                const path = match.replace(/import\s+(?:static\s+)?/, '').replace(/\s*;/, '');
-                imports.push(path);
-            });
-        }
-        
-        // Kotlin
-        if (['kt', 'kts'].includes(ext)) {
-            const ktImports = content.match(/import\s+[\w.]+\s*/g) || [];
-            ktImports.forEach(match => {
-                const path = match.replace(/import\s+/, '').trim();
-                imports.push(path);
-            });
-        }
-        
-        // Go
-        if (ext === 'go') {
-            const goImports = content.match(/import\s*(?:\([^)]+\)|['"]([^'"]+)['"])/gs) || [];
-            goImports.forEach(match => {
-                const quoted = match.match(/['"]([^'"]+)['"]/);
-                if (quoted) {
-                    imports.push(quoted[1]);
-                } else {
-                    const multiLine = match.match(/import\s*\(([^)]+)\)/s);
-                    if (multiLine) {
-                        const paths = multiLine[1].match(/['"]([^'"]+)['"]/g) || [];
-                        paths.forEach(p => {
-                            const path = p.match(/['"]([^'"]+)['"]/)?.[1];
-                            if (path) imports.push(path);
-                        });
-                    }
-                }
-            });
-        }
-        
-        // Rust
-        if (ext === 'rs') {
-            const rustImports = content.match(/use\s+[\w:]+(?:::\*)?\s*;/g) || [];
-            rustImports.forEach(match => {
-                const path = match.replace(/use\s+/, '').replace(/\s*;/, '').split('::')[0];
-                imports.push(path);
-            });
-        }
-        
-        // Ruby
-        if (ext === 'rb') {
-            const rubyImports = content.match(/(?:require|require_relative)\s+['"]([^'"]+)['"]/g) || [];
-            rubyImports.forEach(match => {
-                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
-                if (path) imports.push(path);
-            });
-        }
-        
-        // PHP
-        if (ext === 'php') {
-            const phpImports = content.match(/(?:use|require|include)(?:_once)?\s+['"]([^'"]+)['"]/g) || [];
-            phpImports.forEach(match => {
-                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
-                if (path) imports.push(path);
-            });
-        }
-        
-        // Swift
-        if (ext === 'swift') {
-            const swiftImports = content.match(/import\s+\w+/g) || [];
-            swiftImports.forEach(match => {
-                const path = match.replace(/import\s+/, '');
-                imports.push(path);
-            });
-        }
-        
-        // Dart
-        if (ext === 'dart') {
-            const dartImports = content.match(/import\s+['"]([^'"]+)['"]/g) || [];
-            dartImports.forEach(match => {
-                const path = match.match(/['"]([^'"]+)['"]/)?.[1];
-                if (path) imports.push(path);
-            });
-        }
-        
-        // Resolve relative imports to absolute paths
-        return imports.map(imp => {
-            if (!imp.startsWith('.') && !imp.startsWith('/')) {
-                if (dir) {
-                    const possiblePath = `${dir}/${imp}`.replace(/\/+/g, '/');
-                    return possiblePath;
-                }
-                return imp;
-            }
-            
-            if (imp.startsWith('.')) {
-                const resolved = this.resolveRelativePath(dir, imp);
-                return resolved;
-            }
-            
-            return imp;
-        }).filter(imp => imp && !imp.includes('node_modules') && !imp.startsWith('http'));
-    }
-    
-    /**
-     * Resolve relative import path to absolute path
-     */
-    private resolveRelativePath(baseDir: string, relativePath: string): string {
-        if (!relativePath.startsWith('.')) {
-            return relativePath;
-        }
-        
-        let path = baseDir || '';
-        const parts = relativePath.split('/');
-        
-        for (const part of parts) {
-            if (part === '..') {
-                path = path.split('/').slice(0, -1).join('/');
-            } else if (part === '.' || part === '') {
-                // Current directory, do nothing
-            } else {
-                path = path ? `${path}/${part}` : part;
-            }
-        }
-        
-        const withoutExt = path.replace(/\.(ts|tsx|js|jsx|py|java|kt|go|rs|rb|php|swift|dart)$/, '');
-        return withoutExt;
-    }
-
-    /**
-     * Build relationship map from all files by extracting imports
-     */
-    private buildRelationshipMap(
-        repositoryFiles: Map<string, string>
-    ): { consumes: Map<string, string[]>, consumedBy: Map<string, string[]> } {
-        const consumesMap = new Map<string, string[]>();
-        const consumedByMap = new Map<string, string[]>();
-        
-        // Initialize consumedBy map for all files
-        for (const filePath of repositoryFiles.keys()) {
-            consumedByMap.set(filePath, []);
-        }
-        
-        for (const [filePath, content] of repositoryFiles.entries()) {
-            const imports = this.extractImportsFromFile(filePath, content);
-            const resolvedImports: string[] = [];
-            
-            for (const imp of imports) {
-                const possiblePaths = [
-                    imp,
-                    `${imp}.ts`,
-                    `${imp}.tsx`,
-                    `${imp}.js`,
-                    `${imp}.jsx`,
-                    `${imp}/index.ts`,
-                    `${imp}/index.tsx`,
-                    `${imp}/index.js`,
-                    `${imp}/index.jsx`,
-                ];
-                
-                for (const possiblePath of possiblePaths) {
-                    if (repositoryFiles.has(possiblePath)) {
-                        if (!resolvedImports.includes(possiblePath)) {
-                            resolvedImports.push(possiblePath);
-                        }
-                        const currentConsumers = consumedByMap.get(possiblePath) || [];
-                        if (!currentConsumers.includes(filePath)) {
-                            currentConsumers.push(filePath);
-                            consumedByMap.set(possiblePath, currentConsumers);
-                        }
-                        break;
-                    }
-                    
-                    for (const [repoPath] of repositoryFiles.entries()) {
-                        if (repoPath.includes(possiblePath) || possiblePath.includes(repoPath)) {
-                            if (!resolvedImports.includes(repoPath)) {
-                                resolvedImports.push(repoPath);
-                            }
-                            const currentConsumers = consumedByMap.get(repoPath) || [];
-                            if (!currentConsumers.includes(filePath)) {
-                                currentConsumers.push(filePath);
-                                consumedByMap.set(repoPath, currentConsumers);
-                            }
-                        }
-                    }
-                }
-            }
-            
-            consumesMap.set(filePath, resolvedImports);
-        }
-        
-        return { consumes: consumesMap, consumedBy: consumedByMap };
-    }
-
-    /**
-     * Calculate SHA256 hash of file content
-     */
-    private calculateFileSHA(content: string): string {
-        return createHash('sha256').update(content).digest('hex');
-    }
-
-    /**
-     * Generate basic description from file path (fallback)
-     */
-    private generateBasicDescription(filePath: string): string {
-        const fileName = filePath.split('/').pop() || filePath;
-        const dir = filePath.split('/').slice(0, -1).join('/');
-        
-        if (fileName.includes('use_case') || fileName.includes('usecase')) {
-            return `Use case: ${fileName.replace(/[._-]/g, ' ')}`;
-        } else if (fileName.includes('repository')) {
-            return `Repository: ${fileName.replace(/[._-]/g, ' ')}`;
-        } else if (fileName.includes('model')) {
-            return `Model: ${fileName.replace(/[._-]/g, ' ')}`;
-        } else if (fileName.includes('action')) {
-            return `Action: ${fileName.replace(/[._-]/g, ' ')}`;
-        } else {
-            return `File: ${fileName}. Located in ${dir || 'root'}.`;
-        }
-    }
+    // All methods related to file imports, cache, and codebase analysis
+    // have been moved to dedicated services:
+    // - FileImportAnalyzer: extractImportsFromFile, resolveRelativePath, buildRelationshipMap
+    // - FileCacheManager: calculateFileSHA
+    // - CodebaseAnalyzer: generateBasicDescription
 }

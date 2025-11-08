@@ -5,30 +5,14 @@ export declare class VectorActionUseCase implements ParamUseCase<Execution, Resu
     taskId: string;
     private fileRepository;
     private aiRepository;
+    private fileImportAnalyzer;
+    private fileCacheManager;
+    private codebaseAnalyzer;
     private readonly CODE_INSTRUCTION_BLOCK;
     private readonly CODE_INSTRUCTION_LINE;
+    constructor();
     invoke(param: Execution): Promise<Result[]>;
     private checkChunksInSupabase;
     private uploadChunksToSupabase;
     private duplicateChunksToBranch;
-    /**
-     * Extract imports from a file regardless of programming language
-     */
-    private extractImportsFromFile;
-    /**
-     * Resolve relative import path to absolute path
-     */
-    private resolveRelativePath;
-    /**
-     * Build relationship map from all files by extracting imports
-     */
-    private buildRelationshipMap;
-    /**
-     * Calculate SHA256 hash of file content
-     */
-    private calculateFileSHA;
-    /**
-     * Generate basic description from file path (fallback)
-     */
-    private generateBasicDescription;
 }
