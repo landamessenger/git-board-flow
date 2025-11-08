@@ -69987,16 +69987,29 @@ class VectorActionUseCase {
                         // Step 5: Generate description using AI (with fallback)
                         let description = this.generateBasicDescription(filePath);
                         try {
+                            // Create schema for single file description
+                            const FILE_DESCRIPTION_SCHEMA = {
+                                "type": "object",
+                                "description": "File description",
+                                "properties": {
+                                    "description": {
+                                        "type": "string",
+                                        "description": "Brief description (4-5 sentences) of what the file does in English. You can use 1 or 2 sentences if the file is small."
+                                    }
+                                },
+                                "required": ["description"],
+                                "additionalProperties": false
+                            };
                             const descriptionPrompt = `Analyze this code file and provide a brief description (1-2 sentences) of what it does:
 
 \`\`\`
-${fileContent.substring(0, 2000)}${fileContent.length > 2000 ? '...' : ''}
+${fileContent}
 \`\`\`
 
 Provide only a concise description in English, focusing on the main functionality.`;
-                            const aiDescription = await this.aiRepository.ask(param.ai, descriptionPrompt);
-                            if (aiDescription && aiDescription.trim().length > 0) {
-                                description = aiDescription.trim();
+                            const aiResponse = await this.aiRepository.askJson(param.ai, descriptionPrompt, FILE_DESCRIPTION_SCHEMA, "file_description");
+                            if (aiResponse && typeof aiResponse === 'object' && aiResponse.description) {
+                                description = aiResponse.description.trim();
                             }
                         }
                         catch (error) {
@@ -71914,6 +71927,7 @@ const logger_1 = __nccwpck_require__(8836);
 const think_code_manager_1 = __nccwpck_require__(8785);
 const think_todo_manager_1 = __nccwpck_require__(3618);
 const crypto_1 = __nccwpck_require__(6113);
+const constants_1 = __nccwpck_require__(8593);
 class ThinkUseCase {
     constructor() {
         this.taskId = 'ThinkUseCase';
@@ -72694,10 +72708,23 @@ class ThinkUseCase {
             // STEP 2: Identify files that need AI analysis (not in cache or SHA changed)
             const filesNeedingAnalysis = [];
             const cachedAnalyses = [];
+            let cacheMissReasons = {
+                notInCache: 0,
+                shaMismatch: 0
+            };
             for (const [filePath, content] of relevantFiles) {
                 const currentSHA = this.calculateFileSHA(content);
                 const cached = cache.get(filePath);
-                if (cached && cached.sha === currentSHA) {
+                if (!cached) {
+                    cacheMissReasons.notInCache++;
+                    filesNeedingAnalysis.push([filePath, content]);
+                }
+                else if (cached.sha !== currentSHA) {
+                    cacheMissReasons.shaMismatch++;
+                    (0, logger_1.logDebugInfo)(`🔄 SHA mismatch for ${filePath}: cached=${cached.sha.substring(0, 8)}..., current=${currentSHA.substring(0, 8)}...`);
+                    filesNeedingAnalysis.push([filePath, content]);
+                }
+                else {
                     // Use cached data
                     const consumes = consumesMap.get(filePath) || [];
                     const consumedBy = consumedByMap.get(filePath) || [];
@@ -72708,12 +72735,15 @@ class ThinkUseCase {
                         consumed_by: consumedBy
                     });
                 }
-                else {
-                    // Need to analyze with AI
-                    filesNeedingAnalysis.push([filePath, content]);
-                }
             }
-            (0, logger_1.logInfo)(`📊 Cache hit: ${cachedAnalyses.length} files, Need analysis: ${filesNeedingAnalysis.length} files`);
+            (0, logger_1.logInfo)(`📊 Cache hit: ${cachedAnalyses.length} files, Need analysis: ${filesNeedingAnalysis.length} files (not in cache: ${cacheMissReasons.notInCache}, SHA mismatch: ${cacheMissReasons.shaMismatch})`);
+            // Debug: Show sample of cache keys vs relevant file paths
+            if (cacheMissReasons.notInCache > 0 && cache.size > 0) {
+                const sampleCachePaths = Array.from(cache.keys()).slice(0, 5);
+                const sampleRelevantPaths = relevantFiles.slice(0, 5).map(([path]) => path);
+                (0, logger_1.logDebugInfo)(`🔍 Sample cache paths: ${sampleCachePaths.join(', ')}`);
+                (0, logger_1.logDebugInfo)(`🔍 Sample relevant paths: ${sampleRelevantPaths.join(', ')}`);
+            }
             // STEP 3: Process files needing analysis in batches with AI (only for descriptions)
             // Relationships come from the map we built
             const BATCH_SIZE = 20; // Process 20 files at a time
@@ -72731,7 +72761,7 @@ class ThinkUseCase {
                         },
                         "description": {
                             "type": "string",
-                            "description": "Brief description (1-2 sentences) of what the file does in English"
+                            "description": "Complete description of what the file does"
                         }
                     },
                     "required": ["path", "description"],
@@ -72760,26 +72790,21 @@ ${batchFilesList}
 ${batchContent}
 
 ## Task:
-For EACH of the ${batch.length} files listed above, provide a brief description (1-2 sentences) of what the file does in English.
+For EACH of the ${batch.length} files listed above, 
 
-Focus on:
-- Main functionality of the file
-- Key classes, functions, or exports
-- Its role in the codebase architecture
+${constants_1.PROMPTS.CODE_BASE_ANALYSIS}
 
 Return a JSON array with this structure:
 [
   {
     "path": "src/path/to/file.ts",
-    "description": "Brief description of what this file does"
+    "description": "description_here"
   },
   ...
 ]
 
 **REQUIREMENTS**:
-- You MUST return a description for ALL ${batch.length} files in this batch
-- Keep descriptions concise (1-2 sentences max per file)
-- Focus on functionality, not relationships (relationships are handled separately)`;
+- You MUST return a description for ALL ${batch.length} files in this batch`;
                 try {
                     const batchResponse = await this.aiRepository.askJson(param.ai, batchPrompt, FILE_DESCRIPTION_SCHEMA, "file_descriptions");
                     if (batchResponse && Array.isArray(batchResponse)) {
@@ -72856,13 +72881,16 @@ Return a JSON array with this structure:
                             consumed_by: consumedBy
                         });
                         // Update cache with fallback
-                        cache.set(path, {
+                        const cachedInfo = {
                             path,
                             sha: currentSHA,
                             description: fallbackDesc,
                             consumes: consumes,
                             consumed_by: consumedBy
-                        });
+                        };
+                        cache.set(path, cachedInfo);
+                        // Save to Supabase
+                        await this.saveAICacheEntry(param, path, cachedInfo, consumes, consumedBy);
                     }
                 }
             }
@@ -72876,7 +72904,7 @@ Return a JSON array with this structure:
             (0, logger_1.logInfo)(`⚠️ AI analysis failed, generating fallback descriptions...`);
             const fallbackDescriptions = this.generateFallbackFileDescriptions(relevantFiles);
             // Merge with relationship maps and update cache
-            const fallbackResults = fallbackDescriptions.map(item => {
+            const fallbackResults = await Promise.all(fallbackDescriptions.map(async (item) => {
                 const consumes = consumesMap.get(item.path) || [];
                 const consumedBy = consumedByMap.get(item.path) || [];
                 const content = repositoryFiles.get(item.path) || '';
@@ -72892,14 +72920,14 @@ Return a JSON array with this structure:
                     };
                     cache.set(item.path, cachedInfo);
                     // Save to Supabase
-                    this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
+                    await this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
                 }
                 return {
                     ...item,
                     consumes: consumes,
                     consumed_by: consumedBy
                 };
-            });
+            }));
             // Cache is saved incrementally during processing
             // No need to save all at once since we're using Supabase
             return fallbackResults;
@@ -75744,7 +75772,7 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
@@ -76107,6 +76135,27 @@ exports.ACTIONS = {
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',
     THINK: 'think_action',
+};
+exports.PROMPTS = {
+    CODE_BASE_ANALYSIS: `
+You are a technical code analysis assistant.
+
+Your task is to analyze the content of the following source code file in depth.
+
+Provide a precise and highly technical explanation of what the code does, including:
+- Its main purpose and functionality.
+- A breakdown of the logic and flow (step by step or module by module).
+- How each class, function, or major block interacts with the rest.
+- The technologies, frameworks, or libraries it uses and how.
+- Any relevant algorithms, patterns, or data structures implemented.
+- Potential edge cases, performance considerations, or hidden behaviors.
+- Dependencies and external integrations (APIs, services, databases, etc.).
+- Any implicit assumptions or limitations found in the implementation.
+
+Focus exclusively on *accurate technical analysis and understanding*, not on summarizing in simple language.
+
+Do not propose improvements, changes, or fixes in this stage — your only goal is to explain exactly what the code does and how it works.
+    `,
 };
 
 

@@ -259,17 +259,37 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     // Step 5: Generate description using AI (with fallback)
                     let description = this.generateBasicDescription(filePath);
                     try {
+                        // Create schema for single file description
+                        const FILE_DESCRIPTION_SCHEMA = {
+                            "type": "object",
+                            "description": "File description",
+                            "properties": {
+                                "description": {
+                                    "type": "string",
+                                    "description": "Brief description (4-5 sentences) of what the file does in English. You can use 1 or 2 sentences if the file is small."
+                                }
+                            },
+                            "required": ["description"],
+                            "additionalProperties": false
+                        };
+                        
                         const descriptionPrompt = `Analyze this code file and provide a brief description (1-2 sentences) of what it does:
 
 \`\`\`
-${fileContent.substring(0, 2000)}${fileContent.length > 2000 ? '...' : ''}
+${fileContent}
 \`\`\`
 
 Provide only a concise description in English, focusing on the main functionality.`;
                         
-                        const aiDescription = await this.aiRepository.ask(param.ai, descriptionPrompt);
-                        if (aiDescription && aiDescription.trim().length > 0) {
-                            description = aiDescription.trim();
+                        const aiResponse = await this.aiRepository.askJson(
+                            param.ai,
+                            descriptionPrompt,
+                            FILE_DESCRIPTION_SCHEMA,
+                            "file_description"
+                        );
+                        
+                        if (aiResponse && typeof aiResponse === 'object' && aiResponse.description) {
+                            description = aiResponse.description.trim();
                         }
                     } catch (error) {
                         logError(`Error generating AI description for ${filePath}, using fallback: ${error}`);

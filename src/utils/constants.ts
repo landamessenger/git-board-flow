@@ -392,3 +392,25 @@ export const ACTIONS = {
     CREATE_TAG: 'create_tag',
     THINK: 'think_action',
 } as const; 
+
+export const PROMPTS = {
+    CODE_BASE_ANALYSIS: `
+You are a technical code analysis assistant.
+
+Your task is to analyze the content of the following source code file in depth.
+
+Provide a precise and highly technical explanation of what the code does, including:
+- Its main purpose and functionality.
+- A breakdown of the logic and flow (step by step or module by module).
+- How each class, function, or major block interacts with the rest.
+- The technologies, frameworks, or libraries it uses and how.
+- Any relevant algorithms, patterns, or data structures implemented.
+- Potential edge cases, performance considerations, or hidden behaviors.
+- Dependencies and external integrations (APIs, services, databases, etc.).
+- Any implicit assumptions or limitations found in the implementation.
+
+Focus exclusively on *accurate technical analysis and understanding*, not on summarizing in simple language.
+
+Do not propose improvements, changes, or fixes in this stage — your only goal is to explain exactly what the code does and how it works.
+    `,
+} as const; 

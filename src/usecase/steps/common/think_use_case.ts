@@ -11,6 +11,7 @@ import { ThinkCodeManager } from './think_code_manager';
 import { ThinkTodoManager } from './think_todo_manager';
 import { CODEBASE_ANALYSIS_JSON_SCHEMA } from '../../../data/model/codebase_analysis_schema';
 import { createHash } from 'crypto';
+import { PROMPTS } from '../../../utils/constants';
 
 /**
  * Interface for cached file information
@@ -21,11 +22,6 @@ interface CachedFileInfo {
     description: string;
     consumes: string[];  // Files this file imports
     consumed_by: string[];  // Files that import this file
-}
-
-interface AICacheFile {
-    files: CachedFileInfo[];
-    last_updated: number;
 }
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
@@ -985,11 +981,23 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             const filesNeedingAnalysis: Array<[string, string]> = [];
             const cachedAnalyses: Array<{ path: string; description: string; consumes: string[]; consumed_by: string[] }> = [];
             
+            let cacheMissReasons = {
+                notInCache: 0,
+                shaMismatch: 0
+            };
+            
             for (const [filePath, content] of relevantFiles) {
                 const currentSHA = this.calculateFileSHA(content);
                 const cached = cache.get(filePath);
                 
-                if (cached && cached.sha === currentSHA) {
+                if (!cached) {
+                    cacheMissReasons.notInCache++;
+                    filesNeedingAnalysis.push([filePath, content]);
+                } else if (cached.sha !== currentSHA) {
+                    cacheMissReasons.shaMismatch++;
+                    logDebugInfo(`🔄 SHA mismatch for ${filePath}: cached=${cached.sha.substring(0, 8)}..., current=${currentSHA.substring(0, 8)}...`);
+                    filesNeedingAnalysis.push([filePath, content]);
+                } else {
                     // Use cached data
                     const consumes = consumesMap.get(filePath) || [];
                     const consumedBy = consumedByMap.get(filePath) || [];
@@ -999,13 +1007,18 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         consumes: consumes,
                         consumed_by: consumedBy
                     });
-                } else {
-                    // Need to analyze with AI
-                    filesNeedingAnalysis.push([filePath, content]);
                 }
             }
             
-            logInfo(`📊 Cache hit: ${cachedAnalyses.length} files, Need analysis: ${filesNeedingAnalysis.length} files`);
+            logInfo(`📊 Cache hit: ${cachedAnalyses.length} files, Need analysis: ${filesNeedingAnalysis.length} files (not in cache: ${cacheMissReasons.notInCache}, SHA mismatch: ${cacheMissReasons.shaMismatch})`);
+            
+            // Debug: Show sample of cache keys vs relevant file paths
+            if (cacheMissReasons.notInCache > 0 && cache.size > 0) {
+                const sampleCachePaths = Array.from(cache.keys()).slice(0, 5);
+                const sampleRelevantPaths = relevantFiles.slice(0, 5).map(([path]) => path);
+                logDebugInfo(`🔍 Sample cache paths: ${sampleCachePaths.join(', ')}`);
+                logDebugInfo(`🔍 Sample relevant paths: ${sampleRelevantPaths.join(', ')}`);
+            }
 
             // STEP 3: Process files needing analysis in batches with AI (only for descriptions)
             // Relationships come from the map we built
@@ -1025,7 +1038,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         },
                         "description": {
                             "type": "string",
-                            "description": "Brief description (1-2 sentences) of what the file does in English"
+                            "description": "Complete description of what the file does"
                         }
                     },
                     "required": ["path", "description"],
@@ -1060,26 +1073,21 @@ ${batchFilesList}
 ${batchContent}
 
 ## Task:
-For EACH of the ${batch.length} files listed above, provide a brief description (1-2 sentences) of what the file does in English.
+For EACH of the ${batch.length} files listed above, 
 
-Focus on:
-- Main functionality of the file
-- Key classes, functions, or exports
-- Its role in the codebase architecture
+${PROMPTS.CODE_BASE_ANALYSIS}
 
 Return a JSON array with this structure:
 [
   {
     "path": "src/path/to/file.ts",
-    "description": "Brief description of what this file does"
+    "description": "description_here"
   },
   ...
 ]
 
 **REQUIREMENTS**:
-- You MUST return a description for ALL ${batch.length} files in this batch
-- Keep descriptions concise (1-2 sentences max per file)
-- Focus on functionality, not relationships (relationships are handled separately)`;
+- You MUST return a description for ALL ${batch.length} files in this batch`;
 
                 try {
                     const batchResponse = await this.aiRepository.askJson(
@@ -1167,13 +1175,16 @@ Return a JSON array with this structure:
                         });
                         
                         // Update cache with fallback
-                        cache.set(path, {
+                        const cachedInfo: CachedFileInfo = {
                             path,
                             sha: currentSHA,
                             description: fallbackDesc,
                             consumes: consumes,
                             consumed_by: consumedBy
-                        });
+                        };
+                        cache.set(path, cachedInfo);
+                        // Save to Supabase
+                        await this.saveAICacheEntry(param, path, cachedInfo, consumes, consumedBy);
                     }
                 }
             }
@@ -1190,7 +1201,7 @@ Return a JSON array with this structure:
             logInfo(`⚠️ AI analysis failed, generating fallback descriptions...`);
             const fallbackDescriptions = this.generateFallbackFileDescriptions(relevantFiles);
             // Merge with relationship maps and update cache
-            const fallbackResults = fallbackDescriptions.map(item => {
+            const fallbackResults = await Promise.all(fallbackDescriptions.map(async (item) => {
                 const consumes = consumesMap.get(item.path) || [];
                 const consumedBy = consumedByMap.get(item.path) || [];
                 const content = repositoryFiles.get(item.path) || '';
@@ -1207,7 +1218,7 @@ Return a JSON array with this structure:
                     };
                     cache.set(item.path, cachedInfo);
                     // Save to Supabase
-                    this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
+                    await this.saveAICacheEntry(param, item.path, cachedInfo, consumes, consumedBy);
                 }
                 
                 return {
@@ -1215,7 +1226,7 @@ Return a JSON array with this structure:
                     consumes: consumes,
                     consumed_by: consumedBy
                 };
-            });
+            }));
             
             // Cache is saved incrementally during processing
             // No need to save all at once since we're using Supabase
