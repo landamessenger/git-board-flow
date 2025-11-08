@@ -231,26 +231,32 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             logSingleLine(`🔘 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${path}]`);
 
+            // Normalize path for consistent comparison
+            const normalizedPath = path.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+            
             const remoteShasum = await supabaseRepository.getShasumByPath(
                 param.owner,
                 param.repo,
                 branch,
-                path
+                normalizedPath
             );
 
             if (remoteShasum) {
                 if (remoteShasum === chunkedFiles[0].shasum) {
-                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);
+                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
                     continue;
                 } else if (remoteShasum !== chunkedFiles[0].shasum) {
-                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
+                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
                     await supabaseRepository.removeAIFileCacheByPath(
                         param.owner,
                         param.repo,
                         branch,
-                        path
+                        normalizedPath
                     );
                 }
+            } else {
+                // File not in cache - will be processed below
+                logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
             }
 
             // Generate AI cache for this file (only process once per file, not per chunk)
@@ -309,19 +315,23 @@ Provide only a concise description in English, focusing on the main functionalit
                         logError(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                     }
                     
-                    // Step 6: Save to Supabase
+                    // Step 6: Save to Supabase (normalize path before saving)
                     const fileName = filePath.split('/').pop() || filePath;
+                    const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                    const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
+                    const normalizedConsumedBy = consumedBy.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
+                    
                     await supabaseRepository.setAIFileCache(
                         param.owner,
                         param.repo,
                         branch,
                         {
                             file_name: fileName,
-                            path: filePath,
+                            path: normalizedFilePath,
                             sha: currentSHA,
                             description: description,
-                            consumes: consumes,
-                            consumed_by: consumedBy
+                            consumes: normalizedConsumes,
+                            consumed_by: normalizedConsumedBy
                         }
                     );
                     

@@ -70,12 +70,17 @@ export class CodebaseAnalyzer {
                 shaMismatch: 0
             };
             
+            // Track files that should be in cache but aren't
+            const missingFromCache: string[] = [];
+            
             for (const [filePath, content] of relevantFiles) {
                 const currentSHA = this.fileCacheManager.calculateFileSHA(content);
-                const cached = cache.get(filePath);
+                const cached = this.fileCacheManager.getCachedFile(cache, filePath);
                 
                 if (!cached) {
                     cacheMissReasons.notInCache++;
+                    missingFromCache.push(filePath);
+                    logDebugInfo(`❌ Cache miss for ${filePath} (not in cache)`);
                     filesNeedingAnalysis.push([filePath, content]);
                 } else if (cached.sha !== currentSHA) {
                     cacheMissReasons.shaMismatch++;
@@ -96,12 +101,27 @@ export class CodebaseAnalyzer {
             
             logInfo(`📊 Cache hit: ${cachedAnalyses.length} files, Need analysis: ${filesNeedingAnalysis.length} files (not in cache: ${cacheMissReasons.notInCache}, SHA mismatch: ${cacheMissReasons.shaMismatch})`);
             
-            // Debug: Show sample of cache keys vs relevant file paths
-            if (cacheMissReasons.notInCache > 0 && cache.size > 0) {
-                const sampleCachePaths = Array.from(cache.keys()).slice(0, 5);
-                const sampleRelevantPaths = relevantFiles.slice(0, 5).map(([path]) => path);
-                logDebugInfo(`🔍 Sample cache paths: ${sampleCachePaths.join(', ')}`);
-                logDebugInfo(`🔍 Sample relevant paths: ${sampleRelevantPaths.join(', ')}`);
+            // Debug: Show detailed cache comparison
+            if (cacheMissReasons.notInCache > 0) {
+                if (cache.size > 0) {
+                    const sampleCachePaths = Array.from(cache.keys()).slice(0, 10);
+                    const sampleMissingPaths = missingFromCache.slice(0, 10);
+                    logDebugInfo(`🔍 Cache contains ${cache.size} files. Sample cached paths: ${sampleCachePaths.join(', ')}`);
+                    logDebugInfo(`🔍 Sample missing paths (${missingFromCache.length} total): ${sampleMissingPaths.join(', ')}`);
+                    
+                    // Check if any missing paths are similar to cached paths (normalization issue)
+                    for (const missingPath of sampleMissingPaths.slice(0, 3)) {
+                        const normalizedMissing = missingPath.replace(/^\.\//, '').replace(/\\/g, '/');
+                        const foundSimilar = sampleCachePaths.find(cached => 
+                            cached.includes(normalizedMissing) || normalizedMissing.includes(cached)
+                        );
+                        if (foundSimilar) {
+                            logDebugInfo(`⚠️ Potential path mismatch: missing="${missingPath}" vs cached="${foundSimilar}"`);
+                        }
+                    }
+                } else {
+                    logDebugInfo(`⚠️ Cache is empty! All ${relevantFiles.length} files need analysis.`);
+                }
             }
 
             // STEP 3: Process files needing analysis in batches with AI (only for descriptions)
