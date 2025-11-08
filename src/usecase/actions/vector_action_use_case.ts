@@ -1,19 +1,31 @@
-import { ChunkedFile } from '../../data/model/chunked_file';
-import { ChunkedFileChunk } from '../../data/model/chunked_file_chunk';
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
-import { DockerRepository } from '../../data/repository/docker_repository';
 import { FileRepository } from '../../data/repository/file_repository';
 import { SupabaseRepository } from '../../data/repository/supabase_repository';
-import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
+import { AiRepository } from '../../data/repository/ai_repository';
+import { logError, logInfo, logSingleLine, logDebugInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
+import { FileImportAnalyzer } from '../steps/common/services/file_import_analyzer';
+import { FileCacheManager } from '../steps/common/services/file_cache_manager';
+import { CodebaseAnalyzer } from '../steps/common/services/codebase_analyzer';
+import { PROMPTS } from '../../utils/constants';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
-    private dockerRepository: DockerRepository = new DockerRepository();
     private fileRepository: FileRepository = new FileRepository();
-    private readonly CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
-    private readonly CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
+    private aiRepository: AiRepository = new AiRepository();
+    private fileImportAnalyzer: FileImportAnalyzer = new FileImportAnalyzer();
+    private fileCacheManager: FileCacheManager = new FileCacheManager();
+    private codebaseAnalyzer: CodebaseAnalyzer;
+    
+    constructor() {
+        // Initialize CodebaseAnalyzer with dependencies
+        this.codebaseAnalyzer = new CodebaseAnalyzer(
+            this.aiRepository,
+            this.fileImportAnalyzer,
+            this.fileCacheManager
+        );
+    }
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
@@ -35,31 +47,36 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            await this.dockerRepository.prepareLocalVectorServer(param);
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                logError(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL. ${JSON.stringify(param.ai, null, 2)}`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: [
+                            `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                        ],
+                    })
+                )
+                return results;
+            }
 
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
-            if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
-                logInfo(`📦 Chunks from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
+            if (branch === param.branches.main && param.singleAction.isAiCacheLocalAction) {
+                logInfo(`📦 AI cache from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
 
-            await this.dockerRepository.startContainer(param);
+            logInfo(`📦 Getting repository files on ${param.owner}/${param.repo}/${branch}`);
 
-            const systemInfo = await this.dockerRepository.getSystemInfo(param);
-            const chunkSize = systemInfo.parameters.chunk_size as number;
-            const maxWorkers = systemInfo.parameters.max_workers as number;
-
-            logInfo(`🧑‍🏭 Max workers: ${maxWorkers}`);
-            logInfo(`🚚 Chunk size: ${chunkSize}`);
-            logInfo(`📦 Getting chunks on ${param.owner}/${param.repo}/${branch}`);
-
-            const chunkedFilesMap = await this.fileRepository.getChunkedRepositoryContent(
+            const repositoryFiles = await this.fileRepository.getRepositoryContent(
                 param.owner,
                 param.repo,
-                branch,
-                chunkSize,
                 param.tokens.token,
+                branch,
                 param.ai.getAiIgnoreFiles(),
                 (fileName: string) => {
                     logSingleLine(`Checking file ${fileName}`);
@@ -69,13 +86,13 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             );
             
-            logInfo(`📦 ✅ Files to index: ${chunkedFilesMap.size}`, true);
+            logInfo(`📦 ✅ Files to index: ${repositoryFiles.size}`, true);
 
-            results.push(...await this.checkChunksInSupabase(param, branch, chunkedFilesMap));
-            results.push(...await this.uploadChunksToSupabase(param, branch, chunkedFilesMap));
+            results.push(...await this.checkAICacheInSupabase(param, branch, repositoryFiles));
+            results.push(...await this.uploadAICacheToSupabase(param, branch, repositoryFiles));
 
             if (duplicationBranch) {
-                results.push(...await this.duplicateChunksToBranch(param, branch, duplicationBranch));
+                results.push(...await this.duplicateAICacheToBranch(param, branch, duplicationBranch));
             }
 
             results.push(
@@ -101,14 +118,12 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     ],
                 })
             );
-        } finally {
-            await this.dockerRepository.stopContainer(param);
         }
 
         return results;
     }
 
-    private checkChunksInSupabase = async (param: Execution, branch: string, chunkedFilesMap: Map<string, ChunkedFile[]>) => {
+    private checkAICacheInSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -133,8 +148,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             branch,
         );
 
-        // Get all local paths from chunkedFiles
-        const localPaths = new Set(Array.from(chunkedFilesMap.keys()));
+        // Get all local paths from repository files
+        const localPaths = new Set(Array.from(repositoryFiles.keys()));
 
         // Find paths that exist in Supabase but not in the current branch
         const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
@@ -144,15 +159,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             
             for (const path of pathsToRemove) {
                 try {
-                    await supabaseRepository.removeChunksByPath(
+                    await supabaseRepository.removeAIFileCacheByPath(
                         param.owner,
                         param.repo,
                         branch,
                         path
                     );
-                    logInfo(`📦 ✅ Removed chunks for path: ${path}`);
+                    logInfo(`📦 ✅ Removed AI cache for path: ${path}`);
                 } catch (error) {
-                    logError(`📦 ❌ Error removing chunks for path ${path}: ${JSON.stringify(error, null, 2)}`);
+                    logError(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
                 }
             }
 
@@ -179,7 +194,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private uploadChunksToSupabase = async (param: Execution, branch: string, chunkedFilesMap: Map<string, ChunkedFile[]>) => {
+    private uploadAICacheToSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -197,130 +212,137 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         }
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
-        const processedChunkedFiles: ChunkedFile[] = [];
         const startTime = Date.now();
-        const chunkedPaths = Array.from(chunkedFilesMap.keys());
+        const filePaths = Array.from(repositoryFiles.keys());
         
-        for (let i = 0; i < chunkedPaths.length; i++) {
-            const path = chunkedPaths[i];
-            const chunkedFiles: ChunkedFile[] = chunkedFilesMap.get(path) || [];
-            const progress = ((i + 1) / chunkedPaths.length) * 100;
+        // Step 1: Build relationship map once for all files
+        logInfo(`📦 Building relationship map from repository files...`);
+        const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
+        const consumesMap = relationshipMaps.consumes;
+        const consumedByMap = relationshipMaps.consumedBy;
+        logInfo(`✅ Relationship map built for ${repositoryFiles.size} files`);
+        
+        for (let i = 0; i < filePaths.length; i++) {
+            const filePath = filePaths[i];
+            const fileContent = repositoryFiles.get(filePath) || '';
+            const progress = ((i + 1) / filePaths.length) * 100;
             const currentTime = Date.now();
             const elapsedTime = (currentTime - startTime) / 1000; // in seconds
-            const estimatedTotalTime = (elapsedTime / (i + 1)) * chunkedPaths.length;
+            const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
             const remainingTime = estimatedTotalTime - elapsedTime;
 
-            logSingleLine(`🔘 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${path}]`);
+            logSingleLine(`🔘 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${filePath}]`);
 
+            // Normalize path for consistent comparison
+            const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+            
+            // Calculate SHA for comparison
+            const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
+            
             const remoteShasum = await supabaseRepository.getShasumByPath(
                 param.owner,
                 param.repo,
                 branch,
-                path
+                normalizedPath
             );
 
             if (remoteShasum) {
-                if (remoteShasum === chunkedFiles[0].shasum) {
-                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${path}]`);
+                if (remoteShasum === currentSHA) {
+                    logSingleLine(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
                     continue;
-                } else if (remoteShasum !== chunkedFiles[0].shasum) {
-                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${path}]`);
-                    await supabaseRepository.removeChunksByPath(
+                } else if (remoteShasum !== currentSHA) {
+                    logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
+                    await supabaseRepository.removeAIFileCacheByPath(
                         param.owner,
                         param.repo,
                         branch,
-                        path
+                        normalizedPath
                     );
                 }
+            } else {
+                // File not in cache - will be processed below
+                logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
             }
 
-            // Process chunks in parallel with concurrency limit
-            const systemInfo = await this.dockerRepository.getSystemInfo(param);
-            const maxWorkers = systemInfo.parameters.max_workers as number;
-            const chunkPromises: Promise<void>[] = [];
-            let activeWorkers = 0;
-
-            for (let j = 0; j < chunkedFiles.length; j++) {
-                const chunkedFile = chunkedFiles[j];
-                const chunkProgress = ((j + 1) / chunkedFiles.length) * 100;
-
-                // Wait if we have reached the limit of workers
-                while (activeWorkers >= maxWorkers) {
-                    await Promise.race(chunkPromises);
-                    activeWorkers = chunkPromises.filter(p => !p).length;
-                }
-
-                const processChunk = async () => {
+            // Generate AI cache for this file
+            if (fileContent) {
+                
+                try {
+                    logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
+                    
+                    // Step 2: Extract imports for this file (from pre-built map)
+                    const consumes = consumesMap.get(filePath) || [];
+                    const consumedBy = consumedByMap.get(filePath) || [];
+                    
+                    // Step 3: Generate description using AI (with fallback)
+                    let description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                     try {
-                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}]`);
+                        // Create schema for single file description
+                        const FILE_DESCRIPTION_SCHEMA = {
+                            "type": "object",
+                            "description": "File description",
+                            "properties": {
+                                "description": {
+                                    "type": "string",
+                                    "description": "Description of what the file does."
+                                }
+                            },
+                            "required": ["description"],
+                            "additionalProperties": false
+                        };
                         
-                        const existingVectors: number[][] = [];
-                        const existingChunks: string[] = [];
-                        
-                        const chunksToProcess: string[] = [];
-                        
-                        for (const chunk of chunkedFile.chunks) {
-                            const vector = await supabaseRepository.getVectorOfChunkContent(
-                                param.owner,
-                                param.repo,
-                                chunk
-                            );
-                            if (vector.length > 0) {
-                                existingVectors.push(vector);
-                                existingChunks.push(chunk);
-                            } else {
-                                chunksToProcess.push(chunk);
-                            }
-                        }
+                        const descriptionPrompt = `${PROMPTS.CODE_BASE_ANALYSIS}:
 
-                        const cachedPercentage = (existingChunks.length / chunkedFile.chunks.length) * 100;
-                        logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Vectorizing [${chunkedFile.path}] - ${cachedPercentage.toFixed(1)}% cached`);
+\`\`\`
+${fileContent}
+\`\`\`
+
+`;
                         
-                        let embeddings: number[][] = [];
-                        let chunks: string[] = [];
-                        if (chunksToProcess.length > 0) {
-                            const newEmbeddings = await this.dockerRepository.getEmbedding(
-                                param,
-                                chunksToProcess.map(chunk => [chunkedFile.type === 'block' ? this.CODE_INSTRUCTION_BLOCK : this.CODE_INSTRUCTION_LINE, chunk])
-                            );
-                            embeddings = [...existingVectors, ...newEmbeddings];
-                            chunks = [...existingChunks, ...chunksToProcess];
-                        } else {
-                            embeddings = existingVectors;
-                            chunks = existingChunks;
-                        }
-                        chunkedFile.vector = embeddings;
-                        chunkedFile.chunks = chunks;
-                        logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Chunk ${j + 1}/${chunkedFiles.length} (${chunkProgress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Storing [${chunkedFile.path}]`);
-                        
-                        await supabaseRepository.setChunkedFile(
-                            param.owner,
-                            param.repo,
-                            branch,
-                            chunkedFile
+                        const aiResponse = await this.aiRepository.askJson(
+                            param.ai,
+                            descriptionPrompt,
+                            FILE_DESCRIPTION_SCHEMA,
+                            "file_description"
                         );
-
-                        processedChunkedFiles.push(chunkedFile);
+                        
+                        if (aiResponse && typeof aiResponse === 'object' && aiResponse.description) {
+                            description = aiResponse.description.trim();
+                        }
                     } catch (error) {
-                        logError(`Error processing chunk ${j + 1} of file ${path}: ${JSON.stringify(error, null, 2)}`);
+                        logError(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                     }
-                };
-
-                const chunkPromise = processChunk();
-                chunkPromises.push(chunkPromise);
-                activeWorkers++;
-
-                chunkPromise.finally(() => {
-                    activeWorkers--;
-                });
+                    
+                    // Step 4: Save to Supabase (normalize path before saving)
+                    const fileName = filePath.split('/').pop() || filePath;
+                    const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                    const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
+                    const normalizedConsumedBy = consumedBy.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
+                    
+                    await supabaseRepository.setAIFileCache(
+                        param.owner,
+                        param.repo,
+                        branch,
+                        {
+                            file_name: fileName,
+                            path: normalizedFilePath,
+                            sha: currentSHA,
+                            description: description,
+                            consumes: normalizedConsumes,
+                            consumed_by: normalizedConsumedBy
+                        }
+                    );
+                    
+                    logSingleLine(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
+                    
+                } catch (error) {
+                    logError(`Error generating AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                }
             }
-
-            // Wait for all chunks of the current file to be processed
-            await Promise.all(chunkPromises);
         }
 
         const totalDurationSeconds = (Date.now() - startTime) / 1000;
-        logInfo(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+        logInfo(`📦 🚀 All files stored in AI cache ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
         
         results.push(
             new Result({
@@ -328,14 +350,14 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 success: true,
                 executed: true,
                 steps: [
-                    `All chunked files up to date in AI index for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
+                    `All files up to date in AI cache for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
                 ],
             })
         );
         return results;
     }
 
-    private duplicateChunksToBranch = async (param: Execution, sourceBranch: string, targetBranch: string) => {
+    private duplicateAICacheToBranch = async (param: Execution, sourceBranch: string, targetBranch: string) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -355,15 +377,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
 
         try {
-            logInfo(`📦 -> 📦 Clearing possible existing chunks from ${targetBranch} for ${param.owner}/${param.repo}.`);
-            await supabaseRepository.removeChunksByBranch(
+            logInfo(`📦 -> 📦 Clearing possible existing AI cache from ${targetBranch} for ${param.owner}/${param.repo}.`);
+            await supabaseRepository.removeAIFileCacheByBranch(
                 param.owner,
                 param.repo,
                 targetBranch
             );
             
-            logInfo(`📦 -> 📦 Duplicating chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
-            await supabaseRepository.duplicateChunksByBranch(
+            logInfo(`📦 -> 📦 Duplicating AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
+            await supabaseRepository.duplicateAIFileCacheByBranch(
                 param.owner,
                 param.repo,
                 sourceBranch,
@@ -376,19 +398,19 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     success: true,
                     executed: true,
                     steps: [
-                        `Duplicated chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
+                        `Duplicated AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
                     ],
                 })
             );
         } catch (error) {
-            logError(`📦 -> 📦 ❌ Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
+            logError(`📦 -> 📦 ❌ Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
+                        `Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
                     ],
                 })
             );
@@ -396,4 +418,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
         return results;
     }
+
+    // All methods related to file imports, cache, and codebase analysis
+    // have been moved to dedicated services:
+    // - FileImportAnalyzer: extractImportsFromFile, resolveRelativePath, buildRelationshipMap
+    // - FileCacheManager: calculateFileSHA
+    // - CodebaseAnalyzer: generateBasicDescription
 }

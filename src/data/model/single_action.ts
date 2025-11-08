@@ -5,19 +5,18 @@ export class SingleAction {
     currentSingleAction: string;
     actions: string[] = [
         ACTIONS.DEPLOYED,
-        ACTIONS.COMPILE_VECTOR_SERVER,
-        ACTIONS.VECTOR,
-        ACTIONS.VECTOR_LOCAL,
-        ACTIONS.VECTOR_REMOVAL,
+        ACTIONS.AI_CACHE,
+        ACTIONS.AI_CACHE_LOCAL,
         ACTIONS.PUBLISH_GITHUB_ACTION,
         ACTIONS.CREATE_TAG,
         ACTIONS.CREATE_RELEASE,
+        ACTIONS.THINK,
     ];
     /**
      * Actions that throw an error if the last step failed
      */
     actionsThrowError: string[] = [
-       ACTIONS.VECTOR,
+       ACTIONS.AI_CACHE,
        ACTIONS.PUBLISH_GITHUB_ACTION,
        ACTIONS.CREATE_RELEASE,
        ACTIONS.DEPLOYED,
@@ -28,9 +27,9 @@ export class SingleAction {
      * Actions that do not require an issue
      */
     actionsWithoutIssue: string[] = [
-        ACTIONS.VECTOR,
-        ACTIONS.VECTOR_LOCAL,
-        ACTIONS.COMPILE_VECTOR_SERVER,
+        ACTIONS.AI_CACHE,
+        ACTIONS.AI_CACHE_LOCAL,
+        ACTIONS.THINK,
     ];
 
     isIssue: boolean = false;
@@ -49,20 +48,12 @@ export class SingleAction {
         return this.currentSingleAction === ACTIONS.DEPLOYED;
     }
 
-    get isCompileVectorServerAction(): boolean {
-        return this.currentSingleAction === ACTIONS.COMPILE_VECTOR_SERVER;
+    get isAiCacheAction(): boolean {
+        return this.currentSingleAction === ACTIONS.AI_CACHE || this.currentSingleAction === ACTIONS.AI_CACHE_LOCAL;
     }
 
-    get isVectorAction(): boolean {
-        return this.currentSingleAction === ACTIONS.VECTOR || this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
-    }
-
-    get isVectorLocalAction(): boolean {
-        return this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
-    }
-
-    get isVectorRemovalAction(): boolean {
-        return this.currentSingleAction === ACTIONS.VECTOR_REMOVAL;
+    get isAiCacheLocalAction(): boolean {
+        return this.currentSingleAction === ACTIONS.AI_CACHE_LOCAL;
     }
 
     get isPublishGithubAction(): boolean {
@@ -75,6 +66,10 @@ export class SingleAction {
 
     get isCreateTagAction(): boolean {
         return this.currentSingleAction === ACTIONS.CREATE_TAG;
+    }
+
+    get isThinkAction(): boolean {
+        return this.currentSingleAction === ACTIONS.THINK;
     }
 
     get enabledSingleAction(): boolean {

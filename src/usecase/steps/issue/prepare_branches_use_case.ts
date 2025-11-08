@@ -103,7 +103,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             logDebugInfo(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
 
                             result.push(
-                                ...await this.duplicateChunksByBranch(
+                                ...await this.duplicateAICacheByBranch(
                                     supabaseRepository,
                                     param,
                                     param.branches.main,
@@ -212,7 +212,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                             logDebugInfo(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
 
                             result.push(
-                                ...await this.duplicateChunksByBranch(
+                                ...await this.duplicateAICacheByBranch(
                                     supabaseRepository,
                                     param,
                                     param.branches.development,
@@ -339,7 +339,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 }
 
                 result.push(
-                    ...await this.duplicateChunksByBranch(
+                    ...await this.duplicateAICacheByBranch(
                         supabaseRepository,
                         param,
                         param.branches.development,
@@ -369,13 +369,13 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
         return result;
     }
 
-    private duplicateChunksByBranch = async (supabaseRepository: SupabaseRepository | undefined, param: Execution, sourceBranch: string, targetBranch: string) => {
+    private duplicateAICacheByBranch = async (supabaseRepository: SupabaseRepository | undefined, param: Execution, sourceBranch: string, targetBranch: string) => {
         const result: Result[] = []
         if (!supabaseRepository) {
             return result;
         }
         try {
-            await supabaseRepository.duplicateChunksByBranch(param.owner, param.repo, sourceBranch, targetBranch);
+            await supabaseRepository.duplicateAIFileCacheByBranch(param.owner, param.repo, sourceBranch, targetBranch);
             result.push(
                 new Result({
                     id: this.taskId,
@@ -387,7 +387,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                 })
             )
         } catch (error) {
-            logError(`Error duplicating chunks: ${JSON.stringify(error, null, 2)}`);
+            logError(`Error duplicating AI cache: ${JSON.stringify(error, null, 2)}`);
             result.push(
                 new Result({
                     id: this.taskId,

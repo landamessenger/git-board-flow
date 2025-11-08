@@ -2,7 +2,6 @@ import { Ai } from "./ai";
 import { Branches } from "./branches";
 import { Commit } from "./commit";
 import { Config } from "./config";
-import { DockerConfig } from "./docker_config";
 import { Emoji } from "./emoji";
 import { Hotfix } from "./hotfix";
 import { Images } from "./images";
@@ -50,7 +49,6 @@ export declare class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
-    dockerConfig: DockerConfig;
     supabaseConfig: SupabaseConfig | undefined;
     inputs: any | undefined;
     get eventName(): string;
@@ -72,6 +70,6 @@ export declare class Execution {
     get cleanIssueBranches(): boolean;
     get commit(): Commit;
     get runnedByToken(): boolean;
-    constructor(debug: boolean, dockerConfig: DockerConfig, singleAction: SingleAction, commitPrefixBuilder: string, issue: Issue, pullRequest: PullRequest, emoji: Emoji, giphy: Images, tokens: Tokens, ai: Ai, labels: Labels, issueTypes: IssueTypes, locale: Locale, sizeThresholds: SizeThresholds, branches: Branches, release: Release, hotfix: Hotfix, workflows: Workflows, project: Projects, supabaseConfig: SupabaseConfig | undefined, welcome: Welcome | undefined, inputs: any | undefined);
+    constructor(debug: boolean, singleAction: SingleAction, commitPrefixBuilder: string, issue: Issue, pullRequest: PullRequest, emoji: Emoji, giphy: Images, tokens: Tokens, ai: Ai, labels: Labels, issueTypes: IssueTypes, locale: Locale, sizeThresholds: SizeThresholds, branches: Branches, release: Release, hotfix: Hotfix, workflows: Workflows, project: Projects, supabaseConfig: SupabaseConfig | undefined, welcome: Welcome | undefined, inputs: any | undefined);
     setup: () => Promise<void>;
 }

@@ -84,38 +84,10 @@ jobs:
           default_author: user_info
           message: 'gh-action: updated compiled files'
 
-  compile-vector-server:
-    name: Compile vector server
-    runs-on: [self-hosted, macOS, X64]
-    needs: prepare-compiled-files
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up DOCKER_HOST as output
-        id: docker-env
-        run: |
-          echo "docker_host=unix://${HOME}/.orbstack/run/docker.sock" >> $GITHUB_OUTPUT
-
-      - name: Git Board Flow - Compile Vector Server
-        uses: ./
-        env:
-          DOCKER_HOST: ${{ steps.docker-env.outputs.docker_host }}
-          RUNNER_TEMP: ${{ github.workspace }}/.runner_temp
-        with:
-          debug: ${{ vars.DEBUG }}
-          single-action: 'compile_vector_server'
-          single-action-version: '${{ github.event.inputs.version }}'
-          single-action-title: '${{ github.event.inputs.title }}'
-          single-action-changelog: '${{ github.event.inputs.changelog }}'
-          single-action-issue: '${{ github.event.inputs.issue }}'
-          token: ${{ secrets.PAT }}
-          classic-token: ${{ secrets.CLASSIC_TOKEN }}
-
   tag:
     name: Publish version
     runs-on: ubuntu-latest
-    needs: [ prepare-compiled-files, compile-vector-server ]
+    needs: [ prepare-compiled-files ]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

@@ -1,12 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 import { COMMAND } from '../../utils/constants';
 import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
-import { ChunkedFile } from '../model/chunked_file';
-import { ChunkedFileChunk } from '../model/chunked_file_chunk';
 import { SupabaseConfig } from '../model/supabase_config';
 
+export interface AICachedFileInfo {
+    owner: string;
+    repository: string;
+    branch: string;
+    file_name: string;
+    path: string;
+    sha: string;
+    description: string;
+    consumes: string[];
+    consumed_by: string[];
+    created_at?: string;
+    last_updated?: string;
+}
+
 export class SupabaseRepository {
-    private readonly CHUNKS_TABLE = 'chunks';
+    private readonly AI_FILE_CACHE_TABLE = 'ai_file_cache';
     private readonly MAX_BATCH_SIZE = 500;
     private readonly DEFAULT_TIMEOUT = 30000; // 30 seconds
     private supabase: any;
@@ -45,406 +57,204 @@ export class SupabaseRepository {
         });
     }
 
-    setChunkedFile = async (
+    /**
+     * Set or update AI file cache entry
+     * If SHA hasn't changed, this will update the entry
+     */
+    setAIFileCache = async (
         owner: string,
         repository: string,
         branch: string,
-        chunkedFile: ChunkedFile,
-    ): Promise<void> => {
-        try {
-            const insertPromises = chunkedFile.chunks.map(async (chunk, index) => {
-                const { error } = await this.supabase
-                    .from(this.CHUNKS_TABLE)
-                    .insert({
-                        owner,
-                        repository,
-                        branch,
-                        path: chunkedFile.path,
-                        type: chunkedFile.type,
-                        index: chunkedFile.index,
-                        chunk_index: index,
-                        content: chunk,
-                        shasum: chunkedFile.shasum,
-                        vector: chunkedFile.vector[index],
-                        updated_at: new Date().toISOString()
-                    });
-                
-                if (error) {
-                    chunkedFile.vector = [];
-                    logError(`Error inserting index ${chunkedFile.index} chunk ${index} for file ${chunkedFile.path}: ${JSON.stringify(chunkedFile, null, 2)}`);
-                    logError(`Inserting error: ${JSON.stringify(error, null, 2)}`);
-                    throw error;
-                }
-            });
-
-            await Promise.all(insertPromises);
-        } catch (error) {
-            logError(`Error setting chunked file ${chunkedFile.path}: ${JSON.stringify(error, null, 2)}`);
-            // throw error;
+        fileInfo: {
+            file_name: string;
+            path: string;
+            sha: string;
+            description: string;
+            consumes: string[];
+            consumed_by: string[];
         }
-    }
-
-    removeChunksByShasum = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        shasum: string,
     ): Promise<void> => {
         try {
             const { error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
+                .from(this.AI_FILE_CACHE_TABLE)
+                .upsert({
+                    owner,
+                    repository,
+                    branch,
+                    file_name: fileInfo.file_name,
+                    path: fileInfo.path,
+                    sha: fileInfo.sha,
+                    description: fileInfo.description,
+                    consumes: fileInfo.consumes,
+                    consumed_by: fileInfo.consumed_by,
+                    last_updated: new Date().toISOString()
+                }, {
+                    onConflict: 'owner,repository,branch,path'
+                });
+
+            if (error) {
+                logError(`Error setting AI file cache for ${fileInfo.path}: ${JSON.stringify(error, null, 2)}`);
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error setting AI file cache ${fileInfo.path}: ${JSON.stringify(error, null, 2)}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Get AI file cache entry by path
+     */
+    getAIFileCache = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        filePath: string,
+    ): Promise<AICachedFileInfo | null> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.AI_FILE_CACHE_TABLE)
+                .select('*')
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .eq('path', filePath)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // No rows returned
+                    return null;
+                }
+                logError(`Error getting AI file cache: ${JSON.stringify(error, null, 2)}`);
+                return null;
+            }
+
+            return data as AICachedFileInfo;
+        } catch (error) {
+            logError(`Error getting AI file cache: ${JSON.stringify(error, null, 2)}`);
+            return null;
+        }
+    }
+
+    /**
+     * Get all AI file cache entries for a branch
+     */
+    getAIFileCachesByBranch = async (
+        owner: string,
+        repository: string,
+        branch: string,
+    ): Promise<AICachedFileInfo[]> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.AI_FILE_CACHE_TABLE)
+                .select('*')
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('branch', branch)
+                .order('path');
+
+            if (error) {
+                logError(`Error getting AI file caches by branch: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+
+            if (!data) {
+                return [];
+            }
+
+            return data as AICachedFileInfo[];
+        } catch (error) {
+            logError(`Error getting AI file caches by branch: ${JSON.stringify(error, null, 2)}`);
+            return [];
+        }
+    }
+
+
+    /**
+     * Remove AI file cache entry by path
+     */
+    removeAIFileCacheByPath = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        filePath: string,
+    ): Promise<void> => {
+        try {
+            const { error } = await this.supabase
+                .from(this.AI_FILE_CACHE_TABLE)
                 .delete()
                 .eq('owner', owner)
                 .eq('repository', repository)
                 .eq('branch', branch)
-                .eq('shasum', shasum);
+                .eq('path', filePath);
 
             if (error) {
                 throw error;
             }
         } catch (error) {
-            logError(`Error removing chunks by shasum: ${JSON.stringify(error, null, 2)}`);
+            logError(`Error removing AI file cache by path: ${JSON.stringify(error, null, 2)}`);
             throw error;
         }
     }
 
-    getChunkedFileByShasum = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        type: string,
-        shasum: string,
-    ): Promise<ChunkedFileChunk[]> => {
-        try {
-            const { data, error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('type', type)
-                .eq('shasum', shasum)
-                .order('chunk_index');
-
-            if (error) {
-                logError(`Supabase error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-                return [];
-            }
-
-            if (!data) {
-                return [];
-            }
-
-            return data.map((doc: any) => new ChunkedFileChunk(
-                doc.owner,
-                doc.repository,
-                doc.branch,
-                doc.path,
-                doc.type,
-                doc.index,
-                doc.chunk_index,
-                doc.content,
-                doc.shasum,
-                doc.vector
-            ));
-        } catch (error) {
-            logError(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-            return [];
-        }
-    }
-
-
-    getChunks = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        path: string,
-        type: string,
-        index: number,
-    ): Promise<ChunkedFileChunk[]> => {
-        try {
-            const { data, error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('path', path)
-                .eq('type', type)
-                .eq('index', index)
-                .order('chunk_index');
-
-            if (error) {
-                logError(`Supabase error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-                return [];
-            }
-
-            if (!data) {
-                return [];
-            }
-
-            return data.map((doc: any) => new ChunkedFileChunk(
-                doc.owner,
-                doc.repository,
-                doc.branch,
-                doc.path,
-                doc.type,
-                doc.index,
-                doc.chunk_index,
-                doc.chunk,
-                doc.shasum,
-                doc.vector
-            ));
-        } catch (error) {
-            logError(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-            return [];
-        }
-    }
-
-    getChunksByShasum = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        shasum: string,
-    ): Promise<ChunkedFileChunk[]> => {
-        try {
-            const { data, error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('shasum', shasum)
-                .order('chunk_index');
-
-            if (error) {
-                throw error;
-            }
-
-            if (!data) {
-                return [];
-            }
-
-            return data.map((doc: any) => new ChunkedFileChunk(
-                doc.owner,
-                doc.repository,
-                doc.branch,
-                doc.path,
-                doc.type,
-                doc.index,
-                doc.chunk_index,
-                doc.chunk,
-                doc.shasum,
-                doc.vector
-            ));
-        } catch (error) {
-            logError(`Error getting chunked file: ${JSON.stringify(error, null, 2)}`);
-            throw error;
-        }
-    }
-
-    updateVector = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        path: string,
-        index: number,
-        chunkIndex: number,
-        vector: number[]
-    ): Promise<void> => {
-        try {
-            const { error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .update({ vector })
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('path', path)
-                .eq('index', index)
-                .eq('chunk_index', chunkIndex);
-
-            if (error) {
-                throw error;
-            }
-        } catch (error) {
-            logError(`Error updating vector: ${JSON.stringify(error, null, 2)}`);
-            throw error;
-        }
-    }
-
-    matchChunks = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        type: string,
-        queryEmbedding: number[],
-        matchCount: number = 5
-    ): Promise<ChunkedFileChunk[]> => {
-        try {
-            const { data, error } = await this.supabase
-                .rpc('match_chunks', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    branch_param: branch,
-                    type_param: type,
-                    query_embedding: queryEmbedding,
-                    match_count: matchCount
-                });
-
-            if (error) {
-                logError(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-
-            return data.map((doc: any) => new ChunkedFileChunk(
-                doc.owner,
-                doc.repository,
-                doc.branch,
-                doc.path,
-                doc.type,
-                doc.index,
-                doc.chunk_index,
-                doc.content,
-                doc.shasum,
-                doc.vector
-            ));
-        } catch (error) {
-            logError(`Error matching chunks: ${JSON.stringify(error, null, 2)}`);
-            throw error;
-        }
-    }
-
-    duplicateChunksByBranch = async (
+    /**
+     * Duplicate AI file cache entries from one branch to another
+     */
+    duplicateAIFileCacheByBranch = async (
         owner: string,
         repository: string,
         sourceBranch: string,
         targetBranch: string,
     ): Promise<void> => {
-        const count = await this.countBranchEntries(owner, repository, sourceBranch);
-        logDebugInfo(`Counting chunks in branch ${sourceBranch}: ${count}`);
+        try {
+            const { error } = await this.supabase
+                .rpc('duplicate_ai_file_cache_by_branch', {
+                    owner_param: owner,
+                    repository_param: repository,
+                    source_branch_param: sourceBranch,
+                    target_branch_param: targetBranch
+                });
 
-        if (count < 10000) {
-            await this.duplicateBranchEntries(owner, repository, sourceBranch, targetBranch);
-        } else {
-            const filePaths = await this.getDistinctPaths(owner, repository, sourceBranch);
-            logDebugInfo(`Counting files in branch ${sourceBranch}: ${filePaths.length}`);
-            for (const path of filePaths) {
-                await this.duplicateFileEntries(owner, repository, sourceBranch, path, targetBranch);
+            if (error) {
+                logError(`Error duplicating AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
             }
+        } catch (error) {
+            logError(`Error duplicating AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
+            throw error;
         }
     }
 
-    removeChunksByBranch = async (
+    /**
+     * Remove all AI file cache entries for a branch
+     */
+    removeAIFileCacheByBranch = async (
         owner: string,
         repository: string,
         branch: string,
     ): Promise<void> => {
-        const count = await this.countBranchEntries(owner, repository, branch);
-        logDebugInfo(`Counting chunks in branch ${branch}: ${count}`);
-
-        if (count < 10000) {
-            await this.deleteBranchEntries(owner, repository, branch);
-        } else {
-            const filePaths = await this.getDistinctPaths(owner, repository, branch);
-            logDebugInfo(`Counting files in branch ${branch}: ${filePaths.length}`);
-            for (const path of filePaths) {
-                await this.removeChunksByPath(owner, repository, branch, path);
-            }
-        }
-
-        logDebugInfo(`Checking if all chunks are deleted from branch ${branch}`);
-
-        // Retry logic to ensure all chunks are deleted
-        const maxRetries = 5;
-        const retryDelay = 10000; // 1 second
-        let retryCount = 0;
-
-        while (retryCount < maxRetries) {
-            const { data: chunks, error: chunksError } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
- 
-            if (chunksError) {
-                logError(`Error checking chunks by branch: ${JSON.stringify(chunksError, null, 2)}`);
-                throw chunksError;
-            }
- 
-            if (!chunks || chunks.length === 0) {
-            // No chunks found, deletion successful
-            logDebugInfo(`Removed all chunks from branch ${branch}`);
-            return;
-            }
-
-            retryCount++;
-            if (retryCount < maxRetries) {
-            logDebugInfo(`Chunks still present for branch ${branch}, retrying in ${retryDelay}ms (attempt ${retryCount}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            }
-        }
- 
-         // If we reach here, we've exhausted all retries and chunks still exist
-         logError(`There are still chunks left for this branch after ${maxRetries} attempts: ${branch}`);
-         throw new Error(`There are still chunks left for this branch after ${maxRetries} attempts: ${branch}`);
-    }
-
-    getDistinctPaths = async (
-        owner: string,
-        repository: string,
-        branch: string,
-    ): Promise<string[]> => {
-        try {            
-            const { data, error } = await this.supabase
-                .rpc('get_distinct_paths', {
+        try {
+            const { error } = await this.supabase
+                .rpc('delete_ai_file_cache_by_branch', {
                     owner_param: owner,
                     repository_param: repository,
                     branch_param: branch
                 });
 
             if (error) {
-                logError(`Error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
-                return [];
+                logError(`Error removing AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
+                throw error;
             }
-
-            if (!data) {
-                logInfo(`No data found for ${owner}/${repository}/${branch}`);
-                return [];
-            }
-
-            const paths = data.map((doc: { path: string }) => doc.path);
-            return paths;
         } catch (error) {
-            logError(`Unexpected error getting distinct paths for ${owner}/${repository}/${branch}: ${JSON.stringify(error, null, 2)}`);
-            if (error instanceof Error) {
-                logError(`Error details: ${error.message}`);
-                logError(`Error stack: ${error.stack}`);
-            }
-            return [];
-        }
-    }
-
-    removeChunksByPath = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        path: string,
-    ): Promise<void> => {
-        const { error } = await this.supabase
-            .rpc('delete_branch_path_entries', {
-                owner_param: owner,
-                repository_param: repository,
-                branch_param: branch,
-                path_param: path
-            });
-        logDebugInfo(`Removed chunks: ${path} [${branch}]`);
-        if (error) {
-            logError(`Error removing chunks by path: ${JSON.stringify(error, null, 2)}`);
+            logError(`Error removing AI file cache by branch: ${JSON.stringify(error, null, 2)}`);
             throw error;
         }
     }
 
+    /**
+     * Get SHA by path (for checking if file is cached)
+     */
     getShasumByPath = async (
         owner: string,
         repository: string,
@@ -452,158 +262,29 @@ export class SupabaseRepository {
         path: string,
     ): Promise<string | undefined> => {
         try {
-            const { data, error } = await this.supabase
-                .from(this.CHUNKS_TABLE)
-                .select('*')
-                .eq('owner', owner)
-                .eq('repository', repository)
-                .eq('branch', branch)
-                .eq('path', path)
-                .order('index')
-                .order('chunk_index')
-                .limit(1);
-
-            if (error) {
-                logError(`Supabase error getting chunks by path: ${JSON.stringify(error, null, 2)}`);
-                return undefined;
-            }
-
-            if (!data) {
-                return undefined;
-            }
-
-            return data[0].shasum;
+            const cached = await this.getAIFileCache(owner, repository, branch, path);
+            return cached?.sha;
         } catch (error) {
-            // logError(`Error getting shasum by path: ${JSON.stringify(error, null, 2)}`);
+            logError(`Error getting SHA by path: ${JSON.stringify(error, null, 2)}`);
             return undefined;
         }
     }
 
-    private countBranchEntries = async (
+    /**
+     * Get distinct paths for a branch
+     */
+    getDistinctPaths = async (
         owner: string,
         repository: string,
         branch: string,
-    ): Promise<number> => {
+    ): Promise<string[]> => {
         try {
-            const { data, error } = await this.supabase
-                .rpc('count_branch_entries', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    branch_param: branch
-                });
-
-            if (error) {
-                logError(`Error counting branch entries: ${JSON.stringify(error, null, 2)}`);
-                return 0;
-            }
-
-            return data || 0;
+            const cachedFiles = await this.getAIFileCachesByBranch(owner, repository, branch);
+            return cachedFiles.map(file => file.path);
         } catch (error) {
-            logError(`Error counting branch entries: ${JSON.stringify(error, null, 2)}`);
-            return 0;
-        }
-    }
-
-    private duplicateFileEntries = async (
-        owner: string,
-        repository: string,
-        sourceBranch: string,
-        path: string,
-        targetBranch: string,
-    ): Promise<void> => {
-        try {
-            logDebugInfo(`Duplicating file entries: ${path} [${sourceBranch}] -> [${targetBranch}]`);
-
-            const { error } = await this.supabase
-                .rpc('duplicate_file_entries', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    source_branch_param: sourceBranch,
-                    path_param: path,
-                    target_branch_param: targetBranch
-                });
-
-            if (error) {
-                logError(`Error duplicating file entries: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        } catch (error) {
-            logError(`Error duplicating file entries: ${JSON.stringify(error, null, 2)}`);
-            throw error;
-        }
-    }
-
-    private duplicateBranchEntries = async (
-        owner: string,
-        repository: string,
-        sourceBranch: string,
-        targetBranch: string,
-    ): Promise<void> => {
-        try {
-            logDebugInfo(`Duplicating branch entries for ${owner}/${repository}/${sourceBranch} to ${targetBranch}`);
-            const { error } = await this.supabase
-                .rpc('duplicate_branch_entries', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    source_branch_param: sourceBranch,
-                    target_branch_param: targetBranch
-                });
-
-            if (error) {
-                logError(`Error duplicating branch entries: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-        } catch (error) {
-            logError(`Error duplicating branch entries: ${JSON.stringify(error, null, 2)}`);
-            throw error;
-        }
-    }
-
-    private deleteBranchEntries = async (
-        owner: string,
-        repository: string,
-        branch: string,
-    ): Promise<void> => {
-        const { error } = await this.supabase
-            .rpc('delete_branch_entries', {
-                owner_param: owner,
-                repository_param: repository,
-                branch_param: branch
-            });
-
-        if (error) {
-            logError(`Error removing chunks from branch: ${JSON.stringify(error, null, 2)}`);
-            throw error;
-        }
-    }
-
-    getVectorOfChunkContent = async (
-        owner: string,
-        repository: string,
-        content: string,
-    ): Promise<number[]> => {
-        try {
-            const { data, error } = await this.supabase
-                .rpc('get_vector_of_chunk_content', {
-                    owner_param: owner,
-                    repository_param: repository,
-                    content_param: content
-                });
-
-            if (error) {
-                logError(`Error getting vector of chunk content: ${JSON.stringify(error, null, 2)}`);
-                throw error;
-            }
-
-            // If no data is found, return empty array
-            if (!data) {
-                return [];
-            }
-
-            return data;
-        } catch (error) {
-            logError(`Error getting vector of chunk content: ${JSON.stringify(error, null, 2)}`);
+            logError(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
             return [];
         }
     }
+
 } 

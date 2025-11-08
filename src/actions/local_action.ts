@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { Ai } from '../data/model/ai';
 import { Branches } from '../data/model/branches';
-import { DockerConfig } from '../data/model/docker_config';
 import { Emoji } from '../data/model/emoji';
 import { Execution } from '../data/model/execution';
 import { Hotfix } from '../data/model/hotfix';
@@ -45,15 +44,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     const welcomeMessages = additionalParams[INPUT_KEYS.WELCOME_MESSAGES] ?? actionInputs[INPUT_KEYS.WELCOME_MESSAGES];
 
     /**
-     * Docker
-     */
-    const dockerContainerName = additionalParams[INPUT_KEYS.DOCKER_CONTAINER_NAME] ?? actionInputs[INPUT_KEYS.DOCKER_CONTAINER_NAME];
-    const dockerDomain = additionalParams[INPUT_KEYS.DOCKER_DOMAIN] ?? actionInputs[INPUT_KEYS.DOCKER_DOMAIN];
-    const dockerPort = parseInt(additionalParams[INPUT_KEYS.DOCKER_PORT] ?? actionInputs[INPUT_KEYS.DOCKER_PORT]);
-    const dockerCacheOs = additionalParams[INPUT_KEYS.DOCKER_CACHE_OS] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_OS];
-    const dockerCacheArch = additionalParams[INPUT_KEYS.DOCKER_CACHE_ARCH] ?? actionInputs[INPUT_KEYS.DOCKER_CACHE_ARCH];
-
-    /**
      * Single action
      */
     const singleAction = additionalParams[INPUT_KEYS.SINGLE_ACTION] ?? actionInputs[INPUT_KEYS.SINGLE_ACTION];
@@ -66,7 +56,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
      * Tokens
      */
     const token = additionalParams[INPUT_KEYS.TOKEN] ?? actionInputs[INPUT_KEYS.TOKEN];
-    const classicToken = additionalParams[INPUT_KEYS.CLASSIC_TOKEN] ?? actionInputs[INPUT_KEYS.CLASSIC_TOKEN];
 
     /**
      * AI
@@ -508,13 +497,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
 
     const execution = new Execution(
         debug,
-        new DockerConfig(
-            dockerContainerName,
-            dockerDomain,
-            dockerPort,
-            dockerCacheOs,
-            dockerCacheArch,
-        ),
         new SingleAction(
             singleAction,
             singleActionIssue,
@@ -567,7 +549,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
         ),
         new Tokens(
             token,
-            classicToken,
         ),
         new Ai(
             openrouterApiKey,

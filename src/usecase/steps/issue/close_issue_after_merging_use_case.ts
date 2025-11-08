@@ -84,7 +84,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
             return result;
         }
         try {
-            await supabaseRepository.removeChunksByBranch(param.owner, param.repo, branch);
+            await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, branch);
             result.push(
                 new Result({
                     id: this.taskId,
@@ -96,7 +96,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                 })
             )
         } catch (error) {
-            logError(`Error removing chunks: ${JSON.stringify(error, null, 2)}`);
+            logError(`Error removing AI cache: ${JSON.stringify(error, null, 2)}`);
             result.push(
                 new Result({
                     id: this.taskId,
