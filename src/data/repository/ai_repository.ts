@@ -142,7 +142,7 @@ export class AiRepository {
             // logDebugInfo(`Successfully received response from ${model}`);
             const content = data.choices[0].message.content;
             
-            logDebugInfo(`Response: ${content}`);
+            // logDebugInfo(`Response: ${content}`);
             return JSON.parse(content);
         } catch (error) {
             logError(`Error querying ${model}: ${error}`);

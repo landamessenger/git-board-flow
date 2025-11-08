@@ -5,8 +5,8 @@ export class SingleAction {
     currentSingleAction: string;
     actions: string[] = [
         ACTIONS.DEPLOYED,
-        ACTIONS.VECTOR,
-        ACTIONS.VECTOR_LOCAL,
+        ACTIONS.AI_CACHE,
+        ACTIONS.AI_CACHE_LOCAL,
         ACTIONS.PUBLISH_GITHUB_ACTION,
         ACTIONS.CREATE_TAG,
         ACTIONS.CREATE_RELEASE,
@@ -16,7 +16,7 @@ export class SingleAction {
      * Actions that throw an error if the last step failed
      */
     actionsThrowError: string[] = [
-       ACTIONS.VECTOR,
+       ACTIONS.AI_CACHE,
        ACTIONS.PUBLISH_GITHUB_ACTION,
        ACTIONS.CREATE_RELEASE,
        ACTIONS.DEPLOYED,
@@ -27,8 +27,8 @@ export class SingleAction {
      * Actions that do not require an issue
      */
     actionsWithoutIssue: string[] = [
-        ACTIONS.VECTOR,
-        ACTIONS.VECTOR_LOCAL,
+        ACTIONS.AI_CACHE,
+        ACTIONS.AI_CACHE_LOCAL,
         ACTIONS.THINK,
     ];
 
@@ -48,12 +48,12 @@ export class SingleAction {
         return this.currentSingleAction === ACTIONS.DEPLOYED;
     }
 
-    get isVectorAction(): boolean {
-        return this.currentSingleAction === ACTIONS.VECTOR || this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
+    get isAiCacheAction(): boolean {
+        return this.currentSingleAction === ACTIONS.AI_CACHE || this.currentSingleAction === ACTIONS.AI_CACHE_LOCAL;
     }
 
-    get isVectorLocalAction(): boolean {
-        return this.currentSingleAction === ACTIONS.VECTOR_LOCAL;
+    get isAiCacheLocalAction(): boolean {
+        return this.currentSingleAction === ACTIONS.AI_CACHE_LOCAL;
     }
 
     get isPublishGithubAction(): boolean {

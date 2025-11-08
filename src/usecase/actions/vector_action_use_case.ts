@@ -8,6 +8,7 @@ import { ParamUseCase } from '../base/param_usecase';
 import { FileImportAnalyzer } from '../steps/common/services/file_import_analyzer';
 import { FileCacheManager } from '../steps/common/services/file_cache_manager';
 import { CodebaseAnalyzer } from '../steps/common/services/codebase_analyzer';
+import { PROMPTS } from '../../utils/constants';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
@@ -64,7 +65,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
-            if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
+            if (branch === param.branches.main && param.singleAction.isAiCacheLocalAction) {
                 logInfo(`📦 AI cache from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
@@ -283,20 +284,20 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                             "properties": {
                                 "description": {
                                     "type": "string",
-                                    "description": "Brief description (4-5 sentences) of what the file does in English. You can use 1 or 2 sentences if the file is small."
+                                    "description": "Description of what the file does."
                                 }
                             },
                             "required": ["description"],
                             "additionalProperties": false
                         };
                         
-                        const descriptionPrompt = `Analyze this code file and provide a brief description (1-2 sentences) of what it does:
+                        const descriptionPrompt = `${PROMPTS.CODE_BASE_ANALYSIS}:
 
 \`\`\`
 ${fileContent}
 \`\`\`
 
-Provide only a concise description in English, focusing on the main functionality.`;
+`;
                         
                         const aiResponse = await this.aiRepository.askJson(
                             param.ai,

@@ -61352,11 +61352,11 @@ class SingleAction {
     get isDeployedAction() {
         return this.currentSingleAction === constants_1.ACTIONS.DEPLOYED;
     }
-    get isVectorAction() {
-        return this.currentSingleAction === constants_1.ACTIONS.VECTOR || this.currentSingleAction === constants_1.ACTIONS.VECTOR_LOCAL;
+    get isAiCacheAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.AI_CACHE || this.currentSingleAction === constants_1.ACTIONS.AI_CACHE_LOCAL;
     }
-    get isVectorLocalAction() {
-        return this.currentSingleAction === constants_1.ACTIONS.VECTOR_LOCAL;
+    get isAiCacheLocalAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.AI_CACHE_LOCAL;
     }
     get isPublishGithubAction() {
         return this.currentSingleAction === constants_1.ACTIONS.PUBLISH_GITHUB_ACTION;
@@ -61387,8 +61387,8 @@ class SingleAction {
     constructor(currentSingleAction, issue, version, title, changelog) {
         this.actions = [
             constants_1.ACTIONS.DEPLOYED,
-            constants_1.ACTIONS.VECTOR,
-            constants_1.ACTIONS.VECTOR_LOCAL,
+            constants_1.ACTIONS.AI_CACHE,
+            constants_1.ACTIONS.AI_CACHE_LOCAL,
             constants_1.ACTIONS.PUBLISH_GITHUB_ACTION,
             constants_1.ACTIONS.CREATE_TAG,
             constants_1.ACTIONS.CREATE_RELEASE,
@@ -61398,7 +61398,7 @@ class SingleAction {
          * Actions that throw an error if the last step failed
          */
         this.actionsThrowError = [
-            constants_1.ACTIONS.VECTOR,
+            constants_1.ACTIONS.AI_CACHE,
             constants_1.ACTIONS.PUBLISH_GITHUB_ACTION,
             constants_1.ACTIONS.CREATE_RELEASE,
             constants_1.ACTIONS.DEPLOYED,
@@ -61408,8 +61408,8 @@ class SingleAction {
          * Actions that do not require an issue
          */
         this.actionsWithoutIssue = [
-            constants_1.ACTIONS.VECTOR,
-            constants_1.ACTIONS.VECTOR_LOCAL,
+            constants_1.ACTIONS.AI_CACHE,
+            constants_1.ACTIONS.AI_CACHE_LOCAL,
             constants_1.ACTIONS.THINK,
         ];
         this.isIssue = false;
@@ -61812,7 +61812,7 @@ class AiRepository {
                 }
                 // logDebugInfo(`Successfully received response from ${model}`);
                 const content = data.choices[0].message.content;
-                (0, logger_1.logDebugInfo)(`Response: ${content}`);
+                // logDebugInfo(`Response: ${content}`);
                 return JSON.parse(content);
             }
             catch (error) {
@@ -65119,6 +65119,7 @@ const logger_1 = __nccwpck_require__(8836);
 const file_import_analyzer_1 = __nccwpck_require__(5310);
 const file_cache_manager_1 = __nccwpck_require__(1855);
 const codebase_analyzer_1 = __nccwpck_require__(678);
+const constants_1 = __nccwpck_require__(8593);
 class VectorActionUseCase {
     constructor() {
         this.taskId = 'VectorActionUseCase';
@@ -65241,19 +65242,19 @@ class VectorActionUseCase {
                                 "properties": {
                                     "description": {
                                         "type": "string",
-                                        "description": "Brief description (4-5 sentences) of what the file does in English. You can use 1 or 2 sentences if the file is small."
+                                        "description": "Description of what the file does."
                                     }
                                 },
                                 "required": ["description"],
                                 "additionalProperties": false
                             };
-                            const descriptionPrompt = `Analyze this code file and provide a brief description (1-2 sentences) of what it does:
+                            const descriptionPrompt = `${constants_1.PROMPTS.CODE_BASE_ANALYSIS}:
 
 \`\`\`
 ${fileContent}
 \`\`\`
 
-Provide only a concise description in English, focusing on the main functionality.`;
+`;
                             const aiResponse = await this.aiRepository.askJson(param.ai, descriptionPrompt, FILE_DESCRIPTION_SCHEMA, "file_description");
                             if (aiResponse && typeof aiResponse === 'object' && aiResponse.description) {
                                 description = aiResponse.description.trim();
@@ -65368,7 +65369,7 @@ Provide only a concise description in English, focusing on the main functionalit
             }
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch = undefined;
-            if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
+            if (branch === param.branches.main && param.singleAction.isAiCacheLocalAction) {
                 (0, logger_1.logInfo)(`📦 AI cache from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
@@ -65734,7 +65735,7 @@ class SingleActionUseCase {
                 (0, logger_1.logDebugInfo)(`Not a valid single action: ${param.singleAction.currentSingleAction}`);
                 return results;
             }
-            if (param.singleAction.isVectorAction) {
+            if (param.singleAction.isAiCacheAction) {
                 results.push(...await new vector_action_use_case_1.VectorActionUseCase().invoke(param));
             }
             else if (param.singleAction.isDeployedAction) {
@@ -71561,8 +71562,8 @@ exports.ERRORS = {
 };
 exports.ACTIONS = {
     DEPLOYED: 'deployed_action',
-    VECTOR: 'vector_action',
-    VECTOR_LOCAL: 'vector_local',
+    AI_CACHE: 'ai_cache_action',
+    AI_CACHE_LOCAL: 'ai_cache_local_action',
     PUBLISH_GITHUB_ACTION: 'publish_github_action',
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',

@@ -191,8 +191,8 @@ export declare const ERRORS: {
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
-    readonly VECTOR: "vector_action";
-    readonly VECTOR_LOCAL: "vector_local";
+    readonly AI_CACHE: "ai_cache_action";
+    readonly AI_CACHE_LOCAL: "ai_cache_local_action";
     readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";

@@ -22,7 +22,7 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (param.singleAction.isVectorAction) {
+            if (param.singleAction.isAiCacheAction) {
                 results.push(...await new VectorActionUseCase().invoke(param));
             } else if (param.singleAction.isDeployedAction) {
                 results.push(...await new DeployedActionUseCase().invoke(param));

@@ -20,8 +20,8 @@ export declare class SingleAction {
     title: string;
     changelog: string;
     get isDeployedAction(): boolean;
-    get isVectorAction(): boolean;
-    get isVectorLocalAction(): boolean;
+    get isAiCacheAction(): boolean;
+    get isAiCacheLocalAction(): boolean;
     get isPublishGithubAction(): boolean;
     get isCreateReleaseAction(): boolean;
     get isCreateTagAction(): boolean;
