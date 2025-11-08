@@ -8,8 +8,6 @@ export declare class VectorActionUseCase implements ParamUseCase<Execution, Resu
     private fileImportAnalyzer;
     private fileCacheManager;
     private codebaseAnalyzer;
-    private readonly CODE_INSTRUCTION_BLOCK;
-    private readonly CODE_INSTRUCTION_LINE;
     constructor();
     invoke(param: Execution): Promise<Result[]>;
     private checkChunksInSupabase;

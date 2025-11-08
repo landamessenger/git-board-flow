@@ -73,15 +73,17 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             if (!question || question.length === 0) {
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: false,
-                        errors: ['No question or prompt provided.'],
-                    })
-                );
-                return results;
+                if (!param.singleAction.isThinkAction) {
+                    results.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: false,
+                            errors: ['No question or prompt provided.'],
+                        })
+                    );
+                    return results;
+                }
             }
 
             if (param.ai.getOpenRouterModel().length === 0 || param.ai.getOpenRouterApiKey().length === 0) {
@@ -98,6 +100,20 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`🔎 Question: ${question}`);
             logInfo(`🔎 Description: ${description}`);
+
+            if (question.length === 0 || !question.includes(`@${param.tokenUser}`)) {
+                logInfo(`🔎 Comment body is empty or does not include @${param.tokenUser}`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    })
+                );
+                return results;
+            } else {
+                question = question.replace(`@${param.tokenUser}`, '').trim();
+            }
 
             // Get full repository content
             logInfo(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);

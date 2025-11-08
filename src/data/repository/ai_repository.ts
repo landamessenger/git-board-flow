@@ -61,7 +61,7 @@ export class AiRepository {
                 return undefined;
             }
 
-            logDebugInfo(`Successfully received response from ${model}`);
+            // logDebugInfo(`Successfully received response from ${model}`);
             return data.choices[0].message.content;
         } catch (error) {
             logError(`Error querying ${model}: ${error}`);
@@ -84,9 +84,9 @@ export class AiRepository {
             return undefined;
         }
 
-        logDebugInfo(`🔎 Model: ${model}`);
-        logDebugInfo(`🔎 API Key: ***`);
-        logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
+        // logDebugInfo(`🔎 Model: ${model}`);
+        // logDebugInfo(`🔎 API Key: ***`);
+        // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
 
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
@@ -139,7 +139,7 @@ export class AiRepository {
                 return undefined;
             }
 
-            logDebugInfo(`Successfully received response from ${model}`);
+            // logDebugInfo(`Successfully received response from ${model}`);
             const content = data.choices[0].message.content;
             
             logDebugInfo(`Response: ${content}`);
@@ -212,10 +212,10 @@ export class AiRepository {
                 return undefined;
             }
 
-            logDebugInfo(`Successfully received response from ${model}`);
+            // logDebugInfo(`Successfully received response from ${model}`);
             const content = data.choices[0].message.content;
             
-            logDebugInfo(`Response: ${content}`);
+            // logDebugInfo(`Response: ${content}`);
             return JSON.parse(content);
         } catch (error) {
             logError(`Error querying ${model}: ${error}`);

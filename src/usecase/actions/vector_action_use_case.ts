@@ -1,10 +1,9 @@
-import { ChunkedFile } from '../../data/model/chunked_file';
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
 import { FileRepository } from '../../data/repository/file_repository';
 import { SupabaseRepository } from '../../data/repository/supabase_repository';
 import { AiRepository } from '../../data/repository/ai_repository';
-import { logError, logInfo, logSingleLine } from '../../utils/logger';
+import { logError, logInfo, logSingleLine, logDebugInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 import { FileImportAnalyzer } from '../steps/common/services/file_import_analyzer';
 import { FileCacheManager } from '../steps/common/services/file_cache_manager';
@@ -17,8 +16,6 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     private fileImportAnalyzer: FileImportAnalyzer = new FileImportAnalyzer();
     private fileCacheManager: FileCacheManager = new FileCacheManager();
     private codebaseAnalyzer: CodebaseAnalyzer;
-    private readonly CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
-    private readonly CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
     
     constructor() {
         // Initialize CodebaseAnalyzer with dependencies
@@ -49,6 +46,22 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                logError(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL. ${JSON.stringify(param.ai, null, 2)}`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: [
+                            `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                        ],
+                    })
+                )
+                return results;
+            }
+
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
@@ -56,14 +69,13 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 duplicationBranch = param.branches.development;
             }
 
-            logInfo(`📦 Getting chunks on ${param.owner}/${param.repo}/${branch}`);
+            logInfo(`📦 Getting repository files on ${param.owner}/${param.repo}/${branch}`);
 
-            const chunkedFilesMap = await this.fileRepository.getChunkedRepositoryContent(
+            const repositoryFiles = await this.fileRepository.getRepositoryContent(
                 param.owner,
                 param.repo,
-                branch,
-                -1,
                 param.tokens.token,
+                branch,
                 param.ai.getAiIgnoreFiles(),
                 (fileName: string) => {
                     logSingleLine(`Checking file ${fileName}`);
@@ -73,10 +85,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             );
             
-            logInfo(`📦 ✅ Files to index: ${chunkedFilesMap.size}`, true);
+            logInfo(`📦 ✅ Files to index: ${repositoryFiles.size}`, true);
 
-            results.push(...await this.checkChunksInSupabase(param, branch, chunkedFilesMap));
-            results.push(...await this.uploadChunksToSupabase(param, branch, chunkedFilesMap));
+            results.push(...await this.checkChunksInSupabase(param, branch, repositoryFiles));
+            results.push(...await this.uploadChunksToSupabase(param, branch, repositoryFiles));
 
             if (duplicationBranch) {
                 results.push(...await this.duplicateChunksToBranch(param, branch, duplicationBranch));
@@ -110,7 +122,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private checkChunksInSupabase = async (param: Execution, branch: string, chunkedFilesMap: Map<string, ChunkedFile[]>) => {
+    private checkChunksInSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -135,8 +147,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             branch,
         );
 
-        // Get all local paths from chunkedFiles
-        const localPaths = new Set(Array.from(chunkedFilesMap.keys()));
+        // Get all local paths from repository files
+        const localPaths = new Set(Array.from(repositoryFiles.keys()));
 
         // Find paths that exist in Supabase but not in the current branch
         const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
@@ -181,7 +193,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private uploadChunksToSupabase = async (param: Execution, branch: string, chunkedFilesMap: Map<string, ChunkedFile[]>) => {
+    private uploadChunksToSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -200,39 +212,31 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
         const startTime = Date.now();
-        const chunkedPaths = Array.from(chunkedFilesMap.keys());
+        const filePaths = Array.from(repositoryFiles.keys());
         
-        // Step 1: Get all repository files once to build relationship map
+        // Step 1: Build relationship map once for all files
         logInfo(`📦 Building relationship map from repository files...`);
-        const allRepositoryFiles = await this.fileRepository.getRepositoryContent(
-            param.owner,
-            param.repo,
-            param.tokens.token,
-            branch,
-            param.ai.getAiIgnoreFiles(),
-            () => {}, // progress callback
-            () => {}  // ignored files callback
-        );
-        
-        // Step 2: Build relationship map once for all files
-        const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(allRepositoryFiles);
+        const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
         const consumesMap = relationshipMaps.consumes;
         const consumedByMap = relationshipMaps.consumedBy;
-        logInfo(`✅ Relationship map built for ${allRepositoryFiles.size} files`);
+        logInfo(`✅ Relationship map built for ${repositoryFiles.size} files`);
         
-        for (let i = 0; i < chunkedPaths.length; i++) {
-            const path = chunkedPaths[i];
-            const chunkedFiles: ChunkedFile[] = chunkedFilesMap.get(path) || [];
-            const progress = ((i + 1) / chunkedPaths.length) * 100;
+        for (let i = 0; i < filePaths.length; i++) {
+            const filePath = filePaths[i];
+            const fileContent = repositoryFiles.get(filePath) || '';
+            const progress = ((i + 1) / filePaths.length) * 100;
             const currentTime = Date.now();
             const elapsedTime = (currentTime - startTime) / 1000; // in seconds
-            const estimatedTotalTime = (elapsedTime / (i + 1)) * chunkedPaths.length;
+            const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
             const remainingTime = estimatedTotalTime - elapsedTime;
 
-            logSingleLine(`🔘 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${path}]`);
+            logSingleLine(`🔘 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${filePath}]`);
 
             // Normalize path for consistent comparison
-            const normalizedPath = path.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+            const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+            
+            // Calculate SHA for comparison
+            const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
             
             const remoteShasum = await supabaseRepository.getShasumByPath(
                 param.owner,
@@ -242,11 +246,11 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             );
 
             if (remoteShasum) {
-                if (remoteShasum === chunkedFiles[0].shasum) {
-                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
+                if (remoteShasum === currentSHA) {
+                    logSingleLine(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
                     continue;
-                } else if (remoteShasum !== chunkedFiles[0].shasum) {
-                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
+                } else if (remoteShasum !== currentSHA) {
+                    logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
                     await supabaseRepository.removeAIFileCacheByPath(
                         param.owner,
                         param.repo,
@@ -256,27 +260,20 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             } else {
                 // File not in cache - will be processed below
-                logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
+                logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
             }
 
-            // Generate AI cache for this file (only process once per file, not per chunk)
-            // Use the first chunkedFile to get the full content
-            if (chunkedFiles.length > 0) {
-                const firstChunkedFile = chunkedFiles[0];
-                const fileContent = firstChunkedFile.content;
-                const filePath = firstChunkedFile.path;
+            // Generate AI cache for this file
+            if (fileContent) {
                 
                 try {
-                    logSingleLine(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
+                    logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
                     
-                    // Step 3: Extract imports for this file (from pre-built map)
+                    // Step 2: Extract imports for this file (from pre-built map)
                     const consumes = consumesMap.get(filePath) || [];
                     const consumedBy = consumedByMap.get(filePath) || [];
                     
-                    // Step 4: Calculate SHA
-                    const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
-                    
-                    // Step 5: Generate description using AI (with fallback)
+                    // Step 3: Generate description using AI (with fallback)
                     let description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                     try {
                         // Create schema for single file description
@@ -315,7 +312,7 @@ Provide only a concise description in English, focusing on the main functionalit
                         logError(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                     }
                     
-                    // Step 6: Save to Supabase (normalize path before saving)
+                    // Step 4: Save to Supabase (normalize path before saving)
                     const fileName = filePath.split('/').pop() || filePath;
                     const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
                     const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
@@ -335,16 +332,16 @@ Provide only a concise description in English, focusing on the main functionalit
                         }
                     );
                     
-                    logSingleLine(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
+                    logSingleLine(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
                     
                 } catch (error) {
-                    logError(`Error generating AI cache for ${path}: ${JSON.stringify(error, null, 2)}`);
+                    logError(`Error generating AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
                 }
             }
         }
 
         const totalDurationSeconds = (Date.now() - startTime) / 1000;
-        logInfo(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+        logInfo(`📦 🚀 All files stored in AI cache ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
         
         results.push(
             new Result({
@@ -352,7 +349,7 @@ Provide only a concise description in English, focusing on the main functionalit
                 success: true,
                 executed: true,
                 steps: [
-                    `All chunked files up to date in AI index for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
+                    `All files up to date in AI cache for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
                 ],
             })
         );

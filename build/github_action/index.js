@@ -61772,7 +61772,7 @@ class AiRepository {
                     (0, logger_1.logError)('No response content received from API');
                     return undefined;
                 }
-                (0, logger_1.logDebugInfo)(`Successfully received response from ${model}`);
+                // logDebugInfo(`Successfully received response from ${model}`);
                 return data.choices[0].message.content;
             }
             catch (error) {
@@ -61788,9 +61788,9 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration');
                 return undefined;
             }
-            (0, logger_1.logDebugInfo)(`🔎 Model: ${model}`);
-            (0, logger_1.logDebugInfo)(`🔎 API Key: ***`);
-            (0, logger_1.logDebugInfo)(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
+            // logDebugInfo(`🔎 Model: ${model}`);
+            // logDebugInfo(`🔎 API Key: ***`);
+            // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             // Use provided schema or default to AI_RESPONSE_JSON_SCHEMA
             const responseSchema = schema || ai_response_schema_1.AI_RESPONSE_JSON_SCHEMA;
@@ -61834,7 +61834,7 @@ class AiRepository {
                     (0, logger_1.logError)('No response content received from API');
                     return undefined;
                 }
-                (0, logger_1.logDebugInfo)(`Successfully received response from ${model}`);
+                // logDebugInfo(`Successfully received response from ${model}`);
                 const content = data.choices[0].message.content;
                 (0, logger_1.logDebugInfo)(`Response: ${content}`);
                 return JSON.parse(content);
@@ -61896,9 +61896,9 @@ class AiRepository {
                     (0, logger_1.logError)('No response content received from API');
                     return undefined;
                 }
-                (0, logger_1.logDebugInfo)(`Successfully received response from ${model}`);
+                // logDebugInfo(`Successfully received response from ${model}`);
                 const content = data.choices[0].message.content;
-                (0, logger_1.logDebugInfo)(`Response: ${content}`);
+                // logDebugInfo(`Response: ${content}`);
                 return JSON.parse(content);
             }
             catch (error) {
@@ -65212,9 +65212,7 @@ class VectorActionUseCase {
         this.aiRepository = new ai_repository_1.AiRepository();
         this.fileImportAnalyzer = new file_import_analyzer_1.FileImportAnalyzer();
         this.fileCacheManager = new file_cache_manager_1.FileCacheManager();
-        this.CODE_INSTRUCTION_BLOCK = "Represent the code for semantic search";
-        this.CODE_INSTRUCTION_LINE = "Represent each line of code for retrieval";
-        this.checkChunksInSupabase = async (param, branch, chunkedFilesMap) => {
+        this.checkChunksInSupabase = async (param, branch, repositoryFiles) => {
             const results = [];
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
@@ -65229,8 +65227,8 @@ class VectorActionUseCase {
             }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
             const remotePaths = await supabaseRepository.getDistinctPaths(param.owner, param.repo, branch);
-            // Get all local paths from chunkedFiles
-            const localPaths = new Set(Array.from(chunkedFilesMap.keys()));
+            // Get all local paths from repository files
+            const localPaths = new Set(Array.from(repositoryFiles.keys()));
             // Find paths that exist in Supabase but not in the current branch
             const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
             if (pathsToRemove.length > 0 && remotePaths.length > 0) {
@@ -65262,7 +65260,7 @@ class VectorActionUseCase {
             }
             return results;
         };
-        this.uploadChunksToSupabase = async (param, branch, chunkedFilesMap) => {
+        this.uploadChunksToSupabase = async (param, branch, repositoryFiles) => {
             const results = [];
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
@@ -65277,57 +65275,49 @@ class VectorActionUseCase {
             }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
             const startTime = Date.now();
-            const chunkedPaths = Array.from(chunkedFilesMap.keys());
-            // Step 1: Get all repository files once to build relationship map
+            const filePaths = Array.from(repositoryFiles.keys());
+            // Step 1: Build relationship map once for all files
             (0, logger_1.logInfo)(`📦 Building relationship map from repository files...`);
-            const allRepositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), () => { }, // progress callback
-            () => { } // ignored files callback
-            );
-            // Step 2: Build relationship map once for all files
-            const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(allRepositoryFiles);
+            const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
             const consumesMap = relationshipMaps.consumes;
             const consumedByMap = relationshipMaps.consumedBy;
-            (0, logger_1.logInfo)(`✅ Relationship map built for ${allRepositoryFiles.size} files`);
-            for (let i = 0; i < chunkedPaths.length; i++) {
-                const path = chunkedPaths[i];
-                const chunkedFiles = chunkedFilesMap.get(path) || [];
-                const progress = ((i + 1) / chunkedPaths.length) * 100;
+            (0, logger_1.logInfo)(`✅ Relationship map built for ${repositoryFiles.size} files`);
+            for (let i = 0; i < filePaths.length; i++) {
+                const filePath = filePaths[i];
+                const fileContent = repositoryFiles.get(filePath) || '';
+                const progress = ((i + 1) / filePaths.length) * 100;
                 const currentTime = Date.now();
                 const elapsedTime = (currentTime - startTime) / 1000; // in seconds
-                const estimatedTotalTime = (elapsedTime / (i + 1)) * chunkedPaths.length;
+                const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
                 const remainingTime = estimatedTotalTime - elapsedTime;
-                (0, logger_1.logSingleLine)(`🔘 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${path}]`);
+                (0, logger_1.logSingleLine)(`🔘 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${filePath}]`);
                 // Normalize path for consistent comparison
-                const normalizedPath = path.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                // Calculate SHA for comparison
+                const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
                 const remoteShasum = await supabaseRepository.getShasumByPath(param.owner, param.repo, branch, normalizedPath);
                 if (remoteShasum) {
-                    if (remoteShasum === chunkedFiles[0].shasum) {
-                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
+                    if (remoteShasum === currentSHA) {
+                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
                         continue;
                     }
-                    else if (remoteShasum !== chunkedFiles[0].shasum) {
-                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
+                    else if (remoteShasum !== currentSHA) {
+                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
                         await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, normalizedPath);
                     }
                 }
                 else {
                     // File not in cache - will be processed below
-                    (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
+                    (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
                 }
-                // Generate AI cache for this file (only process once per file, not per chunk)
-                // Use the first chunkedFile to get the full content
-                if (chunkedFiles.length > 0) {
-                    const firstChunkedFile = chunkedFiles[0];
-                    const fileContent = firstChunkedFile.content;
-                    const filePath = firstChunkedFile.path;
+                // Generate AI cache for this file
+                if (fileContent) {
                     try {
-                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
-                        // Step 3: Extract imports for this file (from pre-built map)
+                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
+                        // Step 2: Extract imports for this file (from pre-built map)
                         const consumes = consumesMap.get(filePath) || [];
                         const consumedBy = consumedByMap.get(filePath) || [];
-                        // Step 4: Calculate SHA
-                        const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
-                        // Step 5: Generate description using AI (with fallback)
+                        // Step 3: Generate description using AI (with fallback)
                         let description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                         try {
                             // Create schema for single file description
@@ -65358,7 +65348,7 @@ Provide only a concise description in English, focusing on the main functionalit
                         catch (error) {
                             (0, logger_1.logError)(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                         }
-                        // Step 6: Save to Supabase (normalize path before saving)
+                        // Step 4: Save to Supabase (normalize path before saving)
                         const fileName = filePath.split('/').pop() || filePath;
                         const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
                         const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
@@ -65371,21 +65361,21 @@ Provide only a concise description in English, focusing on the main functionalit
                             consumes: normalizedConsumes,
                             consumed_by: normalizedConsumedBy
                         });
-                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${chunkedPaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
+                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
                     }
                     catch (error) {
-                        (0, logger_1.logError)(`Error generating AI cache for ${path}: ${JSON.stringify(error, null, 2)}`);
+                        (0, logger_1.logError)(`Error generating AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
                     }
                 }
             }
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            (0, logger_1.logInfo)(`📦 🚀 All chunked files stored ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+            (0, logger_1.logInfo)(`📦 🚀 All files stored in AI cache ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
                 steps: [
-                    `All chunked files up to date in AI index for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
+                    `All files up to date in AI cache for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
                 ],
             }));
             return results;
@@ -65449,21 +65439,34 @@ Provide only a concise description in English, focusing on the main functionalit
                 }));
                 return results;
             }
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                (0, logger_1.logError)(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL. ${JSON.stringify(param.ai, null, 2)}`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                    ],
+                }));
+                return results;
+            }
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
                 (0, logger_1.logInfo)(`📦 Chunks from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
-            (0, logger_1.logInfo)(`📦 Getting chunks on ${param.owner}/${param.repo}/${branch}`);
-            const chunkedFilesMap = await this.fileRepository.getChunkedRepositoryContent(param.owner, param.repo, branch, -1, param.tokens.token, param.ai.getAiIgnoreFiles(), (fileName) => {
+            (0, logger_1.logInfo)(`📦 Getting repository files on ${param.owner}/${param.repo}/${branch}`);
+            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), (fileName) => {
                 (0, logger_1.logSingleLine)(`Checking file ${fileName}`);
             }, (fileName) => {
                 (0, logger_1.logSingleLine)(`Ignoring file ${fileName}`);
             });
-            (0, logger_1.logInfo)(`📦 ✅ Files to index: ${chunkedFilesMap.size}`, true);
-            results.push(...await this.checkChunksInSupabase(param, branch, chunkedFilesMap));
-            results.push(...await this.uploadChunksToSupabase(param, branch, chunkedFilesMap));
+            (0, logger_1.logInfo)(`📦 ✅ Files to index: ${repositoryFiles.size}`, true);
+            results.push(...await this.checkChunksInSupabase(param, branch, repositoryFiles));
+            results.push(...await this.uploadChunksToSupabase(param, branch, repositoryFiles));
             if (duplicationBranch) {
                 results.push(...await this.duplicateChunksToBranch(param, branch, duplicationBranch));
             }
@@ -68443,13 +68446,15 @@ class ThinkUseCase {
                 }
             }
             if (!question || question.length === 0) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: false,
-                    errors: ['No question or prompt provided.'],
-                }));
-                return results;
+                if (!param.singleAction.isThinkAction) {
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: false,
+                        errors: ['No question or prompt provided.'],
+                    }));
+                    return results;
+                }
             }
             if (param.ai.getOpenRouterModel().length === 0 || param.ai.getOpenRouterApiKey().length === 0) {
                 results.push(new result_1.Result({
@@ -68462,6 +68467,18 @@ class ThinkUseCase {
             }
             (0, logger_1.logInfo)(`🔎 Question: ${question}`);
             (0, logger_1.logInfo)(`🔎 Description: ${description}`);
+            if (question.length === 0 || !question.includes(`@${param.tokenUser}`)) {
+                (0, logger_1.logInfo)(`🔎 Comment body is empty or does not include @${param.tokenUser}`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
+            }
+            else {
+                question = question.replace(`@${param.tokenUser}`, '').trim();
+            }
             // Get full repository content
             (0, logger_1.logInfo)(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);
             const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (fileName) => (0, logger_1.logDebugInfo)(`Loading: ${fileName}`), (fileName) => (0, logger_1.logDebugInfo)(`Ignoring: ${fileName}`));
