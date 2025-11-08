@@ -38,7 +38,7 @@ jobs:
       - name: Update AI Knowledge
         uses: ./
         with:
-          single-action: vector_action
+          single-action: ai_cache_action
 ```
 
 ### 4. Use in CLI

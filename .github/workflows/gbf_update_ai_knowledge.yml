@@ -13,16 +13,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up DOCKER_HOST as output
-        id: docker-env
-        run: |
-          echo "docker_host=unix://${HOME}/.orbstack/run/docker.sock" >> $GITHUB_OUTPUT
-
       - name: Update AI knowledge
         uses: ./
-        env:
-          DOCKER_HOST: ${{ steps.docker-env.outputs.docker_host }}
-          RUNNER_TEMP: ${{ github.workspace }}/.runner_temp
         with:
           debug: ${{ vars.DEBUG }}
           ai-ignore-files: build/*

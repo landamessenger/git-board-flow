@@ -385,8 +385,8 @@ export const ERRORS = {
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
-    VECTOR: 'vector_action',
-    VECTOR_LOCAL: 'vector_local',
+    VECTOR: 'ai_cache_action',
+    VECTOR_LOCAL: 'ai_cache_local_action',
     PUBLISH_GITHUB_ACTION: 'publish_github_action',
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',

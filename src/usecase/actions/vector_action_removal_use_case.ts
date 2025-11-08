@@ -29,7 +29,7 @@ export class VectorActionRemovalUseCase implements ParamUseCase<Execution, Resul
 
             const branch = param.commit.branch || param.branches.main;
 
-            results.push(...await this.removeChunksByBranch(param, branch));
+            results.push(...await this.removeAICacheByBranch(param, branch));
 
             results.push(
                 new Result({
@@ -58,7 +58,7 @@ export class VectorActionRemovalUseCase implements ParamUseCase<Execution, Resul
         return results;
     }
 
-    private removeChunksByBranch = async (param: Execution, branch: string) => {
+    private removeAICacheByBranch = async (param: Execution, branch: string) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -89,7 +89,7 @@ export class VectorActionRemovalUseCase implements ParamUseCase<Execution, Resul
                 success: true,
                 executed: true,
                 steps: [
-                    `Removed chunks for ${param.owner}/${param.repo}/${branch}.`,
+                    `Removed AI cache for ${param.owner}/${param.repo}/${branch}.`,
                 ],
             })
         );

@@ -64929,30 +64929,6 @@ exports.Branches = Branches;
 
 /***/ }),
 
-/***/ 2469:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ChunkedFile = void 0;
-class ChunkedFile {
-    constructor(path, index, type, content, shasum, chunks) {
-        this.shasum = '';
-        this.vector = [];
-        this.path = path;
-        this.index = index;
-        this.content = content;
-        this.chunks = chunks;
-        this.shasum = shasum;
-        this.type = type;
-    }
-}
-exports.ChunkedFile = ChunkedFile;
-
-
-/***/ }),
-
 /***/ 3993:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -67309,7 +67285,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FileRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
-const chunked_file_1 = __nccwpck_require__(2469);
 const crypto_1 = __nccwpck_require__(6113);
 class FileRepository {
     constructor() {
@@ -67372,67 +67347,6 @@ class FileRepository {
                 (0, logger_1.logError)(`Error getting repository content: ${error}.`);
                 return new Map();
             }
-        };
-        this.getChunkedRepositoryContent = async (owner, repository, branch, chunkSize, token, ignoreFiles, progress, ignoredFiles) => {
-            const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress, ignoredFiles);
-            const chunkedFilesMap = new Map();
-            for (const [path, content] of fileContents.entries()) {
-                const shasum = this.calculateShasum(content);
-                chunkedFilesMap.set(path, [
-                    ...this.getChunksByLines(path, content, shasum, chunkSize),
-                    ...this.getChunksByBlocks(path, content, shasum, chunkSize),
-                ]);
-            }
-            return chunkedFilesMap;
-        };
-        this.getChunksByLines = (path, content, shasum, chunkSize) => {
-            const chunkedFiles = [];
-            const lines = content.split('\n');
-            const chunks = [];
-            let currentChunk = [];
-            for (const line of lines) {
-                if (this.shouldIgnoreLine(line)) {
-                    continue;
-                }
-                currentChunk.push(line.trim());
-                if (currentChunk.length >= chunkSize) {
-                    chunks.push([...currentChunk]);
-                    currentChunk = [];
-                }
-            }
-            // Add the last chunk if it's not empty
-            if (currentChunk.length > 0) {
-                chunks.push(currentChunk);
-            }
-            // Create ChunkedFile objects for each chunk
-            chunks.forEach((chunkLines, index) => {
-                const chunkContent = chunkLines.join('\n');
-                chunkedFiles.push(new chunked_file_1.ChunkedFile(path, index, 'line', chunkContent, shasum, chunkLines));
-            });
-            return chunkedFiles;
-        };
-        this.getChunksByBlocks = (path, content, shasum, chunkSize) => {
-            const chunkedFiles = [];
-            const blocks = this.extractCodeBlocks(content);
-            const chunks = [];
-            let currentChunk = [];
-            for (const block of blocks) {
-                currentChunk.push(block.content);
-                if (currentChunk.length >= chunkSize) {
-                    chunks.push([...currentChunk]);
-                    currentChunk = [];
-                }
-            }
-            // Add the last chunk if it's not empty
-            if (currentChunk.length > 0) {
-                chunks.push(currentChunk);
-            }
-            // Create ChunkedFile objects for each chunk
-            chunks.forEach((chunkLines, index) => {
-                const chunkContent = chunkLines.join('\n');
-                chunkedFiles.push(new chunked_file_1.ChunkedFile(path, index, 'block', chunkContent, shasum, chunkLines));
-            });
-            return chunkedFiles;
         };
         this.extractCodeBlocks = (code) => {
             const lines = code.split('\n');
@@ -69881,7 +69795,7 @@ class VectorActionUseCase {
         this.aiRepository = new ai_repository_1.AiRepository();
         this.fileImportAnalyzer = new file_import_analyzer_1.FileImportAnalyzer();
         this.fileCacheManager = new file_cache_manager_1.FileCacheManager();
-        this.checkChunksInSupabase = async (param, branch, repositoryFiles) => {
+        this.checkAICacheInSupabase = async (param, branch, repositoryFiles) => {
             const results = [];
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
@@ -69905,10 +69819,10 @@ class VectorActionUseCase {
                 for (const path of pathsToRemove) {
                     try {
                         await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, path);
-                        (0, logger_1.logInfo)(`📦 ✅ Removed chunks for path: ${path}`);
+                        (0, logger_1.logInfo)(`📦 ✅ Removed AI cache for path: ${path}`);
                     }
                     catch (error) {
-                        (0, logger_1.logError)(`📦 ❌ Error removing chunks for path ${path}: ${JSON.stringify(error, null, 2)}`);
+                        (0, logger_1.logError)(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
                     }
                 }
                 results.push(new result_1.Result({
@@ -69929,7 +69843,7 @@ class VectorActionUseCase {
             }
             return results;
         };
-        this.uploadChunksToSupabase = async (param, branch, repositoryFiles) => {
+        this.uploadAICacheToSupabase = async (param, branch, repositoryFiles) => {
             const results = [];
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
@@ -70049,7 +69963,7 @@ Provide only a concise description in English, focusing on the main functionalit
             }));
             return results;
         };
-        this.duplicateChunksToBranch = async (param, sourceBranch, targetBranch) => {
+        this.duplicateAICacheToBranch = async (param, sourceBranch, targetBranch) => {
             const results = [];
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
@@ -70073,18 +69987,18 @@ Provide only a concise description in English, focusing on the main functionalit
                     success: true,
                     executed: true,
                     steps: [
-                        `Duplicated chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
+                        `Duplicated AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
                     ],
                 }));
             }
             catch (error) {
-                (0, logger_1.logError)(`📦 -> 📦 ❌ Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
+                (0, logger_1.logError)(`📦 -> 📦 ❌ Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
+                        `Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
                     ],
                 }));
             }
@@ -70124,7 +70038,7 @@ Provide only a concise description in English, focusing on the main functionalit
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
-                (0, logger_1.logInfo)(`📦 Chunks from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
+                (0, logger_1.logInfo)(`📦 AI cache from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
             (0, logger_1.logInfo)(`📦 Getting repository files on ${param.owner}/${param.repo}/${branch}`);
@@ -70134,10 +70048,10 @@ Provide only a concise description in English, focusing on the main functionalit
                 (0, logger_1.logSingleLine)(`Ignoring file ${fileName}`);
             });
             (0, logger_1.logInfo)(`📦 ✅ Files to index: ${repositoryFiles.size}`, true);
-            results.push(...await this.checkChunksInSupabase(param, branch, repositoryFiles));
-            results.push(...await this.uploadChunksToSupabase(param, branch, repositoryFiles));
+            results.push(...await this.checkAICacheInSupabase(param, branch, repositoryFiles));
+            results.push(...await this.uploadAICacheToSupabase(param, branch, repositoryFiles));
             if (duplicationBranch) {
-                results.push(...await this.duplicateChunksToBranch(param, branch, duplicationBranch));
+                results.push(...await this.duplicateAICacheToBranch(param, branch, duplicationBranch));
             }
             results.push(new result_1.Result({
                 id: this.taskId,
@@ -73900,7 +73814,7 @@ class CloseIssueAfterMergingUseCase {
                 }));
             }
             catch (error) {
-                (0, logger_1.logError)(`Error removing chunks: ${JSON.stringify(error, null, 2)}`);
+                (0, logger_1.logError)(`Error removing AI cache: ${JSON.stringify(error, null, 2)}`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -74391,7 +74305,7 @@ class PrepareBranchesUseCase {
     constructor() {
         this.taskId = 'PrepareBranchesUseCase';
         this.branchRepository = new branch_repository_1.BranchRepository();
-        this.duplicateChunksByBranch = async (supabaseRepository, param, sourceBranch, targetBranch) => {
+        this.duplicateAICacheByBranch = async (supabaseRepository, param, sourceBranch, targetBranch) => {
             const result = [];
             if (!supabaseRepository) {
                 return result;
@@ -74408,7 +74322,7 @@ class PrepareBranchesUseCase {
                 }));
             }
             catch (error) {
-                (0, logger_1.logError)(`Error duplicating chunks: ${JSON.stringify(error, null, 2)}`);
+                (0, logger_1.logError)(`Error duplicating AI cache: ${JSON.stringify(error, null, 2)}`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -74484,7 +74398,7 @@ class PrepareBranchesUseCase {
                                 ],
                             }));
                             (0, logger_1.logDebugInfo)(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
-                            result.push(...await this.duplicateChunksByBranch(supabaseRepository, param, param.branches.main, param.hotfix.branch));
+                            result.push(...await this.duplicateAICacheByBranch(supabaseRepository, param, param.branches.main, param.hotfix.branch));
                         }
                     }
                     else {
@@ -74565,7 +74479,7 @@ class PrepareBranchesUseCase {
                                 reminders: reminders,
                             }));
                             (0, logger_1.logDebugInfo)(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
-                            result.push(...await this.duplicateChunksByBranch(supabaseRepository, param, param.branches.development, param.release.branch));
+                            result.push(...await this.duplicateAICacheByBranch(supabaseRepository, param, param.branches.development, param.release.branch));
                         }
                     }
                     else {
@@ -74656,7 +74570,7 @@ class PrepareBranchesUseCase {
                         ]
                     }));
                 }
-                result.push(...await this.duplicateChunksByBranch(supabaseRepository, param, param.branches.development, lastAction.payload.newBranchName));
+                result.push(...await this.duplicateAICacheByBranch(supabaseRepository, param, param.branches.development, lastAction.payload.newBranchName));
                 await new Promise(resolve => setTimeout(resolve, 10000));
                 result.push(...await new move_issue_to_in_progress_1.MoveIssueToInProgressUseCase().invoke(param));
             }

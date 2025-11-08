@@ -96,7 +96,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                 })
             )
         } catch (error) {
-            logError(`Error removing chunks: ${JSON.stringify(error, null, 2)}`);
+            logError(`Error removing AI cache: ${JSON.stringify(error, null, 2)}`);
             result.push(
                 new Result({
                     id: this.taskId,

@@ -65,7 +65,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             const branch = param.commit.branch || param.branches.main;
             let duplicationBranch: string | undefined = undefined;
             if (branch === param.branches.main && param.singleAction.isVectorLocalAction) {
-                logInfo(`📦 Chunks from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
+                logInfo(`📦 AI cache from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
                 duplicationBranch = param.branches.development;
             }
 
@@ -87,11 +87,11 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             
             logInfo(`📦 ✅ Files to index: ${repositoryFiles.size}`, true);
 
-            results.push(...await this.checkChunksInSupabase(param, branch, repositoryFiles));
-            results.push(...await this.uploadChunksToSupabase(param, branch, repositoryFiles));
+            results.push(...await this.checkAICacheInSupabase(param, branch, repositoryFiles));
+            results.push(...await this.uploadAICacheToSupabase(param, branch, repositoryFiles));
 
             if (duplicationBranch) {
-                results.push(...await this.duplicateChunksToBranch(param, branch, duplicationBranch));
+                results.push(...await this.duplicateAICacheToBranch(param, branch, duplicationBranch));
             }
 
             results.push(
@@ -122,7 +122,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private checkChunksInSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
+    private checkAICacheInSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -164,9 +164,9 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                         branch,
                         path
                     );
-                    logInfo(`📦 ✅ Removed chunks for path: ${path}`);
+                    logInfo(`📦 ✅ Removed AI cache for path: ${path}`);
                 } catch (error) {
-                    logError(`📦 ❌ Error removing chunks for path ${path}: ${JSON.stringify(error, null, 2)}`);
+                    logError(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
                 }
             }
 
@@ -193,7 +193,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private uploadChunksToSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
+    private uploadAICacheToSupabase = async (param: Execution, branch: string, repositoryFiles: Map<string, string>) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -356,7 +356,7 @@ Provide only a concise description in English, focusing on the main functionalit
         return results;
     }
 
-    private duplicateChunksToBranch = async (param: Execution, sourceBranch: string, targetBranch: string) => {
+    private duplicateAICacheToBranch = async (param: Execution, sourceBranch: string, targetBranch: string) => {
         const results: Result[] = [];
         
         if (!param.supabaseConfig) {
@@ -397,19 +397,19 @@ Provide only a concise description in English, focusing on the main functionalit
                     success: true,
                     executed: true,
                     steps: [
-                        `Duplicated chunks from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
+                        `Duplicated AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
                     ],
                 })
             );
         } catch (error) {
-            logError(`📦 -> 📦 ❌ Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
+            logError(`📦 -> 📦 ❌ Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Error duplicating chunks from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
+                        `Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
                     ],
                 })
             );

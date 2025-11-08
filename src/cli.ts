@@ -32,7 +32,7 @@ function getGitInfo() {
 
 program
   .command('build-ai')
-  .description(`${TITLE} - Build AI container and execute vector indexing`)
+  .description(`${TITLE} - Build AI container and execute AI cache indexing`)
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .action(async (options) => {    

@@ -4,5 +4,5 @@ import { ParamUseCase } from '../base/param_usecase';
 export declare class VectorActionRemovalUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string;
     invoke(param: Execution): Promise<Result[]>;
-    private removeChunksByBranch;
+    private removeAICacheByBranch;
 }

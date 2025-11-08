@@ -10,7 +10,7 @@ export declare class VectorActionUseCase implements ParamUseCase<Execution, Resu
     private codebaseAnalyzer;
     constructor();
     invoke(param: Execution): Promise<Result[]>;
-    private checkChunksInSupabase;
-    private uploadChunksToSupabase;
-    private duplicateChunksToBranch;
+    private checkAICacheInSupabase;
+    private uploadAICacheToSupabase;
+    private duplicateAICacheToBranch;
 }

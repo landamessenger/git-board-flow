@@ -1,6 +1,5 @@
 import * as github from "@actions/github";
 import { logError } from "../../utils/logger";
-import { ChunkedFile } from "../model/chunked_file";
 import { createHash } from "crypto";
 
 type Block = {
@@ -121,107 +120,6 @@ export class FileRepository {
             logError(`Error getting repository content: ${error}.`);
             return new Map();
         }
-    }
-
-    getChunkedRepositoryContent = async (
-        owner: string,
-        repository: string,
-        branch: string,
-        chunkSize: number,
-        token: string,
-        ignoreFiles: string[],
-        progress: (fileName: string) => void,
-        ignoredFiles: (fileName: string) => void,
-    ): Promise<Map<string, ChunkedFile[]>> => {
-        const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress, ignoredFiles);
-        const chunkedFilesMap = new Map<string, ChunkedFile[]>();
-
-        for (const [path, content] of fileContents.entries()) {
-            const shasum = this.calculateShasum(content);
-            chunkedFilesMap.set(path, [
-                ...this.getChunksByLines(path, content, shasum, chunkSize),
-                ...this.getChunksByBlocks(path, content, shasum, chunkSize),
-            ]);
-        }
-
-        return chunkedFilesMap;    
-    }
-
-    getChunksByLines = (path: string, content: string, shasum: string, chunkSize: number): ChunkedFile[] => {
-        const chunkedFiles: ChunkedFile[] = [];
-        const lines = content.split('\n');
-        const chunks: string[][] = [];
-        let currentChunk: string[] = [];
-
-        for (const line of lines) {
-            if (this.shouldIgnoreLine(line)) {
-                continue;
-            }
-            currentChunk.push(line.trim());
-            if (currentChunk.length >= chunkSize) {
-                chunks.push([...currentChunk]);
-                currentChunk = [];
-            }
-        }
-
-        // Add the last chunk if it's not empty
-        if (currentChunk.length > 0) {
-            chunks.push(currentChunk);
-        }
-
-        // Create ChunkedFile objects for each chunk
-        chunks.forEach((chunkLines, index) => {
-            const chunkContent = chunkLines.join('\n');
-            chunkedFiles.push(
-                new ChunkedFile(
-                    path,
-                    index,
-                    'line',
-                    chunkContent,
-                    shasum,
-                    chunkLines
-                )
-            );
-        });
-
-        return chunkedFiles;
-    }
-
-    getChunksByBlocks = (path: string, content: string, shasum: string, chunkSize: number): ChunkedFile[] => {
-        const chunkedFiles: ChunkedFile[] = [];
-        const blocks = this.extractCodeBlocks(content);
-        const chunks: string[][] = [];
-        let currentChunk: string[] = [];
-
-        for (const block of blocks) {
-            currentChunk.push(block.content);
-            if (currentChunk.length >= chunkSize) {
-                chunks.push([...currentChunk]);
-                currentChunk = [];
-            }
-        }
-
-        // Add the last chunk if it's not empty
-        if (currentChunk.length > 0) {
-            chunks.push(currentChunk);
-        }
-
-        // Create ChunkedFile objects for each chunk
-        chunks.forEach((chunkLines, index) => {
-            const chunkContent = chunkLines.join('\n');
-            chunkedFiles.push(
-                new ChunkedFile(
-                    path,
-                    index,
-                    'block',
-                    chunkContent,
-                    shasum,
-                    chunkLines
-                )
-            );
-        });
-
-        return chunkedFiles;
     }
 
     private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
