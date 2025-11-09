@@ -186,4 +186,45 @@ program
     runLocalAction(params);
   });
 
+/**
+ * Run the initial setup to configure labels, issue types, and verify access.
+ */
+program
+  .command('setup')
+  .description(`${TITLE} - Initial setup: create labels, issue types, and verify access`)
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .action(async (options) => {    
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+    
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug.toString(),
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.INITIAL_SETUP,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
+      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
+      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      repo: {
+        owner: gitInfo.owner,
+        repo: gitInfo.repo,
+      },
+      issue: {
+        number: 1,
+      },
+    };
+
+    params[INPUT_KEYS.WELCOME_TITLE] = '⚙️  Initial Setup';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [
+      `Running initial setup for ${gitInfo.owner}/${gitInfo.repo}...`,
+      'This will create labels, issue types, and verify access to GitHub and Supabase.',
+    ];
+
+    await runLocalAction(params);
+  });
+
 program.parse(process.argv); 

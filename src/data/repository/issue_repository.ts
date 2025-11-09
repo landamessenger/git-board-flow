@@ -751,4 +751,309 @@ export class IssueRepository {
             throw error;
         }
     }
+
+    /**
+     * List all labels for a repository
+     */
+    listLabelsForRepo = async (
+        owner: string,
+        repository: string,
+        token: string,
+    ): Promise<Array<{ name: string; color: string; description: string | null }>> => {
+        const octokit = github.getOctokit(token);
+        const { data: labels } = await octokit.rest.issues.listLabelsForRepo({
+            owner,
+            repo: repository,
+            per_page: 100,
+        });
+        return labels.map(label => ({
+            name: label.name,
+            color: label.color,
+            description: label.description,
+        }));
+    }
+
+    /**
+     * Create a label in a repository
+     */
+    createLabel = async (
+        owner: string,
+        repository: string,
+        name: string,
+        color: string,
+        description: string,
+        token: string,
+    ): Promise<void> => {
+        const octokit = github.getOctokit(token);
+        await octokit.rest.issues.createLabel({
+            owner,
+            repo: repository,
+            name,
+            color,
+            description,
+        });
+    }
+
+    /**
+     * Ensure a label exists, creating it if it doesn't
+     */
+    ensureLabel = async (
+        owner: string,
+        repository: string,
+        name: string,
+        color: string,
+        description: string,
+        token: string,
+    ): Promise<{ created: boolean; existed: boolean }> => {
+        try {
+            // Validate that name is not undefined or empty
+            if (!name || name.trim().length === 0) {
+                logDebugInfo(`Skipping label creation: name is undefined or empty`);
+                return { created: false, existed: false };
+            }
+
+            const existingLabels = await this.listLabelsForRepo(owner, repository, token);
+            const existingLabelNames = new Set(existingLabels.map(label => label.name.toLowerCase()));
+            
+            if (existingLabelNames.has(name.toLowerCase())) {
+                return { created: false, existed: true };
+            }
+
+            try {
+                await this.createLabel(owner, repository, name, color, description, token);
+                return { created: true, existed: false };
+            } catch (error: any) {
+                if (error.status === 422 && error.message?.includes('already exists')) {
+                    return { created: false, existed: true };
+                }
+                throw error;
+            }
+        } catch (error) {
+            logError(`Error ensuring label "${name}": ${error}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Ensure all required labels exist based on Labels configuration
+     */
+    ensureLabels = async (
+        owner: string,
+        repository: string,
+        labels: Labels,
+        token: string,
+    ): Promise<{ created: number; existing: number; errors: string[] }> => {
+        const errors: string[] = [];
+        let created = 0;
+        let existing = 0;
+
+        // Define all required labels with their colors
+        const requiredLabels = [
+            { name: labels.branchManagementLauncherLabel, color: '0E8A16', description: 'Label to trigger branch management actions' },
+            { name: labels.bug, color: 'D73A4A', description: 'Label to indicate a bug type' },
+            { name: labels.bugfix, color: 'D73A4A', description: 'Label to manage bugfix branches' },
+            { name: labels.hotfix, color: 'B60205', description: 'Label to manage hotfix branches' },
+            { name: labels.enhancement, color: 'A2EEEF', description: 'Label to indicate an enhancement type' },
+            { name: labels.feature, color: '0E8A16', description: 'Label to manage feature branches' },
+            { name: labels.release, color: '1D76DB', description: 'Label to manage release branches' },
+            { name: labels.question, color: 'CC317C', description: 'Label to detect issues marked as questions' },
+            { name: labels.help, color: 'CC317C', description: 'Label to detect help request issues' },
+            { name: labels.deploy, color: '7057FF', description: 'Label to detect deploy actions' },
+            { name: labels.deployed, color: '0E8A16', description: 'Label to detect the deployed status' },
+            { name: labels.docs, color: 'C5DEF5', description: 'Label to manage docs branches' },
+            { name: labels.documentation, color: 'C5DEF5', description: 'Label to manage documentation branches' },
+            { name: labels.chore, color: '5319E7', description: 'Label to manage chore branches' },
+            { name: labels.maintenance, color: '5319E7', description: 'Label to manage maintenance branches' },
+            { name: labels.priorityHigh, color: 'B60205', description: 'Label to indicate a priority high' },
+            { name: labels.priorityMedium, color: 'FBBD0C', description: 'Label to indicate a priority medium' },
+            { name: labels.priorityLow, color: '0E8A16', description: 'Label to indicate a priority low' },
+            { name: labels.priorityNone, color: 'B4B4B4', description: 'Label to indicate no priority' },
+            { name: labels.sizeXxl, color: '8E44AD', description: 'Label to indicate a task of size XXL' },
+            { name: labels.sizeXl, color: '9B59B6', description: 'Label to indicate a task of size XL' },
+            { name: labels.sizeL, color: '3498DB', description: 'Label to indicate a task of size L' },
+            { name: labels.sizeM, color: '1ABC9C', description: 'Label to indicate a task of size M' },
+            { name: labels.sizeS, color: 'F39C12', description: 'Label to indicate a task of size S' },
+            { name: labels.sizeXs, color: 'E67E22', description: 'Label to indicate a task of size XS' },
+        ].filter(label => label.name && label.name.trim().length > 0); // Filter out undefined or empty labels
+
+        for (const label of requiredLabels) {
+            try {
+                const result = await this.ensureLabel(owner, repository, label.name, label.color, label.description, token);
+                if (result.created) {
+                    created++;
+                } else if (result.existed) {
+                    existing++;
+                }
+            } catch (error: any) {
+                logError(`Error ensuring label "${label.name}": ${error}`);
+                errors.push(`Error creando label "${label.name}": ${error.message || error}`);
+            }
+        }
+
+        return { created, existing, errors };
+    }
+
+    /**
+     * List all issue types for an organization
+     */
+    listIssueTypes = async (
+        owner: string,
+        token: string,
+    ): Promise<Array<{ id: string; name: string }>> => {
+        const octokit = github.getOctokit(token);
+        const { organization } = await octokit.graphql<{
+            organization: {
+                id: string;
+                issueTypes: {
+                    nodes: { id: string; name: string }[];
+                };
+            };
+        }>(`
+            query ($owner: String!) {
+                organization(login: $owner) {
+                    id
+                    issueTypes(first: 20) {
+                        nodes {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        `, { owner });
+
+        if (!organization) {
+            throw new Error(`No se pudo obtener la organización ${owner}`);
+        }
+
+        return organization.issueTypes.nodes;
+    }
+
+    /**
+     * Create an issue type for an organization
+     */
+    createIssueType = async (
+        owner: string,
+        name: string,
+        description: string,
+        color: string,
+        token: string,
+    ): Promise<string> => {
+        const octokit = github.getOctokit(token);
+        
+        // Get organization ID
+        const { organization } = await octokit.graphql<{
+            organization: {
+                id: string;
+            };
+        }>(`
+            query ($owner: String!) {
+                organization(login: $owner) {
+                    id
+                }
+            }
+        `, { owner });
+
+        if (!organization) {
+            throw new Error(`No se pudo obtener la organización ${owner}`);
+        }
+
+        const createResult = await octokit.graphql<{
+            createIssueType: {
+                issueType: { id: string };
+            };
+        }>(`
+            mutation ($ownerId: ID!, $name: String!, $description: String!, $color: IssueTypeColor!, $isEnabled: Boolean!) {
+                createIssueType(input: {
+                    ownerId: $ownerId,
+                    name: $name,
+                    description: $description,
+                    color: $color,
+                    isEnabled: $isEnabled
+                }) {
+                    issueType {
+                        id
+                    }
+                }
+            }
+        `, {
+            ownerId: organization.id,
+            name,
+            description,
+            color: color.toUpperCase(),
+            isEnabled: true,
+        });
+
+        return createResult.createIssueType.issueType.id;
+    }
+
+    /**
+     * Ensure an issue type exists, creating it if it doesn't
+     */
+    ensureIssueType = async (
+        owner: string,
+        name: string,
+        description: string,
+        color: string,
+        token: string,
+    ): Promise<{ created: boolean; existed: boolean }> => {
+        try {
+            const existingTypes = await this.listIssueTypes(owner, token);
+            const existingTypesMap = new Map(
+                existingTypes.map(type => [type.name.toLowerCase(), type])
+            );
+
+            if (existingTypesMap.has(name.toLowerCase())) {
+                return { created: false, existed: true };
+            }
+
+            await this.createIssueType(owner, name, description, color, token);
+            return { created: true, existed: false };
+        } catch (error) {
+            logError(`Error ensuring issue type "${name}": ${error}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Ensure all required issue types exist based on IssueTypes configuration
+     */
+    ensureIssueTypes = async (
+        owner: string,
+        issueTypes: IssueTypes,
+        token: string,
+    ): Promise<{ created: number; existing: number; errors: string[] }> => {
+        const errors: string[] = [];
+        let created = 0;
+        let existing = 0;
+
+        // Define all required issue types
+        const requiredIssueTypes = [
+            { name: issueTypes.task, description: issueTypes.taskDescription, color: issueTypes.taskColor },
+            { name: issueTypes.bug, description: issueTypes.bugDescription, color: issueTypes.bugColor },
+            { name: issueTypes.feature, description: issueTypes.featureDescription, color: issueTypes.featureColor },
+            { name: issueTypes.documentation, description: issueTypes.documentationDescription, color: issueTypes.documentationColor },
+            { name: issueTypes.maintenance, description: issueTypes.maintenanceDescription, color: issueTypes.maintenanceColor },
+            { name: issueTypes.hotfix, description: issueTypes.hotfixDescription, color: issueTypes.hotfixColor },
+            { name: issueTypes.release, description: issueTypes.releaseDescription, color: issueTypes.releaseColor },
+            { name: issueTypes.question, description: issueTypes.questionDescription, color: issueTypes.questionColor },
+            { name: issueTypes.help, description: issueTypes.helpDescription, color: issueTypes.helpColor },
+        ];
+
+        for (const issueType of requiredIssueTypes) {
+            try {
+                const result = await this.ensureIssueType(owner, issueType.name, issueType.description, issueType.color, token);
+                if (result.created) {
+                    created++;
+                } else {
+                    existing++;
+                }
+            } catch (error: any) {
+                logError(`Error ensuring issue type "${issueType.name}": ${error}`);
+                errors.push(`Error creando tipo de Issue "${issueType.name}": ${error.message || error}`);
+            }
+        }
+
+        return { created, existing, errors };
+    }
 }

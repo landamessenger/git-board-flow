@@ -58,4 +58,18 @@ export declare class SupabaseRepository {
      * Get distinct paths for a branch
      */
     getDistinctPaths: (owner: string, repository: string, branch: string) => Promise<string[]>;
+    /**
+     * Verify that a table exists in Supabase
+     */
+    verifyTableExists: (tableName: string) => Promise<{
+        exists: boolean;
+        error?: string;
+    }>;
+    /**
+     * Verify that an RPC function exists in Supabase
+     */
+    verifyRpcFunctionExists: (functionName: string, testParams: any) => Promise<{
+        exists: boolean;
+        error?: string;
+    }>;
 }

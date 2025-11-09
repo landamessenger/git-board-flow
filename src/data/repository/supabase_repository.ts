@@ -287,4 +287,53 @@ export class SupabaseRepository {
         }
     }
 
+    /**
+     * Verify that a table exists in Supabase
+     */
+    verifyTableExists = async (tableName: string): Promise<{ exists: boolean; error?: string }> => {
+        try {
+            const { error } = await this.supabase
+                .from(tableName)
+                .select('*')
+                .limit(1);
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // PGRST116 is "no rows returned", which means the table exists but is empty
+                    return { exists: true };
+                } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                    // Table does not exist
+                    return { exists: false, error: `Table ${tableName} does not exist` };
+                } else {
+                    return { exists: false, error: error.message || String(error) };
+                }
+            }
+
+            return { exists: true };
+        } catch (error: any) {
+            if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                return { exists: false, error: `Table ${tableName} does not exist` };
+            }
+            return { exists: false, error: error.message || String(error) };
+        }
+    }
+
+    /**
+     * Verify that an RPC function exists in Supabase
+     */
+    verifyRpcFunctionExists = async (functionName: string, testParams: any): Promise<{ exists: boolean; error?: string }> => {
+        try {
+            await this.supabase.rpc(functionName, testParams);
+            // If it doesn't throw, the function exists (even if it fails due to invalid params)
+            return { exists: true };
+        } catch (error: any) {
+            // If the error is that the function doesn't exist (42883), return false
+            if (error.code === '42883' || (error.message?.includes('function') && error.message?.includes('does not exist'))) {
+                return { exists: false, error: `Function ${functionName} does not exist` };
+            }
+            // Other errors (like invalid parameters) are expected and mean the function exists
+            return { exists: true };
+        }
+    }
+
 } 
