@@ -150,7 +150,14 @@ export class AiRepository {
         }
     }
 
-    askThinkJson = async (ai: Ai, prompt: string): Promise<any | undefined> => {
+    /**
+     * Ask AI with conversation history (array of messages)
+     * Supports both single prompt (backward compatible) and message array
+     */
+    askThinkJson = async (
+        ai: Ai, 
+        messagesOrPrompt: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> | string
+    ): Promise<any | undefined> => {
         const model = ai.getOpenRouterModel();
         const apiKey = ai.getOpenRouterApiKey();
         const providerRouting = ai.getProviderRouting();
@@ -160,18 +167,17 @@ export class AiRepository {
             return undefined;
         }
 
-        // logDebugInfo(`🔎 Model: ${model}`);
-        // logDebugInfo(`🔎 API Key: ***`);
-        // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
-
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
         try {
+            // Convert single prompt to message array for backward compatibility
+            const messages = Array.isArray(messagesOrPrompt) 
+                ? messagesOrPrompt 
+                : [{ role: 'user' as const, content: messagesOrPrompt }];
+
             const requestBody: any = {
                 model: model,
-                messages: [
-                    { role: 'user', content: prompt },
-                ],
+                messages: messages,
                 response_format: {
                     type: "json_schema",
                     json_schema: {
@@ -212,10 +218,7 @@ export class AiRepository {
                 return undefined;
             }
 
-            // logDebugInfo(`Successfully received response from ${model}`);
             const content = data.choices[0].message.content;
-            
-            // logDebugInfo(`Response: ${content}`);
             return JSON.parse(content);
         } catch (error) {
             logError(`Error querying ${model}: ${error}`);
