@@ -2,6 +2,7 @@
   "name": "git-board-flow",
   "version": "1.1.0",
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
+  "type": "module",
   "main": "build/github_action/index.js",
   "bin": {
     "giik": "./build/cli/index.js"

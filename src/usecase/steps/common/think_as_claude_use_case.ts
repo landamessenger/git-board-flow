@@ -11,9 +11,8 @@ import { FileSearchService } from './services/file_search_service';
 import { CommentFormatter } from './services/comment_formatter';
 import { ThinkUseCase } from './think_use_case';
 
-// Agent SDK imports - using dynamic import to avoid bundling issues with ncc
-// The SDK is an ES module and ncc has issues bundling it, so we import it dynamically at runtime
-// We exclude it from the bundle using --external flag in ncc
+// Agent SDK imports
+import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 
@@ -329,31 +328,8 @@ Use search_files to find specific files, then read_file to examine them.`;
         finalAnalysis: string;
     }> {
         try {
-            // Dynamically import Agent SDK to avoid bundling issues with ncc
-            // The SDK is an ES module and ncc cannot bundle it properly, so we exclude it from the bundle
-            // and load it dynamically at runtime
-            let query: any;
-            let createSdkMcpServer: any;
-            let tool: any;
-            
-            try {
-                const agentSDK = await import('@anthropic-ai/claude-agent-sdk');
-                query = agentSDK.query;
-                createSdkMcpServer = agentSDK.createSdkMcpServer;
-                tool = agentSDK.tool;
-                
-                if (!query || !createSdkMcpServer || !tool) {
-                    throw new Error('Agent SDK exports not found');
-                }
-            } catch (importError: any) {
-                logError(`Failed to import Agent SDK: ${importError?.message || importError}`);
-                return {
-                    steps: [],
-                    analyzedFiles: new Map(),
-                    proposedChanges: [],
-                    finalAnalysis: `Agent SDK not available: ${importError?.message || 'Unknown error'}. Please ensure @anthropic-ai/claude-agent-sdk is installed in node_modules.`
-                };
-            }
+            // Agent SDK is imported statically at the top of the file
+            // Now that we're using ESM, we can import it directly without issues
 
             // Get API key from Ai configuration
             const apiKey = param.ai.getAnthropicApiKey();
