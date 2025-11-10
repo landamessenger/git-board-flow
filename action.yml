@@ -398,7 +398,7 @@ inputs:
     default: ""
   openrouter-model:
     description: "OpenRouter model for AI operations."
-    default: "anthropic/claude-3.5-haiku"
+    default: "openai/gpt-5-codex"
   openrouter-provider-order:
     description: "Comma-separated list of provider names to try in order."
     default: ""
