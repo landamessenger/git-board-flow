@@ -7,7 +7,7 @@
     "giik": "./build/cli/index.js"
   },
   "scripts": {
-    "build": "ncc build src/actions/github_action.ts -o build/github_action && ncc build src/cli.ts -o build/cli && chmod +x build/cli/index.js"
+    "build": "ncc build src/actions/github_action.ts -o build/github_action --external @anthropic-ai/claude-agent-sdk && ncc build src/cli.ts -o build/cli --external @anthropic-ai/claude-agent-sdk && chmod +x build/cli/index.js"
   },
   "keywords": [],
   "author": "Landa Messenger",
