@@ -636,10 +636,33 @@ ${failedDetails}
                         break;
 
                     case 'complete':
-                        complete = true;
-                        finalAnalysis = thinkResponse.final_analysis || thinkResponse.reasoning;
-                        lastProgressIteration = iteration;
-                        visualizer.showCompletion(finalAnalysis);
+                        // CRITICAL: Check if all TODOs are completed before allowing completion
+                        const activeTodos = todoManager.getActiveTodos();
+                        if (activeTodos.length > 0) {
+                            // Reject completion - there are still active TODOs
+                            logInfo(`⚠️ Completion rejected: ${activeTodos.length} active TODO(s) remaining`);
+                            actionResults.push(`🚫 **COMPLETION BLOCKED**: You cannot complete while there are ${activeTodos.length} active TODO(s) remaining.`);
+                            actionResults.push(`\n### ⚠️ Active TODOs that must be completed:`);
+                            activeTodos.forEach(todo => {
+                                const statusEmoji = todo.status === 'in_progress' ? '🔄' : '⏳';
+                                actionResults.push(`${statusEmoji} **[ID: ${todo.id}]** ${todo.status.toUpperCase()}: ${todo.content}`);
+                                if (todo.related_files && todo.related_files.length > 0) {
+                                    const unreadFiles = todo.related_files.filter(f => !readFiles.has(f));
+                                    if (unreadFiles.length > 0) {
+                                        actionResults.push(`   ⏳ Files not yet read: ${unreadFiles.map(f => `\`${f}\``).join(', ')}`);
+                                    }
+                                }
+                            });
+                            actionResults.push(`\n**ACTION REQUIRED**: You MUST complete or cancel ALL active TODOs before you can use the 'complete' action. Continue working on the active TODOs above.`);
+                            complete = false; // Force continuation
+                            lastProgressIteration = iteration;
+                        } else {
+                            // All TODOs are completed or cancelled - allow completion
+                            complete = true;
+                            finalAnalysis = thinkResponse.final_analysis || thinkResponse.reasoning;
+                            lastProgressIteration = iteration;
+                            visualizer.showCompletion(finalAnalysis);
+                        }
                         break;
                 }
 
@@ -872,7 +895,11 @@ ${failedDetails}
    - **After iteration 1**: You MUST set \`todo_updates.create\` to an empty array \`[]\` or omit it entirely. 
    - **After iteration 1**: ONLY use \`todo_updates.update\` to modify existing TODOs using EXACT TODO IDs (e.g., "todo_1", "todo_2").
    - **If you try to create TODOs after iteration 1**: They will be BLOCKED, you'll receive an error, and your response may be invalid.
-6. **complete**: Use when your analysis is finished. All TODOs should be completed or cancelled.
+       6. **complete**: 
+          - **🚫 CRITICAL**: You CANNOT use 'complete' if there are ANY active TODOs (pending or in_progress).
+          - **BEFORE completing**: You MUST complete or cancel ALL TODOs first.
+          - **ONLY use 'complete'** when ALL TODOs are either 'completed' or 'cancelled'.
+          - If you try to complete with active TODOs, your completion will be BLOCKED and you'll be forced to continue.
 
 ## Critical Instructions
 
@@ -883,6 +910,8 @@ ${failedDetails}
   - **After iteration 1**: Use \`todo_updates.update\` with EXACT TODO IDs (e.g., "todo_1", "todo_2") to mark them "in_progress" or "completed".
   - **JSON Schema Requirement**: The schema allows \`todo_updates.create\`, but you must set it to \`[]\` after iteration 1.
 - **WORK ON TODOs**: When a TODO is "pending" or "in_progress", DO REAL WORK (search, read, analyze, propose) in the SAME response where you update it.
+- **COMPLETE TODOs SYSTEMATICALLY**: Focus on ONE TODO at a time. Complete it fully (read necessary files, analyze, propose changes) before moving to the next.
+- **FINISH ALL TODOs**: You MUST complete or cancel ALL TODOs before you can use the 'complete' action. Do not leave TODOs half-finished.
 - **AVOID REPETITION**: Don't search for the same files repeatedly. Don't propose changes that have already been applied.
 - **BUILD INCREMENTALLY**: Each step should build upon the previous one.
 - **BE SPECIFIC**: When proposing changes, be very specific and provide suggested_code.
@@ -962,11 +991,11 @@ You are starting your analysis. Begin by understanding the question and identify
                 // Show context for active TODOs: what files have been read and what might be relevant
                 if (activeTodos.length > 0) {
                     const activeContext: string[] = [];
-                    activeContext.push(`\n### 🔄 Active TODOs Progress:`);
+                    activeContext.push(`\n### 🔄 Active TODOs Progress (${activeTodos.length} remaining - MUST complete before finishing):`);
                     
                     for (const todo of activeTodos) {
                         const statusEmoji = todo.status === 'in_progress' ? '🔄' : '⏳';
-                        activeContext.push(`\n${statusEmoji} **[ID: ${todo.id}]** ${todo.content}`);
+                        activeContext.push(`\n${statusEmoji} **[ID: ${todo.id}]** ${todo.status.toUpperCase()}: ${todo.content}`);
                         
                         // Show files already read related to this TODO
                         const relatedFiles = todo.related_files || [];
@@ -1014,7 +1043,13 @@ You are starting your analysis. Begin by understanding the question and identify
                         }
                     }
                     
+                    // Add strong reminder about completing TODOs
+                    activeContext.push(`\n⚠️ **CRITICAL**: You have ${activeTodos.length} active TODO(s). You MUST complete or cancel ALL of them before using the 'complete' action. Focus on one TODO at a time and finish it completely.`);
+                    
                     newContext.push(activeContext.join('\n'));
+                } else {
+                    // No active TODOs - remind that completion is allowed
+                    newContext.push(`\n✅ **All TODOs completed or cancelled** - You may use the 'complete' action when ready.`);
                 }
                 
                 // Update previous state
@@ -1045,13 +1080,18 @@ You are starting your analysis. Begin by understanding the question and identify
                 newlyAnalyzedFiles.forEach(f => previousAnalyzedFiles.add(f.path));
             }
             
-            // Add minimal iteration info
+            // Add iteration info with TODO reminder
             if (newContext.length > 0 || iteration % 5 === 0) {
                 // Only add iteration info if there's new context or every 5 iterations
                 if (newContext.length === 0) {
                     newContext.push(`## Iteration ${iteration}/${this.MAX_ITERATIONS}\n\nContinue your analysis.`);
                 } else {
-                    newContext.push(`\n---\nIteration ${iteration}/${this.MAX_ITERATIONS}`);
+                    const activeTodosCount = todoManager.getActiveTodos().length;
+                    if (activeTodosCount > 0) {
+                        newContext.push(`\n---\n**Iteration ${iteration}/${this.MAX_ITERATIONS}** | ⚠️ **${activeTodosCount} active TODO(s) remaining** - Complete them before finishing.`);
+                    } else {
+                        newContext.push(`\n---\n**Iteration ${iteration}/${this.MAX_ITERATIONS}** | ✅ All TODOs completed - You may complete when ready.`);
+                    }
                 }
             }
             
