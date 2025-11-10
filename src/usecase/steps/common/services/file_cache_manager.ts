@@ -71,9 +71,6 @@ export class FileCacheManager {
             }
 
             logInfo(`📂 Loaded ${cache.size} files from Supabase cache`);
-            if (cachedFiles.length > 0) {
-                logDebugInfo(`📂 Sample cached paths: ${Array.from(cache.keys()).slice(0, 5).join(', ')}`);
-            }
         } catch (error) {
             logError(`Error loading AI cache from Supabase: ${error}`);
         }

@@ -5,6 +5,7 @@ import { AiRepository } from '../../../data/repository/ai_repository';
 import { FileRepository } from '../../../data/repository/file_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
 import { logDebugInfo, logError, logInfo } from '../../../utils/logger';
+import { ReasoningVisualizer } from '../../../utils/reasoning_visualizer';
 import { ParamUseCase } from '../../base/param_usecase';
 import { ThinkCodeManager } from './think_code_manager';
 import { ThinkTodoManager } from './think_todo_manager';
@@ -27,7 +28,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private fileSearchService: FileSearchService = new FileSearchService();
     private commentFormatter: CommentFormatter = new CommentFormatter();
     
-    private readonly MAX_ITERATIONS = 30; // Increased to allow deeper analysis
+    private readonly MAX_ITERATIONS = 40; // Increased to allow deeper analysis
     private readonly MAX_FILES_TO_ANALYZE = 50; // Increased file limit
     private readonly MAX_CONSECUTIVE_SEARCHES = 3; // Max consecutive search_files without progress
     private readonly MAX_FILES_PER_READ = 3; // Maximum files to read per iteration
@@ -42,9 +43,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     }
     
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
-
-
+        const visualizer = new ReasoningVisualizer();
         const results: Result[] = [];
 
         try {
@@ -100,9 +99,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            logInfo(`🔎 Question: ${question}`);
-            logInfo(`🔎 Description: ${description}`);
-
+            // Show header with task
+            visualizer.showHeader(question || description || 'AI Reasoning');
+            
             if (question.length === 0 || !question.includes(`@${param.tokenUser}`)) {
                 logInfo(`🔎 Comment body is empty or does not include @${param.tokenUser}`);
                 results.push(
@@ -126,7 +125,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 param.commit.branch,
                 param.ai.getAiIgnoreFiles(),
                 (fileName: string) => logDebugInfo(`Loading: ${fileName}`),
-                (fileName: string) => logDebugInfo(`Ignoring: ${fileName}`)
+                (fileName: string) => {
+                    // logDebugInfo(`Ignoring: ${fileName}`)
+                }
             );
 
             logInfo(`📚 Loaded ${repositoryFiles.size} files from repository`);
@@ -174,13 +175,22 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             let lastProgressIteration = 0; // Track last iteration with actual progress
             let filesReadInIteration = 0;
             let seenActions: Map<string, number> = new Map(); // Track action patterns to detect repetition
+            
+            // Track previous state to only send changes
+            let previousReadFiles: Set<string> = new Set();
+            let previousAnalyzedFiles: Set<string> = new Set();
+            let previousTodoState: Map<string, { status: string; notes?: string }> = new Map();
+            let previousCodeChangesCount = 0;
+            
+            // Initialize visualizer with max iterations
+            visualizer.initialize(this.MAX_ITERATIONS);
 
             while (!complete && iteration < this.MAX_ITERATIONS) {
                 iteration++;
                 filesReadInIteration = 0;
-                // logInfo(`🤔 Reasoning iteration ${iteration}/${this.MAX_ITERATIONS}`);
+                visualizer.updateIteration(iteration);
 
-                const thinkResponse = await this.performReasoningStep(
+                const stepResult = await this.performReasoningStep(
                     param,
                     question,
                     description,
@@ -192,8 +202,15 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     fileAnalysisMap,
                     iteration,
                     steps,
-                    conversationMessages
-                ) as ThinkResponse;
+                    conversationMessages,
+                    previousReadFiles,
+                    previousAnalyzedFiles,
+                    previousTodoState,
+                    previousCodeChangesCount
+                );
+                
+                const thinkResponse = stepResult.response;
+                previousCodeChangesCount = stepResult.updatedPreviousCodeChangesCount;
 
                 if (!thinkResponse) {
                     logError('No response from AI reasoning step');
@@ -202,14 +219,22 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
                 // Handle TODO updates (can be included with any action)
                 if (thinkResponse.todo_updates) {
-                    // Create new TODOs
-                    if (thinkResponse.todo_updates.create) {
-                        for (const todo of thinkResponse.todo_updates.create) {
-                            const createdTodo = todoManager.createTodo(todo.content, todo.status || 'pending');
-                            logInfo(`✅ Created TODO: [${createdTodo.id}] ${todo.content}`);
-                        }
-                        if (thinkResponse.todo_updates.create.length > 0) {
-                            logInfo(`📋 Created ${thinkResponse.todo_updates.create.length} new TODO items`);
+                    // Create new TODOs - ONLY ALLOWED IN FIRST ITERATION
+                    if (thinkResponse.todo_updates.create && thinkResponse.todo_updates.create.length > 0) {
+                        if (iteration > 1) {
+                            // Silently block TODO creation after first iteration
+                            // Just log it, don't add error messages to conversation unless it becomes a pattern
+                            logInfo(`⚠️ Silently ignored ${thinkResponse.todo_updates.create.length} TODO creation attempt(s) in iteration ${iteration}. TODOs can only be created in iteration 1.`);
+                            // No error message added to conversation - the AI is doing its work, we just silently ignore the TODO creation
+                        } else {
+                            // First iteration - allow TODO creation
+                            for (const todo of thinkResponse.todo_updates.create) {
+                                const createdTodo = todoManager.createTodo(todo.content, todo.status || 'pending');
+                                logInfo(`✅ Created TODO: [${createdTodo.id}] ${todo.content}`);
+                            }
+                            if (thinkResponse.todo_updates.create.length > 0) {
+                                logInfo(`📋 Created ${thinkResponse.todo_updates.create.length} new TODO items`);
+                            }
                         }
                     }
                     
@@ -280,7 +305,15 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 
                 steps.push(step);
 
-                logInfo(`🤔 Step ${iteration}: ${thinkResponse.action} - ${thinkResponse.reasoning.substring(0, 100)}...`);
+                // Update visualizer with current state
+                const todoStats = todoManager.getStats();
+                visualizer.updateTodoStats(todoStats);
+                visualizer.updateFilesRead(readFiles.size);
+                visualizer.updateFilesAnalyzed(analyzedFiles.size);
+                visualizer.updateChangesApplied(codeManager.getStats().totalChanges);
+                
+                // Show visual status
+                visualizer.showIterationStatus(thinkResponse.action, thinkResponse.reasoning);
 
                 // Track action patterns to detect repetition
                 const actionKey = `${thinkResponse.action}_${thinkResponse.files_to_search?.join(',') || thinkResponse.files_to_read?.join(',') || 'general'}`;
@@ -318,12 +351,25 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                             if (foundFiles.length > 0) {
                                 actionResults.push(`Found ${foundFiles.length} files matching search criteria:\n${foundFiles.map(f => `- ${f}`).join('\n')}`);
                                 
+                                // Show visual feedback
+                                visualizer.showActionResult('search_files', {
+                                    success: true,
+                                    message: `Found ${foundFiles.length} file(s)`,
+                                    details: foundFiles.slice(0, 5).map(f => f)
+                                });
+                                
                                 // If found files after multiple searches, suggest reading them
                                 if (consecutiveSearches >= this.MAX_CONSECUTIVE_SEARCHES && foundFiles.length > 0) {
                                     actionResults.push(`💡 IMPORTANT: You've searched ${consecutiveSearches} times. You MUST read some of the found files now to proceed with analysis. Suggested files: ${foundFiles.slice(0, 5).join(', ')}`);
                                 }
                             } else {
                                 actionResults.push(`No files found matching search criteria: ${thinkResponse.files_to_search.join(', ')}. Available files in repository: ${Array.from(repositoryFiles.keys()).slice(0, 30).join(', ')}...`);
+                                
+                                // Show visual feedback
+                                visualizer.showActionResult('search_files', {
+                                    success: false,
+                                    message: `No files found for: ${thinkResponse.files_to_search.join(', ')}`
+                                });
                                 
                                 // If too many searches without finding files, provide full file list
                                 if (consecutiveSearches >= this.MAX_CONSECUTIVE_SEARCHES) {
@@ -342,10 +388,15 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                                 logInfo(`⚠️ Requested ${thinkResponse.files_to_read.length} files, limiting to ${this.MAX_FILES_PER_READ} per iteration`);
                                 actionResults.push(`⚠️ You requested ${thinkResponse.files_to_read.length} files, but only ${this.MAX_FILES_PER_READ} files can be read per iteration. Reading the first ${this.MAX_FILES_PER_READ} files now.`);
                             }
-                            logInfo(`📖 Reading ${filesToAnalyze.length} files: ${filesToAnalyze.join(', ')}`);
-                            
                             const newlyReadFiles: string[] = [];
                             const alreadyReadFiles: string[] = [];
+                            
+                            // Show visual feedback
+                            visualizer.showActionResult('read_file', {
+                                success: true,
+                                message: `Reading ${filesToAnalyze.length} file(s)`,
+                                details: filesToAnalyze.map(f => f)
+                            });
                             
                             for (const filePath of filesToAnalyze) {
                                 // Check if file was already read
@@ -441,14 +492,28 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                             
                             // Apply changes to virtual codebase
                             let appliedCount = 0;
+                            const failedChanges: Array<{ change: ProposedChange; reason: string }> = [];
+                            
                             for (const change of newChanges) {
-                                if (codeManager.applyChange(change)) {
+                                const result = codeManager.applyChange(change);
+                                if (result === true) {
                                     appliedCount++;
                                     allProposedChanges.push(change);
+                                } else {
+                                    // Track why change failed to apply
+                                    const fileExists = codeManager.getFileContent(change.file_path) !== undefined;
+                                    let reason = 'Unknown reason';
+                                    if (!fileExists && change.change_type !== 'create') {
+                                        reason = `File does not exist and change type is not 'create'`;
+                                    } else if (fileExists && change.change_type === 'create') {
+                                        reason = `File already exists, cannot create`;
+                                    } else {
+                                        reason = `Change could not be applied (possibly invalid suggested_code or file state)`;
+                                    }
+                                    failedChanges.push({ change, reason });
+                                    logInfo(`⚠️ Failed to apply change to ${change.file_path}: ${reason}`);
                                 }
                             }
-                            
-                            logInfo(`✅ Applied ${appliedCount} new changes to virtual codebase (${newChanges.length - appliedCount} skipped)`);
                             
                             // Auto-update TODOs based on applied changes
                             todoManager.autoUpdateFromChanges(newChanges.slice(0, appliedCount));
@@ -457,6 +522,22 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                             const startIndex = allProposedChanges.length - appliedCount;
                             const appliedChanges = newChanges.slice(0, appliedCount);
                             
+                            // Show visual feedback
+                            if (appliedCount > 0) {
+                                visualizer.showActionResult('propose_changes', {
+                                    success: true,
+                                    message: `Applied ${appliedCount} change(s) to virtual codebase`,
+                                    details: appliedChanges.map(c => `${c.change_type}: ${c.file_path}`)
+                                });
+                            }
+                            if (failedChanges.length > 0) {
+                                visualizer.showActionResult('propose_changes', {
+                                    success: false,
+                                    message: `${failedChanges.length} change(s) failed to apply`,
+                                    details: failedChanges.map(fc => `${fc.change.file_path}: ${fc.reason}`)
+                                });
+                            }
+                            
                             // Attach to step with start index for proper display order
                             const currentStep = steps[steps.length - 1];
                             if (currentStep) {
@@ -464,10 +545,49 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                                 (currentStep as any).proposals_start_index = startIndex;
                             }
                             
-                            const changesSummary = appliedChanges
-                                .map(c => `${c.change_type} ${c.file_path}: ${c.description}`)
-                                .join('\n');
-                            actionResults.push(`✅ Applied ${appliedCount} new changes to codebase:\n${changesSummary}`);
+                            // Build notification message
+                            if (appliedCount > 0) {
+                                // Build detailed notification about applied changes
+                                const changesDetails = appliedChanges.map((c, idx) => {
+                                    const isModified = codeManager.isFileModified(c.file_path);
+                                    return `**Change ${idx + 1}**: ${c.change_type.toUpperCase()} - \`${c.file_path}\`
+- Description: ${c.description}
+- Reasoning: ${c.reasoning}
+- Status: ✅ **APPLIED** to virtual codebase
+${isModified ? `- Note: This file now has ${codeManager.getFileChanges(c.file_path).length} total change(s) applied` : ''}`;
+                                }).join('\n\n');
+                                
+                                actionResults.push(`✅ **CHANGES APPLIED TO VIRTUAL CODEBASE** (${appliedCount} of ${thinkResponse.proposed_changes.length} proposed):
+
+${changesDetails}
+
+**IMPORTANT**: These changes are now part of the virtual codebase. When you read these files in future iterations, you will see the MODIFIED version with these changes already applied. DO NOT propose these same changes again.`);
+                            }
+                            
+                            // Report failed changes if any
+                            if (failedChanges.length > 0) {
+                                const failedDetails = failedChanges.map((fc, idx) => {
+                                    return `**Failed Change ${idx + 1}**: ${fc.change.change_type.toUpperCase()} - \`${fc.change.file_path}\`
+- Description: ${fc.change.description}
+- Reason: ❌ ${fc.reason}
+- Suggested Code: ${fc.change.suggested_code ? `${fc.change.suggested_code.substring(0, 200)}...` : '(none provided)'}`;
+                                }).join('\n\n');
+                                
+                                actionResults.push(`⚠️ **CHANGES NOT APPLIED** (${failedChanges.length} of ${thinkResponse.proposed_changes.length} proposed failed to apply):
+
+${failedDetails}
+
+**ACTION REQUIRED**: Review the reasons above and propose corrected changes. Common issues:
+- File doesn't exist but change type is not 'create'
+- File already exists but change type is 'create'
+- Invalid or malformed suggested_code
+- File state doesn't match the proposed change`);
+                            }
+                            
+                            // If no changes were applied at all
+                            if (appliedCount === 0 && failedChanges.length === 0) {
+                                actionResults.push(`⚠️ **NO CHANGES APPLIED**: All ${thinkResponse.proposed_changes.length} proposed change(s) were filtered out as duplicates or could not be applied. Please propose NEW changes.`);
+                            }
                             
                             lastProgressIteration = iteration;
                         }
@@ -495,6 +615,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         complete = true;
                         finalAnalysis = thinkResponse.final_analysis || thinkResponse.reasoning;
                         lastProgressIteration = iteration;
+                        visualizer.showCompletion(finalAnalysis);
                         break;
                 }
 
@@ -607,13 +728,36 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             );
 
         } catch (error) {
-            logError(`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`);
+            // Better error handling - extract meaningful error message
+            let errorMessage = 'Unknown error';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+                if (error.stack) {
+                    logError(`Error stack: ${error.stack}`);
+                }
+            } else if (typeof error === 'string') {
+                errorMessage = error;
+            } else if (error && typeof error === 'object') {
+                try {
+                    errorMessage = JSON.stringify(error, null, 2);
+                    if (errorMessage === '{}' && error.toString) {
+                        errorMessage = error.toString();
+                    }
+                } catch (e) {
+                    errorMessage = String(error);
+                }
+            } else {
+                errorMessage = String(error);
+            }
+            
+            logError(`Error in ${this.taskId}: ${errorMessage}`);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
-                    steps: [`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`],
+                    steps: [`Error in ${this.taskId}: ${errorMessage}`],
+                    errors: [errorMessage]
                 })
             );
         }
@@ -656,8 +800,12 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         fileAnalysisMap: Map<string, { description: string; consumes: string[]; consumed_by: string[] }>,
         iteration: number,
         previousSteps: ThinkStep[],
-        conversationMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
-    ): Promise<ThinkResponse | undefined> {
+        conversationMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+        previousReadFiles: Set<string>,
+        previousAnalyzedFiles: Set<string>,
+        previousTodoState: Map<string, { status: string; notes?: string }>,
+        previousCodeChangesCount: number
+    ): Promise<{ response: ThinkResponse | undefined; updatedPreviousCodeChangesCount: number }> {
         
         const codeStats = codeManager.getStats();
         const todoContext = todoManager.getContextForAI();
@@ -695,12 +843,21 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 2. **read_file**: Use when you need to examine specific files. You can read up to ${this.MAX_FILES_PER_READ} files per iteration.
 3. **analyze_code**: Use when you've read files and want to document findings.
 4. **propose_changes**: Use when you have enough context. Only propose NEW changes that build upon what's already been done.
-5. **update_todos**: Create TODOs ONLY in your first iteration. After that, ONLY update existing TODOs. Use EXACT TODO IDs (e.g., "todo_1").
+5. **update_todos**: 
+   - **🚫 CRITICAL RULE**: The \`todo_updates.create\` field can ONLY contain items in iteration 1 (the initial message). 
+   - **After iteration 1**: You MUST set \`todo_updates.create\` to an empty array \`[]\` or omit it entirely. 
+   - **After iteration 1**: ONLY use \`todo_updates.update\` to modify existing TODOs using EXACT TODO IDs (e.g., "todo_1", "todo_2").
+   - **If you try to create TODOs after iteration 1**: They will be BLOCKED, you'll receive an error, and your response may be invalid.
 6. **complete**: Use when your analysis is finished. All TODOs should be completed or cancelled.
 
 ## Critical Instructions
 
-- **TODOs**: Create TODOs in iteration 1 ONLY. After that, work on existing TODOs, NEVER create new ones.
+- **TODOs**: 
+  - **🚫 CRITICAL RULE**: The \`todo_updates.create\` field can ONLY contain items in iteration 1 (the initial message). 
+  - **After iteration 1**: You MUST set \`todo_updates.create\` to an empty array \`[]\` in your JSON response. NEVER include items in \`todo_updates.create\` after iteration 1.
+  - **After iteration 1**: Creating new TODOs is BLOCKED and will result in an error. You MUST work on existing TODOs only.
+  - **After iteration 1**: Use \`todo_updates.update\` with EXACT TODO IDs (e.g., "todo_1", "todo_2") to mark them "in_progress" or "completed".
+  - **JSON Schema Requirement**: The schema allows \`todo_updates.create\`, but you must set it to \`[]\` after iteration 1.
 - **WORK ON TODOs**: When a TODO is "pending" or "in_progress", DO REAL WORK (search, read, analyze, propose) in the SAME response where you update it.
 - **AVOID REPETITION**: Don't search for the same files repeatedly. Don't propose changes that have already been applied.
 - **BUILD INCREMENTALLY**: Each step should build upon the previous one.
@@ -725,7 +882,12 @@ ${allFiles.map(f => `- \`${f}\``).join('\n')}
 - When searching, use SPECIFIC terms like function names, class names, or specific file names
 - AVOID generic terms like "init", "setup", "request", "config" - these match too many files
 
-${todoStats.total > 0 ? `\n${todoContext}\n\n**CRITICAL**: To work on a TODO, use its EXACT ID (shown above) when updating. Don't just update status - DO THE ACTUAL WORK (search, read, analyze, propose) in the same response where you update the TODO.` : `\n## 📋 TODO List\n\n**IMPORTANT**: In your first response, create a TODO list breaking down the problem into manageable tasks (3-5 TODOs is usually enough). Use the \`todo_updates.create\` field to create initial TODOs. Each TODO represents a high-level task that may require multiple reasoning steps to complete.`}
+${todoStats.total > 0 ? `\n${todoContext}\n\n**🚫 CRITICAL RULE - READ CAREFULLY**: 
+- You are in iteration ${iteration}. TODOs can ONLY be created in iteration 1.
+- You already have ${todoStats.total} TODOs. Work on these using their EXACT IDs (shown above).
+- In your JSON response, you MUST set \`todo_updates.create\` to an empty array \`[]\`.
+- DO NOT include any items in \`todo_updates.create\` - they will be BLOCKED.
+- ONLY use \`todo_updates.update\` with EXACT TODO IDs to modify existing TODOs.` : `\n## 📋 TODO List\n\n**IMPORTANT**: In your first response ONLY (iteration 1), create a TODO list breaking down the problem into manageable tasks (3-5 TODOs is usually enough). Use the \`todo_updates.create\` field to create initial TODOs. Each TODO represents a high-level task that may require multiple reasoning steps to complete.\n\n**🚫 CRITICAL**: After this first message (iteration 1), you MUST set \`todo_updates.create\` to \`[]\` in ALL future responses. You can only update existing TODOs using \`todo_updates.update\`.`}
 
 You are starting your analysis. Begin by understanding the question and identifying what files or areas of the codebase might be relevant.`;
 
@@ -734,35 +896,76 @@ You are starting your analysis. Begin by understanding the question and identify
                 { role: 'user', content: userMessage }
             );
         } else {
-            // Subsequent iterations: Build user message with only new context
+            // Subsequent iterations: Build user message with ONLY new/changed information
             const newContext: string[] = [];
             
-            // Add TODO context if it exists
+            // Only send TODO changes (status or notes updates)
             if (todoStats.total > 0) {
-                newContext.push(todoContext);
-                newContext.push(`\n**CRITICAL**: Work on existing TODOs. Use EXACT IDs (e.g., "todo_1"). DO NOT create new TODOs.`);
+                const allTodos = todoManager.getAllTodos();
+                const todoChanges: string[] = [];
+                
+                for (const todo of allTodos) {
+                    const previousState = previousTodoState.get(todo.id);
+                    const statusChanged = !previousState || previousState.status !== todo.status;
+                    const notesChanged = !previousState || previousState.notes !== todo.notes;
+                    
+                    if (statusChanged || notesChanged) {
+                        const statusEmoji = 
+                            todo.status === 'completed' ? '✅' :
+                            todo.status === 'in_progress' ? '🔄' :
+                            todo.status === 'cancelled' ? '❌' : '⏳';
+                        
+                        todoChanges.push(`${statusEmoji} **[ID: ${todo.id}]** ${todo.status.toUpperCase()}: ${todo.content}`);
+                        if (todo.notes) {
+                            todoChanges.push(`   📝 Notes: ${todo.notes}`);
+                        }
+                        if (statusChanged && previousState) {
+                            todoChanges.push(`   ↪️ Status changed: ${previousState.status} → ${todo.status}`);
+                        }
+                    }
+                }
+                
+                if (todoChanges.length > 0) {
+                    newContext.push(`## 📋 TODO Updates:\n${todoChanges.join('\n')}`);
+                }
+                
+                // Update previous state
+                previousTodoState.clear();
+                for (const todo of allTodos) {
+                    previousTodoState.set(todo.id, { status: todo.status, notes: todo.notes });
+                }
             }
             
-            // Add code state if there are changes
-            if (codeStats.totalChanges > 0) {
-                newContext.push(`\n## Code State: ${codeStats.totalChanges} changes applied to ${codeStats.modifiedFiles} files`);
-                newContext.push(codeManager.getContextForAI());
+            // Only send NEW code changes (not all changes)
+            if (codeStats.totalChanges > previousCodeChangesCount) {
+                const newChangesCount = codeStats.totalChanges - previousCodeChangesCount;
+                newContext.push(`\n## Code Changes: ${newChangesCount} new change(s) applied (${codeStats.totalChanges} total)`);
+                previousCodeChangesCount = codeStats.totalChanges;
             }
             
-            // Add read files summary
-            const readFilesList = Array.from(readFiles);
-            if (readFilesList.length > 0) {
-                newContext.push(`\n## Files Already Read (${readFilesList.length}):\n${readFilesList.map(f => `- ${f}`).join('\n')}\n\n**DO NOT read these files again.** Use 'analyze_code' or 'propose_changes' instead.`);
+            // Only send NEWLY read files (not all read files)
+            const newlyReadFiles = Array.from(readFiles).filter(f => !previousReadFiles.has(f));
+            if (newlyReadFiles.length > 0) {
+                newContext.push(`\n## New Files Read (${newlyReadFiles.length}):\n${newlyReadFiles.map(f => `- ${f}`).join('\n')}`);
+                newlyReadFiles.forEach(f => previousReadFiles.add(f));
             }
             
-            // Add analyzed files summary
-            const analyzedFilesList = Array.from(analyzedFiles.values());
-            if (analyzedFilesList.length > 0) {
-                newContext.push(`\n## Previously Analyzed Files (${analyzedFilesList.length}):\n${analyzedFilesList.map(f => `- ${f.path}`).join('\n')}`);
+            // Only send NEWLY analyzed files (not all analyzed files)
+            const newlyAnalyzedFiles = Array.from(analyzedFiles.values()).filter(f => !previousAnalyzedFiles.has(f.path));
+            if (newlyAnalyzedFiles.length > 0) {
+                newContext.push(`\n## New Files Analyzed (${newlyAnalyzedFiles.length}):\n${newlyAnalyzedFiles.map(f => `- ${f.path} (${f.relevance}): ${f.key_findings.substring(0, 100)}...`).join('\n')}`);
+                newlyAnalyzedFiles.forEach(f => previousAnalyzedFiles.add(f.path));
             }
             
-            // Add iteration info
-            newContext.push(`\n## Iteration ${iteration}/${this.MAX_ITERATIONS}\n\nContinue your analysis. Build upon previous steps.`);
+            // Add minimal iteration info
+            if (newContext.length > 0 || iteration % 5 === 0) {
+                // Only add iteration info if there's new context or every 5 iterations
+                if (newContext.length === 0) {
+                    newContext.push(`## Iteration ${iteration}/${this.MAX_ITERATIONS}\n\nContinue your analysis.`);
+                } else {
+                    newContext.push(`\n---\nIteration ${iteration}/${this.MAX_ITERATIONS}`);
+                }
+            }
             
             if (newContext.length > 0) {
                 addUserMessage(newContext.join('\n'));
@@ -771,10 +974,18 @@ You are starting your analysis. Begin by understanding the question and identify
 
         try {
             const response = await this.aiRepository.askThinkJson(param.ai, conversationMessages);
-            return response as ThinkResponse;
+            const codeStats = codeManager.getStats();
+            return { 
+                response: response as ThinkResponse, 
+                updatedPreviousCodeChangesCount: codeStats.totalChanges 
+            };
         } catch (error) {
-            logError(`Error in reasoning step: ${error}`);
-            return undefined;
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            logError(`Error in reasoning step: ${errorMsg}`);
+            if (error instanceof Error && error.stack) {
+                logError(`Stack trace: ${error.stack}`);
+            }
+            return { response: undefined, updatedPreviousCodeChangesCount: previousCodeChangesCount };
         }
     }
 

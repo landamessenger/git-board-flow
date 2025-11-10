@@ -68,7 +68,7 @@ export const THINK_RESPONSE_JSON_SCHEMA = {
         },
         todo_updates: {
             type: "object",
-            description: "Updates to the TODO list (when action is 'update_todos' or alongside other actions)",
+            description: "Updates to the TODO list (when action is 'update_todos' or alongside other actions). CRITICAL: 'create' can ONLY be used in iteration 1. After iteration 1, ONLY use 'update' to modify existing TODOs.",
             properties: {
                 create: {
                     type: "array",
@@ -81,7 +81,7 @@ export const THINK_RESPONSE_JSON_SCHEMA = {
                         required: ["content", "status"],
                         additionalProperties: false
                     },
-                    description: "New TODO items to create"
+                    description: "🚫 CRITICAL: New TODO items can ONLY be created in iteration 1 (the initial message). After iteration 1, this field must be an empty array [] or omitted. If you try to create TODOs after iteration 1, they will be BLOCKED."
                 },
                 update: {
                     type: "array",
@@ -95,7 +95,7 @@ export const THINK_RESPONSE_JSON_SCHEMA = {
                         required: ["id", "status", "notes"],
                         additionalProperties: false
                     },
-                    description: "Updates to existing TODO items"
+                    description: "Updates to existing TODO items. Use EXACT TODO IDs (e.g., 'todo_1', 'todo_2') from the TODO list shown in the conversation."
                 }
             },
             required: ["create", "update"],
