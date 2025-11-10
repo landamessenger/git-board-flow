@@ -45,6 +45,7 @@ export declare const THINK_RESPONSE_JSON_SCHEMA: {
                     };
                 };
                 required: string[];
+                additionalProperties: boolean;
             };
             description: string;
         };
@@ -71,6 +72,7 @@ export declare const THINK_RESPONSE_JSON_SCHEMA: {
                     };
                 };
                 required: string[];
+                additionalProperties: boolean;
             };
             description: string;
         };
@@ -100,6 +102,7 @@ export declare const THINK_RESPONSE_JSON_SCHEMA: {
                             };
                         };
                         required: string[];
+                        additionalProperties: boolean;
                     };
                     description: string;
                 };
@@ -120,10 +123,13 @@ export declare const THINK_RESPONSE_JSON_SCHEMA: {
                             };
                         };
                         required: string[];
+                        additionalProperties: boolean;
                     };
                     description: string;
                 };
             };
+            required: string[];
+            additionalProperties: boolean;
         };
     };
     required: string[];

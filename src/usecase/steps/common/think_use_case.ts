@@ -13,7 +13,6 @@ import { FileCacheManager } from './services/file_cache_manager';
 import { CodebaseAnalyzer } from './services/codebase_analyzer';
 import { FileSearchService } from './services/file_search_service';
 import { CommentFormatter } from './services/comment_formatter';
-import { ThinkAsClaudeUseCase } from './think_as_claude_use_case';
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ThinkUseCase';
@@ -31,6 +30,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private readonly MAX_ITERATIONS = 30; // Increased to allow deeper analysis
     private readonly MAX_FILES_TO_ANALYZE = 50; // Increased file limit
     private readonly MAX_CONSECUTIVE_SEARCHES = 3; // Max consecutive search_files without progress
+    private readonly MAX_FILES_PER_READ = 3; // Maximum files to read per iteration
     
     constructor() {
         // Initialize CodebaseAnalyzer with dependencies
@@ -44,12 +44,6 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`);
 
-        // Check if this is a Claude model and delegate to Agent SDK implementation
-        const model = param.ai.getAnthropicModel();
-        if (this.isClaudeModel(model)) {
-            logInfo(`🤖 Detected Claude model (${model}). Delegating to Agent SDK implementation.`);
-            return await new ThinkAsClaudeUseCase().invoke(param);
-        }
 
         const results: Result[] = [];
 
@@ -148,7 +142,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             // Build file index for quick lookup
             const fileIndex = this.fileSearchService.buildFileIndex(repositoryFiles);
             
-            // STEP 0: Generate codebase analysis and file relationships
+            // STEP 0: Generate codebase analysis and file relationships (for internal use only, not sent to AI)
             logInfo(`🔍 Step 0: Analyzing codebase structure and file relationships...`);
             const codebaseAnalysis = await this.codebaseAnalyzer.generateCodebaseAnalysis(
                 param,
@@ -157,10 +151,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             );
             logInfo(`✅ Codebase analysis completed. Analyzed ${codebaseAnalysis.length} files.`);
             
-            // Format codebase analysis for context
-            const codebaseAnalysisText = this.codebaseAnalyzer.formatCodebaseAnalysisForContext(codebaseAnalysis);
-            
-            // Create a map of file paths to their analysis descriptions for quick lookup
+            // Create a map of file paths to their analysis descriptions for quick lookup (internal use)
             const fileAnalysisMap = new Map<string, { description: string; consumes: string[]; consumed_by: string[] }>();
             codebaseAnalysis.forEach(item => {
                 fileAnalysisMap.set(item.path, {
@@ -177,7 +168,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             let analyzedFiles: Map<string, FileAnalysis> = new Map();
             let readFiles: Set<string> = new Set(); // Track files that have been read
             let allProposedChanges: ProposedChange[] = [];
-            let currentContext = codebaseAnalysisText; // Start with codebase analysis
+            let currentContext = ''; // Start with empty context - files will be added as they're read
             let finalAnalysis = '';
             let consecutiveSearches = 0; // Track consecutive search_files without reading
             let lastProgressIteration = 0; // Track last iteration with actual progress
@@ -291,10 +282,21 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     case 'search_files':
                         consecutiveSearches++;
                         if (thinkResponse.files_to_search && thinkResponse.files_to_search.length > 0) {
+                            // Check for generic search terms
+                            const genericTerms = this.detectGenericSearchTerms(thinkResponse.files_to_search);
+                            if (genericTerms.length > 0) {
+                                currentContext += `\n\n⚠️ **WARNING**: You used generic search terms: ${genericTerms.join(', ')}. These terms are too common and will match many files. Use more specific terms like function names, class names, or specific file names. For example, instead of "init", search for "initializeSupabase" or "initialSetup".`;
+                            }
+                            
                             // Get current repository files (including modified files from code manager)
                             const currentFiles = codeManager.getAllFiles();
                             const foundFiles = this.fileSearchService.searchFiles(thinkResponse.files_to_search, fileIndex, currentFiles);
                             logInfo(`🔍 Search results: Found ${foundFiles.length} files for terms: ${thinkResponse.files_to_search.join(', ')}`);
+                            
+                            // Warn if too many files found (likely due to generic terms)
+                            if (foundFiles.length > 20) {
+                                currentContext += `\n\n⚠️ **WARNING**: Your search found ${foundFiles.length} files, which is too many. This likely means your search terms are too generic. Use more specific terms to narrow down the results.`;
+                            }
                             
                             // Detect if we're repeating the same search
                             if (actionCount > 1) {
@@ -327,7 +329,12 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     case 'read_file':
                         consecutiveSearches = 0; // Reset counter when reading files
                         if (thinkResponse.files_to_read && thinkResponse.files_to_read.length > 0) {
-                            const filesToAnalyze = thinkResponse.files_to_read.slice(0, this.MAX_FILES_TO_ANALYZE - analyzedFiles.size);
+                            // Limit to MAX_FILES_PER_READ files per iteration
+                            const filesToAnalyze = thinkResponse.files_to_read.slice(0, this.MAX_FILES_PER_READ);
+                            if (thinkResponse.files_to_read.length > this.MAX_FILES_PER_READ) {
+                                logInfo(`⚠️ Requested ${thinkResponse.files_to_read.length} files, limiting to ${this.MAX_FILES_PER_READ} per iteration`);
+                                currentContext += `\n\n⚠️ You requested ${thinkResponse.files_to_read.length} files, but only ${this.MAX_FILES_PER_READ} files can be read per iteration. Reading the first ${this.MAX_FILES_PER_READ} files now. You can request more files in the next iteration if needed.`;
+                            }
                             logInfo(`📖 Reading ${filesToAnalyze.length} files: ${filesToAnalyze.join(', ')}`);
                             
                             const newlyReadFiles: string[] = [];
@@ -663,10 +670,6 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         const todoContext = todoManager.getContextForAI();
         const todoStats = todoManager.getStats();
         
-        // Get codebase analysis from initial step (stored in currentContext at start)
-        const codebaseAnalysisMatch = currentContext.match(/## 📋 Codebase Analysis & File Relationships\n\n([\s\S]*?)(?=\n##|$)/);
-        const codebaseAnalysis = codebaseAnalysisMatch ? codebaseAnalysisMatch[1] : '';
-
         // Build summary of previous steps to avoid repetition
         const stepsSummary = previousSteps.length > 0
             ? `\n\n## Previous Steps Taken (${previousSteps.length}):\n${previousSteps.slice(-5).map(s => 
@@ -674,29 +677,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             ).join('\n')}${previousSteps.length > 5 ? `\n... and ${previousSteps.length - 5} more steps` : ''}`
             : '';
 
-        // Build enhanced file list with descriptions and relationships from codebase analysis
-        const allFiles = Array.from(codeManager.getAllFiles().keys());
-        const fileListWithDescriptions = allFiles.map(filePath => {
-            const analysis = fileAnalysisMap.get(filePath);
-            if (analysis) {
-                let entry = `- \`${filePath}\`: ${analysis.description}`;
-                
-                // Add relationships if available
-                if (analysis.consumes && analysis.consumes.length > 0) {
-                    entry += `\n  - *Consumes*: ${analysis.consumes.map(r => `\`${r}\``).join(', ')}`;
-                }
-                
-                if (analysis.consumed_by && analysis.consumed_by.length > 0) {
-                    entry += `\n  - *Consumed By*: ${analysis.consumed_by.map(r => `\`${r}\``).join(', ')}`;
-                }
-                
-                return entry;
-            } else {
-                return `- \`${filePath}\``;
-            }
-        });
-        
-        const fileListSummary = `\n\n## 📁 Available Files in Repository (${codeStats.totalFiles} total)\n\n${fileListWithDescriptions.join('\n')}\n\n**IMPORTANT**: When searching for files, use specific file names or keywords, NOT glob patterns like \`src/**/*.ts\`. The search works with file names, paths, or content keywords. Use the descriptions and relationships above to identify relevant files.`;
+        // Build simple file list (only paths, no descriptions to save context)
+        const allFiles = Array.from(codeManager.getAllFiles().keys()).sort();
+        const fileListSummary = `\n\n## 📁 Available Files in Repository (${codeStats.totalFiles} total)\n\n${allFiles.map(f => `- \`${f}\``).join('\n')}\n\n**IMPORTANT**: \n- You can read up to ${this.MAX_FILES_PER_READ} files per iteration using the \`read_file\` action\n- When searching, use SPECIFIC terms like function names, class names, or specific file names\n- AVOID generic terms like "init", "setup", "request", "config" - these match too many files\n- Use the file list above to identify relevant files by their paths\n- If you need to read more files, request them in subsequent iterations`;
 
         const prompt = `
 # Code Analysis Assistant
@@ -717,7 +700,7 @@ You are an advanced code analysis assistant similar to Cursor's Auto agent. Your
    - **High-level (TODO list)**: What major tasks need to be done?
    - **Low-level (reasoning steps)**: How do I accomplish each task? (search, read, analyze, propose)
 
-${codebaseAnalysis ? `\n\n## 📋 Codebase Analysis & File Relationships\n\n${codebaseAnalysis}\n\n**This analysis helps you understand the codebase structure and relationships between files. Use it to make informed decisions about which files to examine for the task.**\n\n` : ''}
+// Codebase analysis removed from context to save tokens - use file list and search instead
 
 ${todoStats.total > 0 ? `\n${todoContext}\n\n**CRITICAL**: To work on a TODO, use its EXACT ID (shown above) when updating. Don't just update status - DO THE ACTUAL WORK (search, read, analyze, propose) in the same response where you update the TODO.` : iteration === 1 ? `\n\n## 📋 TODO List\n\n**IMPORTANT**: In your first response, you should create a TODO list breaking down the problem into manageable tasks. Use the \`todo_updates.create\` field to create initial TODOs. Each TODO represents a high-level task that may require multiple reasoning steps to complete.` : ''}
 
@@ -748,11 +731,16 @@ ${fileListSummary}
 
 ## Your Analysis Approach
 
-1. **search_files**: Use when you need to find files by name, path, or keywords. 
-   - **DO**: Use specific file names (e.g., "cli.ts", "config.ts"), keywords (e.g., "authentication", "setup"), or partial paths (e.g., "src/cli")
-   - **DON'T**: Use glob patterns like \`src/**/*.ts\` or \`**/*.ts\` - these don't work. Instead, use keywords or specific file names.
+1. **search_files**: Use when you need to find files by name, path, or content keywords. 
+   - **DO**: Use SPECIFIC terms like function names (e.g., "duplicate_ai_file_cache_by_branch"), class names (e.g., "SupabaseRepository"), specific file names (e.g., "cli.ts"), or unique identifiers
+   - **DON'T**: 
+     - Use glob patterns like \`src/**/*.ts\` or \`**/*.ts\` - these don't work
+     - Use generic terms like "init", "setup", "request", "config", "util" - these match too many files and are not useful
    - Be specific and AVOID searching for the same terms repeatedly.
-2. **read_file**: Use when you need to examine specific files. The files you read will show the CURRENT STATE (with all applied changes from previous steps).
+2. **read_file**: Use when you need to examine specific files. 
+   - You can read up to ${this.MAX_FILES_PER_READ} files per iteration
+   - The files you read will show the CURRENT STATE (with all applied changes from previous steps)
+   - If you need to read more files, request them in the next iteration
 3. **analyze_code**: Use when you've read files and want to document findings. Focus on understanding relationships and dependencies.
 4. **propose_changes**: Use when you have enough context. **CRITICAL**: Only propose NEW changes that build upon what's already been done. Don't repeat changes that were already applied.
 5. **update_todos** (or include with other actions): 
@@ -871,5 +859,23 @@ Be thorough, clear, and actionable.
         if (!model) return false;
         const modelLower = model.toLowerCase();
         return modelLower.includes('claude') || modelLower.includes('anthropic');
+    }
+
+    /**
+     * Detect generic search terms that are too common and not useful
+     */
+    private detectGenericSearchTerms(searchTerms: string[]): string[] {
+        const genericTerms = [
+            'init', 'initialize', 'setup', 'config', 'configuration',
+            'request', 'response', 'util', 'utils', 'helper', 'helpers',
+            'common', 'base', 'main', 'index', 'types', 'type',
+            'model', 'models', 'data', 'api', 'service', 'services',
+            'handler', 'handlers', 'manager', 'managers', 'repository', 'repositories'
+        ];
+        
+        return searchTerms.filter(term => {
+            const termLower = term.toLowerCase();
+            return genericTerms.some(generic => termLower === generic || termLower.includes(generic));
+        });
     }
 }

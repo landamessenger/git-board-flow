@@ -14,6 +14,7 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private readonly MAX_ITERATIONS;
     private readonly MAX_FILES_TO_ANALYZE;
     private readonly MAX_CONSECUTIVE_SEARCHES;
+    private readonly MAX_FILES_PER_READ;
     constructor();
     invoke(param: Execution): Promise<Result[]>;
     private getIssueDescription;
@@ -23,4 +24,8 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
      * Check if the model is an Anthropic Claude model
      */
     private isClaudeModel;
+    /**
+     * Detect generic search terms that are too common and not useful
+     */
+    private detectGenericSearchTerms;
 }
