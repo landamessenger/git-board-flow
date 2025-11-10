@@ -8,6 +8,8 @@ export interface ProviderRoutingConfig {
     sort?: 'price' | 'throughput' | 'latency';
 }
 export declare class Ai {
+    private anthropicApiKey;
+    private anthropicModel;
     private openRouterApiKey;
     private openRouterModel;
     private aiPullRequestDescription;
@@ -15,7 +17,9 @@ export declare class Ai {
     private aiIgnoreFiles;
     private aiIncludeReasoning;
     private providerRouting;
-    constructor(openRouterApiKey: string, openRouterModel: string, aiPullRequestDescription: boolean, aiMembersOnly: boolean, aiIgnoreFiles: string[], aiIncludeReasoning: boolean, providerRouting?: ProviderRoutingConfig);
+    constructor(anthropicApiKey: string, anthropicModel: string, openRouterApiKey: string, openRouterModel: string, aiPullRequestDescription: boolean, aiMembersOnly: boolean, aiIgnoreFiles: string[], aiIncludeReasoning: boolean, providerRouting?: ProviderRoutingConfig);
+    getAnthropicApiKey(): string;
+    getAnthropicModel(): string;
     getOpenRouterApiKey(): string;
     getAiPullRequestDescription(): boolean;
     getAiMembersOnly(): boolean;

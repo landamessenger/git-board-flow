@@ -86,13 +86,14 @@ export class ThinkAsClaudeUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             }
 
-            if (param.ai.getOpenRouterModel().length === 0 || param.ai.getOpenRouterApiKey().length === 0) {
+            // Validate Anthropic configuration
+            if (!param.ai.getAnthropicApiKey() || !param.ai.getAnthropicModel()) {
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: false,
-                        errors: ['OpenRouter model or API key not found.'],
+                        errors: ['Anthropic API key and model not configured. Please configure ANTHROPIC_API_KEY and ANTHROPIC_MODEL in Ai settings.'],
                     })
                 );
                 return results;
@@ -336,28 +337,42 @@ Use search_files to find specific files, then read_file to examine them.`;
         try {
             // Agent SDK is imported statically at the top of the file
 
-            // Get API key - try environment variable first, then fallback to OpenRouter key
-            // NOTE: Agent SDK typically requires Anthropic API key directly, not OpenRouter
-            const apiKey = process.env.ANTHROPIC_API_KEY || param.ai.getOpenRouterApiKey();
+            // Get API key from Ai configuration
+            const apiKey = param.ai.getAnthropicApiKey();
             
-            if (!apiKey) {
+            if (!apiKey || apiKey.length === 0) {
                 logError('No API key available for Agent SDK');
                 return {
                     steps: [],
                     analyzedFiles: new Map(),
                     proposedChanges: [],
-                    finalAnalysis: 'API key not configured. Please set ANTHROPIC_API_KEY environment variable.'
+                    finalAnalysis: 'API key not configured. Please configure ANTHROPIC_API_KEY in Ai settings.'
                 };
             }
 
-            // Get model name - extract Claude model from OpenRouter format if needed
-            let modelName = param.ai.getOpenRouterModel();
-            // If using OpenRouter format like "anthropic/claude-3.5-sonnet", extract just the model part
-            if (modelName.includes('/')) {
-                modelName = modelName.split('/').pop() || modelName;
+            // Get model name from Ai configuration and normalize it
+            const rawModelName = param.ai.getAnthropicModel();
+            
+            if (!rawModelName || rawModelName.length === 0) {
+                logError('No model configured for Agent SDK');
+                return {
+                    steps: [],
+                    analyzedFiles: new Map(),
+                    proposedChanges: [],
+                    finalAnalysis: 'Model not configured. Please configure ANTHROPIC_MODEL in Ai settings.'
+                };
             }
 
-            logInfo(`🤖 Initializing Agent SDK with model: ${modelName}`);
+            // Normalize model name to Anthropic format
+            // Accepts formats like:
+            // - "anthropic/claude-3.5-haiku" (OpenRouter format) → "claude-3-5-haiku-latest"
+            // - "claude-3.5-haiku" → "claude-3-5-haiku-latest"
+            // - "claude-3-5-haiku" → "claude-3-5-haiku-latest"
+            // - "claude-3-5-haiku-latest" → "claude-3-5-haiku-latest" (already correct)
+            // - "claude-3-5-haiku-20241022" → "claude-3-5-haiku-20241022" (specific version)
+            const modelName = this.normalizeModelName(rawModelName);
+            
+            logInfo(`🤖 Initializing Agent SDK with model: ${modelName} (normalized from: ${rawModelName})`);
 
             // Track state for conversion
             const trackedSteps: ThinkStep[] = [];
@@ -1032,6 +1047,51 @@ Work systematically, be thorough, and build understanding incrementally.`;
         summary += `\n**Analysis completed using Claude Agent SDK.**`;
         
         return summary;
+    }
+
+    /**
+     * Normalize model name to Anthropic format
+     * 
+     * Accepts various formats and converts them to Anthropic's expected format:
+     * - "anthropic/claude-3.5-haiku" → "claude-3-5-haiku-latest"
+     * - "claude-3.5-haiku" → "claude-3-5-haiku-latest"
+     * - "claude-3-5-haiku" → "claude-3-5-haiku-latest"
+     * - "claude-3-5-haiku-latest" → "claude-3-5-haiku-latest" (no change)
+     * - "claude-3-5-haiku-20241022" → "claude-3-5-haiku-20241022" (specific version, no change)
+     * 
+     * Model names supported:
+     * - claude-3-5-haiku-latest / claude-3-5-haiku-20241022
+     * - claude-3-5-sonnet-latest / claude-3-5-sonnet-20241022
+     * - claude-3-opus-latest / claude-3-opus-20240229
+     * - claude-3-sonnet-latest / claude-3-sonnet-20240229
+     * - claude-3-haiku-latest / claude-3-haiku-20240307
+     */
+    private normalizeModelName(modelName: string): string {
+        // Remove leading/trailing whitespace
+        let normalized = modelName.trim();
+        
+        // Remove "anthropic/" prefix if present (OpenRouter format)
+        if (normalized.startsWith('anthropic/')) {
+            normalized = normalized.substring('anthropic/'.length);
+        }
+        
+        // If it already has a version suffix (e.g., -20241022 or -latest), return as-is
+        if (normalized.match(/-\d{8}$/) || normalized.endsWith('-latest')) {
+            return normalized;
+        }
+        
+        // Convert dots to hyphens in version numbers (e.g., "3.5" → "3-5")
+        normalized = normalized.replace(/claude-(\d+)\.(\d+)-/g, 'claude-$1-$2-');
+        normalized = normalized.replace(/claude-(\d+)\.(\d+)$/g, 'claude-$1-$2');
+        
+        // If it's a base model name without version, add "-latest" suffix
+        // Examples: "claude-3-5-haiku" → "claude-3-5-haiku-latest"
+        if (normalized.match(/^claude-[\d-]+-(haiku|sonnet|opus)$/)) {
+            return `${normalized}-latest`;
+        }
+        
+        // Return as-is if it doesn't match expected patterns
+        return normalized;
     }
 
     /**

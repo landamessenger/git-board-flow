@@ -19,4 +19,8 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private getIssueDescription;
     private performReasoningStep;
     private generateFinalAnalysis;
+    /**
+     * Check if the model is an Anthropic Claude model
+     */
+    private isClaudeModel;
 }
