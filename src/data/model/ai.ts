@@ -9,6 +9,8 @@ export interface ProviderRoutingConfig {
 }
 
 export class Ai {
+    private anthropicApiKey: string;
+    private anthropicModel: string;
     private openRouterApiKey: string;
     private openRouterModel: string;
     private aiPullRequestDescription: boolean;
@@ -18,6 +20,8 @@ export class Ai {
     private providerRouting: ProviderRoutingConfig;
 
     constructor(
+        anthropicApiKey: string,
+        anthropicModel: string,
         openRouterApiKey: string, 
         openRouterModel: string, 
         aiPullRequestDescription: boolean, 
@@ -26,6 +30,8 @@ export class Ai {
         aiIncludeReasoning: boolean,
         providerRouting?: ProviderRoutingConfig
     ) {
+        this.anthropicApiKey = anthropicApiKey;
+        this.anthropicModel = anthropicModel;
         this.openRouterApiKey = openRouterApiKey;
         this.openRouterModel = openRouterModel;
         this.aiPullRequestDescription = aiPullRequestDescription;
@@ -33,6 +39,14 @@ export class Ai {
         this.aiIgnoreFiles = aiIgnoreFiles;
         this.aiIncludeReasoning = aiIncludeReasoning;
         this.providerRouting = providerRouting || {};
+    }
+
+    getAnthropicApiKey(): string {
+        return this.anthropicApiKey;
+    }
+
+    getAnthropicModel(): string {
+        return this.anthropicModel;
     }
 
     getOpenRouterApiKey(): string {

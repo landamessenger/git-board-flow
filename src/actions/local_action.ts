@@ -60,6 +60,8 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     /**
      * AI
      */
+    const anthropicApiKey = additionalParams[INPUT_KEYS.ANTHROPIC_API_KEY] ?? actionInputs[INPUT_KEYS.ANTHROPIC_API_KEY];
+    const anthropicModel = additionalParams[INPUT_KEYS.ANTHROPIC_MODEL] ?? actionInputs[INPUT_KEYS.ANTHROPIC_MODEL];
     const openrouterApiKey = additionalParams[INPUT_KEYS.OPENROUTER_API_KEY] ?? actionInputs[INPUT_KEYS.OPENROUTER_API_KEY];
     const openrouterModel = additionalParams[INPUT_KEYS.OPENROUTER_MODEL] ?? actionInputs[INPUT_KEYS.OPENROUTER_MODEL];
     const aiPullRequestDescription = (additionalParams[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION] ?? actionInputs[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION]) === 'true';
@@ -551,6 +553,8 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             token,
         ),
         new Ai(
+            anthropicApiKey,
+            anthropicModel,
             openrouterApiKey,
             openrouterModel,
             aiPullRequestDescription,

@@ -13,6 +13,7 @@ import { FileCacheManager } from './services/file_cache_manager';
 import { CodebaseAnalyzer } from './services/codebase_analyzer';
 import { FileSearchService } from './services/file_search_service';
 import { CommentFormatter } from './services/comment_formatter';
+import { ThinkAsClaudeUseCase } from './think_as_claude_use_case';
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ThinkUseCase';
@@ -42,6 +43,13 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`);
+
+        // Check if this is a Claude model and delegate to Agent SDK implementation
+        const model = param.ai.getOpenRouterModel();
+        if (this.isClaudeModel(model)) {
+            logInfo(`🤖 Detected Claude model (${model}). Delegating to Agent SDK implementation.`);
+            return await new ThinkAsClaudeUseCase().invoke(param);
+        }
 
         const results: Result[] = [];
 
@@ -764,5 +772,14 @@ Be thorough, clear, and actionable.
 
         const response = await this.aiRepository.ask(param.ai, prompt);
         return response || 'Analysis completed. Review the proposed changes and steps above.';
+    }
+
+    /**
+     * Check if the model is an Anthropic Claude model
+     */
+    private isClaudeModel(model: string): boolean {
+        if (!model) return false;
+        const modelLower = model.toLowerCase();
+        return modelLower.includes('claude') || modelLower.includes('anthropic');
     }
 }

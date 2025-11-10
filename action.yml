@@ -393,6 +393,12 @@ inputs:
   supabase-url:
     description: "Supabase URL for AI operations."
     default: ""
+  anthropic-api-key:
+    description: "Anthropic API key for AI operations."
+    default: ""
+  anthropic-model:
+    description: "Anthropic model for AI operations."
+    default: "anthropic/claude-3.5-haiku"
   openrouter-api-key:
     description: "OpenRouter API key for AI operations."
     default: ""
