@@ -398,7 +398,7 @@ inputs:
     default: ""
   openrouter-model:
     description: "OpenRouter model for AI operations."
-    default: "openai/gpt-5-codex"
+    default: "openai/gpt-4.1"
   openrouter-provider-order:
     description: "Comma-separated list of provider names to try in order."
     default: ""

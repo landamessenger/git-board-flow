@@ -15,14 +15,14 @@ export class AiRepository {
             return undefined;
         }
 
-        logDebugInfo(`🔎 Model: ${model}`);
-        logDebugInfo(`🔎 API Key: ***`);
-        logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
+        // logDebugInfo(`🔎 Model: ${model}`);
+        // logDebugInfo(`🔎 API Key: ***`);
+        // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
 
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
         try {
-            logDebugInfo(`Sending prompt to ${model}: ${prompt}`);
+            // logDebugInfo(`Sending prompt to ${model}: ${prompt}`);
 
             const requestBody: any = {
                 model: model,
@@ -160,9 +160,9 @@ export class AiRepository {
             return undefined;
         }
 
-        logDebugInfo(`🔎 Model: ${model}`);
-        logDebugInfo(`🔎 API Key: ***`);
-        logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
+        // logDebugInfo(`🔎 Model: ${model}`);
+        // logDebugInfo(`🔎 API Key: ***`);
+        // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
 
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
