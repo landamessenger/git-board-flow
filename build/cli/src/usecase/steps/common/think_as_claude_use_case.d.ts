@@ -8,7 +8,8 @@ import { ParamUseCase } from '../../base/param_usecase';
  * context management, and tool ecosystem, while maintaining domain-specific
  * logic like virtual codebase, TODOs, and GitHub integration.
  *
- * NOTE: Currently uses ThinkUseCase as fallback until Agent SDK is fully integrated.
+ * This use case requires Anthropic API key and model to be configured.
+ * It will fail if Anthropic configuration is not available.
  */
 export declare class ThinkAsClaudeUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string;
@@ -36,14 +37,12 @@ export declare class ThinkAsClaudeUseCase implements ParamUseCase<Execution, Res
     private getIssueDescription;
     /**
      * Build a summary from steps when Agent SDK doesn't provide final analysis
-     * This avoids using OpenRouter (aiRepository) and keeps everything consistent with Agent SDK
      */
     private buildSummaryFromSteps;
     /**
      * Normalize model name to Anthropic format
      *
      * Accepts various formats and converts them to Anthropic's expected format:
-     * - "anthropic/claude-3.5-haiku" → "claude-3-5-haiku-latest"
      * - "claude-3.5-haiku" → "claude-3-5-haiku-latest"
      * - "claude-3-5-haiku" → "claude-3-5-haiku-latest"
      * - "claude-3-5-haiku-latest" → "claude-3-5-haiku-latest" (no change)
@@ -57,12 +56,4 @@ export declare class ThinkAsClaudeUseCase implements ParamUseCase<Execution, Res
      * - claude-3-haiku-latest / claude-3-haiku-20240307
      */
     private normalizeModelName;
-    /**
-     * Fallback method that uses standard ThinkUseCase logic
-     * This is used when Agent SDK is not yet implemented
-     *
-     * NOTE: This creates a temporary Execution object with a modified model name
-     * to bypass Claude detection and prevent infinite recursion.
-     */
-    private useStandardLogicAsFallback;
 }

@@ -24,11 +24,11 @@ import { z } from 'zod';
  * context management, and tool ecosystem, while maintaining domain-specific
  * logic like virtual codebase, TODOs, and GitHub integration.
  * 
- * NOTE: Currently uses ThinkUseCase as fallback until Agent SDK is fully integrated.
+ * This use case requires Anthropic API key and model to be configured.
+ * It will fail if Anthropic configuration is not available.
  */
 export class ThinkAsClaudeUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ThinkAsClaudeUseCase';
-    // Removed aiRepository - we use Agent SDK directly, not OpenRouter
     private fileRepository: FileRepository = new FileRepository();
     private issueRepository: IssueRepository = new IssueRepository();
     
@@ -160,27 +160,20 @@ export class ThinkAsClaudeUseCase implements ParamUseCase<Execution, Result[]> {
                 repositoryFiles
             );
 
-            // Check if Agent SDK is implemented (has actual results)
-            const isAgentSDKImplemented = agentResult.steps.length > 0 || 
-                                         agentResult.analyzedFiles.size > 0 ||
-                                         agentResult.proposedChanges.length > 0;
-
-            if (!isAgentSDKImplemented) {
-                // Fallback to standard ThinkUseCase logic
-                logInfo(`⚠️ Agent SDK not yet implemented. Falling back to standard ThinkUseCase logic.`);
-                // Temporarily override model detection to prevent infinite loop
-                const originalModel = param.ai.getOpenRouterModel();
-                // Create a modified param that won't trigger Claude detection
-                const fallbackParam = { ...param };
-                // Use standard ThinkUseCase but bypass Claude detection
-                const standardThinkUseCase = new ThinkUseCase();
-                // We need to call the internal logic directly, but since it's private,
-                // we'll use a workaround: temporarily change the model name
-                // Actually, better approach: just use the standard logic by calling
-                // the standard ThinkUseCase's invoke but with a non-Claude model temporarily
-                logInfo(`🔄 Using standard reasoning logic as fallback...`);
-                // For now, delegate to a helper that uses standard logic
-                return await this.useStandardLogicAsFallback(param, question, description);
+            // Check if Agent SDK executed successfully
+            if (agentResult.steps.length === 0 && 
+                agentResult.analyzedFiles.size === 0 &&
+                agentResult.proposedChanges.length === 0) {
+                logError(`Agent SDK execution returned no results.`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: ['Agent SDK execution failed. Please check Anthropic API key and model configuration.'],
+                    })
+                );
+                return results;
             }
 
             // Process agent SDK results
@@ -390,7 +383,6 @@ Use search_files to find specific files, then read_file to examine them.`;
 
             // Normalize model name to Anthropic format
             // Accepts formats like:
-            // - "anthropic/claude-3.5-haiku" (OpenRouter format) → "claude-3-5-haiku-latest"
             // - "claude-3.5-haiku" → "claude-3-5-haiku-latest"
             // - "claude-3-5-haiku" → "claude-3-5-haiku-latest"
             // - "claude-3-5-haiku-latest" → "claude-3-5-haiku-latest" (already correct)
@@ -1003,12 +995,13 @@ Work systematically, be thorough, and build understanding incrementally.`;
             logError(`Error executing Agent SDK: ${error?.message || error}`);
             logError(`Stack: ${error?.stack || 'No stack trace'}`);
             
-            // Return empty results on error - fallback will be used
+            // Return error - no fallback, this use case requires Anthropic configuration
+            logError(`Agent SDK execution failed: ${error?.message || 'Unknown error'}`);
             return {
                 steps: [],
                 analyzedFiles: new Map(),
                 proposedChanges: [],
-                finalAnalysis: `Error executing Agent SDK: ${error?.message || 'Unknown error'}. Using fallback.`
+                finalAnalysis: `Error executing Agent SDK: ${error?.message || 'Unknown error'}. Please ensure Anthropic API key and model are correctly configured.`
             };
         }
     }
@@ -1030,7 +1023,6 @@ Work systematically, be thorough, and build understanding incrementally.`;
 
     /**
      * Build a summary from steps when Agent SDK doesn't provide final analysis
-     * This avoids using OpenRouter (aiRepository) and keeps everything consistent with Agent SDK
      */
     private buildSummaryFromSteps(
         question: string,
@@ -1078,7 +1070,6 @@ Work systematically, be thorough, and build understanding incrementally.`;
      * Normalize model name to Anthropic format
      * 
      * Accepts various formats and converts them to Anthropic's expected format:
-     * - "anthropic/claude-3.5-haiku" → "claude-3-5-haiku-latest"
      * - "claude-3.5-haiku" → "claude-3-5-haiku-latest"
      * - "claude-3-5-haiku" → "claude-3-5-haiku-latest"
      * - "claude-3-5-haiku-latest" → "claude-3-5-haiku-latest" (no change)
@@ -1094,11 +1085,6 @@ Work systematically, be thorough, and build understanding incrementally.`;
     private normalizeModelName(modelName: string): string {
         // Remove leading/trailing whitespace
         let normalized = modelName.trim();
-        
-        // Remove "anthropic/" prefix if present (OpenRouter format)
-        if (normalized.startsWith('anthropic/')) {
-            normalized = normalized.substring('anthropic/'.length);
-        }
         
         // If it already has a version suffix (e.g., -20241022 or -latest), return as-is
         if (normalized.match(/-\d{8}$/) || normalized.endsWith('-latest')) {
@@ -1119,57 +1105,5 @@ Work systematically, be thorough, and build understanding incrementally.`;
         return normalized;
     }
 
-    /**
-     * Fallback method that uses standard ThinkUseCase logic
-     * This is used when Agent SDK is not yet implemented
-     * 
-     * NOTE: This creates a temporary Execution object with a modified model name
-     * to bypass Claude detection and prevent infinite recursion.
-     */
-    private async useStandardLogicAsFallback(
-        param: Execution,
-        question: string,
-        description: string
-    ): Promise<Result[]> {
-        // Create a wrapper that modifies the model name to bypass Claude detection
-        // This prevents infinite recursion when ThinkUseCase detects Claude again
-        class NonClaudeAiWrapper {
-            private originalAi: typeof param.ai;
-            
-            constructor(originalAi: typeof param.ai) {
-                this.originalAi = originalAi;
-            }
-            
-            getOpenRouterModel(): string {
-                const model = this.originalAi.getOpenRouterModel();
-                // Temporarily change model name to bypass Claude detection
-                return model.replace(/claude/gi, 'gpt-4').replace(/anthropic/gi, 'openai');
-            }
-            
-            getOpenRouterApiKey(): string {
-                return this.originalAi.getOpenRouterApiKey();
-            }
-            
-            getAiIgnoreFiles(): string[] {
-                return this.originalAi.getAiIgnoreFiles();
-            }
-            
-            getAiIncludeReasoning(): boolean {
-                return this.originalAi.getAiIncludeReasoning();
-            }
-            
-            getProviderRouting() {
-                return this.originalAi.getProviderRouting();
-            }
-        }
-
-        // Create modified param with non-Claude AI wrapper
-        const modifiedParam: Execution = Object.create(param);
-        modifiedParam.ai = new NonClaudeAiWrapper(param.ai) as unknown as typeof param.ai;
-
-        // Use standard ThinkUseCase (it won't detect Claude now)
-        const standardUseCase = new ThinkUseCase();
-        return await standardUseCase.invoke(modifiedParam);
-    }
 }
 

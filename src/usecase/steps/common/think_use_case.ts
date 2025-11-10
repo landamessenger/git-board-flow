@@ -45,7 +45,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         logInfo(`Executing ${this.taskId}.`);
 
         // Check if this is a Claude model and delegate to Agent SDK implementation
-        const model = param.ai.getOpenRouterModel();
+        const model = param.ai.getAnthropicModel();
         if (this.isClaudeModel(model)) {
             logInfo(`🤖 Detected Claude model (${model}). Delegating to Agent SDK implementation.`);
             return await new ThinkAsClaudeUseCase().invoke(param);
