@@ -160,11 +160,22 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             // Format codebase analysis for context
             const codebaseAnalysisText = this.codebaseAnalyzer.formatCodebaseAnalysisForContext(codebaseAnalysis);
             
+            // Create a map of file paths to their analysis descriptions for quick lookup
+            const fileAnalysisMap = new Map<string, { description: string; consumes: string[]; consumed_by: string[] }>();
+            codebaseAnalysis.forEach(item => {
+                fileAnalysisMap.set(item.path, {
+                    description: item.description,
+                    consumes: item.consumes,
+                    consumed_by: item.consumed_by
+                });
+            });
+            
             // Reasoning process
             const steps: ThinkStep[] = [];
             let iteration = 0;
             let complete = false;
             let analyzedFiles: Map<string, FileAnalysis> = new Map();
+            let readFiles: Set<string> = new Set(); // Track files that have been read
             let allProposedChanges: ProposedChange[] = [];
             let currentContext = codebaseAnalysisText; // Start with codebase analysis
             let finalAnalysis = '';
@@ -176,7 +187,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             while (!complete && iteration < this.MAX_ITERATIONS) {
                 iteration++;
                 filesReadInIteration = 0;
-                logInfo(`🤔 Reasoning iteration ${iteration}/${this.MAX_ITERATIONS}`);
+                // logInfo(`🤔 Reasoning iteration ${iteration}/${this.MAX_ITERATIONS}`);
 
                 const thinkResponse = await this.performReasoningStep(
                     param,
@@ -186,6 +197,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     todoManager,
                     fileIndex,
                     analyzedFiles,
+                    readFiles,
+                    fileAnalysisMap,
                     currentContext,
                     iteration,
                     steps
@@ -204,7 +217,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                             const createdTodo = todoManager.createTodo(todo.content, todo.status || 'pending');
                             logInfo(`✅ Created TODO: [${createdTodo.id}] ${todo.content}`);
                         }
-                        logInfo(`📋 Created ${thinkResponse.todo_updates.create.length} new TODO items`);
+                        if (thinkResponse.todo_updates.create.length > 0) {
+                            logInfo(`📋 Created ${thinkResponse.todo_updates.create.length} new TODO items`);
+                        }
                     }
                     
                     // Update existing TODOs
@@ -225,7 +240,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         }
                         
                         if (successCount > 0) {
-                            logInfo(`📋 Successfully updated ${successCount} TODO items`);
+                            // logInfo(`📋 Successfully updated ${successCount} TODO items`);
                         }
                         
                         if (failedIds.length > 0) {
@@ -276,7 +291,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     case 'search_files':
                         consecutiveSearches++;
                         if (thinkResponse.files_to_search && thinkResponse.files_to_search.length > 0) {
-                            const foundFiles = this.fileSearchService.searchFiles(thinkResponse.files_to_search, fileIndex);
+                            // Get current repository files (including modified files from code manager)
+                            const currentFiles = codeManager.getAllFiles();
+                            const foundFiles = this.fileSearchService.searchFiles(thinkResponse.files_to_search, fileIndex, currentFiles);
                             logInfo(`🔍 Search results: Found ${foundFiles.length} files for terms: ${thinkResponse.files_to_search.join(', ')}`);
                             
                             // Detect if we're repeating the same search
@@ -313,7 +330,17 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                             const filesToAnalyze = thinkResponse.files_to_read.slice(0, this.MAX_FILES_TO_ANALYZE - analyzedFiles.size);
                             logInfo(`📖 Reading ${filesToAnalyze.length} files: ${filesToAnalyze.join(', ')}`);
                             
+                            const newlyReadFiles: string[] = [];
+                            const alreadyReadFiles: string[] = [];
+                            
                             for (const filePath of filesToAnalyze) {
+                                // Check if file was already read
+                                if (readFiles.has(filePath)) {
+                                    alreadyReadFiles.push(filePath);
+                                    logDebugInfo(`⏭️ Skipping already read file: ${filePath}`);
+                                    continue;
+                                }
+                                
                                 if (analyzedFiles.has(filePath)) {
                                     logDebugInfo(`⏭️ Skipping already analyzed file: ${filePath}`);
                                     continue; // Already analyzed
@@ -322,6 +349,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                                 // Get content from virtual files (includes applied changes)
                                 const content = codeManager.getFileContent(filePath);
                                 if (content !== undefined) {
+                                    readFiles.add(filePath); // Mark as read
+                                    newlyReadFiles.push(filePath);
                                     filesReadInIteration++;
                                     const isModified = codeManager.isFileModified(filePath);
                                     const modificationNote = isModified ? ` [MODIFIED - ${codeManager.getFileChanges(filePath).length} change(s) applied]` : '';
@@ -347,6 +376,19 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                                     ).slice(0, 5);
                                     currentContext += `\n\n⚠️ File not found: ${filePath}. ${similarFiles.length > 0 ? `Similar files found: ${similarFiles.join(', ')}` : 'Please check the file path.'}`;
                                 }
+                            }
+                            
+                            // Warn if trying to read already read files
+                            if (alreadyReadFiles.length > 0) {
+                                const readCount = alreadyReadFiles.length;
+                                currentContext += `\n\n⚠️ **WARNING**: You tried to read ${readCount} file(s) that were already read in previous iterations: ${alreadyReadFiles.join(', ')}. `;
+                                currentContext += `These files are already in your context. If you need to reference them, they are shown above. `;
+                                currentContext += `Instead of reading them again, you should ANALYZE them (use 'analyze_code' action) or PROPOSE CHANGES (use 'propose_changes' action) based on what you've already read.`;
+                            }
+                            
+                            if (newlyReadFiles.length === 0 && alreadyReadFiles.length > 0) {
+                                // All files were already read - this is a loop
+                                currentContext += `\n\n⚠️ **STOP READING THE SAME FILES**: You've already read all the files you requested. Move forward with analysis or proposing changes instead of re-reading.`;
                             }
                         }
                         break;
@@ -455,6 +497,20 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     complete = true;
                     if (!finalAnalysis) {
                         finalAnalysis = `Analysis completed after ${iteration} iterations. Analyzed ${analyzedFiles.size} files, proposed ${allProposedChanges.length} changes.`;
+                    }
+                }
+                
+                // Check for file reading loops - if same files read repeatedly without progress
+                if (filesReadInIteration === 0 && thinkResponse.action === 'read_file' && iteration > 3) {
+                    const recentReadActions = steps.slice(-3).filter(s => s.action === 'read_file');
+                    if (recentReadActions.length >= 2) {
+                        logInfo(`⚠️ Detected file reading loop: attempting to read same files repeatedly without progress. Warning AI.`);
+                        currentContext += `\n\n⚠️ **CRITICAL**: You've been trying to read the same files repeatedly without making progress. `;
+                        currentContext += `You've read ${readFiles.size} files so far. Instead of reading more files, you should:\n`;
+                        currentContext += `1. Use 'analyze_code' to document your findings from the files you've already read\n`;
+                        currentContext += `2. Use 'propose_changes' to suggest modifications based on your analysis\n`;
+                        currentContext += `3. Move to the next TODO item if the current one is complete\n`;
+                        currentContext += `**STOP reading files and START analyzing or proposing changes.**`;
                     }
                 }
                 
@@ -585,6 +641,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         todoManager: ThinkTodoManager,
         fileIndex: Map<string, string[]>,
         analyzedFiles: Map<string, FileAnalysis>,
+        readFiles: Set<string>,
+        fileAnalysisMap: Map<string, { description: string; consumes: string[]; consumed_by: string[] }>,
         currentContext: string,
         iteration: number,
         previousSteps: ThinkStep[]
@@ -593,6 +651,11 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         const analyzedFilesList = Array.from(analyzedFiles.values());
         const analyzedFilesSummary = analyzedFilesList.length > 0
             ? `\n\nPreviously analyzed files (${analyzedFilesList.length}):\n${analyzedFilesList.map(f => `- ${f.path} (${f.relevance}): ${f.key_findings.substring(0, 150)}...`).join('\n')}`
+            : '';
+        
+        const readFilesList = Array.from(readFiles);
+        const readFilesSummary = readFilesList.length > 0
+            ? `\n\n⚠️ **IMPORTANT - Files Already Read** (${readFilesList.length}):\n${readFilesList.map(f => `- ${f}`).join('\n')}\n\n**DO NOT read these files again.** They are already in your context above. Instead, use 'analyze_code' to document findings or 'propose_changes' to suggest modifications.`
             : '';
 
         const codeStats = codeManager.getStats();
@@ -607,11 +670,33 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         // Build summary of previous steps to avoid repetition
         const stepsSummary = previousSteps.length > 0
             ? `\n\n## Previous Steps Taken (${previousSteps.length}):\n${previousSteps.slice(-5).map(s => 
-                `- Step ${s.step_number}: ${s.action} - ${s.reasoning.substring(0, 100)}...`
+                `- Step ${s.step_number}: ${s.action} - ${s.reasoning}...`
             ).join('\n')}${previousSteps.length > 5 ? `\n... and ${previousSteps.length - 5} more steps` : ''}`
             : '';
 
-        const fileListSummary = `\n\nAvailable files in repository (${codeStats.totalFiles} files):\n${Array.from(codeManager.getAllFiles().keys()).slice(0, 50).join('\n')}${codeStats.totalFiles > 50 ? `\n... and ${codeStats.totalFiles - 50} more files` : ''}`;
+        // Build enhanced file list with descriptions and relationships from codebase analysis
+        const allFiles = Array.from(codeManager.getAllFiles().keys());
+        const fileListWithDescriptions = allFiles.map(filePath => {
+            const analysis = fileAnalysisMap.get(filePath);
+            if (analysis) {
+                let entry = `- \`${filePath}\`: ${analysis.description}`;
+                
+                // Add relationships if available
+                if (analysis.consumes && analysis.consumes.length > 0) {
+                    entry += `\n  - *Consumes*: ${analysis.consumes.map(r => `\`${r}\``).join(', ')}`;
+                }
+                
+                if (analysis.consumed_by && analysis.consumed_by.length > 0) {
+                    entry += `\n  - *Consumed By*: ${analysis.consumed_by.map(r => `\`${r}\``).join(', ')}`;
+                }
+                
+                return entry;
+            } else {
+                return `- \`${filePath}\``;
+            }
+        });
+        
+        const fileListSummary = `\n\n## 📁 Available Files in Repository (${codeStats.totalFiles} total)\n\n${fileListWithDescriptions.join('\n')}\n\n**IMPORTANT**: When searching for files, use specific file names or keywords, NOT glob patterns like \`src/**/*.ts\`. The search works with file names, paths, or content keywords. Use the descriptions and relationships above to identify relevant files.`;
 
         const prompt = `
 # Code Analysis Assistant
@@ -653,6 +738,8 @@ ${stepsSummary}
 
 ${codeStats.totalChanges > 0 ? `\n\n## ⚠️ CODE STATE: ${codeStats.totalChanges} changes have been applied to ${codeStats.modifiedFiles} files\n\n${codeStateInfo}\n\n**IMPORTANT**: When you read files, you will see the MODIFIED version with all previous changes applied. Build upon this modified code, don't repeat changes that have already been made.` : ''}
 
+${readFilesSummary}
+
 ${analyzedFilesSummary}
 
 ${iteration > 1 ? `\n\n## Previous Iteration Context:\n${currentContext.substring(0, 4000)}${currentContext.length > 4000 ? '\n... (truncated for brevity)' : ''}` : ''}
@@ -661,7 +748,10 @@ ${fileListSummary}
 
 ## Your Analysis Approach
 
-1. **search_files**: Use when you need to find files by name, pattern, or path. Be specific. AVOID searching for the same terms repeatedly.
+1. **search_files**: Use when you need to find files by name, path, or keywords. 
+   - **DO**: Use specific file names (e.g., "cli.ts", "config.ts"), keywords (e.g., "authentication", "setup"), or partial paths (e.g., "src/cli")
+   - **DON'T**: Use glob patterns like \`src/**/*.ts\` or \`**/*.ts\` - these don't work. Instead, use keywords or specific file names.
+   - Be specific and AVOID searching for the same terms repeatedly.
 2. **read_file**: Use when you need to examine specific files. The files you read will show the CURRENT STATE (with all applied changes from previous steps).
 3. **analyze_code**: Use when you've read files and want to document findings. Focus on understanding relationships and dependencies.
 4. **propose_changes**: Use when you have enough context. **CRITICAL**: Only propose NEW changes that build upon what's already been done. Don't repeat changes that were already applied.

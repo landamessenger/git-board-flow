@@ -37,7 +37,8 @@ export const THINK_RESPONSE_JSON_SCHEMA = {
                     key_findings: { type: "string" },
                     relevance: { type: "string", enum: ["high", "medium", "low"] }
                 },
-                required: ["path", "key_findings", "relevance"]
+                required: ["path", "key_findings", "relevance"],
+                additionalProperties: false
             },
             description: "Files that have been analyzed with their findings (when action is 'analyze_code')"
         },
@@ -52,7 +53,8 @@ export const THINK_RESPONSE_JSON_SCHEMA = {
                     suggested_code: { type: "string" },
                     reasoning: { type: "string" }
                 },
-                required: ["file_path", "change_type", "description", "reasoning"]
+                required: ["file_path", "change_type", "description", "suggested_code", "reasoning"],
+                additionalProperties: false
             },
             description: "Proposed changes to the codebase (when action is 'propose_changes')"
         },
@@ -76,7 +78,8 @@ export const THINK_RESPONSE_JSON_SCHEMA = {
                             content: { type: "string" },
                             status: { type: "string", enum: ["pending", "in_progress"] }
                         },
-                        required: ["content"]
+                        required: ["content", "status"],
+                        additionalProperties: false
                     },
                     description: "New TODO items to create"
                 },
@@ -89,14 +92,17 @@ export const THINK_RESPONSE_JSON_SCHEMA = {
                             status: { type: "string", enum: ["pending", "in_progress", "completed", "cancelled"] },
                             notes: { type: "string" }
                         },
-                        required: ["id"]
+                        required: ["id", "status", "notes"],
+                        additionalProperties: false
                     },
                     description: "Updates to existing TODO items"
                 }
-            }
+            },
+            required: ["create", "update"],
+            additionalProperties: false
         }
     },
-    required: ["reasoning", "action", "complete"],
+    required: ["reasoning", "action", "complete", "files_to_search", "files_to_read", "analyzed_files", "proposed_changes", "final_analysis", "todo_updates"],
     additionalProperties: false
 };
 
