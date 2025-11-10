@@ -421,6 +421,30 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                                     const modificationNote = isModified ? ` [MODIFIED - ${codeManager.getFileChanges(filePath).length} change(s) applied]` : '';
                                     logDebugInfo(`✅ Reading file: ${filePath} (${content.length} chars)${modificationNote}`);
                                     
+                                    // Link this file to active TODOs if relevant
+                                    const activeTodos = todoManager.getActiveTodos();
+                                    for (const todo of activeTodos) {
+                                        // Check if file path or content matches TODO keywords
+                                        const todoKeywords = todo.content.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+                                        const fileLower = filePath.toLowerCase();
+                                        const contentLower = content.toLowerCase();
+                                        
+                                        const isRelevant = todoKeywords.some(keyword => 
+                                            fileLower.includes(keyword) || contentLower.includes(keyword)
+                                        ) || filePath.includes(todo.content.toLowerCase().split(' ')[0]);
+                                        
+                                        if (isRelevant) {
+                                            // Link file to TODO
+                                            if (!todo.related_files) {
+                                                todo.related_files = [];
+                                            }
+                                            if (!todo.related_files.includes(filePath)) {
+                                                todo.related_files.push(filePath);
+                                                todo.updated_at = Date.now();
+                                            }
+                                        }
+                                    }
+                                    
                                     // Show current state with applied changes
                                     actionResults.push(`=== File: ${filePath}${modificationNote} ===\n${content.substring(0, 8000)}${content.length > 8000 ? '\n... (truncated)' : ''}`);
                                     
@@ -899,11 +923,17 @@ You are starting your analysis. Begin by understanding the question and identify
             // Subsequent iterations: Build user message with ONLY new/changed information
             const newContext: string[] = [];
             
-            // Only send TODO changes (status or notes updates)
+            // Always include TODO status summary and context for active TODOs
             if (todoStats.total > 0) {
                 const allTodos = todoManager.getAllTodos();
+                const activeTodos = todoManager.getActiveTodos();
                 const todoChanges: string[] = [];
                 
+                // First, show TODO status summary
+                newContext.push(`## 📋 TODO Status Summary:
+- **Total**: ${todoStats.total} | **Pending**: ${todoStats.pending} | **In Progress**: ${todoStats.in_progress} | **Completed**: ${todoStats.completed} (${todoStats.completion_rate.toFixed(0)}%)`);
+                
+                // Show TODO changes (status or notes updates)
                 for (const todo of allTodos) {
                     const previousState = previousTodoState.get(todo.id);
                     const statusChanged = !previousState || previousState.status !== todo.status;
@@ -926,7 +956,65 @@ You are starting your analysis. Begin by understanding the question and identify
                 }
                 
                 if (todoChanges.length > 0) {
-                    newContext.push(`## 📋 TODO Updates:\n${todoChanges.join('\n')}`);
+                    newContext.push(`\n### 📝 TODO Updates:\n${todoChanges.join('\n')}`);
+                }
+                
+                // Show context for active TODOs: what files have been read and what might be relevant
+                if (activeTodos.length > 0) {
+                    const activeContext: string[] = [];
+                    activeContext.push(`\n### 🔄 Active TODOs Progress:`);
+                    
+                    for (const todo of activeTodos) {
+                        const statusEmoji = todo.status === 'in_progress' ? '🔄' : '⏳';
+                        activeContext.push(`\n${statusEmoji} **[ID: ${todo.id}]** ${todo.content}`);
+                        
+                        // Show files already read related to this TODO
+                        const relatedFiles = todo.related_files || [];
+                        const readRelatedFiles = relatedFiles.filter(f => readFiles.has(f));
+                        const unreadRelatedFiles = relatedFiles.filter(f => !readFiles.has(f));
+                        
+                        if (readRelatedFiles.length > 0) {
+                            activeContext.push(`   ✅ **Files read** (${readRelatedFiles.length}): ${readRelatedFiles.map(f => `\`${f}\``).join(', ')}`);
+                        }
+                        
+                        if (unreadRelatedFiles.length > 0) {
+                            activeContext.push(`   ⏳ **Files not yet read** (${unreadRelatedFiles.length}): ${unreadRelatedFiles.map(f => `\`${f}\``).join(', ')}`);
+                        }
+                        
+                        // Suggest potentially relevant files based on TODO content
+                        if (readRelatedFiles.length === 0 && unreadRelatedFiles.length === 0) {
+                            // Try to find relevant files based on TODO content keywords
+                            const todoKeywords = todo.content.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+                            const suggestedFiles: string[] = [];
+                            
+                            for (const [filePath, fileContent] of codeManager.getAllFiles()) {
+                                if (readFiles.has(filePath)) continue; // Skip already read files
+                                
+                                const fileLower = filePath.toLowerCase();
+                                const contentLower = fileContent.toLowerCase();
+                                
+                                // Check if file path or content matches TODO keywords
+                                const matchesKeyword = todoKeywords.some(keyword => 
+                                    fileLower.includes(keyword) || contentLower.includes(keyword)
+                                );
+                                
+                                if (matchesKeyword && suggestedFiles.length < 5) {
+                                    suggestedFiles.push(filePath);
+                                }
+                            }
+                            
+                            if (suggestedFiles.length > 0) {
+                                activeContext.push(`   💡 **Potentially relevant files** (not yet read): ${suggestedFiles.map(f => `\`${f}\``).join(', ')}`);
+                            }
+                        }
+                        
+                        // Show notes if any
+                        if (todo.notes) {
+                            activeContext.push(`   📝 Notes: ${todo.notes}`);
+                        }
+                    }
+                    
+                    newContext.push(activeContext.join('\n'));
                 }
                 
                 // Update previous state
