@@ -7,7 +7,12 @@ import { BaseTool } from '../base_tool';
 
 export interface ManageTodosToolOptions {
   createTodo: (content: string, status?: 'pending' | 'in_progress') => { id: string; content: string; status: string };
-  updateTodo: (id: string, updates: { status?: string; notes?: string }) => boolean;
+  updateTodo: (id: string, updates: { 
+    status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+    notes?: string;
+    related_files?: string[];
+    related_changes?: string[];
+  }) => boolean;
   getAllTodos: () => Array<{ id: string; content: string; status: string; notes?: string }>;
   getActiveTodos: () => Array<{ id: string; content: string; status: string }>;
 }
@@ -106,7 +111,10 @@ export class ManageTodosTool extends BaseTool {
         updates.notes = notes;
       }
 
-      const success = this.options.updateTodo(todoId, updates);
+      const success = this.options.updateTodo(todoId, {
+        status: updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' | undefined,
+        notes: updates.notes
+      });
       
       if (success) {
         return `TODO updated: [${todoId}]`;

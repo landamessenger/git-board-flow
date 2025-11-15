@@ -1,6 +1,7 @@
 /**
  * Agent - Main class for Agent SDK
  * Similar to Anthropic's Agent SDK
+ * Integrated with all advanced features
  */
 import { BaseTool } from '../tools/base_tool';
 import { AgentOptions, AgentResult, Message } from '../types';
@@ -10,6 +11,8 @@ export declare class Agent {
     private toolRegistry;
     private toolExecutor;
     private reasoningLoop;
+    private sessionManager;
+    private sessionId;
     constructor(options: AgentOptions);
     /**
      * Execute query - main entry point
@@ -20,6 +23,26 @@ export declare class Agent {
      * Continue conversation with additional prompt
      */
     continue(prompt: string): Promise<AgentResult>;
+    /**
+     * Load session
+     */
+    loadSession(sessionId?: string): Promise<void>;
+    /**
+     * Save session
+     */
+    private saveSession;
+    /**
+     * Get session ID
+     */
+    getSessionId(): string;
+    /**
+     * List all sessions
+     */
+    listSessions(): Promise<import("./session_manager").SessionMetadata[]>;
+    /**
+     * Delete session
+     */
+    deleteSession(sessionId?: string): Promise<void>;
     /**
      * Get message history
      */

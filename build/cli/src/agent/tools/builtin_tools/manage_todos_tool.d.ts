@@ -10,8 +10,10 @@ export interface ManageTodosToolOptions {
         status: string;
     };
     updateTodo: (id: string, updates: {
-        status?: string;
+        status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
         notes?: string;
+        related_files?: string[];
+        related_changes?: string[];
     }) => boolean;
     getAllTodos: () => Array<{
         id: string;

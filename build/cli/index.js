@@ -64560,6 +64560,7 @@ async function runLocalAction(additionalParams) {
 /**
  * Agent - Main class for Agent SDK
  * Similar to Anthropic's Agent SDK
+ * Integrated with all advanced features
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Agent = void 0;
@@ -64567,6 +64568,7 @@ const message_manager_1 = __nccwpck_require__(5759);
 const reasoning_loop_1 = __nccwpck_require__(7982);
 const tool_registry_1 = __nccwpck_require__(4138);
 const tool_executor_1 = __nccwpck_require__(4315);
+const session_manager_1 = __nccwpck_require__(7408);
 const logger_1 = __nccwpck_require__(8836);
 class Agent {
     constructor(options) {
@@ -64583,6 +64585,11 @@ class Agent {
         this.messageManager = new message_manager_1.MessageManager();
         this.toolRegistry = new tool_registry_1.ToolRegistry();
         this.toolExecutor = new tool_executor_1.ToolExecutor(this.toolRegistry);
+        this.sessionManager = new session_manager_1.SessionManager();
+        // Generate or use provided session ID
+        this.sessionId = options.sessionId || this.sessionManager.generateSessionId();
+        // Note: Session loading should be done explicitly via loadSession() method
+        // after construction, as it's async
         // Register tools if provided
         if (options.tools && options.tools.length > 0) {
             this.toolRegistry.registerAll(options.tools);
@@ -64605,6 +64612,10 @@ class Agent {
         this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
         // Execute
         const result = await this.reasoningLoop.execute();
+        // Save session if enabled
+        if (this.options.persistSession) {
+            await this.saveSession(result);
+        }
         (0, logger_1.logInfo)(`✅ Agent query completed (${result.turns.length} turn(s), ${result.toolCalls.length} tool call(s))`);
         return result;
     }
@@ -64619,8 +64630,67 @@ class Agent {
         this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
         // Execute
         const result = await this.reasoningLoop.execute();
+        // Save session if enabled
+        if (this.options.persistSession) {
+            await this.saveSession(result);
+        }
         (0, logger_1.logInfo)(`✅ Agent continued (${result.turns.length} turn(s))`);
         return result;
+    }
+    /**
+     * Load session
+     */
+    async loadSession(sessionId) {
+        const id = sessionId || this.sessionId;
+        const session = await this.sessionManager.loadSession(id);
+        if (session) {
+            // Reset current messages
+            this.messageManager.reset();
+            // Restore messages
+            for (const msg of session.messages) {
+                if (msg.role === 'system') {
+                    this.messageManager.addSystemMessage(typeof msg.content === 'string' ? msg.content : '');
+                }
+                else if (msg.role === 'user') {
+                    this.messageManager.addUserMessage(msg.content);
+                }
+                else if (msg.role === 'assistant') {
+                    this.messageManager.addAssistantMessage(msg.content);
+                }
+            }
+            this.sessionId = id;
+            (0, logger_1.logInfo)(`📂 Session loaded: ${id} (${session.messages.length} messages)`);
+        }
+    }
+    /**
+     * Save session
+     */
+    async saveSession(result) {
+        try {
+            await this.sessionManager.saveSession(this.sessionId, this.messageManager.getMessages(), result);
+        }
+        catch (error) {
+            (0, logger_1.logInfo)(`⚠️ Failed to save session: ${error}`);
+        }
+    }
+    /**
+     * Get session ID
+     */
+    getSessionId() {
+        return this.sessionId;
+    }
+    /**
+     * List all sessions
+     */
+    async listSessions() {
+        return await this.sessionManager.listSessions();
+    }
+    /**
+     * Delete session
+     */
+    async deleteSession(sessionId) {
+        const id = sessionId || this.sessionId;
+        await this.sessionManager.deleteSession(id);
     }
     /**
      * Get message history
@@ -64678,6 +64748,236 @@ class Agent {
     }
 }
 exports.Agent = Agent;
+
+
+/***/ }),
+
+/***/ 341:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Budget Manager
+ * Tracks and enforces budget limits
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BudgetManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class BudgetManager {
+    constructor(config) {
+        this.currentCost = 0;
+        this.currentTokens = 0;
+        this.config = {
+            maxCost: config?.maxCost,
+            maxTokens: config?.maxTokens,
+            warnAtPercent: config?.warnAtPercent ?? 80
+        };
+    }
+    /**
+     * Check if budget is exceeded
+     */
+    isExceeded(metrics) {
+        // Check token limit
+        if (this.config.maxTokens) {
+            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
+            if (totalTokens > this.config.maxTokens) {
+                return true;
+            }
+        }
+        // Check cost limit
+        if (this.config.maxCost && metrics.totalCost) {
+            if (metrics.totalCost > this.config.maxCost) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /**
+     * Check if budget warning should be shown
+     */
+    shouldWarn(metrics) {
+        if (!this.config.warnAtPercent) {
+            return false;
+        }
+        // Check token warning
+        if (this.config.maxTokens) {
+            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
+            const percent = (totalTokens / this.config.maxTokens) * 100;
+            if (percent >= this.config.warnAtPercent) {
+                return true;
+            }
+        }
+        // Check cost warning
+        if (this.config.maxCost && metrics.totalCost) {
+            const percent = (metrics.totalCost / this.config.maxCost) * 100;
+            if (percent >= this.config.warnAtPercent) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /**
+     * Get budget status
+     */
+    getStatus(metrics) {
+        const status = {
+            exceeded: this.isExceeded(metrics),
+            warning: this.shouldWarn(metrics)
+        };
+        // Token usage
+        if (this.config.maxTokens) {
+            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
+            status.tokenUsage = {
+                used: totalTokens,
+                limit: this.config.maxTokens,
+                percent: Math.round((totalTokens / this.config.maxTokens) * 100)
+            };
+        }
+        // Cost usage
+        if (this.config.maxCost && metrics.totalCost) {
+            status.costUsage = {
+                used: metrics.totalCost,
+                limit: this.config.maxCost,
+                percent: Math.round((metrics.totalCost / this.config.maxCost) * 100)
+            };
+        }
+        return status;
+    }
+    /**
+     * Log budget status
+     */
+    logStatus(metrics) {
+        const status = this.getStatus(metrics);
+        if (status.exceeded) {
+            (0, logger_1.logWarn)('⚠️ Budget exceeded!');
+        }
+        else if (status.warning) {
+            (0, logger_1.logWarn)('⚠️ Budget warning: Approaching limit');
+        }
+        if (status.tokenUsage) {
+            (0, logger_1.logDebugInfo)(`💰 Tokens: ${status.tokenUsage.used}/${status.tokenUsage.limit} (${status.tokenUsage.percent}%)`);
+        }
+        if (status.costUsage) {
+            (0, logger_1.logDebugInfo)(`💰 Cost: $${status.costUsage.used.toFixed(4)}/$${status.costUsage.limit.toFixed(4)} (${status.costUsage.percent}%)`);
+        }
+    }
+    /**
+     * Update budget config
+     */
+    updateConfig(config) {
+        this.config = { ...this.config, ...config };
+    }
+}
+exports.BudgetManager = BudgetManager;
+
+
+/***/ }),
+
+/***/ 6955:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Context Manager
+ * Manages conversation context and compression for long conversations
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ContextManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class ContextManager {
+    constructor(maxContextLength = 100000, compressionEnabled = true) {
+        this.maxContextLength = maxContextLength;
+        this.compressionEnabled = compressionEnabled;
+    }
+    /**
+     * Estimate tokens in messages (rough approximation: 1 token ≈ 4 characters)
+     */
+    estimateTokens(messages) {
+        let totalChars = 0;
+        for (const msg of messages) {
+            if (typeof msg.content === 'string') {
+                totalChars += msg.content.length;
+            }
+            else if (Array.isArray(msg.content)) {
+                for (const block of msg.content) {
+                    if (block.type === 'text' && 'text' in block) {
+                        totalChars += block.text.length;
+                    }
+                    else if (block.type === 'tool_use' && 'input' in block) {
+                        totalChars += JSON.stringify(block.input).length;
+                    }
+                    else if (block.type === 'tool_result' && 'content' in block) {
+                        const content = block.content;
+                        totalChars += typeof content === 'string' ? content.length : JSON.stringify(content).length;
+                    }
+                }
+            }
+        }
+        return Math.ceil(totalChars / 4);
+    }
+    /**
+     * Check if context needs compression
+     */
+    needsCompression(messages) {
+        if (!this.compressionEnabled) {
+            return false;
+        }
+        const tokens = this.estimateTokens(messages);
+        return tokens > this.maxContextLength * 0.8; // Compress at 80% of max
+    }
+    /**
+     * Compress context by summarizing old messages
+     */
+    compressContext(messages) {
+        if (!this.needsCompression(messages)) {
+            return messages;
+        }
+        (0, logger_1.logDebugInfo)(`📦 Compressing context (${messages.length} messages, ~${this.estimateTokens(messages)} tokens)`);
+        // Keep system message
+        const systemMessage = messages.find(m => m.role === 'system');
+        const otherMessages = messages.filter(m => m.role !== 'system');
+        // Keep recent messages (last 10)
+        const recentMessages = otherMessages.slice(-10);
+        // Summarize older messages
+        const oldMessages = otherMessages.slice(0, -10);
+        const summary = {
+            role: 'user',
+            content: `[Previous conversation summary: ${oldMessages.length} messages were exchanged. Key points: The conversation involved multiple tool calls and responses.]`
+        };
+        const compressed = systemMessage
+            ? [systemMessage, summary, ...recentMessages]
+            : [summary, ...recentMessages];
+        (0, logger_1.logDebugInfo)(`✅ Compressed to ${compressed.length} messages (~${this.estimateTokens(compressed)} tokens)`);
+        return compressed;
+    }
+    /**
+     * Get context statistics
+     */
+    getStats(messages) {
+        const tokens = this.estimateTokens(messages);
+        const compressed = this.needsCompression(messages);
+        return {
+            messageCount: messages.length,
+            estimatedTokens: tokens,
+            compressed
+        };
+    }
+    /**
+     * Update max context length
+     */
+    setMaxContextLength(length) {
+        this.maxContextLength = length;
+    }
+    /**
+     * Enable/disable compression
+     */
+    setCompressionEnabled(enabled) {
+        this.compressionEnabled = enabled;
+    }
+}
+exports.ContextManager = ContextManager;
 
 
 /***/ }),
@@ -64791,6 +65091,97 @@ exports.MessageManager = MessageManager;
 
 /***/ }),
 
+/***/ 7984:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Metrics Tracker
+ * Tracks tokens, costs, latency, and other metrics
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MetricsTracker = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class MetricsTracker {
+    constructor(costConfig) {
+        this.apiCallTimes = [];
+        this.metrics = {
+            totalTokens: { input: 0, output: 0 },
+            apiCalls: 0,
+            toolCalls: 0,
+            averageLatency: 0,
+            totalDuration: 0,
+            errors: 0
+        };
+        this.startTime = Date.now();
+        this.costConfig = costConfig;
+    }
+    /**
+     * Record API call with tokens and latency
+     */
+    recordAPICall(inputTokens, outputTokens, latency) {
+        this.metrics.apiCalls++;
+        this.metrics.totalTokens.input += inputTokens;
+        this.metrics.totalTokens.output += outputTokens;
+        this.apiCallTimes.push(latency);
+        // Calculate average latency
+        const sum = this.apiCallTimes.reduce((a, b) => a + b, 0);
+        this.metrics.averageLatency = Math.round(sum / this.apiCallTimes.length);
+        // Calculate cost if config provided
+        if (this.costConfig) {
+            const inputCost = (inputTokens / 1000) * this.costConfig.inputCostPer1kTokens;
+            const outputCost = (outputTokens / 1000) * this.costConfig.outputCostPer1kTokens;
+            this.metrics.totalCost = (this.metrics.totalCost || 0) + inputCost + outputCost;
+        }
+        (0, logger_1.logDebugInfo)(`📊 API Call: ${inputTokens} in, ${outputTokens} out tokens, ${latency}ms latency`);
+    }
+    /**
+     * Record tool call
+     */
+    recordToolCall() {
+        this.metrics.toolCalls++;
+    }
+    /**
+     * Record error
+     */
+    recordError() {
+        this.metrics.errors++;
+    }
+    /**
+     * Get current metrics
+     */
+    getMetrics() {
+        this.metrics.totalDuration = Date.now() - this.startTime;
+        return { ...this.metrics };
+    }
+    /**
+     * Reset metrics
+     */
+    reset() {
+        this.metrics = {
+            totalTokens: { input: 0, output: 0 },
+            apiCalls: 0,
+            toolCalls: 0,
+            averageLatency: 0,
+            totalDuration: 0,
+            errors: 0
+        };
+        this.startTime = Date.now();
+        this.apiCallTimes = [];
+    }
+    /**
+     * Set cost configuration
+     */
+    setCostConfig(config) {
+        this.costConfig = config;
+    }
+}
+exports.MetricsTracker = MetricsTracker;
+
+
+/***/ }),
+
 /***/ 7982:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -64799,6 +65190,7 @@ exports.MessageManager = MessageManager;
 /**
  * Reasoning Loop for Agent SDK
  * Manages the conversation loop with tool calling
+ * Integrated with all advanced features: streaming, permissions, context, metrics, budget, timeouts, retry
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReasoningLoop = void 0;
@@ -64809,6 +65201,11 @@ const ai_repository_1 = __nccwpck_require__(8307);
 const ai_1 = __nccwpck_require__(4470);
 const response_schema_1 = __nccwpck_require__(6515);
 const logger_1 = __nccwpck_require__(8836);
+const tool_permissions_1 = __nccwpck_require__(2859);
+const context_manager_1 = __nccwpck_require__(6955);
+const metrics_tracker_1 = __nccwpck_require__(7984);
+const budget_manager_1 = __nccwpck_require__(341);
+const retry_manager_1 = __nccwpck_require__(9306);
 class ReasoningLoop {
     constructor(messageManager, toolExecutor, options) {
         this.messageManager = messageManager;
@@ -64823,6 +65220,19 @@ class ReasoningLoop {
         false, // aiIncludeReasoning
         {} // providerRouting
         );
+        // Initialize managers
+        this.permissionsManager = new tool_permissions_1.ToolPermissionsManager(options.toolPermissions);
+        this.contextManager = new context_manager_1.ContextManager(options.maxContextLength || 100000, options.contextCompressionEnabled !== false);
+        this.metricsTracker = new metrics_tracker_1.MetricsTracker();
+        this.budgetManager = new budget_manager_1.BudgetManager(options.budget);
+        this.retryManager = new retry_manager_1.RetryManager(options.retry);
+        this.sessionStartTime = Date.now();
+        // Set up session timeout
+        if (options.timeouts?.totalSession) {
+            this.timeoutId = setTimeout(() => {
+                (0, logger_1.logWarn)('⏱️ Session timeout reached');
+            }, options.timeouts.totalSession);
+        }
     }
     /**
      * Execute the reasoning loop
@@ -64833,99 +65243,148 @@ class ReasoningLoop {
         let turn = 0;
         const maxTurns = this.options.maxTurns || 30;
         (0, logger_1.logInfo)(`🔄 Starting reasoning loop (max turns: ${maxTurns})`);
-        while (turn < maxTurns) {
-            turn++;
-            (0, logger_1.logInfo)(`🔄 Turn ${turn}/${maxTurns}`);
-            try {
-                // 1. Call API
-                const response = await this.callAPI();
-                // 2. Parse response
-                const parsedResponse = this.parseResponse(response);
-                // 3. Extract tool calls
-                const toolCalls = parsedResponse.toolCalls || [];
-                // 4. Create turn result
-                const turnResult = {
-                    turnNumber: turn,
-                    assistantMessage: parsedResponse.text,
-                    toolCalls: toolCalls,
-                    reasoning: parsedResponse.reasoning,
-                    timestamp: Date.now()
-                };
-                // 5. Execute tools if any
-                if (toolCalls.length > 0) {
-                    (0, logger_1.logInfo)(`🔧 Executing ${toolCalls.length} tool call(s)`);
-                    const toolResults = await this.toolExecutor.executeAll(toolCalls);
-                    turnResult.toolResults = toolResults;
-                    allToolCalls.push(...toolCalls);
-                    // Log tool execution details
-                    for (let i = 0; i < toolCalls.length; i++) {
-                        const toolCall = toolCalls[i];
-                        const toolResult = toolResults[i];
-                        (0, logger_1.logDebugInfo)(`🔧 Tool: ${toolCall.name} | Input: ${JSON.stringify(toolCall.input)} | Success: ${!toolResult.isError}`);
-                        if (toolResult.isError) {
-                            (0, logger_1.logError)(`❌ Tool ${toolCall.name} error: ${toolResult.errorMessage}`);
+        try {
+            while (turn < maxTurns) {
+                // Check timeout
+                if (this.options.timeouts?.totalSession) {
+                    const elapsed = Date.now() - this.sessionStartTime;
+                    if (elapsed > this.options.timeouts.totalSession) {
+                        (0, logger_1.logWarn)('⏱️ Session timeout exceeded');
+                        return this.createResult(turns, allToolCalls, undefined, true);
+                    }
+                }
+                turn++;
+                (0, logger_1.logInfo)(`🔄 Turn ${turn}/${maxTurns}`);
+                try {
+                    // 1. Compress context if needed
+                    const messages = this.messageManager.getMessages();
+                    if (this.contextManager.needsCompression(messages)) {
+                        const compressed = this.contextManager.compressContext(messages);
+                        // Note: MessageManager doesn't support direct replacement, so we'd need to reset and rebuild
+                        // For now, we'll just log the stats
+                        const stats = this.contextManager.getStats(messages);
+                        (0, logger_1.logDebugInfo)(`📊 Context: ${stats.messageCount} messages, ~${stats.estimatedTokens} tokens`);
+                    }
+                    // 2. Call API with retry, timeout, and streaming
+                    const apiStartTime = Date.now();
+                    const response = await this.callAPIWithRetry();
+                    const apiLatency = Date.now() - apiStartTime;
+                    // Estimate tokens (rough approximation)
+                    const inputTokens = Math.ceil(this.estimateInputTokens() / 4);
+                    const outputTokens = Math.ceil((response?.response?.length || 0) / 4);
+                    // Record metrics
+                    if (this.options.trackMetrics !== false) {
+                        this.metricsTracker.recordAPICall(inputTokens, outputTokens, apiLatency);
+                    }
+                    // 3. Parse response
+                    const parsedResponse = this.parseResponse(response);
+                    // 4. Filter tool calls by permissions
+                    let toolCalls = parsedResponse.toolCalls || [];
+                    const originalCount = toolCalls.length;
+                    toolCalls = toolCalls.filter(tc => this.permissionsManager.isAllowed(tc.name));
+                    if (originalCount > toolCalls.length) {
+                        (0, logger_1.logWarn)(`🚫 Filtered ${originalCount - toolCalls.length} tool call(s) due to permissions`);
+                    }
+                    // 5. Create turn result
+                    const turnResult = {
+                        turnNumber: turn,
+                        assistantMessage: parsedResponse.text,
+                        toolCalls: toolCalls,
+                        reasoning: parsedResponse.reasoning,
+                        timestamp: Date.now()
+                    };
+                    // 6. Execute tools if any
+                    if (toolCalls.length > 0) {
+                        (0, logger_1.logInfo)(`🔧 Executing ${toolCalls.length} tool call(s)`);
+                        // Record tool calls in metrics
+                        for (const _ of toolCalls) {
+                            this.metricsTracker.recordToolCall();
                         }
-                        else {
-                            const resultPreview = typeof toolResult.content === 'string'
-                                ? toolResult.content.substring(0, 100)
-                                : JSON.stringify(toolResult.content).substring(0, 100);
-                            (0, logger_1.logDebugInfo)(`✅ Tool ${toolCall.name} result: ${resultPreview}...`);
+                        const toolResults = await this.executeToolsWithTimeout(toolCalls);
+                        turnResult.toolResults = toolResults;
+                        allToolCalls.push(...toolCalls);
+                        // Log tool execution details
+                        for (let i = 0; i < toolCalls.length; i++) {
+                            const toolCall = toolCalls[i];
+                            const toolResult = toolResults[i];
+                            (0, logger_1.logDebugInfo)(`🔧 Tool: ${toolCall.name} | Input: ${JSON.stringify(toolCall.input)} | Success: ${!toolResult.isError}`);
+                            if (toolResult.isError) {
+                                (0, logger_1.logError)(`❌ Tool ${toolCall.name} error: ${toolResult.errorMessage}`);
+                                this.metricsTracker.recordError();
+                            }
+                            else {
+                                const resultPreview = typeof toolResult.content === 'string'
+                                    ? toolResult.content.substring(0, 100)
+                                    : JSON.stringify(toolResult.content).substring(0, 100);
+                                (0, logger_1.logDebugInfo)(`✅ Tool ${toolCall.name} result: ${resultPreview}...`);
+                            }
                         }
+                        // Call callbacks
+                        for (const toolCall of toolCalls) {
+                            this.options.onToolCall?.(toolCall);
+                        }
+                        for (const result of toolResults) {
+                            this.options.onToolResult?.(result);
+                        }
+                        // 7. Add assistant message and tool results to history
+                        this.messageManager.addAssistantMessage(parsedResponse.text);
+                        this.messageManager.addToolResults(toolResults);
+                        turns.push(turnResult);
+                        this.options.onTurnComplete?.(turnResult);
+                        // Check budget
+                        const metrics = this.metricsTracker.getMetrics();
+                        if (this.budgetManager.isExceeded(metrics)) {
+                            (0, logger_1.logWarn)('💰 Budget exceeded! Stopping execution.');
+                            return this.createResult(turns, allToolCalls, parsedResponse.text, false, true);
+                        }
+                        this.budgetManager.logStatus(metrics);
+                        // 8. Continue loop
+                        continue;
                     }
-                    // Call callbacks
-                    for (const toolCall of toolCalls) {
-                        this.options.onToolCall?.(toolCall);
-                    }
-                    for (const result of toolResults) {
-                        this.options.onToolResult?.(result);
-                    }
-                    // 6. Add assistant message and tool results to history
+                    // 9. No tool calls = final response
+                    (0, logger_1.logInfo)(`✅ Final response received (no more tool calls)`);
                     this.messageManager.addAssistantMessage(parsedResponse.text);
-                    this.messageManager.addToolResults(toolResults);
                     turns.push(turnResult);
                     this.options.onTurnComplete?.(turnResult);
-                    // 7. Continue loop
-                    continue;
+                    // Get final metrics
+                    const finalMetrics = this.metricsTracker.getMetrics();
+                    if (this.options.onMetrics) {
+                        this.options.onMetrics(finalMetrics);
+                    }
+                    return this.createResult(turns, allToolCalls, parsedResponse.text);
                 }
-                // 8. No tool calls = final response
-                (0, logger_1.logInfo)(`✅ Final response received (no more tool calls)`);
-                this.messageManager.addAssistantMessage(parsedResponse.text);
-                turns.push(turnResult);
-                this.options.onTurnComplete?.(turnResult);
-                return {
-                    finalResponse: parsedResponse.text,
-                    turns: turns,
-                    toolCalls: allToolCalls,
-                    messages: this.messageManager.getMessages()
-                };
+                catch (error) {
+                    const handledError = error_handler_1.ErrorHandler.handle(error);
+                    (0, logger_1.logError)(`❌ Error in turn ${turn}: ${handledError.message}`);
+                    this.metricsTracker.recordError();
+                    this.options.onError?.(handledError);
+                    return this.createResult(turns, allToolCalls, undefined, false, false, handledError);
+                }
             }
-            catch (error) {
-                const handledError = error_handler_1.ErrorHandler.handle(error);
-                (0, logger_1.logError)(`❌ Error in turn ${turn}: ${handledError.message}`);
-                this.options.onError?.(handledError);
-                return {
-                    finalResponse: turns.length > 0
-                        ? turns[turns.length - 1].assistantMessage
-                        : 'Error occurred during reasoning',
-                    turns: turns,
-                    toolCalls: allToolCalls,
-                    messages: this.messageManager.getMessages(),
-                    error: handledError
-                };
+            // Max turns reached
+            (0, logger_1.logInfo)(`⚠️ Max turns (${maxTurns}) reached`);
+            return this.createResult(turns, allToolCalls, undefined, true);
+        }
+        finally {
+            // Cleanup
+            if (this.timeoutId) {
+                clearTimeout(this.timeoutId);
             }
         }
-        // Max turns reached
-        (0, logger_1.logInfo)(`⚠️ Max turns (${maxTurns}) reached`);
-        return {
-            finalResponse: turns.length > 0
-                ? turns[turns.length - 1].assistantMessage
-                : 'Max turns reached',
-            turns: turns,
-            toolCalls: allToolCalls,
-            messages: this.messageManager.getMessages(),
-            truncated: true,
-            error: new Error('Max turns reached')
-        };
+    }
+    /**
+     * Call API with retry logic
+     */
+    async callAPIWithRetry() {
+        return this.retryManager.execute(async () => {
+            return await this.callAPI();
+        }, (error, attempt) => {
+            // Custom error handler for API errors
+            if (error instanceof error_handler_1.APIError) {
+                return true; // Retry API errors
+            }
+            return false;
+        });
     }
     /**
      * Call OpenRouter API via AiRepository
@@ -64933,15 +65392,82 @@ class ReasoningLoop {
     async callAPI() {
         const messages = this.messageManager.getMessages();
         const toolDefinitions = this.toolExecutor.getToolDefinitions();
+        // Filter tools by permissions
+        const allowedToolNames = this.permissionsManager.filterAllowed(toolDefinitions.map(t => t.name));
+        const filteredTools = toolDefinitions.filter(t => allowedToolNames.includes(t.name));
         // Build prompt
-        const prompt = prompt_builder_1.PromptBuilder.buildPrompt(messages, toolDefinitions);
-        (0, logger_1.logDebugInfo)(`📤 Calling API with ${messages.length} message(s) and ${toolDefinitions.length} tool(s)`);
-        // Call via AiRepository with JSON schema
-        const response = await this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response');
+        const prompt = prompt_builder_1.PromptBuilder.buildPrompt(messages, filteredTools);
+        (0, logger_1.logDebugInfo)(`📤 Calling API with ${messages.length} message(s) and ${filteredTools.length} tool(s)`);
+        // Handle streaming
+        if (this.options.streaming && this.options.onStreamChunk) {
+            let streamedContent = '';
+            const onChunk = (chunk) => {
+                streamedContent += chunk;
+                this.options.onStreamChunk({
+                    type: 'text',
+                    content: chunk
+                });
+            };
+            // Call with streaming
+            const response = await Promise.race([
+                this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', true, onChunk),
+                this.createTimeoutPromise(this.options.timeouts?.apiCall)
+            ]);
+            if (!response) {
+                throw new error_handler_1.APIError('No response from API');
+            }
+            // Send done chunk
+            this.options.onStreamChunk({
+                type: 'done',
+                content: ''
+            });
+            return response;
+        }
+        // Non-streaming call with timeout
+        const response = await Promise.race([
+            this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response'),
+            this.createTimeoutPromise(this.options.timeouts?.apiCall)
+        ]);
         if (!response) {
             throw new error_handler_1.APIError('No response from API');
         }
         return response;
+    }
+    /**
+     * Execute tools with timeout
+     */
+    async executeToolsWithTimeout(toolCalls) {
+        const timeout = this.options.timeouts?.toolExecution;
+        if (timeout) {
+            return Promise.race([
+                this.toolExecutor.executeAll(toolCalls),
+                this.createTimeoutPromise(timeout).then(() => {
+                    throw new Error('Tool execution timeout');
+                })
+            ]);
+        }
+        return this.toolExecutor.executeAll(toolCalls);
+    }
+    /**
+     * Create timeout promise
+     */
+    createTimeoutPromise(timeout) {
+        return new Promise((_, reject) => {
+            if (!timeout) {
+                // No timeout, never reject
+                return;
+            }
+            setTimeout(() => {
+                reject(new Error(`Operation timed out after ${timeout}ms`));
+            }, timeout);
+        });
+    }
+    /**
+     * Estimate input tokens (rough approximation)
+     */
+    estimateInputTokens() {
+        const messages = this.messageManager.getMessages();
+        return this.contextManager.estimateTokens(messages);
     }
     /**
      * Parse API response
@@ -64958,8 +65484,388 @@ class ReasoningLoop {
             throw new error_handler_1.APIError(`Failed to parse response: ${error instanceof Error ? error.message : String(error)}`, undefined, response);
         }
     }
+    /**
+     * Create result object
+     */
+    createResult(turns, toolCalls, finalResponse, truncated = false, budgetExceeded = false, error) {
+        const metrics = this.options.trackMetrics !== false
+            ? this.metricsTracker.getMetrics()
+            : undefined;
+        return {
+            finalResponse: finalResponse || (turns.length > 0
+                ? turns[turns.length - 1].assistantMessage
+                : 'No response'),
+            turns: turns,
+            toolCalls: toolCalls,
+            messages: this.messageManager.getMessages(),
+            totalTokens: metrics ? {
+                input: metrics.totalTokens.input,
+                output: metrics.totalTokens.output
+            } : undefined,
+            metrics: metrics,
+            error: error,
+            truncated: truncated,
+            budgetExceeded: budgetExceeded,
+            timeoutExceeded: truncated && !error
+        };
+    }
 }
 exports.ReasoningLoop = ReasoningLoop;
+
+
+/***/ }),
+
+/***/ 9306:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Retry Manager
+ * Handles retries with exponential backoff and circuit breaker
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RetryManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class RetryManager {
+    constructor(config) {
+        this.circuitBreakerState = 'closed';
+        this.circuitBreakerFailures = 0;
+        this.circuitBreakerLastFailure = 0;
+        this.circuitBreakerThreshold = 5;
+        this.circuitBreakerTimeout = 60000; // 1 minute
+        this.config = {
+            maxRetries: config?.maxRetries ?? 3,
+            initialDelay: config?.initialDelay ?? 1000,
+            maxDelay: config?.maxDelay ?? 30000,
+            backoffMultiplier: config?.backoffMultiplier ?? 2,
+            retryableErrors: config?.retryableErrors ?? [429, 500, 502, 503, 504]
+        };
+    }
+    /**
+     * Execute function with retry logic
+     */
+    async execute(fn, errorHandler) {
+        // Check circuit breaker
+        if (this.circuitBreakerState === 'open') {
+            const timeSinceLastFailure = Date.now() - this.circuitBreakerLastFailure;
+            if (timeSinceLastFailure > this.circuitBreakerTimeout) {
+                this.circuitBreakerState = 'half-open';
+                (0, logger_1.logDebugInfo)('🔌 Circuit breaker: half-open (testing)');
+            }
+            else {
+                throw new Error('Circuit breaker is open');
+            }
+        }
+        let lastError;
+        let delay = this.config.initialDelay;
+        for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
+            try {
+                const result = await fn();
+                // Success - reset circuit breaker
+                if (this.circuitBreakerState === 'half-open') {
+                    this.circuitBreakerState = 'closed';
+                    this.circuitBreakerFailures = 0;
+                    (0, logger_1.logDebugInfo)('🔌 Circuit breaker: closed (reset)');
+                }
+                return result;
+            }
+            catch (error) {
+                lastError = error;
+                // Check if error is retryable
+                const isRetryable = this.isRetryableError(error);
+                // Custom error handler can override retry decision
+                if (errorHandler) {
+                    const shouldRetry = errorHandler(error, attempt);
+                    if (!shouldRetry) {
+                        break;
+                    }
+                }
+                else if (!isRetryable) {
+                    break;
+                }
+                // Don't retry on last attempt
+                if (attempt >= this.config.maxRetries) {
+                    break;
+                }
+                // Record failure for circuit breaker
+                this.circuitBreakerFailures++;
+                this.circuitBreakerLastFailure = Date.now();
+                if (this.circuitBreakerFailures >= this.circuitBreakerThreshold) {
+                    this.circuitBreakerState = 'open';
+                    (0, logger_1.logError)('🔌 Circuit breaker: open (too many failures)');
+                    throw new Error('Circuit breaker is open due to too many failures');
+                }
+                (0, logger_1.logDebugInfo)(`🔄 Retry attempt ${attempt + 1}/${this.config.maxRetries} after ${delay}ms`);
+                // Wait before retry
+                await this.sleep(delay);
+                // Exponential backoff
+                delay = Math.min(delay * this.config.backoffMultiplier, this.config.maxDelay);
+            }
+        }
+        throw lastError;
+    }
+    /**
+     * Check if error is retryable
+     */
+    isRetryableError(error) {
+        // Check HTTP status code
+        if (error.status && this.config.retryableErrors.includes(error.status)) {
+            return true;
+        }
+        // Check error message for network errors
+        const message = error.message?.toLowerCase() || '';
+        if (message.includes('network') || message.includes('timeout') || message.includes('econnreset')) {
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Sleep utility
+     */
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    /**
+     * Reset circuit breaker
+     */
+    resetCircuitBreaker() {
+        this.circuitBreakerState = 'closed';
+        this.circuitBreakerFailures = 0;
+        this.circuitBreakerLastFailure = 0;
+    }
+}
+exports.RetryManager = RetryManager;
+
+
+/***/ }),
+
+/***/ 7408:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Session Manager
+ * Manages agent sessions with persistence
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SessionManager = void 0;
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+const logger_1 = __nccwpck_require__(8836);
+class SessionManager {
+    constructor(sessionsDir = '.agent-sessions') {
+        this.sessionsDir = sessionsDir;
+        this.ensureSessionsDir();
+    }
+    /**
+     * Ensure sessions directory exists
+     */
+    ensureSessionsDir() {
+        if (!fs.existsSync(this.sessionsDir)) {
+            fs.mkdirSync(this.sessionsDir, { recursive: true });
+        }
+    }
+    /**
+     * Get session file path
+     */
+    getSessionPath(sessionId) {
+        return path.join(this.sessionsDir, `${sessionId}.json`);
+    }
+    /**
+     * Save session
+     */
+    async saveSession(sessionId, messages, result) {
+        try {
+            const metadata = {
+                sessionId,
+                createdAt: this.getSessionCreatedAt(sessionId) || Date.now(),
+                lastUpdated: Date.now(),
+                messageCount: messages.length,
+                turnCount: result?.turns.length || 0,
+                toolCallCount: result?.toolCalls.length || 0,
+                metrics: result?.metrics
+            };
+            const sessionData = {
+                metadata,
+                messages
+            };
+            const filePath = this.getSessionPath(sessionId);
+            fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2));
+            (0, logger_1.logInfo)(`💾 Session saved: ${sessionId}`);
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to save session ${sessionId}: ${error}`);
+            throw error;
+        }
+    }
+    /**
+     * Load session
+     */
+    async loadSession(sessionId) {
+        try {
+            const filePath = this.getSessionPath(sessionId);
+            if (!fs.existsSync(filePath)) {
+                return null;
+            }
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const sessionData = JSON.parse(content);
+            (0, logger_1.logInfo)(`📂 Session loaded: ${sessionId}`);
+            return sessionData;
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to load session ${sessionId}: ${error}`);
+            return null;
+        }
+    }
+    /**
+     * Delete session
+     */
+    async deleteSession(sessionId) {
+        try {
+            const filePath = this.getSessionPath(sessionId);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                (0, logger_1.logInfo)(`🗑️ Session deleted: ${sessionId}`);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to delete session ${sessionId}: ${error}`);
+            throw error;
+        }
+    }
+    /**
+     * List all sessions
+     */
+    async listSessions() {
+        try {
+            const files = fs.readdirSync(this.sessionsDir);
+            const sessions = [];
+            for (const file of files) {
+                if (file.endsWith('.json')) {
+                    const sessionId = file.replace('.json', '');
+                    const session = await this.loadSession(sessionId);
+                    if (session) {
+                        sessions.push(session.metadata);
+                    }
+                }
+            }
+            return sessions.sort((a, b) => b.lastUpdated - a.lastUpdated);
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to list sessions: ${error}`);
+            return [];
+        }
+    }
+    /**
+     * Get session creation time
+     */
+    getSessionCreatedAt(sessionId) {
+        try {
+            const session = this.loadSession(sessionId);
+            return session ? session.metadata?.createdAt || null : null;
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
+     * Generate new session ID
+     */
+    generateSessionId() {
+        return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+}
+exports.SessionManager = SessionManager;
+
+
+/***/ }),
+
+/***/ 2859:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Tool Permissions Manager
+ * Controls which tools the agent can use
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolPermissionsManager = void 0;
+class ToolPermissionsManager {
+    constructor(permissions) {
+        this.permissions = permissions || { strategy: 'all' };
+    }
+    /**
+     * Check if a tool is allowed
+     */
+    isAllowed(toolName) {
+        const { strategy, allowed = [], blocked = [] } = this.permissions;
+        switch (strategy) {
+            case 'all':
+                return !blocked.includes(toolName);
+            case 'allowlist':
+                return allowed.includes(toolName);
+            case 'blocklist':
+                return !blocked.includes(toolName);
+            default:
+                return true;
+        }
+    }
+    /**
+     * Get all allowed tool names from a list
+     */
+    filterAllowed(toolNames) {
+        return toolNames.filter(name => this.isAllowed(name));
+    }
+    /**
+     * Update permissions
+     */
+    updatePermissions(permissions) {
+        this.permissions = permissions;
+    }
+    /**
+     * Get current permissions
+     */
+    getPermissions() {
+        return { ...this.permissions };
+    }
+}
+exports.ToolPermissionsManager = ToolPermissionsManager;
 
 
 /***/ }),
@@ -65138,7 +66044,10 @@ class ManageTodosTool extends base_tool_1.BaseTool {
             if (notes) {
                 updates.notes = notes;
             }
-            const success = this.options.updateTodo(todoId, updates);
+            const success = this.options.updateTodo(todoId, {
+                status: updates.status,
+                notes: updates.notes
+            });
             if (success) {
                 return `TODO updated: [${todoId}]`;
             }
@@ -66365,14 +67274,12 @@ program
     const manageTodosTool = new ManageTodosTool({
         createTodo: (content, status) => todoManager.createTodo(content, status),
         updateTodo: (id, updates) => {
-            const typedUpdates = {};
-            if (updates.status) {
-                typedUpdates.status = updates.status;
-            }
-            if (updates.notes) {
-                typedUpdates.notes = updates.notes;
-            }
-            return todoManager.updateTodo(id, typedUpdates);
+            return todoManager.updateTodo(id, {
+                status: updates.status,
+                notes: updates.notes,
+                related_files: updates.related_files,
+                related_changes: updates.related_changes
+            });
         },
         getAllTodos: () => todoManager.getAllTodos(),
         getActiveTodos: () => todoManager.getActiveTodos()
@@ -66432,6 +67339,317 @@ Use these tools systematically to analyze code and propose improvements.`,
         console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
         process.exit(1);
     }
+});
+/**
+ * Test Agent SDK - Streaming
+ */
+program
+    .command('agent:test-streaming')
+    .description('Test Agent SDK with streaming enabled')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Tell me a short story')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    console.log('🌊 Testing Agent SDK with streaming...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        streaming: true,
+        onStreamChunk: (chunk) => {
+            process.stdout.write(chunk.content);
+        }
+    });
+    const result = await agent.query(options.prompt);
+    console.log('\n\n✅ Streaming test completed!');
+    console.log(`📊 Turns: ${result.turns.length}`);
+    if (result.metrics) {
+        console.log(`📊 Tokens: ${result.metrics.totalTokens.input + result.metrics.totalTokens.output}`);
+    }
+});
+/**
+ * Test Agent SDK - Permissions
+ */
+program
+    .command('agent:test-permissions')
+    .description('Test Agent SDK with tool permissions (blocklist)')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Read README.md and create a TODO')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    const { ReadFileTool } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9010)));
+    const { ManageTodosTool } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(7645)));
+    const { FileRepository } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1503)));
+    const { ThinkCodeManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(8785)));
+    const { ThinkTodoManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(3618)));
+    console.log('🔒 Testing Agent SDK with permissions (blocklist: manage_todos)...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    const fileRepo = new FileRepository();
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+        console.error('❌ Error: Not in a git repository');
+        process.exit(1);
+    }
+    const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+    const branch = 'master';
+    const repositoryFiles = await fileRepo.getRepositoryContent(gitInfo.owner, gitInfo.repo, token, branch, [], () => { }, // progress callback
+    () => { } // ignoredFiles callback
+    );
+    const codeManager = new ThinkCodeManager();
+    const todoManager = new ThinkTodoManager();
+    const readFileTool = new ReadFileTool({
+        getFileContent: (filePath) => repositoryFiles.get(filePath),
+        repositoryFiles: repositoryFiles
+    });
+    const manageTodosTool = new ManageTodosTool({
+        createTodo: (content, status) => todoManager.createTodo(content, status),
+        updateTodo: (id, updates) => {
+            return todoManager.updateTodo(id, {
+                status: updates.status,
+                notes: updates.notes,
+                related_files: updates.related_files,
+                related_changes: updates.related_changes
+            });
+        },
+        getAllTodos: () => todoManager.getAllTodos(),
+        getActiveTodos: () => todoManager.getActiveTodos()
+    });
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        tools: [readFileTool, manageTodosTool],
+        toolPermissions: {
+            strategy: 'blocklist',
+            blocked: ['manage_todos']
+        },
+        maxTurns: 5
+    });
+    const result = await agent.query(options.prompt);
+    console.log('\n✅ Permissions test completed!');
+    console.log(`📊 Turns: ${result.turns.length}`);
+    console.log(`🔧 Tool calls: ${result.toolCalls.length}`);
+    console.log(`🚫 Blocked tools should not appear in tool calls`);
+});
+/**
+ * Test Agent SDK - Sessions
+ */
+program
+    .command('agent:test-sessions')
+    .description('Test Agent SDK with session persistence')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    console.log('💾 Testing Agent SDK with sessions...\n');
+    console.log(`🔧 Model: ${options.model}\n`);
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        persistSession: true
+    });
+    const sessionId = agent.getSessionId();
+    console.log(`📂 Session ID: ${sessionId}\n`);
+    // First query
+    console.log('📝 First query: "What is 2+2?"');
+    const result1 = await agent.query('What is 2+2?');
+    console.log(`✅ Response: ${result1.finalResponse}\n`);
+    // Continue conversation
+    console.log('📝 Second query: "What about 3+3?"');
+    const result2 = await agent.continue('What about 3+3?');
+    console.log(`✅ Response: ${result2.finalResponse}\n`);
+    // List sessions
+    const sessions = await agent.listSessions();
+    console.log(`📋 Found ${sessions.length} session(s)`);
+    console.log('\n✅ Sessions test completed!');
+});
+/**
+ * Test Agent SDK - Metrics
+ */
+program
+    .command('agent:test-metrics')
+    .description('Test Agent SDK with metrics tracking')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Explain what AI is in one sentence')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    console.log('📊 Testing Agent SDK with metrics...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    let metricsReceived = false;
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        trackMetrics: true,
+        onMetrics: (metrics) => {
+            metricsReceived = true;
+            console.log('\n📊 Metrics:');
+            console.log(`  API Calls: ${metrics.apiCalls}`);
+            console.log(`  Tool Calls: ${metrics.toolCalls}`);
+            console.log(`  Input Tokens: ${metrics.totalTokens.input}`);
+            console.log(`  Output Tokens: ${metrics.totalTokens.output}`);
+            console.log(`  Total Tokens: ${metrics.totalTokens.input + metrics.totalTokens.output}`);
+            if (metrics.totalCost) {
+                console.log(`  Cost: $${metrics.totalCost.toFixed(4)}`);
+            }
+            console.log(`  Average Latency: ${metrics.averageLatency}ms`);
+            console.log(`  Total Duration: ${metrics.totalDuration}ms`);
+            console.log(`  Errors: ${metrics.errors}`);
+        }
+    });
+    const result = await agent.query(options.prompt);
+    console.log(`\n✅ Response: ${result.finalResponse}`);
+    console.log(`\n✅ Metrics test completed!`);
+    console.log(`📊 Metrics received: ${metricsReceived ? 'Yes' : 'No'}`);
+});
+/**
+ * Test Agent SDK - Budget
+ */
+program
+    .command('agent:test-budget')
+    .description('Test Agent SDK with budget limits')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Count to 10')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('--max-tokens <number>', 'Max tokens budget', '100')
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    console.log('💰 Testing Agent SDK with budget...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}`);
+    console.log(`💰 Max Tokens: ${options.maxTokens}\n`);
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        trackMetrics: true,
+        budget: {
+            maxTokens: parseInt(options.maxTokens),
+            warnAtPercent: 50
+        }
+    });
+    const result = await agent.query(options.prompt);
+    console.log(`\n✅ Response: ${result.finalResponse}`);
+    console.log(`\n✅ Budget test completed!`);
+    console.log(`💰 Budget exceeded: ${result.budgetExceeded ? 'Yes' : 'No'}`);
+    if (result.metrics) {
+        const totalTokens = result.metrics.totalTokens.input + result.metrics.totalTokens.output;
+        console.log(`📊 Total Tokens: ${totalTokens}/${options.maxTokens}`);
+    }
+});
+/**
+ * Test Agent SDK - Retry
+ */
+program
+    .command('agent:test-retry')
+    .description('Test Agent SDK with retry logic')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Hello')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    console.log('🔄 Testing Agent SDK with retry logic...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        retry: {
+            maxRetries: 3,
+            initialDelay: 100,
+            backoffMultiplier: 2
+        }
+    });
+    const result = await agent.query(options.prompt);
+    console.log(`\n✅ Response: ${result.finalResponse}`);
+    console.log(`\n✅ Retry test completed!`);
+    console.log(`📊 Turns: ${result.turns.length}`);
+});
+/**
+ * Test Agent SDK - All Features
+ */
+program
+    .command('agent:test-all-features')
+    .description('Test Agent SDK with all advanced features enabled')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Explain what AI is')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    console.log('🚀 Testing Agent SDK with ALL features...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        streaming: true,
+        persistSession: true,
+        trackMetrics: true,
+        maxContextLength: 50000,
+        contextCompressionEnabled: true,
+        budget: {
+            maxTokens: 10000,
+            warnAtPercent: 80
+        },
+        timeouts: {
+            apiCall: 30000,
+            toolExecution: 10000,
+            totalSession: 60000
+        },
+        retry: {
+            maxRetries: 3,
+            initialDelay: 1000
+        },
+        onStreamChunk: (chunk) => {
+            if (chunk.type === 'text') {
+                process.stdout.write(chunk.content);
+            }
+        },
+        onMetrics: (metrics) => {
+            console.log(`\n📊 Final Metrics:`);
+            console.log(`  Tokens: ${metrics.totalTokens.input + metrics.totalTokens.output}`);
+            console.log(`  API Calls: ${metrics.apiCalls}`);
+            console.log(`  Duration: ${metrics.totalDuration}ms`);
+        }
+    });
+    const sessionId = agent.getSessionId();
+    console.log(`📂 Session ID: ${sessionId}\n`);
+    const result = await agent.query(options.prompt);
+    console.log('\n\n✅ All features test completed!');
+    console.log(`📊 Turns: ${result.turns.length}`);
+    console.log(`💰 Budget exceeded: ${result.budgetExceeded ? 'Yes' : 'No'}`);
+    console.log(`⏱️ Timeout exceeded: ${result.timeoutExceeded ? 'Yes' : 'No'}`);
 });
 program.parse(process.argv);
 
@@ -68124,7 +69342,7 @@ class AiRepository {
                 return undefined;
             }
         };
-        this.askJson = async (ai, prompt, schema, schemaName = "ai_response") => {
+        this.askJson = async (ai, prompt, schema, schemaName = "ai_response", streaming, onChunk) => {
             const model = ai.getOpenRouterModel();
             const apiKey = ai.getOpenRouterApiKey();
             const providerRouting = ai.getProviderRouting();
@@ -68132,9 +69350,6 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration');
                 return undefined;
             }
-            // logDebugInfo(`🔎 Model: ${model}`);
-            // logDebugInfo(`🔎 API Key: ***`);
-            // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             // Use provided schema or default to AI_RESPONSE_JSON_SCHEMA
             const responseSchema = schema || ai_response_schema_1.AI_RESPONSE_JSON_SCHEMA;
@@ -68154,6 +69369,10 @@ class AiRepository {
                         }
                     }
                 };
+                // Enable streaming if requested
+                if (streaming) {
+                    requestBody.stream = true;
+                }
                 // Add provider routing configuration if it exists and has properties
                 if (Object.keys(providerRouting).length > 0) {
                     requestBody.provider = providerRouting;
@@ -68174,14 +69393,16 @@ class AiRepository {
                     (0, logger_1.logError)(`Error from API: ${response.status} ${response.statusText}`);
                     return undefined;
                 }
+                // Handle streaming
+                if (streaming && response.body) {
+                    return await this.handleStreamingResponse(response, onChunk);
+                }
                 const data = await response.json();
                 if (!data.choices || data.choices.length === 0) {
                     (0, logger_1.logError)('No response content received from API');
                     return undefined;
                 }
-                // logDebugInfo(`Successfully received response from ${model}`);
                 const content = data.choices[0].message.content;
-                // logDebugInfo(`Response: ${content}`);
                 return JSON.parse(content);
             }
             catch (error) {
@@ -68252,6 +69473,59 @@ class AiRepository {
                 return undefined;
             }
         };
+    }
+    /**
+     * Handle streaming response
+     */
+    async handleStreamingResponse(response, onChunk) {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        if (!reader) {
+            throw new Error('No response body reader available');
+        }
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') {
+                            continue;
+                        }
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta;
+                            if (delta?.content) {
+                                fullContent += delta.content;
+                                onChunk?.(delta.content);
+                            }
+                        }
+                        catch (e) {
+                            // Ignore parse errors for incomplete chunks
+                        }
+                    }
+                }
+            }
+            // Parse final JSON content
+            try {
+                return JSON.parse(fullContent);
+            }
+            catch (e) {
+                (0, logger_1.logError)('Failed to parse streaming response as JSON');
+                return { response: fullContent };
+            }
+        }
+        finally {
+            reader.releaseLock();
+        }
     }
 }
 exports.AiRepository = AiRepository;
@@ -77628,7 +78902,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
+exports.setStructuredLogging = setStructuredLogging;
 exports.logInfo = logInfo;
+exports.logWarn = logWarn;
 exports.logWarning = logWarning;
 exports.logError = logError;
 exports.logDebugInfo = logDebugInfo;
@@ -77638,25 +78914,79 @@ exports.logSingleLine = logSingleLine;
 const readline_1 = __importDefault(__nccwpck_require__(4521));
 let loggerDebug = false;
 let loggerRemote = false;
+let structuredLogging = false;
 function setGlobalLoggerDebug(debug, isRemote = false) {
     loggerDebug = debug;
     loggerRemote = isRemote;
 }
-function logInfo(message, previousWasSingleLine = false) {
+function setStructuredLogging(enabled) {
+    structuredLogging = enabled;
+}
+function formatStructuredLog(entry) {
+    return JSON.stringify(entry);
+}
+function logInfo(message, previousWasSingleLine = false, metadata) {
     if (previousWasSingleLine && !loggerRemote) {
         console.log();
     }
-    console.log(message);
+    if (structuredLogging) {
+        console.log(formatStructuredLog({
+            level: 'info',
+            message,
+            timestamp: Date.now(),
+            metadata
+        }));
+    }
+    else {
+        console.log(message);
+    }
+}
+function logWarn(message, metadata) {
+    if (structuredLogging) {
+        console.warn(formatStructuredLog({
+            level: 'warn',
+            message,
+            timestamp: Date.now(),
+            metadata
+        }));
+    }
+    else {
+        console.warn(message);
+    }
 }
 function logWarning(message) {
-    console.warn(message);
+    logWarn(message);
 }
-function logError(message) {
-    console.error(message.toString());
+function logError(message, metadata) {
+    const errorMessage = message instanceof Error ? message.message : message.toString();
+    if (structuredLogging) {
+        console.error(formatStructuredLog({
+            level: 'error',
+            message: errorMessage,
+            timestamp: Date.now(),
+            metadata: {
+                ...metadata,
+                stack: message instanceof Error ? message.stack : undefined
+            }
+        }));
+    }
+    else {
+        console.error(errorMessage);
+    }
 }
-function logDebugInfo(message, previousWasSingleLine = false) {
+function logDebugInfo(message, previousWasSingleLine = false, metadata) {
     if (loggerDebug) {
-        logInfo(message, previousWasSingleLine);
+        if (structuredLogging) {
+            console.log(formatStructuredLog({
+                level: 'debug',
+                message,
+                timestamp: Date.now(),
+                metadata
+            }));
+        }
+        else {
+            logInfo(message, previousWasSingleLine);
+        }
     }
 }
 function logDebugWarning(message) {
@@ -77666,7 +78996,7 @@ function logDebugWarning(message) {
 }
 function logDebugError(message) {
     if (loggerDebug) {
-        logError(message.toString());
+        logError(message);
     }
 }
 function logSingleLine(message) {

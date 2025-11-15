@@ -73,7 +73,9 @@ export class AiRepository {
         ai: Ai, 
         prompt: string, 
         schema?: any, 
-        schemaName: string = "ai_response"
+        schemaName: string = "ai_response",
+        streaming?: boolean,
+        onChunk?: (chunk: string) => void
     ): Promise<any | undefined> => {
         const model = ai.getOpenRouterModel();
         const apiKey = ai.getOpenRouterApiKey();
@@ -83,10 +85,6 @@ export class AiRepository {
             logError('Missing required AI configuration');
             return undefined;
         }
-
-        // logDebugInfo(`🔎 Model: ${model}`);
-        // logDebugInfo(`🔎 API Key: ***`);
-        // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
 
         const url = `https://openrouter.ai/api/v1/chat/completions`;
 
@@ -109,6 +107,11 @@ export class AiRepository {
                     }
                 }
             };
+
+            // Enable streaming if requested
+            if (streaming) {
+                requestBody.stream = true;
+            }
 
             // Add provider routing configuration if it exists and has properties
             if (Object.keys(providerRouting).length > 0) {
@@ -133,6 +136,11 @@ export class AiRepository {
                 return undefined;
             }
 
+            // Handle streaming
+            if (streaming && response.body) {
+                return await this.handleStreamingResponse(response, onChunk);
+            }
+
             const data: any = await response.json();
             
             if (!data.choices || data.choices.length === 0) {
@@ -140,14 +148,74 @@ export class AiRepository {
                 return undefined;
             }
 
-            // logDebugInfo(`Successfully received response from ${model}`);
             const content = data.choices[0].message.content;
-            
-            // logDebugInfo(`Response: ${content}`);
             return JSON.parse(content);
         } catch (error) {
             logError(`Error querying ${model}: ${error}`);
             return undefined;
+        }
+    }
+
+    /**
+     * Handle streaming response
+     */
+    private async handleStreamingResponse(
+        response: Response,
+        onChunk?: (chunk: string) => void
+    ): Promise<any> {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+
+        if (!reader) {
+            throw new Error('No response body reader available');
+        }
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        
+                        if (data === '[DONE]') {
+                            continue;
+                        }
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta;
+                            
+                            if (delta?.content) {
+                                fullContent += delta.content;
+                                onChunk?.(delta.content);
+                            }
+                        } catch (e) {
+                            // Ignore parse errors for incomplete chunks
+                        }
+                    }
+                }
+            }
+
+            // Parse final JSON content
+            try {
+                return JSON.parse(fullContent);
+            } catch (e) {
+                logError('Failed to parse streaming response as JSON');
+                return { response: fullContent };
+            }
+        } finally {
+            reader.releaseLock();
         }
     }
 

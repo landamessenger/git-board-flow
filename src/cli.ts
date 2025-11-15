@@ -479,17 +479,12 @@ program
     const manageTodosTool = new ManageTodosTool({
       createTodo: (content, status) => todoManager.createTodo(content, status),
       updateTodo: (id, updates) => {
-        const typedUpdates: {
-          status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-          notes?: string;
-        } = {};
-        if (updates.status) {
-          typedUpdates.status = updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled';
-        }
-        if (updates.notes) {
-          typedUpdates.notes = updates.notes;
-        }
-        return todoManager.updateTodo(id, typedUpdates);
+        return todoManager.updateTodo(id, {
+          status: updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' | undefined,
+          notes: updates.notes,
+          related_files: updates.related_files,
+          related_changes: updates.related_changes
+        });
       },
       getAllTodos: () => todoManager.getAllTodos(),
       getActiveTodos: () => todoManager.getActiveTodos()
@@ -552,6 +547,375 @@ Use these tools systematically to analyze code and propose improvements.`,
       console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     }
+  });
+
+/**
+ * Test Agent SDK - Streaming
+ */
+program
+  .command('agent:test-streaming')
+  .description('Test Agent SDK with streaming enabled')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Tell me a short story')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    
+    console.log('🌊 Testing Agent SDK with streaming...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      streaming: true,
+      onStreamChunk: (chunk) => {
+        process.stdout.write(chunk.content);
+      }
+    });
+
+    const result = await agent.query(options.prompt);
+    
+    console.log('\n\n✅ Streaming test completed!');
+    console.log(`📊 Turns: ${result.turns.length}`);
+    if (result.metrics) {
+      console.log(`📊 Tokens: ${result.metrics.totalTokens.input + result.metrics.totalTokens.output}`);
+    }
+  });
+
+/**
+ * Test Agent SDK - Permissions
+ */
+program
+  .command('agent:test-permissions')
+  .description('Test Agent SDK with tool permissions (blocklist)')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Read README.md and create a TODO')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    const { ReadFileTool } = await import('./agent/tools/builtin_tools/read_file_tool');
+    const { ManageTodosTool } = await import('./agent/tools/builtin_tools/manage_todos_tool');
+    const { FileRepository } = await import('./data/repository/file_repository');
+    const { ThinkCodeManager } = await import('./usecase/steps/common/think_code_manager');
+    const { ThinkTodoManager } = await import('./usecase/steps/common/think_todo_manager');
+    
+    console.log('🔒 Testing Agent SDK with permissions (blocklist: manage_todos)...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    const fileRepo = new FileRepository();
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.error('❌ Error: Not in a git repository');
+      process.exit(1);
+    }
+
+    const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+    const branch = 'master';
+    const repositoryFiles = await fileRepo.getRepositoryContent(
+      gitInfo.owner,
+      gitInfo.repo,
+      token,
+      branch,
+      [],
+      () => {}, // progress callback
+      () => {}  // ignoredFiles callback
+    );
+
+    const codeManager = new ThinkCodeManager();
+    const todoManager = new ThinkTodoManager();
+
+    const readFileTool = new ReadFileTool({
+      getFileContent: (filePath: string) => repositoryFiles.get(filePath),
+      repositoryFiles: repositoryFiles
+    });
+    const manageTodosTool = new ManageTodosTool({
+      createTodo: (content, status) => todoManager.createTodo(content, status),
+      updateTodo: (id, updates) => {
+        return todoManager.updateTodo(id, {
+          status: updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' | undefined,
+          notes: updates.notes,
+          related_files: updates.related_files,
+          related_changes: updates.related_changes
+        });
+      },
+      getAllTodos: () => todoManager.getAllTodos(),
+      getActiveTodos: () => todoManager.getActiveTodos()
+    });
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      tools: [readFileTool, manageTodosTool],
+      toolPermissions: {
+        strategy: 'blocklist',
+        blocked: ['manage_todos']
+      },
+      maxTurns: 5
+    });
+
+    const result = await agent.query(options.prompt);
+    
+    console.log('\n✅ Permissions test completed!');
+    console.log(`📊 Turns: ${result.turns.length}`);
+    console.log(`🔧 Tool calls: ${result.toolCalls.length}`);
+    console.log(`🚫 Blocked tools should not appear in tool calls`);
+  });
+
+/**
+ * Test Agent SDK - Sessions
+ */
+program
+  .command('agent:test-sessions')
+  .description('Test Agent SDK with session persistence')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    
+    console.log('💾 Testing Agent SDK with sessions...\n');
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      persistSession: true
+    });
+
+    const sessionId = agent.getSessionId();
+    console.log(`📂 Session ID: ${sessionId}\n`);
+
+    // First query
+    console.log('📝 First query: "What is 2+2?"');
+    const result1 = await agent.query('What is 2+2?');
+    console.log(`✅ Response: ${result1.finalResponse}\n`);
+
+    // Continue conversation
+    console.log('📝 Second query: "What about 3+3?"');
+    const result2 = await agent.continue('What about 3+3?');
+    console.log(`✅ Response: ${result2.finalResponse}\n`);
+
+    // List sessions
+    const sessions = await agent.listSessions();
+    console.log(`📋 Found ${sessions.length} session(s)`);
+
+    console.log('\n✅ Sessions test completed!');
+  });
+
+/**
+ * Test Agent SDK - Metrics
+ */
+program
+  .command('agent:test-metrics')
+  .description('Test Agent SDK with metrics tracking')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Explain what AI is in one sentence')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    
+    console.log('📊 Testing Agent SDK with metrics...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    let metricsReceived = false;
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      trackMetrics: true,
+      onMetrics: (metrics) => {
+        metricsReceived = true;
+        console.log('\n📊 Metrics:');
+        console.log(`  API Calls: ${metrics.apiCalls}`);
+        console.log(`  Tool Calls: ${metrics.toolCalls}`);
+        console.log(`  Input Tokens: ${metrics.totalTokens.input}`);
+        console.log(`  Output Tokens: ${metrics.totalTokens.output}`);
+        console.log(`  Total Tokens: ${metrics.totalTokens.input + metrics.totalTokens.output}`);
+        if (metrics.totalCost) {
+          console.log(`  Cost: $${metrics.totalCost.toFixed(4)}`);
+        }
+        console.log(`  Average Latency: ${metrics.averageLatency}ms`);
+        console.log(`  Total Duration: ${metrics.totalDuration}ms`);
+        console.log(`  Errors: ${metrics.errors}`);
+      }
+    });
+
+    const result = await agent.query(options.prompt);
+    
+    console.log(`\n✅ Response: ${result.finalResponse}`);
+    console.log(`\n✅ Metrics test completed!`);
+    console.log(`📊 Metrics received: ${metricsReceived ? 'Yes' : 'No'}`);
+  });
+
+/**
+ * Test Agent SDK - Budget
+ */
+program
+  .command('agent:test-budget')
+  .description('Test Agent SDK with budget limits')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Count to 10')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .option('--max-tokens <number>', 'Max tokens budget', '100')
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    
+    console.log('💰 Testing Agent SDK with budget...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}`);
+    console.log(`💰 Max Tokens: ${options.maxTokens}\n`);
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      trackMetrics: true,
+      budget: {
+        maxTokens: parseInt(options.maxTokens),
+        warnAtPercent: 50
+      }
+    });
+
+    const result = await agent.query(options.prompt);
+    
+    console.log(`\n✅ Response: ${result.finalResponse}`);
+    console.log(`\n✅ Budget test completed!`);
+    console.log(`💰 Budget exceeded: ${result.budgetExceeded ? 'Yes' : 'No'}`);
+    if (result.metrics) {
+      const totalTokens = result.metrics.totalTokens.input + result.metrics.totalTokens.output;
+      console.log(`📊 Total Tokens: ${totalTokens}/${options.maxTokens}`);
+    }
+  });
+
+/**
+ * Test Agent SDK - Retry
+ */
+program
+  .command('agent:test-retry')
+  .description('Test Agent SDK with retry logic')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Hello')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    
+    console.log('🔄 Testing Agent SDK with retry logic...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      retry: {
+        maxRetries: 3,
+        initialDelay: 100,
+        backoffMultiplier: 2
+      }
+    });
+
+    const result = await agent.query(options.prompt);
+    
+    console.log(`\n✅ Response: ${result.finalResponse}`);
+    console.log(`\n✅ Retry test completed!`);
+    console.log(`📊 Turns: ${result.turns.length}`);
+  });
+
+/**
+ * Test Agent SDK - All Features
+ */
+program
+  .command('agent:test-all-features')
+  .description('Test Agent SDK with all advanced features enabled')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Explain what AI is')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    
+    console.log('🚀 Testing Agent SDK with ALL features...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      streaming: true,
+      persistSession: true,
+      trackMetrics: true,
+      maxContextLength: 50000,
+      contextCompressionEnabled: true,
+      budget: {
+        maxTokens: 10000,
+        warnAtPercent: 80
+      },
+      timeouts: {
+        apiCall: 30000,
+        toolExecution: 10000,
+        totalSession: 60000
+      },
+      retry: {
+        maxRetries: 3,
+        initialDelay: 1000
+      },
+      onStreamChunk: (chunk) => {
+        if (chunk.type === 'text') {
+          process.stdout.write(chunk.content);
+        }
+      },
+      onMetrics: (metrics) => {
+        console.log(`\n📊 Final Metrics:`);
+        console.log(`  Tokens: ${metrics.totalTokens.input + metrics.totalTokens.output}`);
+        console.log(`  API Calls: ${metrics.apiCalls}`);
+        console.log(`  Duration: ${metrics.totalDuration}ms`);
+      }
+    });
+
+    const sessionId = agent.getSessionId();
+    console.log(`📂 Session ID: ${sessionId}\n`);
+
+    const result = await agent.query(options.prompt);
+    
+    console.log('\n\n✅ All features test completed!');
+    console.log(`📊 Turns: ${result.turns.length}`);
+    console.log(`💰 Budget exceeded: ${result.budgetExceeded ? 'Yes' : 'No'}`);
+    console.log(`⏱️ Timeout exceeded: ${result.timeoutExceeded ? 'Yes' : 'No'}`);
   });
 
 program.parse(process.argv); 

@@ -61777,7 +61777,7 @@ class AiRepository {
                 return undefined;
             }
         };
-        this.askJson = async (ai, prompt, schema, schemaName = "ai_response") => {
+        this.askJson = async (ai, prompt, schema, schemaName = "ai_response", streaming, onChunk) => {
             const model = ai.getOpenRouterModel();
             const apiKey = ai.getOpenRouterApiKey();
             const providerRouting = ai.getProviderRouting();
@@ -61785,9 +61785,6 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration');
                 return undefined;
             }
-            // logDebugInfo(`🔎 Model: ${model}`);
-            // logDebugInfo(`🔎 API Key: ***`);
-            // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             // Use provided schema or default to AI_RESPONSE_JSON_SCHEMA
             const responseSchema = schema || ai_response_schema_1.AI_RESPONSE_JSON_SCHEMA;
@@ -61807,6 +61804,10 @@ class AiRepository {
                         }
                     }
                 };
+                // Enable streaming if requested
+                if (streaming) {
+                    requestBody.stream = true;
+                }
                 // Add provider routing configuration if it exists and has properties
                 if (Object.keys(providerRouting).length > 0) {
                     requestBody.provider = providerRouting;
@@ -61827,14 +61828,16 @@ class AiRepository {
                     (0, logger_1.logError)(`Error from API: ${response.status} ${response.statusText}`);
                     return undefined;
                 }
+                // Handle streaming
+                if (streaming && response.body) {
+                    return await this.handleStreamingResponse(response, onChunk);
+                }
                 const data = await response.json();
                 if (!data.choices || data.choices.length === 0) {
                     (0, logger_1.logError)('No response content received from API');
                     return undefined;
                 }
-                // logDebugInfo(`Successfully received response from ${model}`);
                 const content = data.choices[0].message.content;
-                // logDebugInfo(`Response: ${content}`);
                 return JSON.parse(content);
             }
             catch (error) {
@@ -61905,6 +61908,59 @@ class AiRepository {
                 return undefined;
             }
         };
+    }
+    /**
+     * Handle streaming response
+     */
+    async handleStreamingResponse(response, onChunk) {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        if (!reader) {
+            throw new Error('No response body reader available');
+        }
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') {
+                            continue;
+                        }
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta;
+                            if (delta?.content) {
+                                fullContent += delta.content;
+                                onChunk?.(delta.content);
+                            }
+                        }
+                        catch (e) {
+                            // Ignore parse errors for incomplete chunks
+                        }
+                    }
+                }
+            }
+            // Parse final JSON content
+            try {
+                return JSON.parse(fullContent);
+            }
+            catch (e) {
+                (0, logger_1.logError)('Failed to parse streaming response as JSON');
+                return { response: fullContent };
+            }
+        }
+        finally {
+            reader.releaseLock();
+        }
     }
 }
 exports.AiRepository = AiRepository;
@@ -70946,7 +71002,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
+exports.setStructuredLogging = setStructuredLogging;
 exports.logInfo = logInfo;
+exports.logWarn = logWarn;
 exports.logWarning = logWarning;
 exports.logError = logError;
 exports.logDebugInfo = logDebugInfo;
@@ -70956,25 +71014,79 @@ exports.logSingleLine = logSingleLine;
 const readline_1 = __importDefault(__nccwpck_require__(4521));
 let loggerDebug = false;
 let loggerRemote = false;
+let structuredLogging = false;
 function setGlobalLoggerDebug(debug, isRemote = false) {
     loggerDebug = debug;
     loggerRemote = isRemote;
 }
-function logInfo(message, previousWasSingleLine = false) {
+function setStructuredLogging(enabled) {
+    structuredLogging = enabled;
+}
+function formatStructuredLog(entry) {
+    return JSON.stringify(entry);
+}
+function logInfo(message, previousWasSingleLine = false, metadata) {
     if (previousWasSingleLine && !loggerRemote) {
         console.log();
     }
-    console.log(message);
+    if (structuredLogging) {
+        console.log(formatStructuredLog({
+            level: 'info',
+            message,
+            timestamp: Date.now(),
+            metadata
+        }));
+    }
+    else {
+        console.log(message);
+    }
+}
+function logWarn(message, metadata) {
+    if (structuredLogging) {
+        console.warn(formatStructuredLog({
+            level: 'warn',
+            message,
+            timestamp: Date.now(),
+            metadata
+        }));
+    }
+    else {
+        console.warn(message);
+    }
 }
 function logWarning(message) {
-    console.warn(message);
+    logWarn(message);
 }
-function logError(message) {
-    console.error(message.toString());
+function logError(message, metadata) {
+    const errorMessage = message instanceof Error ? message.message : message.toString();
+    if (structuredLogging) {
+        console.error(formatStructuredLog({
+            level: 'error',
+            message: errorMessage,
+            timestamp: Date.now(),
+            metadata: {
+                ...metadata,
+                stack: message instanceof Error ? message.stack : undefined
+            }
+        }));
+    }
+    else {
+        console.error(errorMessage);
+    }
 }
-function logDebugInfo(message, previousWasSingleLine = false) {
+function logDebugInfo(message, previousWasSingleLine = false, metadata) {
     if (loggerDebug) {
-        logInfo(message, previousWasSingleLine);
+        if (structuredLogging) {
+            console.log(formatStructuredLog({
+                level: 'debug',
+                message,
+                timestamp: Date.now(),
+                metadata
+            }));
+        }
+        else {
+            logInfo(message, previousWasSingleLine);
+        }
     }
 }
 function logDebugWarning(message) {
@@ -70984,7 +71096,7 @@ function logDebugWarning(message) {
 }
 function logDebugError(message) {
     if (loggerDebug) {
-        logError(message.toString());
+        logError(message);
     }
 }
 function logSingleLine(message) {
