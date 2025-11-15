@@ -10,6 +10,7 @@ import { logInfo } from './utils/logger';
 import { registerAgentTestCommands } from './agent_tester_commands';
 import { registerMCPTestCommands } from './mcp_tester_commands';
 import { registerSubAgentTestCommands } from './sub_agent_tester_commands';
+import { registerTECTestCommands } from './tec_tester_commands';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -238,5 +239,6 @@ program
 registerAgentTestCommands(program);
 registerMCPTestCommands(program);
 registerSubAgentTestCommands(program);
+registerTECTestCommands(program);
 
 program.parse(process.argv); 

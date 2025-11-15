@@ -67027,6 +67027,407 @@ exports.SSETransport = SSETransport;
 
 /***/ }),
 
+/***/ 4322:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Error Detector
+ * Uses Agent SDK to detect potential errors in the codebase
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ErrorDetector = void 0;
+const agent_1 = __nccwpck_require__(1963);
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const propose_change_tool_1 = __nccwpck_require__(4962);
+const manage_todos_tool_1 = __nccwpck_require__(7645);
+const file_repository_1 = __nccwpck_require__(1503);
+const logger_1 = __nccwpck_require__(8836);
+class ErrorDetector {
+    constructor(options) {
+        this.options = {
+            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+            apiKey: options.apiKey,
+            maxTurns: options.maxTurns || 30,
+            repositoryOwner: options.repositoryOwner,
+            repositoryName: options.repositoryName,
+            focusAreas: options.focusAreas || [],
+            errorTypes: options.errorTypes || []
+        };
+        this.fileRepository = new file_repository_1.FileRepository();
+        // Note: initializeAgent is async, but we can't await in constructor
+        // Caller should call initialize() or detectErrors() which will initialize
+    }
+    async initializeAgent() {
+        // Get repository files
+        let repositoryFiles = new Map();
+        if (this.options.repositoryOwner && this.options.repositoryName) {
+            try {
+                // Get GitHub token from environment
+                const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+                if (!token) {
+                    (0, logger_1.logWarn)('⚠️ PERSONAL_ACCESS_TOKEN not set, cannot load repository files');
+                }
+                else {
+                    // Get default branch if not specified
+                    let branch = this.options.repositoryBranch;
+                    if (!branch) {
+                        try {
+                            const { getOctokit } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(5438)));
+                            const octokit = getOctokit(token);
+                            const { data } = await octokit.rest.repos.get({
+                                owner: this.options.repositoryOwner,
+                                repo: this.options.repositoryName
+                            });
+                            branch = data.default_branch || 'master';
+                            (0, logger_1.logInfo)(`🌿 Using default branch: ${branch}`);
+                        }
+                        catch (error) {
+                            (0, logger_1.logWarn)(`⚠️ Could not fetch default branch, using 'master' as fallback: ${error}`);
+                            branch = 'master';
+                        }
+                    }
+                    const files = await this.fileRepository.getRepositoryContent(this.options.repositoryOwner, this.options.repositoryName, token, branch, [], // ignoreFiles
+                    () => { }, // progress callback
+                    () => { } // ignoredFiles callback
+                    );
+                    repositoryFiles = files;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logWarn)(`Failed to load repository files: ${error}`);
+            }
+        }
+        // Create tools
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                const results = [];
+                for (const [path] of repositoryFiles) {
+                    if (path.toLowerCase().includes(query.toLowerCase())) {
+                        results.push(path);
+                    }
+                }
+                return results;
+            },
+            getAllFiles: () => Array.from(repositoryFiles.keys())
+        });
+        // Virtual codebase for proposed changes
+        const virtualCodebase = new Map(repositoryFiles);
+        const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
+            applyChange: (change) => {
+                if (change.change_type === 'create' || change.change_type === 'modify') {
+                    virtualCodebase.set(change.file_path, change.suggested_code);
+                    (0, logger_1.logInfo)(`📝 Proposed change: ${change.file_path} (${change.description})`);
+                    return true;
+                }
+                else if (change.change_type === 'delete') {
+                    virtualCodebase.delete(change.file_path);
+                    (0, logger_1.logInfo)(`📝 Proposed deletion: ${change.file_path}`);
+                    return true;
+                }
+                return false;
+            },
+            onChangeApplied: (change) => {
+                (0, logger_1.logInfo)(`✅ Change applied: ${change.file_path}`);
+            }
+        });
+        // Initialize TODO manager for tracking findings
+        const { ThinkTodoManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(3618)));
+        const todoManager = new ThinkTodoManager();
+        const manageTodosTool = new manage_todos_tool_1.ManageTodosTool({
+            createTodo: (content, status) => {
+                const todo = todoManager.createTodo(content, status || 'pending');
+                return {
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                };
+            },
+            updateTodo: (id, updates) => {
+                return todoManager.updateTodo(id, updates);
+            },
+            getAllTodos: () => {
+                return todoManager.getAllTodos().map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status,
+                    notes: todo.notes
+                }));
+            },
+            getActiveTodos: () => {
+                const todos = todoManager.getAllTodos();
+                return todos
+                    .filter((todo) => todo.status !== 'completed' && todo.status !== 'cancelled')
+                    .map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                }));
+            }
+        });
+        // Create agent with tools
+        const agentOptions = {
+            model: this.options.model,
+            apiKey: this.options.apiKey,
+            systemPrompt: this.buildSystemPrompt(),
+            tools: [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool],
+            maxTurns: this.options.maxTurns,
+            enableMCP: false
+        };
+        this.agent = new agent_1.Agent(agentOptions);
+    }
+    buildSystemPrompt() {
+        const focusAreas = this.options.focusAreas?.length
+            ? `Focus on these areas: ${this.options.focusAreas.join(', ')}`
+            : 'Analyze the entire codebase';
+        const errorTypes = this.options.errorTypes?.length
+            ? `Look for these types of errors: ${this.options.errorTypes.join(', ')}`
+            : 'Look for all types of errors (type errors, logic errors, security issues, performance problems, etc.)';
+        return `You are an expert code reviewer and error detector. Your task is to analyze the codebase and detect potential errors.
+
+${focusAreas}
+${errorTypes}
+
+**Your workflow:**
+1. Start by exploring the codebase structure using search_files
+2. Read relevant files using read_file to understand the code
+3. Analyze the code for potential errors:
+   - Type errors (TypeScript/JavaScript)
+   - Logic errors (incorrect conditions, wrong calculations)
+   - Security issues (SQL injection, XSS, insecure dependencies)
+   - Performance problems (inefficient algorithms, memory leaks)
+   - Best practices violations
+   - Potential runtime errors (null/undefined access, array bounds)
+   - Race conditions
+   - Resource leaks
+4. For each error found, create a TODO using manage_todos with:
+   - Clear description of the error including file path
+   - Severity level in the description (critical, high, medium, low)
+   - Type of error
+   - Suggested fix
+5. Use propose_change to suggest fixes for critical and high severity errors
+6. In your final response, summarize all errors found in a structured format:
+   - File: path/to/file.ts
+   - Line: line number (if applicable)
+   - Type: error type
+   - Severity: critical/high/medium/low
+   - Description: detailed explanation
+   - Suggestion: how to fix it
+
+**Error Severity Levels:**
+- **critical**: Will cause system failure or data loss
+- **high**: Will cause significant issues or security vulnerabilities
+- **medium**: May cause issues in certain conditions
+- **low**: Minor issues or code quality improvements
+
+**Output Format:**
+For each error, provide:
+- File: path/to/file.ts
+- Line: line number (if applicable)
+- Type: error type
+- Severity: critical/high/medium/low
+- Description: detailed explanation
+- Suggestion: how to fix it
+
+Be thorough but efficient. Prioritize critical and high severity errors.`;
+    }
+    /**
+     * Detect errors in the codebase
+     */
+    async detectErrors(prompt = 'Busca potenciales errores en todo el proyecto') {
+        (0, logger_1.logInfo)('🔍 Starting error detection...');
+        (0, logger_1.logInfo)(`📋 Prompt: ${prompt}`);
+        // Initialize agent if not already initialized
+        if (!this.agent) {
+            await this.initializeAgent();
+        }
+        // Execute agent query
+        const result = await this.agent.query(prompt);
+        // Parse errors from agent response and TODOs
+        const errors = this.parseErrors(result);
+        // Generate summary
+        const summary = this.generateSummary(errors);
+        (0, logger_1.logInfo)(`✅ Error detection completed: ${summary.total} error(s) found`);
+        return {
+            errors,
+            summary,
+            agentResult: result
+        };
+    }
+    /**
+     * Parse errors from agent result
+     */
+    parseErrors(result) {
+        const errors = [];
+        // Parse errors from agent messages
+        for (const message of result.messages) {
+            if (message.role === 'assistant') {
+                const content = typeof message.content === 'string'
+                    ? message.content
+                    : JSON.stringify(message.content);
+                // Look for error patterns in the response
+                const errorMatches = this.extractErrorsFromText(content);
+                errors.push(...errorMatches);
+            }
+        }
+        // Parse errors from tool calls (manage_todos might have created error TODOs)
+        for (const toolCall of result.toolCalls) {
+            if (toolCall.name === 'manage_todos' && toolCall.input.action === 'create') {
+                // TODOs created might represent errors found
+                const todoContent = toolCall.input.content || toolCall.input.description || toolCall.input.text || '';
+                if (todoContent.toLowerCase().includes('error') ||
+                    todoContent.toLowerCase().includes('bug') ||
+                    todoContent.toLowerCase().includes('issue') ||
+                    todoContent.toLowerCase().includes('problem') ||
+                    todoContent.toLowerCase().includes('fix') ||
+                    todoContent.toLowerCase().includes('corregir')) {
+                    // Try to extract file info from TODO content
+                    const fileMatch = todoContent.match(/(?:file|archivo|en|at)\s*[:\s]+([^\s\n,]+)/i);
+                    const severityMatch = todoContent.match(/(critical|high|medium|low|crítico|alto|medio|bajo)/i);
+                    errors.push({
+                        file: fileMatch ? fileMatch[1] : 'unknown',
+                        type: 'code-issue',
+                        severity: (severityMatch?.[1]?.toLowerCase() || 'medium'),
+                        description: todoContent
+                    });
+                }
+            }
+        }
+        // Also check tool results for proposed changes (these might indicate errors)
+        for (const turn of result.turns) {
+            if (turn.toolResults) {
+                for (const toolResult of turn.toolResults) {
+                    if (toolResult.content && typeof toolResult.content === 'string') {
+                        const content = toolResult.content;
+                        // Check if it's a propose_change result (indicates an error was found)
+                        if (content.includes('proposed change') || content.includes('suggested fix') || content.includes('Change applied')) {
+                            // Try to extract error info from the change description
+                            const changeErrors = this.extractErrorsFromChangeDescription(content);
+                            errors.push(...changeErrors);
+                        }
+                    }
+                }
+            }
+        }
+        return errors;
+    }
+    /**
+     * Extract errors from text response
+     */
+    extractErrorsFromText(text) {
+        const errors = [];
+        // Pattern to match error descriptions
+        const errorPatterns = [
+            /File:\s*(.+?)\n.*?Line:\s*(\d+)?.*?Type:\s*(.+?)\n.*?Severity:\s*(critical|high|medium|low).*?Description:\s*(.+?)(?:\n.*?Suggestion:\s*(.+?))?(?=\n\n|$)/gis,
+            /- (.+?)\s+\((.+?):(\d+)?\)\s+\[(critical|high|medium|low)\]:\s*(.+?)(?:\n\s*Fix:\s*(.+?))?(?=\n|$)/gis
+        ];
+        for (const pattern of errorPatterns) {
+            let match;
+            while ((match = pattern.exec(text)) !== null) {
+                errors.push({
+                    file: match[1] || match[2] || 'unknown',
+                    line: match[2] || match[3] ? parseInt(match[2] || match[3]) : undefined,
+                    type: match[3] || match[4] || 'unknown',
+                    severity: (match[4] || match[5] || 'medium'),
+                    description: match[5] || match[6] || 'Error detected',
+                    suggestion: match[6] || match[7]
+                });
+            }
+        }
+        return errors;
+    }
+    /**
+     * Extract errors from change description
+     */
+    extractErrorsFromChangeDescription(text) {
+        const errors = [];
+        // Try to extract file path and error info
+        const fileMatch = text.match(/file[:\s]+([^\s\n]+)/i);
+        const severityMatch = text.match(/(critical|high|medium|low)/i);
+        if (fileMatch) {
+            errors.push({
+                file: fileMatch[1],
+                type: 'code-issue',
+                severity: (severityMatch?.[1]?.toLowerCase() || 'medium'),
+                description: text.substring(0, 200) // First 200 chars as description
+            });
+        }
+        return errors;
+    }
+    /**
+     * Generate summary of detected errors
+     */
+    generateSummary(errors) {
+        const bySeverity = {
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0
+        };
+        const byType = {};
+        for (const error of errors) {
+            bySeverity[error.severity]++;
+            byType[error.type] = (byType[error.type] || 0) + 1;
+        }
+        return {
+            total: errors.length,
+            bySeverity,
+            byType
+        };
+    }
+    /**
+     * Get agent instance (for advanced usage)
+     */
+    getAgent() {
+        return this.agent;
+    }
+}
+exports.ErrorDetector = ErrorDetector;
+
+
+/***/ }),
+
 /***/ 9121:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -68684,6 +69085,7 @@ const constants_1 = __nccwpck_require__(8593);
 const agent_tester_commands_1 = __nccwpck_require__(5632);
 const mcp_tester_commands_1 = __nccwpck_require__(6355);
 const sub_agent_tester_commands_1 = __nccwpck_require__(5502);
+const tec_tester_commands_1 = __nccwpck_require__(1669);
 // Load environment variables from .env file
 dotenv.config();
 const program = new commander_1.Command();
@@ -68885,6 +69287,7 @@ program
 (0, agent_tester_commands_1.registerAgentTestCommands)(program);
 (0, mcp_tester_commands_1.registerMCPTestCommands)(program);
 (0, sub_agent_tester_commands_1.registerSubAgentTestCommands)(program);
+(0, tec_tester_commands_1.registerTECTestCommands)(program);
 program.parse(process.argv);
 
 
@@ -74417,6 +74820,255 @@ function registerSubAgentTestCommands(program) {
         }
         catch (error) {
             (0, logger_1.logError)(`❌ SubAgent tools test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+}
+
+
+/***/ }),
+
+/***/ 1669:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * TEC (TypeScript Error Checker) Tester Commands
+ * CLI commands for testing error detection system
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.registerTECTestCommands = registerTECTestCommands;
+const dotenv = __importStar(__nccwpck_require__(2437));
+const github = __importStar(__nccwpck_require__(5438));
+const error_detector_1 = __nccwpck_require__(4322);
+const logger_1 = __nccwpck_require__(8836);
+const child_process_1 = __nccwpck_require__(2081);
+// Load environment variables from .env file
+dotenv.config();
+// Function to get git repository info (same as in cli.ts)
+function getGitInfo() {
+    try {
+        const remoteUrl = (0, child_process_1.execSync)('git config --get remote.origin.url').toString().trim();
+        const match = remoteUrl.match(/github\.com[/:]([^/]+)\/([^/]+)(?:\.git)?$/);
+        if (!match) {
+            return null;
+        }
+        return {
+            owner: match[1],
+            repo: match[2].replace('.git', '')
+        };
+    }
+    catch (error) {
+        return null;
+    }
+}
+// Function to get default branch from GitHub
+async function getDefaultBranch(owner, repo, token) {
+    try {
+        const octokit = github.getOctokit(token);
+        const { data } = await octokit.rest.repos.get({
+            owner,
+            repo
+        });
+        return data.default_branch || 'master';
+    }
+    catch (error) {
+        (0, logger_1.logWarn)(`⚠️ Could not fetch default branch, using 'master' as fallback: ${error}`);
+        return 'master';
+    }
+}
+function registerTECTestCommands(program) {
+    /**
+     * Detect errors in the codebase
+     */
+    program
+        .command('tec:detect-errors')
+        .description('Detect potential errors in the codebase using Agent SDK')
+        .option('-p, --prompt <prompt>', 'Detection prompt', 'Busca potenciales errores en todo el proyecto')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('--max-turns <number>', 'Maximum turns', '30')
+        .option('--focus <areas...>', 'Focus on specific areas (e.g., src/agent src/utils)', [])
+        .option('--error-types <types...>', 'Types of errors to look for', [])
+        .option('--owner <owner>', 'GitHub repository owner (auto-detected if not provided)')
+        .option('--repo <repo>', 'GitHub repository name (auto-detected if not provided)')
+        .option('--output <format>', 'Output format (text|json)', 'text')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🔍 Starting error detection...');
+            // Get repository info
+            const gitInfo = getGitInfo();
+            const owner = options.owner || gitInfo?.owner;
+            const repo = options.repo || gitInfo?.repo;
+            if (!owner || !repo) {
+                (0, logger_1.logInfo)('⚠️ Repository info not found. Using local file system only.');
+            }
+            else {
+                (0, logger_1.logInfo)(`📂 Repository: ${owner}/${repo}`);
+            }
+            // Create error detector
+            const detectorOptions = {
+                model: options.model,
+                apiKey: options.apiKey,
+                maxTurns: parseInt(options.maxTurns),
+                repositoryOwner: owner,
+                repositoryName: repo,
+                focusAreas: options.focus.length > 0 ? options.focus : undefined,
+                errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined
+            };
+            const detector = new error_detector_1.ErrorDetector(detectorOptions);
+            // Detect errors
+            const result = await detector.detectErrors(options.prompt);
+            // Output results
+            if (options.output === 'json') {
+                console.log(JSON.stringify(result, null, 2));
+            }
+            else {
+                // Text output
+                console.log('\n' + '='.repeat(80));
+                console.log('📊 ERROR DETECTION SUMMARY');
+                console.log('='.repeat(80));
+                console.log(`\nTotal errors found: ${result.summary.total}`);
+                console.log(`\nBy Severity:`);
+                console.log(`  🔴 Critical: ${result.summary.bySeverity.critical}`);
+                console.log(`  🟠 High: ${result.summary.bySeverity.high}`);
+                console.log(`  🟡 Medium: ${result.summary.bySeverity.medium}`);
+                console.log(`  🟢 Low: ${result.summary.bySeverity.low}`);
+                if (Object.keys(result.summary.byType).length > 0) {
+                    console.log(`\nBy Type:`);
+                    for (const [type, count] of Object.entries(result.summary.byType)) {
+                        console.log(`  ${type}: ${count}`);
+                    }
+                }
+                if (result.errors.length > 0) {
+                    console.log(`\n${'='.repeat(80)}`);
+                    console.log('📋 DETECTED ERRORS');
+                    console.log('='.repeat(80));
+                    // Group by severity
+                    const bySeverity = {
+                        critical: result.errors.filter(e => e.severity === 'critical'),
+                        high: result.errors.filter(e => e.severity === 'high'),
+                        medium: result.errors.filter(e => e.severity === 'medium'),
+                        low: result.errors.filter(e => e.severity === 'low')
+                    };
+                    for (const severity of ['critical', 'high', 'medium', 'low']) {
+                        const errors = bySeverity[severity];
+                        if (errors.length > 0) {
+                            const emoji = severity === 'critical' ? '🔴' : severity === 'high' ? '🟠' : severity === 'medium' ? '🟡' : '🟢';
+                            console.log(`\n${emoji} ${severity.toUpperCase()} (${errors.length})`);
+                            console.log('-'.repeat(80));
+                            for (const error of errors) {
+                                console.log(`\nFile: ${error.file}${error.line ? `:${error.line}` : ''}`);
+                                console.log(`Type: ${error.type}`);
+                                console.log(`Description: ${error.description}`);
+                                if (error.suggestion) {
+                                    console.log(`Suggestion: ${error.suggestion}`);
+                                }
+                            }
+                        }
+                    }
+                }
+                else {
+                    console.log('\n✅ No errors detected!');
+                }
+                console.log(`\n${'='.repeat(80)}`);
+                console.log(`📈 Agent Stats:`);
+                console.log(`  Turns: ${result.agentResult.turns.length}`);
+                console.log(`  Tool Calls: ${result.agentResult.toolCalls.length}`);
+                if (result.agentResult.metrics) {
+                    console.log(`  Tokens: ${result.agentResult.metrics.totalTokens.input + result.agentResult.metrics.totalTokens.output}`);
+                    console.log(`  Duration: ${result.agentResult.metrics.totalDuration}ms`);
+                }
+            }
+            (0, logger_1.logInfo)('✅ Error detection completed');
+            process.exit(0);
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ Error detection failed: ${error.message}`);
+            console.error(error);
+            process.exit(1);
+        }
+    });
+    /**
+     * Quick error check (faster, fewer turns)
+     */
+    program
+        .command('tec:quick-check')
+        .description('Quick error check (faster, fewer turns)')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('--focus <areas...>', 'Focus on specific areas', [])
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('⚡ Quick error check...');
+            const gitInfo = getGitInfo();
+            const detector = new error_detector_1.ErrorDetector({
+                model: options.model,
+                apiKey: options.apiKey,
+                maxTurns: 10, // Fewer turns for quick check
+                repositoryOwner: gitInfo?.owner,
+                repositoryName: gitInfo?.repo,
+                focusAreas: options.focus.length > 0 ? options.focus : undefined
+            });
+            const result = await detector.detectErrors('Haz una revisión rápida buscando errores críticos y de alta severidad');
+            console.log(`\n⚡ Quick Check Results:`);
+            console.log(`  Critical: ${result.summary.bySeverity.critical}`);
+            console.log(`  High: ${result.summary.bySeverity.high}`);
+            console.log(`  Medium: ${result.summary.bySeverity.medium}`);
+            console.log(`  Low: ${result.summary.bySeverity.low}`);
+            if (result.summary.bySeverity.critical > 0 || result.summary.bySeverity.high > 0) {
+                console.log(`\n⚠️ Found ${result.summary.bySeverity.critical + result.summary.bySeverity.high} critical/high severity errors!`);
+                process.exit(1);
+            }
+            else {
+                console.log(`\n✅ No critical or high severity errors found.`);
+                process.exit(0);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ Quick check failed: ${error.message}`);
             process.exit(1);
         }
     });
