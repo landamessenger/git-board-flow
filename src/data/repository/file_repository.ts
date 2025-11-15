@@ -9,6 +9,18 @@ import { promisify } from "util";
 const execAsync = promisify(exec);
 
 export class FileRepository {
+    /**
+     * Normalize file path for consistent comparison
+     * This must match the normalization used in FileCacheManager
+     * Removes leading ./ and normalizes path separators
+     */
+    private normalizePath(path: string): string {
+        return path
+            .replace(/^\.\//, '') // Remove leading ./
+            .replace(/\\/g, '/')  // Normalize separators
+            .trim();
+    }
+
     private isMediaOrPdfFile(path: string): boolean {
         const mediaExtensions = [
             // Image formats
@@ -71,7 +83,7 @@ export class FileRepository {
             // Clone repository using git clone with authentication
             // GitHub tokens are typically safe to use directly in URLs
             const repoUrl = `https://${token}@github.com/${owner}/${repository}.git`;
-            logInfo(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
+            // logInfo(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
             
             // Use --single-branch to optimize clone and --depth 1 for shallow clone
             // This significantly reduces clone time and size
@@ -81,7 +93,7 @@ export class FileRepository {
                 maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
             });
 
-            logInfo(`✅ Repository cloned successfully`);
+            // logInfo(`✅ Repository cloned successfully`);
 
             // Read files recursively from filesystem
             const readFilesRecursively = async (dirPath: string, relativePath: string = ''): Promise<void> => {
@@ -90,8 +102,9 @@ export class FileRepository {
                 for (const entry of entries) {
                     const fullPath = path.join(dirPath, entry.name);
                     const relativeFilePath = relativePath ? path.join(relativePath, entry.name) : entry.name;
-                    // Normalize path separators to forward slashes (GitHub style)
-                    const normalizedPath = relativeFilePath.replace(/\\/g, '/');
+                    // Normalize path using the same method as FileCacheManager
+                    // This ensures paths match when comparing with cached entries
+                    const normalizedPath = this.normalizePath(relativeFilePath);
 
                     if (entry.isDirectory()) {
                         // Skip .git directory
@@ -127,7 +140,7 @@ export class FileRepository {
             if (tempDir) {
                 try {
                     await fs.rm(tempDir, { recursive: true, force: true });
-                    logInfo(`🧹 Cleaned up temporary directory`);
+                    // logInfo(`🧹 Cleaned up temporary directory`);
                 } catch (cleanupError) {
                     logError(`Error cleaning up temporary directory: ${cleanupError}`);
                 }

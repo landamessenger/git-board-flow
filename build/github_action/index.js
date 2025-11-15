@@ -62675,7 +62675,7 @@ class FileRepository {
                 // Clone repository using git clone with authentication
                 // GitHub tokens are typically safe to use directly in URLs
                 const repoUrl = `https://${token}@github.com/${owner}/${repository}.git`;
-                (0, logger_1.logInfo)(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
+                // logInfo(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
                 // Use --single-branch to optimize clone and --depth 1 for shallow clone
                 // This significantly reduces clone time and size
                 await execAsync(`git clone --depth 1 --single-branch --branch ${branch} ${repoUrl} ${repoPath}`, {
@@ -62683,15 +62683,16 @@ class FileRepository {
                     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
                     maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
                 });
-                (0, logger_1.logInfo)(`✅ Repository cloned successfully`);
+                // logInfo(`✅ Repository cloned successfully`);
                 // Read files recursively from filesystem
                 const readFilesRecursively = async (dirPath, relativePath = '') => {
                     const entries = await fs.readdir(dirPath, { withFileTypes: true });
                     for (const entry of entries) {
                         const fullPath = path.join(dirPath, entry.name);
                         const relativeFilePath = relativePath ? path.join(relativePath, entry.name) : entry.name;
-                        // Normalize path separators to forward slashes (GitHub style)
-                        const normalizedPath = relativeFilePath.replace(/\\/g, '/');
+                        // Normalize path using the same method as FileCacheManager
+                        // This ensures paths match when comparing with cached entries
+                        const normalizedPath = this.normalizePath(relativeFilePath);
                         if (entry.isDirectory()) {
                             // Skip .git directory
                             if (entry.name === '.git') {
@@ -62728,7 +62729,7 @@ class FileRepository {
                 if (tempDir) {
                     try {
                         await fs.rm(tempDir, { recursive: true, force: true });
-                        (0, logger_1.logInfo)(`🧹 Cleaned up temporary directory`);
+                        // logInfo(`🧹 Cleaned up temporary directory`);
                     }
                     catch (cleanupError) {
                         (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
@@ -62736,6 +62737,17 @@ class FileRepository {
                 }
             }
         };
+    }
+    /**
+     * Normalize file path for consistent comparison
+     * This must match the normalization used in FileCacheManager
+     * Removes leading ./ and normalizes path separators
+     */
+    normalizePath(path) {
+        return path
+            .replace(/^\.\//, '') // Remove leading ./
+            .replace(/\\/g, '/') // Normalize separators
+            .trim();
     }
     isMediaOrPdfFile(path) {
         const mediaExtensions = [
@@ -65584,7 +65596,8 @@ class VectorActionUseCase {
             }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
             try {
-                (0, logger_1.logDebugInfo)(`📦 Processing AI cache for branch ${branch} for ${param.owner}/${param.repo}.`, true);
+                (0, logger_1.logDebugInfo)(`--------------------------------`, true);
+                (0, logger_1.logDebugInfo)(`📦 Processing AI cache for branch ${branch} for ${param.owner}/${param.repo}.`, false);
                 const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), (fileName) => {
                     // logSingleLine(`Checking file ${fileName}`);
                 }, (fileName) => {
@@ -65690,13 +65703,13 @@ ${fileContent}
                     }
                     // Save to Supabase
                     try {
-                        const fileName = filePath.split('/').pop() || filePath;
-                        const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                        const fileName = normalizedPath.split('/').pop() || normalizedPath;
+                        // Use normalizedPath directly to ensure consistency with the query path
                         const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                         const normalizedConsumedBy = consumedBy.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                         await supabaseRepository.setAIFileCache(param.owner, param.repo, branch, {
                             file_name: fileName,
-                            path: normalizedFilePath,
+                            path: normalizedPath, // Use the same normalizedPath used for querying
                             sha: currentSHA,
                             description: description,
                             consumes: normalizedConsumes,
@@ -65706,11 +65719,17 @@ ${fileContent}
                         (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - AI cache saved [${normalizedPath}]`);
                     }
                     catch (error) {
-                        (0, logger_1.logError)(`Error saving AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                        const errorData = JSON.stringify(error, null, 2);
+                        if (errorData.includes('Please try again in a few minutes.')) {
+                            (0, logger_1.logError)(`Error saving AI cache for ${filePath}: Exceeded rate limit, please try again in a few minutes.`);
+                        }
+                        else {
+                            (0, logger_1.logError)(`Error saving AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                        }
                     }
                 }
                 // Step 2: Check for files that exist in Supabase but no longer exist in the repository
-                (0, logger_1.logSingleLine)(`📦 Checking for files to remove from AI cache (deleted files)...`);
+                // logSingleLine(`📦 Checking for files to remove from AI cache (deleted files)...`);
                 const remotePaths = await supabaseRepository.getDistinctPaths(param.owner, param.repo, branch);
                 // Normalize local paths for consistent comparison
                 const localPaths = new Set();
@@ -65745,7 +65764,7 @@ ${fileContent}
                     }
                 }
                 const totalDurationSeconds = (Date.now() - startTime) / 1000;
-                (0, logger_1.logInfo)(`📦 ✅ Processing complete for ${branch}: ${filesProcessed} processed, ${filesReused} reused, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+                (0, logger_1.logSingleLine)(`📦 ✅ Processing complete for ${branch}: ${filesProcessed} processed, ${filesReused} reused, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`);
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: true,

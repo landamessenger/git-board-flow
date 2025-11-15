@@ -150,7 +150,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
 
         try {
-            logDebugInfo(`📦 Processing AI cache for branch ${branch} for ${param.owner}/${param.repo}.`, true);
+            logDebugInfo(`--------------------------------`, true);
+            logDebugInfo(`📦 Processing AI cache for branch ${branch} for ${param.owner}/${param.repo}.`, false);
             
             const repositoryFiles = await this.fileRepository.getRepositoryContent(
                 param.owner,
@@ -305,8 +306,8 @@ ${fileContent}
 
                 // Save to Supabase
                 try {
-                    const fileName = filePath.split('/').pop() || filePath;
-                    const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                    const fileName = normalizedPath.split('/').pop() || normalizedPath;
+                    // Use normalizedPath directly to ensure consistency with the query path
                     const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                     const normalizedConsumedBy = consumedBy.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                     
@@ -316,7 +317,7 @@ ${fileContent}
                         branch,
                         {
                             file_name: fileName,
-                            path: normalizedFilePath,
+                            path: normalizedPath, // Use the same normalizedPath used for querying
                             sha: currentSHA,
                             description: description,
                             consumes: normalizedConsumes,
@@ -327,12 +328,17 @@ ${fileContent}
                     filesProcessed++;
                     logSingleLine(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - AI cache saved [${normalizedPath}]`);
                 } catch (error) {
-                    logError(`Error saving AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                    const errorData = JSON.stringify(error, null, 2);
+                    if (errorData.includes('Please try again in a few minutes.')) {
+                        logError(`Error saving AI cache for ${filePath}: Exceeded rate limit, please try again in a few minutes.`);
+                    } else {
+                        logError(`Error saving AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                    }
                 }
             }
 
             // Step 2: Check for files that exist in Supabase but no longer exist in the repository
-            logSingleLine(`📦 Checking for files to remove from AI cache (deleted files)...`);
+            // logSingleLine(`📦 Checking for files to remove from AI cache (deleted files)...`);
             const remotePaths = await supabaseRepository.getDistinctPaths(
                 param.owner,
                 param.repo,
@@ -383,7 +389,7 @@ ${fileContent}
             }
 
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            logInfo(`📦 ✅ Processing complete for ${branch}: ${filesProcessed} processed, ${filesReused} reused, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
+            logSingleLine(`📦 ✅ Processing complete for ${branch}: ${filesProcessed} processed, ${filesReused} reused, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`);
 
             results.push(
                 new Result({
