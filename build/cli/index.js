@@ -64552,6 +64552,1362 @@ async function runLocalAction(additionalParams) {
 
 /***/ }),
 
+/***/ 1963:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Agent - Main class for Agent SDK
+ * Similar to Anthropic's Agent SDK
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Agent = void 0;
+const message_manager_1 = __nccwpck_require__(5759);
+const reasoning_loop_1 = __nccwpck_require__(7982);
+const tool_registry_1 = __nccwpck_require__(4138);
+const tool_executor_1 = __nccwpck_require__(4315);
+const logger_1 = __nccwpck_require__(8836);
+class Agent {
+    constructor(options) {
+        this.options = options;
+        this.reasoningLoop = null;
+        // Validate options
+        if (!options.model) {
+            throw new Error('Model is required');
+        }
+        if (!options.apiKey) {
+            throw new Error('API key is required');
+        }
+        // Initialize components
+        this.messageManager = new message_manager_1.MessageManager();
+        this.toolRegistry = new tool_registry_1.ToolRegistry();
+        this.toolExecutor = new tool_executor_1.ToolExecutor(this.toolRegistry);
+        // Register tools if provided
+        if (options.tools && options.tools.length > 0) {
+            this.toolRegistry.registerAll(options.tools);
+            (0, logger_1.logInfo)(`🔧 Registered ${options.tools.length} tool(s)`);
+        }
+        // Add system prompt if provided
+        if (options.systemPrompt) {
+            this.messageManager.addSystemMessage(options.systemPrompt);
+        }
+    }
+    /**
+     * Execute query - main entry point
+     * Similar to Agent SDK's query() method
+     */
+    async query(prompt) {
+        (0, logger_1.logInfo)(`🚀 Agent query started`);
+        // Add user message
+        this.messageManager.addUserMessage(prompt);
+        // Create reasoning loop
+        this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
+        // Execute
+        const result = await this.reasoningLoop.execute();
+        (0, logger_1.logInfo)(`✅ Agent query completed (${result.turns.length} turn(s), ${result.toolCalls.length} tool call(s))`);
+        return result;
+    }
+    /**
+     * Continue conversation with additional prompt
+     */
+    async continue(prompt) {
+        (0, logger_1.logInfo)(`🔄 Agent continuing conversation`);
+        // Add user message
+        this.messageManager.addUserMessage(prompt);
+        // Create reasoning loop
+        this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
+        // Execute
+        const result = await this.reasoningLoop.execute();
+        (0, logger_1.logInfo)(`✅ Agent continued (${result.turns.length} turn(s))`);
+        return result;
+    }
+    /**
+     * Get message history
+     */
+    getMessages() {
+        return this.messageManager.getMessages();
+    }
+    /**
+     * Get message count
+     */
+    getMessageCount() {
+        return this.messageManager.getMessageCount();
+    }
+    /**
+     * Reset agent (clear history)
+     */
+    reset() {
+        this.messageManager.reset();
+        if (this.options.systemPrompt) {
+            this.messageManager.addSystemMessage(this.options.systemPrompt);
+        }
+        (0, logger_1.logInfo)(`🔄 Agent reset`);
+    }
+    /**
+     * Register a tool
+     */
+    registerTool(tool) {
+        this.toolRegistry.register(tool);
+        (0, logger_1.logInfo)(`🔧 Tool registered: ${tool.getName()}`);
+    }
+    /**
+     * Register multiple tools
+     */
+    registerTools(tools) {
+        this.toolRegistry.registerAll(tools);
+        (0, logger_1.logInfo)(`🔧 Registered ${tools.length} tool(s)`);
+    }
+    /**
+     * Get available tools
+     */
+    getAvailableTools() {
+        return this.toolRegistry.getToolNames();
+    }
+    /**
+     * Get system prompt
+     */
+    getSystemPrompt() {
+        return this.messageManager.getSystemMessage();
+    }
+    /**
+     * Update system prompt
+     */
+    setSystemPrompt(prompt) {
+        this.messageManager.addSystemMessage(prompt);
+    }
+}
+exports.Agent = Agent;
+
+
+/***/ }),
+
+/***/ 5759:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Message Manager for Agent SDK
+ * Manages conversation history in Anthropic Messages API format
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MessageManager = void 0;
+class MessageManager {
+    constructor() {
+        this.messages = [];
+    }
+    /**
+     * Add system message (only one allowed, at the beginning)
+     */
+    addSystemMessage(content) {
+        // Remove existing system message if any
+        this.messages = this.messages.filter(m => m.role !== 'system');
+        // Add at the beginning
+        this.messages.unshift({
+            role: 'system',
+            content
+        });
+    }
+    /**
+     * Add user message
+     */
+    addUserMessage(content) {
+        this.messages.push({
+            role: 'user',
+            content
+        });
+    }
+    /**
+     * Add assistant message
+     */
+    addAssistantMessage(content) {
+        // Convert string to ContentBlock if needed
+        const contentBlocks = typeof content === 'string'
+            ? [{ type: 'text', text: content }]
+            : content;
+        this.messages.push({
+            role: 'assistant',
+            content: contentBlocks
+        });
+    }
+    /**
+     * Add tool results as user message
+     */
+    addToolResults(results) {
+        const content = results.map(r => ({
+            type: 'tool_result',
+            tool_use_id: r.toolCallId,
+            content: r.content,
+            is_error: r.isError
+        }));
+        this.messages.push({
+            role: 'user',
+            content
+        });
+    }
+    /**
+     * Get all messages
+     */
+    getMessages() {
+        return [...this.messages];
+    }
+    /**
+     * Get messages count
+     */
+    getMessageCount() {
+        return this.messages.length;
+    }
+    /**
+     * Get last message
+     */
+    getLastMessage() {
+        return this.messages[this.messages.length - 1];
+    }
+    /**
+     * Reset message history
+     */
+    reset() {
+        this.messages = [];
+    }
+    /**
+     * Check if has system message
+     */
+    hasSystemMessage() {
+        return this.messages.some(m => m.role === 'system');
+    }
+    /**
+     * Get system message if exists
+     */
+    getSystemMessage() {
+        const systemMsg = this.messages.find(m => m.role === 'system');
+        return systemMsg && typeof systemMsg.content === 'string'
+            ? systemMsg.content
+            : undefined;
+    }
+}
+exports.MessageManager = MessageManager;
+
+
+/***/ }),
+
+/***/ 7982:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Reasoning Loop for Agent SDK
+ * Manages the conversation loop with tool calling
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReasoningLoop = void 0;
+const response_parser_1 = __nccwpck_require__(8952);
+const prompt_builder_1 = __nccwpck_require__(3277);
+const error_handler_1 = __nccwpck_require__(9907);
+const ai_repository_1 = __nccwpck_require__(8307);
+const ai_1 = __nccwpck_require__(4470);
+const response_schema_1 = __nccwpck_require__(6515);
+const logger_1 = __nccwpck_require__(8836);
+class ReasoningLoop {
+    constructor(messageManager, toolExecutor, options) {
+        this.messageManager = messageManager;
+        this.toolExecutor = toolExecutor;
+        this.options = options;
+        this.aiRepository = new ai_repository_1.AiRepository();
+        this.ai = new ai_1.Ai('', // anthropicApiKey (not used)
+        '', // anthropicModel (not used)
+        options.apiKey, options.model, false, // aiPullRequestDescription
+        false, // aiMembersOnly
+        [], // aiIgnoreFiles
+        false, // aiIncludeReasoning
+        {} // providerRouting
+        );
+    }
+    /**
+     * Execute the reasoning loop
+     */
+    async execute() {
+        const turns = [];
+        const allToolCalls = [];
+        let turn = 0;
+        const maxTurns = this.options.maxTurns || 30;
+        (0, logger_1.logInfo)(`🔄 Starting reasoning loop (max turns: ${maxTurns})`);
+        while (turn < maxTurns) {
+            turn++;
+            (0, logger_1.logInfo)(`🔄 Turn ${turn}/${maxTurns}`);
+            try {
+                // 1. Call API
+                const response = await this.callAPI();
+                // 2. Parse response
+                const parsedResponse = this.parseResponse(response);
+                // 3. Extract tool calls
+                const toolCalls = parsedResponse.toolCalls || [];
+                // 4. Create turn result
+                const turnResult = {
+                    turnNumber: turn,
+                    assistantMessage: parsedResponse.text,
+                    toolCalls: toolCalls,
+                    reasoning: parsedResponse.reasoning,
+                    timestamp: Date.now()
+                };
+                // 5. Execute tools if any
+                if (toolCalls.length > 0) {
+                    (0, logger_1.logInfo)(`🔧 Executing ${toolCalls.length} tool call(s)`);
+                    const toolResults = await this.toolExecutor.executeAll(toolCalls);
+                    turnResult.toolResults = toolResults;
+                    allToolCalls.push(...toolCalls);
+                    // Call callbacks
+                    for (const toolCall of toolCalls) {
+                        this.options.onToolCall?.(toolCall);
+                    }
+                    for (const result of toolResults) {
+                        this.options.onToolResult?.(result);
+                    }
+                    // 6. Add assistant message and tool results to history
+                    this.messageManager.addAssistantMessage(parsedResponse.text);
+                    this.messageManager.addToolResults(toolResults);
+                    turns.push(turnResult);
+                    this.options.onTurnComplete?.(turnResult);
+                    // 7. Continue loop
+                    continue;
+                }
+                // 8. No tool calls = final response
+                (0, logger_1.logInfo)(`✅ Final response received (no more tool calls)`);
+                this.messageManager.addAssistantMessage(parsedResponse.text);
+                turns.push(turnResult);
+                this.options.onTurnComplete?.(turnResult);
+                return {
+                    finalResponse: parsedResponse.text,
+                    turns: turns,
+                    toolCalls: allToolCalls,
+                    messages: this.messageManager.getMessages()
+                };
+            }
+            catch (error) {
+                const handledError = error_handler_1.ErrorHandler.handle(error);
+                (0, logger_1.logError)(`❌ Error in turn ${turn}: ${handledError.message}`);
+                this.options.onError?.(handledError);
+                return {
+                    finalResponse: turns.length > 0
+                        ? turns[turns.length - 1].assistantMessage
+                        : 'Error occurred during reasoning',
+                    turns: turns,
+                    toolCalls: allToolCalls,
+                    messages: this.messageManager.getMessages(),
+                    error: handledError
+                };
+            }
+        }
+        // Max turns reached
+        (0, logger_1.logInfo)(`⚠️ Max turns (${maxTurns}) reached`);
+        return {
+            finalResponse: turns.length > 0
+                ? turns[turns.length - 1].assistantMessage
+                : 'Max turns reached',
+            turns: turns,
+            toolCalls: allToolCalls,
+            messages: this.messageManager.getMessages(),
+            truncated: true,
+            error: new Error('Max turns reached')
+        };
+    }
+    /**
+     * Call OpenRouter API via AiRepository
+     */
+    async callAPI() {
+        const messages = this.messageManager.getMessages();
+        const toolDefinitions = this.toolExecutor.getToolDefinitions();
+        // Build prompt
+        const prompt = prompt_builder_1.PromptBuilder.buildPrompt(messages, toolDefinitions);
+        (0, logger_1.logDebugInfo)(`📤 Calling API with ${messages.length} message(s) and ${toolDefinitions.length} tool(s)`);
+        // Call via AiRepository with JSON schema
+        const response = await this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response');
+        if (!response) {
+            throw new error_handler_1.APIError('No response from API');
+        }
+        return response;
+    }
+    /**
+     * Parse API response
+     */
+    parseResponse(response) {
+        try {
+            const parsed = response_parser_1.ResponseParser.parse(response);
+            if (!response_parser_1.ResponseParser.validate(parsed)) {
+                throw new Error('Invalid parsed response format');
+            }
+            return parsed;
+        }
+        catch (error) {
+            throw new error_handler_1.APIError(`Failed to parse response: ${error instanceof Error ? error.message : String(error)}`, undefined, response);
+        }
+    }
+}
+exports.ReasoningLoop = ReasoningLoop;
+
+
+/***/ }),
+
+/***/ 9121:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Base class for all tools
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BaseTool = void 0;
+class BaseTool {
+    /**
+     * Get tool definition
+     */
+    getDefinition() {
+        return {
+            name: this.getName(),
+            description: this.getDescription(),
+            inputSchema: this.getInputSchema()
+        };
+    }
+    /**
+     * Validate input against schema
+     */
+    validateInput(input) {
+        const schema = this.getInputSchema();
+        // Check required fields
+        for (const required of schema.required) {
+            if (!(required in input)) {
+                return {
+                    valid: false,
+                    error: `Missing required field: ${required}`
+                };
+            }
+        }
+        // Check additional properties
+        if (schema.additionalProperties === false) {
+            const allowedKeys = new Set([
+                ...Object.keys(schema.properties),
+                ...schema.required
+            ]);
+            for (const key of Object.keys(input)) {
+                if (!allowedKeys.has(key)) {
+                    return {
+                        valid: false,
+                        error: `Unexpected field: ${key}`
+                    };
+                }
+            }
+        }
+        return { valid: true };
+    }
+    /**
+     * Execute with validation
+     */
+    async executeWithValidation(input) {
+        const validation = this.validateInput(input);
+        if (!validation.valid) {
+            return {
+                success: false,
+                result: null,
+                error: validation.error
+            };
+        }
+        try {
+            const result = await this.execute(input);
+            return {
+                success: true,
+                result
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                result: null,
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+}
+exports.BaseTool = BaseTool;
+
+
+/***/ }),
+
+/***/ 7645:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Manage TODOs Tool
+ * Manages TODO list for task tracking
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ManageTodosTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ManageTodosTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'manage_todos';
+    }
+    getDescription() {
+        return 'Manage the TODO list. Create new TODOs, update their status (pending, in_progress, completed, cancelled), or add notes. Use this to track high-level tasks that may require multiple steps to complete.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                action: {
+                    type: 'string',
+                    enum: ['create', 'update', 'list'],
+                    description: 'Action to perform: create a new TODO, update an existing TODO, or list all TODOs'
+                },
+                content: {
+                    type: 'string',
+                    description: 'Content/description of the TODO (required for create action)'
+                },
+                todo_id: {
+                    type: 'string',
+                    description: 'ID of the TODO to update (required for update action)'
+                },
+                status: {
+                    type: 'string',
+                    enum: ['pending', 'in_progress', 'completed', 'cancelled'],
+                    description: 'Status to set (for create or update)'
+                },
+                notes: {
+                    type: 'string',
+                    description: 'Additional notes about the TODO (for update)'
+                }
+            },
+            required: ['action'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const action = input.action;
+        if (!['create', 'update', 'list'].includes(action)) {
+            throw new Error('action must be one of: create, update, list');
+        }
+        if (action === 'create') {
+            const content = input.content;
+            const status = input.status || 'pending';
+            if (!content || typeof content !== 'string') {
+                throw new Error('content is required for create action');
+            }
+            if (!['pending', 'in_progress'].includes(status)) {
+                throw new Error('status for create must be "pending" or "in_progress"');
+            }
+            const todo = this.options.createTodo(content, status);
+            return `TODO created: [${todo.id}] ${todo.content} (${todo.status})`;
+        }
+        if (action === 'update') {
+            const todoId = input.todo_id;
+            const status = input.status;
+            const notes = input.notes;
+            if (!todoId || typeof todoId !== 'string') {
+                throw new Error('todo_id is required for update action');
+            }
+            const updates = {};
+            if (status) {
+                if (!['pending', 'in_progress', 'completed', 'cancelled'].includes(status)) {
+                    throw new Error('status must be one of: pending, in_progress, completed, cancelled');
+                }
+                updates.status = status;
+            }
+            if (notes) {
+                updates.notes = notes;
+            }
+            const success = this.options.updateTodo(todoId, updates);
+            if (success) {
+                return `TODO updated: [${todoId}]`;
+            }
+            else {
+                return `Error: TODO [${todoId}] not found`;
+            }
+        }
+        if (action === 'list') {
+            const allTodos = this.options.getAllTodos();
+            const activeTodos = this.options.getActiveTodos();
+            if (allTodos.length === 0) {
+                return 'No TODOs found.';
+            }
+            const todoList = allTodos.map(todo => {
+                const statusEmoji = todo.status === 'completed' ? '✅' :
+                    todo.status === 'in_progress' ? '🔄' :
+                        todo.status === 'cancelled' ? '❌' : '⏳';
+                let line = `${statusEmoji} [${todo.id}] ${todo.status.toUpperCase()}: ${todo.content}`;
+                if (todo.notes) {
+                    line += `\n   📝 Notes: ${todo.notes}`;
+                }
+                return line;
+            }).join('\n\n');
+            return `TODO List (${allTodos.length} total, ${activeTodos.length} active):\n\n${todoList}`;
+        }
+        throw new Error('Invalid action');
+    }
+}
+exports.ManageTodosTool = ManageTodosTool;
+
+
+/***/ }),
+
+/***/ 4962:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Propose Change Tool
+ * Proposes changes to files in the virtual codebase
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProposeChangeTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ProposeChangeTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'propose_change';
+    }
+    getDescription() {
+        return 'Propose a change to a file in the virtual codebase. Changes are applied in memory and can be built upon in subsequent steps.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                file_path: {
+                    type: 'string',
+                    description: 'Path to the file to modify'
+                },
+                change_type: {
+                    type: 'string',
+                    enum: ['create', 'modify', 'delete', 'refactor'],
+                    description: 'Type of change to make'
+                },
+                description: {
+                    type: 'string',
+                    description: 'Brief description of the change'
+                },
+                suggested_code: {
+                    type: 'string',
+                    description: 'The code to add or modify. For modifications, include the full modified section.'
+                },
+                reasoning: {
+                    type: 'string',
+                    description: 'Explanation of why this change is needed'
+                }
+            },
+            required: ['file_path', 'change_type', 'description', 'suggested_code', 'reasoning'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const filePath = input.file_path;
+        const changeType = input.change_type;
+        const description = input.description;
+        const suggestedCode = input.suggested_code;
+        const reasoning = input.reasoning;
+        // Validate
+        if (!filePath || typeof filePath !== 'string') {
+            throw new Error('file_path is required and must be a string');
+        }
+        if (!['create', 'modify', 'delete', 'refactor'].includes(changeType)) {
+            throw new Error('change_type must be one of: create, modify, delete, refactor');
+        }
+        if (!description || typeof description !== 'string') {
+            throw new Error('description is required and must be a string');
+        }
+        if (!suggestedCode || typeof suggestedCode !== 'string') {
+            throw new Error('suggested_code is required and must be a string');
+        }
+        if (!reasoning || typeof reasoning !== 'string') {
+            throw new Error('reasoning is required and must be a string');
+        }
+        // Apply change
+        const success = this.options.applyChange({
+            file_path: filePath,
+            change_type: changeType,
+            description,
+            suggested_code: suggestedCode,
+            reasoning
+        });
+        if (success) {
+            this.options.onChangeApplied?.({
+                file_path: filePath,
+                change_type: changeType,
+                description
+            });
+            return `Change applied successfully to ${filePath}:\n${description}`;
+        }
+        else {
+            return `Failed to apply change to ${filePath}. The file may not exist or the change type may be invalid.`;
+        }
+    }
+}
+exports.ProposeChangeTool = ProposeChangeTool;
+
+
+/***/ }),
+
+/***/ 9010:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Read File Tool
+ * Reads file contents from repository or virtual codebase
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReadFileTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ReadFileTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'read_file';
+    }
+    getDescription() {
+        return 'Read the contents of a file from the repository. Use this to examine code, configuration files, or any file in the codebase.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                file_path: {
+                    type: 'string',
+                    description: 'Path to the file to read (relative to repository root)'
+                }
+            },
+            required: ['file_path'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const filePath = input.file_path;
+        if (!filePath || typeof filePath !== 'string') {
+            throw new Error('file_path is required and must be a string');
+        }
+        // Try to get from virtual codebase first
+        let content = this.options.getFileContent(filePath);
+        // If not found, try repository files
+        if (!content && this.options.repositoryFiles) {
+            content = this.options.repositoryFiles.get(filePath);
+        }
+        if (!content) {
+            return `Error: File "${filePath}" not found in the repository.`;
+        }
+        // Format response
+        const lines = content.split('\n').length;
+        return `File: ${filePath}\nLines: ${lines}\n\n\`\`\`\n${content}\n\`\`\``;
+    }
+}
+exports.ReadFileTool = ReadFileTool;
+
+
+/***/ }),
+
+/***/ 4293:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Search Files Tool
+ * Searches for files by name or content
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SearchFilesTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class SearchFilesTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'search_files';
+    }
+    getDescription() {
+        return 'Search for files in the repository by name, path, or content keywords. Returns a list of matching file paths.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                query: {
+                    type: 'string',
+                    description: 'Search query. Can be a file name, path pattern, or content keyword.'
+                },
+                max_results: {
+                    type: 'number',
+                    description: 'Maximum number of results to return (default: 10)'
+                }
+            },
+            required: ['query'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const query = input.query;
+        const maxResults = input.max_results || 10;
+        if (!query || typeof query !== 'string') {
+            throw new Error('query is required and must be a string');
+        }
+        if (maxResults < 1 || maxResults > 100) {
+            throw new Error('max_results must be between 1 and 100');
+        }
+        // Perform search
+        const results = this.options.searchFiles(query);
+        // Limit results
+        const limitedResults = results.slice(0, maxResults);
+        if (limitedResults.length === 0) {
+            return `No files found matching query: "${query}"`;
+        }
+        // Format response
+        const resultList = limitedResults.map((file, index) => `${index + 1}. ${file}`).join('\n');
+        return `Found ${limitedResults.length} file(s) matching "${query}":\n\n${resultList}`;
+    }
+}
+exports.SearchFilesTool = SearchFilesTool;
+
+
+/***/ }),
+
+/***/ 4315:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Tool Executor for Agent SDK
+ * Executes tool calls and returns results
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolExecutor = void 0;
+class ToolExecutor {
+    constructor(registry) {
+        this.registry = registry;
+    }
+    /**
+     * Execute a single tool call
+     */
+    async execute(toolCall) {
+        const tool = this.registry.get(toolCall.name);
+        if (!tool) {
+            return {
+                toolCallId: toolCall.id,
+                content: `Error: Tool "${toolCall.name}" not found`,
+                isError: true,
+                errorMessage: `Tool "${toolCall.name}" is not registered`
+            };
+        }
+        try {
+            const executionResult = await tool.executeWithValidation(toolCall.input);
+            if (!executionResult.success) {
+                return {
+                    toolCallId: toolCall.id,
+                    content: executionResult.error || 'Tool execution failed',
+                    isError: true,
+                    errorMessage: executionResult.error
+                };
+            }
+            // Convert result to string if needed
+            const content = typeof executionResult.result === 'string'
+                ? executionResult.result
+                : JSON.stringify(executionResult.result, null, 2);
+            return {
+                toolCallId: toolCall.id,
+                content
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return {
+                toolCallId: toolCall.id,
+                content: `Error executing tool: ${errorMessage}`,
+                isError: true,
+                errorMessage
+            };
+        }
+    }
+    /**
+     * Execute multiple tool calls in parallel
+     */
+    async executeAll(toolCalls) {
+        const promises = toolCalls.map(toolCall => this.execute(toolCall));
+        return Promise.all(promises);
+    }
+    /**
+     * Execute multiple tool calls sequentially
+     */
+    async executeAllSequential(toolCalls) {
+        const results = [];
+        for (const toolCall of toolCalls) {
+            const result = await this.execute(toolCall);
+            results.push(result);
+        }
+        return results;
+    }
+    /**
+     * Check if tool is available
+     */
+    isToolAvailable(name) {
+        return this.registry.has(name);
+    }
+    /**
+     * Get available tool names
+     */
+    getAvailableTools() {
+        return this.registry.getToolNames();
+    }
+    /**
+     * Get all tool definitions
+     */
+    getToolDefinitions() {
+        return this.registry.getAllDefinitions();
+    }
+}
+exports.ToolExecutor = ToolExecutor;
+
+
+/***/ }),
+
+/***/ 4138:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Tool Registry for managing available tools
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolRegistry = void 0;
+class ToolRegistry {
+    constructor() {
+        this.tools = new Map();
+    }
+    /**
+     * Register a tool
+     */
+    register(tool) {
+        const name = tool.getName();
+        if (this.tools.has(name)) {
+            throw new Error(`Tool with name "${name}" is already registered`);
+        }
+        this.tools.set(name, tool);
+    }
+    /**
+     * Register multiple tools
+     */
+    registerAll(tools) {
+        for (const tool of tools) {
+            this.register(tool);
+        }
+    }
+    /**
+     * Get tool by name
+     */
+    get(name) {
+        return this.tools.get(name);
+    }
+    /**
+     * Check if tool exists
+     */
+    has(name) {
+        return this.tools.has(name);
+    }
+    /**
+     * Get all tool definitions
+     */
+    getAllDefinitions() {
+        return Array.from(this.tools.values()).map(tool => tool.getDefinition());
+    }
+    /**
+     * Get all registered tool names
+     */
+    getToolNames() {
+        return Array.from(this.tools.keys());
+    }
+    /**
+     * Clear all tools
+     */
+    clear() {
+        this.tools.clear();
+    }
+    /**
+     * Get tool count
+     */
+    getCount() {
+        return this.tools.size;
+    }
+}
+exports.ToolRegistry = ToolRegistry;
+
+
+/***/ }),
+
+/***/ 6515:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * JSON Schema for Agent responses
+ * Used with OpenRouter JSON mode
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AGENT_RESPONSE_SCHEMA = void 0;
+exports.AGENT_RESPONSE_SCHEMA = {
+    type: "object",
+    properties: {
+        response: {
+            type: "string",
+            description: "Your text response to the user. Explain what you're doing or thinking."
+        },
+        tool_calls: {
+            type: "array",
+            description: "List of tools to call. Empty array [] if no tools are needed.",
+            items: {
+                type: "object",
+                properties: {
+                    id: {
+                        type: "string",
+                        description: "Unique identifier for this tool call (e.g., 'call_1', 'call_2')"
+                    },
+                    name: {
+                        type: "string",
+                        description: "Name of the tool to call (must match one of the available tools)"
+                    },
+                    input: {
+                        type: "object",
+                        description: "Input parameters for the tool (must match the tool's input schema)",
+                        additionalProperties: false
+                    }
+                },
+                required: ["id", "name", "input"],
+                additionalProperties: false
+            }
+        }
+    },
+    required: ["response", "tool_calls"],
+    additionalProperties: false
+};
+
+
+/***/ }),
+
+/***/ 9907:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Error handler for Agent SDK
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ErrorHandler = exports.ValidationError = exports.APIError = exports.ToolExecutionError = exports.AgentError = void 0;
+class AgentError extends Error {
+    constructor(message, code, context) {
+        super(message);
+        this.code = code;
+        this.context = context;
+        this.name = 'AgentError';
+    }
+}
+exports.AgentError = AgentError;
+class ToolExecutionError extends AgentError {
+    constructor(message, toolName, toolInput) {
+        super(message, 'TOOL_EXECUTION_ERROR', { toolName, toolInput });
+        this.toolName = toolName;
+        this.toolInput = toolInput;
+        this.name = 'ToolExecutionError';
+    }
+}
+exports.ToolExecutionError = ToolExecutionError;
+class APIError extends AgentError {
+    constructor(message, statusCode, response) {
+        super(message, 'API_ERROR', { statusCode, response });
+        this.statusCode = statusCode;
+        this.response = response;
+        this.name = 'APIError';
+    }
+}
+exports.APIError = APIError;
+class ValidationError extends AgentError {
+    constructor(message, field) {
+        super(message, 'VALIDATION_ERROR', { field });
+        this.field = field;
+        this.name = 'ValidationError';
+    }
+}
+exports.ValidationError = ValidationError;
+class ErrorHandler {
+    /**
+     * Handle and format errors
+     */
+    static handle(error) {
+        if (error instanceof AgentError) {
+            return error;
+        }
+        if (error instanceof Error) {
+            return new AgentError(error.message, 'UNKNOWN_ERROR', { originalError: error });
+        }
+        return new AgentError(String(error), 'UNKNOWN_ERROR');
+    }
+    /**
+     * Check if error is retryable
+     */
+    static isRetryable(error) {
+        if (error instanceof APIError) {
+            // Retry on 5xx errors or rate limits
+            return error.statusCode === undefined
+                || (error.statusCode >= 500 && error.statusCode < 600)
+                || error.statusCode === 429;
+        }
+        return false;
+    }
+}
+exports.ErrorHandler = ErrorHandler;
+
+
+/***/ }),
+
+/***/ 3277:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Prompt builder for Agent SDK
+ * Builds prompts that include tool definitions and conversation history
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PromptBuilder = void 0;
+class PromptBuilder {
+    /**
+     * Build a complete prompt from messages and tools
+     * This converts the message history into a format suitable for OpenRouter
+     */
+    static buildPrompt(messages, tools) {
+        const parts = [];
+        // Add system message if present
+        const systemMessage = messages.find(m => m.role === 'system');
+        if (systemMessage && typeof systemMessage.content === 'string') {
+            parts.push(`## System Instructions\n\n${systemMessage.content}\n\n`);
+        }
+        // Add tools information if available (simplified)
+        if (tools && tools.length > 0) {
+            parts.push(this.buildToolsSection(tools));
+        }
+        // Add conversation history (only last 3 messages to avoid token limit)
+        const recentMessages = messages.filter(m => m.role !== 'system').slice(-3);
+        if (recentMessages.length > 0) {
+            for (const message of recentMessages) {
+                // Simplified format - just show role and truncated content
+                if (typeof message.content === 'string') {
+                    const truncated = message.content.length > 200
+                        ? message.content.substring(0, 200) + '...'
+                        : message.content;
+                    parts.push(`${message.role}: ${truncated}\n`);
+                }
+                else {
+                    // For content blocks, just show summary
+                    parts.push(`${message.role}: [${message.content.length} content blocks]\n`);
+                }
+            }
+        }
+        // Add current instruction (simplified)
+        parts.push('\n## Your Response\n\n');
+        parts.push('Respond with JSON: {"response": "your text", "tool_calls": []}');
+        parts.push('\n\nProvide your response now:');
+        return parts.join('\n');
+    }
+    /**
+     * Build tools section for prompt (simplified to save tokens)
+     */
+    static buildToolsSection(tools) {
+        const parts = ['## Available Tools\n\n'];
+        for (const tool of tools) {
+            parts.push(`**${tool.name}**: ${tool.description}\n`);
+            // Simplified schema - just show required fields
+            const required = tool.inputSchema.required || [];
+            if (required.length > 0) {
+                parts.push(`  Required: ${required.join(', ')}\n`);
+            }
+        }
+        parts.push('\n**Instructions**: Use tools via `tool_calls` array. Format: `{"id": "call_1", "name": "tool_name", "input": {...}}`\n\n');
+        return parts.join('\n');
+    }
+    /**
+     * Format a message for the prompt
+     */
+    static formatMessage(message) {
+        const role = message.role.toUpperCase();
+        if (typeof message.content === 'string') {
+            return `**${role}**: ${message.content}\n\n`;
+        }
+        // Handle content blocks
+        const blocks = [];
+        for (const block of message.content) {
+            if (block.type === 'text') {
+                blocks.push(block.text);
+            }
+            else if (block.type === 'tool_use') {
+                blocks.push(`[Tool Call: ${block.name} with id ${block.id}]`);
+            }
+            else if (block.type === 'tool_result') {
+                const result = typeof block.content === 'string'
+                    ? block.content
+                    : JSON.stringify(block.content);
+                blocks.push(`[Tool Result for ${block.tool_use_id}]: ${result}`);
+            }
+        }
+        return `**${role}**: ${blocks.join('\n')}\n\n`;
+    }
+    /**
+     * Get response schema for JSON mode
+     */
+    static getResponseSchema() {
+        return {
+            type: 'object',
+            properties: {
+                reasoning: {
+                    type: 'string',
+                    description: 'Your reasoning process for this step (optional)'
+                },
+                response: {
+                    type: 'string',
+                    description: 'Your text response to the user'
+                },
+                tool_calls: {
+                    type: 'array',
+                    description: 'List of tools to call (empty array if no tools needed)',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: {
+                                type: 'string',
+                                description: 'Unique identifier for this tool call'
+                            },
+                            name: {
+                                type: 'string',
+                                description: 'Name of the tool to call'
+                            },
+                            input: {
+                                type: 'object',
+                                description: 'Input parameters for the tool'
+                            }
+                        },
+                        required: ['id', 'name', 'input'],
+                        additionalProperties: false
+                    }
+                }
+            },
+            required: ['response', 'tool_calls'],
+            additionalProperties: false
+        };
+    }
+}
+exports.PromptBuilder = PromptBuilder;
+
+
+/***/ }),
+
+/***/ 8952:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Response parser for OpenRouter JSON responses
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ResponseParser = void 0;
+class ResponseParser {
+    /**
+     * Parse JSON response from OpenRouter
+     * Expected format:
+     * {
+     *   "reasoning": "...",
+     *   "response": "...",
+     *   "tool_calls": [
+     *     {
+     *       "id": "call_1",
+     *       "name": "read_file",
+     *       "input": { "file_path": "..." }
+     *     }
+     *   ]
+     * }
+     */
+    static parse(jsonResponse) {
+        if (!jsonResponse || typeof jsonResponse !== 'object') {
+            throw new Error('Invalid response format: expected object');
+        }
+        const response = {
+            text: jsonResponse.response || jsonResponse.text || '',
+            reasoning: jsonResponse.reasoning
+        };
+        // Parse tool calls if present
+        if (jsonResponse.tool_calls && Array.isArray(jsonResponse.tool_calls)) {
+            response.toolCalls = jsonResponse.tool_calls.map((tc, index) => {
+                if (!tc.name) {
+                    throw new Error(`Tool call at index ${index} missing 'name' field`);
+                }
+                return {
+                    id: tc.id || this.generateToolCallId(index),
+                    name: tc.name,
+                    input: tc.input || tc.arguments || {}
+                };
+            });
+        }
+        else if (jsonResponse.tool_calls !== undefined && !Array.isArray(jsonResponse.tool_calls)) {
+            // If tool_calls exists but is not an array, treat as empty
+            response.toolCalls = [];
+        }
+        else {
+            // No tool_calls field, assume empty
+            response.toolCalls = [];
+        }
+        return response;
+    }
+    /**
+     * Generate a unique tool call ID
+     */
+    static generateToolCallId(index) {
+        return `call_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    /**
+     * Validate parsed response
+     */
+    static validate(parsed) {
+        if (!parsed.text && !parsed.toolCalls?.length) {
+            return false;
+        }
+        if (parsed.toolCalls) {
+            for (const toolCall of parsed.toolCalls) {
+                if (!toolCall.id || !toolCall.name) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+}
+exports.ResponseParser = ResponseParser;
+
+
+/***/ }),
+
 /***/ 6733:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -64646,9 +66002,9 @@ program
             number: 1,
         },
     };
-    params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Container Build';
+    params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Cache Indexing';
     params[constants_1.INPUT_KEYS.WELCOME_MESSAGES] = [
-        `Building AI container for ${gitInfo.owner}/${gitInfo.repo}...`,
+        `Indexing AI cache for ${gitInfo.owner}/${gitInfo.repo}...`,
     ];
     await (0, local_action_1.runLocalAction)(params);
 });
@@ -64793,6 +66149,259 @@ program
         'This will create labels, issue types, and verify access to GitHub and Supabase.',
     ];
     await (0, local_action_1.runLocalAction)(params);
+});
+/**
+ * Test Agent SDK - Simple test without tools
+ */
+program
+    .command('agent:test-simple')
+    .description('Test Agent SDK with a simple prompt (no tools)')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Hello, can you introduce yourself?')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('--max-turns <number>', 'Maximum turns', '5')
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        console.error('   Set OPENROUTER_API_KEY environment variable or use --api-key');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    console.log('🤖 Starting Agent SDK simple test...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        systemPrompt: 'You are a helpful AI assistant. Be concise and clear.',
+        maxTurns: parseInt(options.maxTurns) || 5,
+        onTurnComplete: (turn) => {
+            console.log(`\n🔄 Turn ${turn.turnNumber} completed`);
+            if (turn.toolCalls.length > 0) {
+                console.log(`   Tools called: ${turn.toolCalls.map(tc => tc.name).join(', ')}`);
+            }
+        }
+    });
+    try {
+        const result = await agent.query(options.prompt);
+        console.log('\n✅ Agent execution completed\n');
+        console.log('📊 Results:');
+        console.log(`   Turns: ${result.turns.length}`);
+        console.log(`   Tool calls: ${result.toolCalls.length}`);
+        console.log(`   Final response:\n`);
+        console.log(result.finalResponse);
+        if (result.error) {
+            console.error(`\n❌ Error: ${result.error.message}`);
+        }
+    }
+    catch (error) {
+        console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
+    }
+});
+/**
+ * Test Agent SDK - With file reading tool
+ */
+program
+    .command('agent:test-file')
+    .description('Test Agent SDK with file reading tool')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Read the package.json file and tell me what dependencies are used')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('--max-turns <number>', 'Maximum turns', '10')
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    const { ReadFileTool } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9010)));
+    const { FileRepository } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1503)));
+    const fs = await Promise.resolve().then(() => __importStar(__nccwpck_require__(3292)));
+    const path = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1017)));
+    console.log('🤖 Starting Agent SDK file reading test...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    // Load repository files
+    const fileRepo = new FileRepository();
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+        console.error('❌ Error: Not in a git repository');
+        process.exit(1);
+    }
+    const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+    const branch = 'master';
+    console.log('📚 Loading repository files...');
+    const repositoryFiles = await fileRepo.getRepositoryContent(gitInfo.owner, gitInfo.repo, token, branch, ['node_modules/*', 'build/*'], () => { }, () => { });
+    console.log(`✅ Loaded ${repositoryFiles.size} files\n`);
+    // Create read file tool
+    const readFileTool = new ReadFileTool({
+        getFileContent: (filePath) => repositoryFiles.get(filePath),
+        repositoryFiles: repositoryFiles
+    });
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        systemPrompt: 'You are a helpful AI assistant that can read files from a codebase. When asked about files, use the read_file tool to examine them.',
+        maxTurns: parseInt(options.maxTurns) || 10,
+        tools: [readFileTool],
+        onTurnComplete: (turn) => {
+            console.log(`\n🔄 Turn ${turn.turnNumber} completed`);
+            if (turn.toolCalls.length > 0) {
+                console.log(`   Tools called: ${turn.toolCalls.map(tc => `${tc.name}(${JSON.stringify(tc.input)})`).join(', ')}`);
+            }
+        },
+        onToolCall: (toolCall) => {
+            console.log(`   🔧 Tool call: ${toolCall.name}`);
+        }
+    });
+    try {
+        const result = await agent.query(options.prompt);
+        console.log('\n✅ Agent execution completed\n');
+        console.log('📊 Results:');
+        console.log(`   Turns: ${result.turns.length}`);
+        console.log(`   Tool calls: ${result.toolCalls.length}`);
+        console.log(`   Final response:\n`);
+        console.log(result.finalResponse);
+        if (result.error) {
+            console.error(`\n❌ Error: ${result.error.message}`);
+        }
+    }
+    catch (error) {
+        console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
+    }
+});
+/**
+ * Test Agent SDK - Full test with all tools
+ */
+program
+    .command('agent:test-full')
+    .description('Test Agent SDK with all built-in tools (read_file, search_files, propose_change, manage_todos)')
+    .option('-p, --prompt <prompt>', 'Prompt to send', 'Analyze the codebase structure and create a TODO list for improvements')
+    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('--max-turns <number>', 'Maximum turns', '20')
+    .action(async (options) => {
+    if (!options.apiKey) {
+        console.error('❌ Error: OpenRouter API key is required');
+        process.exit(1);
+    }
+    const { Agent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1963)));
+    const { ReadFileTool } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9010)));
+    const { SearchFilesTool } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(4293)));
+    const { ProposeChangeTool } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(4962)));
+    const { ManageTodosTool } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(7645)));
+    const { FileRepository } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1503)));
+    const { ThinkCodeManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(8785)));
+    const { ThinkTodoManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(3618)));
+    const { FileSearchService } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9810)));
+    console.log('🤖 Starting Agent SDK full test...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+    // Load repository files
+    const fileRepo = new FileRepository();
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+        console.error('❌ Error: Not in a git repository');
+        process.exit(1);
+    }
+    const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+    const branch = 'master';
+    console.log('📚 Loading repository files...');
+    const repositoryFiles = await fileRepo.getRepositoryContent(gitInfo.owner, gitInfo.repo, token, branch, ['node_modules/*', 'build/*'], () => { }, () => { });
+    console.log(`✅ Loaded ${repositoryFiles.size} files\n`);
+    // Initialize managers
+    const codeManager = new ThinkCodeManager();
+    codeManager.initialize(repositoryFiles);
+    const todoManager = new ThinkTodoManager();
+    const fileSearchService = new FileSearchService();
+    const fileIndex = fileSearchService.buildFileIndex(repositoryFiles);
+    // Create tools
+    const readFileTool = new ReadFileTool({
+        getFileContent: (filePath) => codeManager.getFileContent(filePath),
+        repositoryFiles: repositoryFiles
+    });
+    const searchFilesTool = new SearchFilesTool({
+        searchFiles: (query) => {
+            // Simple search implementation
+            const results = [];
+            const queryLower = query.toLowerCase();
+            for (const filePath of repositoryFiles.keys()) {
+                if (filePath.toLowerCase().includes(queryLower)) {
+                    results.push(filePath);
+                }
+            }
+            return results;
+        },
+        getAllFiles: () => Array.from(repositoryFiles.keys())
+    });
+    const proposeChangeTool = new ProposeChangeTool({
+        applyChange: (change) => {
+            return codeManager.applyChange({
+                file_path: change.file_path,
+                change_type: change.change_type,
+                description: change.description,
+                suggested_code: change.suggested_code,
+                reasoning: change.reasoning
+            });
+        }
+    });
+    const manageTodosTool = new ManageTodosTool({
+        createTodo: (content, status) => todoManager.createTodo(content, status),
+        updateTodo: (id, updates) => {
+            const typedUpdates = {};
+            if (updates.status) {
+                typedUpdates.status = updates.status;
+            }
+            if (updates.notes) {
+                typedUpdates.notes = updates.notes;
+            }
+            return todoManager.updateTodo(id, typedUpdates);
+        },
+        getAllTodos: () => todoManager.getAllTodos(),
+        getActiveTodos: () => todoManager.getActiveTodos()
+    });
+    const agent = new Agent({
+        model: options.model,
+        apiKey: options.apiKey,
+        systemPrompt: `You are an advanced code analysis assistant. You have access to tools to:
+- Read files from the repository
+- Search for files by name or content
+- Propose changes to files (changes are applied in a virtual codebase)
+- Manage a TODO list to track tasks
+
+Use these tools systematically to analyze code and propose improvements.`,
+        maxTurns: parseInt(options.maxTurns) || 20,
+        tools: [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool],
+        onTurnComplete: (turn) => {
+            console.log(`\n🔄 Turn ${turn.turnNumber} completed`);
+            if (turn.toolCalls.length > 0) {
+                console.log(`   Tools: ${turn.toolCalls.map(tc => tc.name).join(', ')}`);
+            }
+            if (turn.reasoning) {
+                console.log(`   Reasoning: ${turn.reasoning.substring(0, 100)}...`);
+            }
+        }
+    });
+    try {
+        const result = await agent.query(options.prompt);
+        console.log('\n✅ Agent execution completed\n');
+        console.log('📊 Results:');
+        console.log(`   Turns: ${result.turns.length}`);
+        console.log(`   Tool calls: ${result.toolCalls.length}`);
+        console.log(`   TODOs: ${todoManager.getStats().total}`);
+        console.log(`   Changes: ${codeManager.getStats().totalChanges}`);
+        console.log(`\n📝 Final response:\n`);
+        console.log(result.finalResponse);
+        if (result.error) {
+            console.error(`\n❌ Error: ${result.error.message}`);
+        }
+    }
+    catch (error) {
+        console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
+    }
 });
 program.parse(process.argv);
 
@@ -66505,12 +68114,13 @@ class AiRepository {
                     messages: [
                         { role: 'user', content: prompt },
                     ],
+                    max_tokens: 4096,
                     response_format: {
                         type: "json_schema",
                         json_schema: {
                             name: schemaName,
                             schema: responseSchema,
-                            strict: true
+                            strict: false
                         }
                     }
                 };
@@ -72526,6 +74136,555 @@ class FileImportAnalyzer {
     }
 }
 exports.FileImportAnalyzer = FileImportAnalyzer;
+
+
+/***/ }),
+
+/***/ 9810:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FileSearchService = void 0;
+/**
+ * Service for building file indexes and searching files
+ */
+class FileSearchService {
+    /**
+     * Build file index for quick lookup by filename or directory
+     */
+    buildFileIndex(files) {
+        const index = new Map();
+        for (const [path, content] of files.entries()) {
+            const pathParts = path.split('/');
+            const fileName = pathParts[pathParts.length - 1];
+            // Index by filename
+            if (!index.has(fileName)) {
+                index.set(fileName, []);
+            }
+            index.get(fileName).push(path);
+            // Index by directory
+            if (pathParts.length > 1) {
+                const dir = pathParts.slice(0, -1).join('/');
+                if (!index.has(dir)) {
+                    index.set(dir, []);
+                }
+                index.get(dir).push(path);
+            }
+        }
+        return index;
+    }
+    /**
+     * Search files by search terms (filename, directory, pattern, or content)
+     */
+    searchFiles(searchTerms, fileIndex, repositoryFiles) {
+        const foundFiles = new Set();
+        for (const term of searchTerms) {
+            const termLower = term.toLowerCase();
+            // Exact filename match
+            if (fileIndex.has(term)) {
+                fileIndex.get(term).forEach(f => foundFiles.add(f));
+            }
+            // Pattern match in filename/directory (simple contains)
+            for (const [key, paths] of fileIndex.entries()) {
+                if (key.toLowerCase().includes(termLower)) {
+                    paths.forEach(p => foundFiles.add(p));
+                }
+                // Also check paths
+                paths.forEach(path => {
+                    if (path.toLowerCase().includes(termLower)) {
+                        foundFiles.add(path);
+                    }
+                });
+            }
+            // Search in file content if repositoryFiles is provided
+            if (repositoryFiles) {
+                for (const [filePath, content] of repositoryFiles.entries()) {
+                    // Search for term in content (case-insensitive)
+                    if (content.toLowerCase().includes(termLower)) {
+                        foundFiles.add(filePath);
+                    }
+                }
+            }
+        }
+        return Array.from(foundFiles);
+    }
+}
+exports.FileSearchService = FileSearchService;
+
+
+/***/ }),
+
+/***/ 8785:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ThinkCodeManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+/**
+ * Manages virtual code state - keeps files in memory and applies proposed changes
+ * so subsequent reasoning steps can see the accumulated progress
+ */
+class ThinkCodeManager {
+    constructor() {
+        this.originalFiles = new Map();
+        this.virtualFiles = new Map();
+        this.appliedChanges = new Map(); // file -> changes applied
+        this.allAppliedChanges = [];
+    }
+    /**
+     * Initialize with original repository files
+     */
+    initialize(originalFiles) {
+        this.originalFiles = new Map(originalFiles);
+        this.virtualFiles = new Map(originalFiles);
+        this.appliedChanges.clear();
+        this.allAppliedChanges = [];
+        (0, logger_1.logInfo)(`📦 Code manager initialized with ${originalFiles.size} files`);
+    }
+    /**
+     * Get current state of a file (with applied changes)
+     */
+    getFileContent(filePath) {
+        return this.virtualFiles.get(filePath);
+    }
+    /**
+     * Get all virtual files
+     */
+    getAllFiles() {
+        return new Map(this.virtualFiles);
+    }
+    /**
+     * Check if a file has been modified
+     */
+    isFileModified(filePath) {
+        return this.appliedChanges.has(filePath);
+    }
+    /**
+     * Get changes applied to a specific file
+     */
+    getFileChanges(filePath) {
+        return this.appliedChanges.get(filePath) || [];
+    }
+    /**
+     * Apply a proposed change to the virtual codebase
+     */
+    applyChange(change) {
+        try {
+            const filePath = change.file_path;
+            const currentContent = this.virtualFiles.get(filePath) || '';
+            let newContent = currentContent;
+            switch (change.change_type) {
+                case 'create':
+                    if (!currentContent) {
+                        // File doesn't exist, create it with suggested code
+                        newContent = change.suggested_code || '';
+                        (0, logger_1.logDebugInfo)(`✅ Created virtual file: ${filePath}`);
+                    }
+                    else {
+                        (0, logger_1.logDebugInfo)(`⚠️ File ${filePath} already exists, skipping create`);
+                        return false;
+                    }
+                    break;
+                case 'modify':
+                    if (currentContent) {
+                        // Apply modification - for now, append suggested code
+                        // In a more sophisticated implementation, we could parse and merge
+                        if (change.suggested_code) {
+                            // Simple strategy: append the suggested code with a marker
+                            newContent = `${currentContent}\n\n// === AI Proposed Modification ===\n${change.suggested_code}`;
+                            (0, logger_1.logDebugInfo)(`✅ Modified virtual file: ${filePath}`);
+                        }
+                        else {
+                            // Just note the modification
+                            newContent = `${currentContent}\n\n// === AI Proposed Modification: ${change.description} ===`;
+                            (0, logger_1.logDebugInfo)(`✅ Noted modification in virtual file: ${filePath}`);
+                        }
+                    }
+                    else {
+                        (0, logger_1.logDebugInfo)(`⚠️ Cannot modify non-existent file: ${filePath}`);
+                        return false;
+                    }
+                    break;
+                case 'delete':
+                    // Mark as deleted but keep for reference
+                    newContent = `// === FILE MARKED FOR DELETION ===\n// Original content:\n${currentContent}`;
+                    (0, logger_1.logDebugInfo)(`✅ Marked virtual file for deletion: ${filePath}`);
+                    break;
+                case 'refactor':
+                    if (currentContent && change.suggested_code) {
+                        // Refactor: replace with new code
+                        newContent = `${currentContent}\n\n// === AI Proposed Refactoring ===\n${change.suggested_code}`;
+                        (0, logger_1.logDebugInfo)(`✅ Refactored virtual file: ${filePath}`);
+                    }
+                    else {
+                        (0, logger_1.logDebugInfo)(`⚠️ Cannot refactor file ${filePath}: ${currentContent ? 'no suggested code' : 'file does not exist'}`);
+                        return false;
+                    }
+                    break;
+                default:
+                    (0, logger_1.logDebugInfo)(`⚠️ Unknown change type: ${change.change_type}`);
+                    return false;
+            }
+            this.virtualFiles.set(filePath, newContent);
+            // Track applied changes
+            if (!this.appliedChanges.has(filePath)) {
+                this.appliedChanges.set(filePath, []);
+            }
+            this.appliedChanges.get(filePath).push(change);
+            this.allAppliedChanges.push(change);
+            return true;
+        }
+        catch (error) {
+            (0, logger_1.logDebugInfo)(`❌ Error applying change to ${change.file_path}: ${error}`);
+            return false;
+        }
+    }
+    /**
+     * Check if a change has already been applied (to avoid duplicates)
+     */
+    hasChangeBeenApplied(change) {
+        // Check by file path and description similarity
+        const existingChanges = this.allAppliedChanges.filter(c => c.file_path === change.file_path &&
+            c.change_type === change.change_type &&
+            this.areSimilar(c.description, change.description));
+        return existingChanges.length > 0;
+    }
+    /**
+     * Get summary of all applied changes
+     */
+    getChangesSummary() {
+        if (this.allAppliedChanges.length === 0) {
+            return 'No changes applied yet.';
+        }
+        const summary = [];
+        summary.push(`\n## Applied Changes (${this.allAppliedChanges.length} total):\n`);
+        for (const [filePath, changes] of this.appliedChanges.entries()) {
+            summary.push(`\n### ${filePath} (${changes.length} change${changes.length > 1 ? 's' : ''}):`);
+            changes.forEach((change, idx) => {
+                summary.push(`  ${idx + 1}. ${change.change_type.toUpperCase()}: ${change.description}`);
+            });
+        }
+        return summary.join('\n');
+    }
+    /**
+     * Get context about what has changed for the AI
+     */
+    getContextForAI() {
+        const context = [];
+        if (this.allAppliedChanges.length > 0) {
+            context.push(`\n## Code State Changes Applied:`);
+            context.push(`Total changes applied: ${this.allAppliedChanges.length}`);
+            context.push(`Files modified: ${this.appliedChanges.size}`);
+            context.push(this.getChangesSummary());
+            // Show modified file contents summary
+            context.push(`\n## Modified Files Preview:`);
+            for (const [filePath, changes] of this.appliedChanges.entries()) {
+                const currentContent = this.virtualFiles.get(filePath);
+                if (currentContent) {
+                    const preview = currentContent.substring(0, 500);
+                    context.push(`\n### ${filePath}:`);
+                    context.push(`\`\`\`\n${preview}${currentContent.length > 500 ? '\n... (truncated)' : ''}\n\`\`\``);
+                }
+            }
+        }
+        else {
+            context.push(`\n## Code State: No changes applied yet.`);
+        }
+        return context.join('\n');
+    }
+    /**
+     * Simple similarity check for change descriptions
+     */
+    areSimilar(desc1, desc2) {
+        const normalize = (s) => s.toLowerCase().trim().replace(/\s+/g, ' ');
+        const n1 = normalize(desc1);
+        const n2 = normalize(desc2);
+        // Exact match
+        if (n1 === n2)
+            return true;
+        // Check if one contains the other (for similar proposals)
+        if (n1.length > 20 && n2.length > 20) {
+            const words1 = n1.split(' ').filter(w => w.length > 3);
+            const words2 = n2.split(' ').filter(w => w.length > 3);
+            const commonWords = words1.filter(w => words2.includes(w));
+            // If 70% of significant words match, consider similar
+            return commonWords.length / Math.max(words1.length, words2.length) > 0.7;
+        }
+        return false;
+    }
+    /**
+     * Get statistics
+     */
+    getStats() {
+        return {
+            totalFiles: this.virtualFiles.size,
+            modifiedFiles: this.appliedChanges.size,
+            totalChanges: this.allAppliedChanges.length
+        };
+    }
+}
+exports.ThinkCodeManager = ThinkCodeManager;
+
+
+/***/ }),
+
+/***/ 3618:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ThinkTodoManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+/**
+ * Manages TODO list for the reasoning process
+ * Similar to how the assistant tracks high-level tasks vs iterative steps
+ */
+class ThinkTodoManager {
+    constructor() {
+        this.todos = new Map();
+        this.nextId = 1;
+    }
+    /**
+     * Initialize with optional initial todos
+     */
+    initialize(initialTodos) {
+        this.todos.clear();
+        this.nextId = 1;
+        if (initialTodos && initialTodos.length > 0) {
+            for (const todo of initialTodos) {
+                this.createTodo(todo.content, todo.status || 'pending');
+            }
+            (0, logger_1.logInfo)(`📋 TODO list initialized with ${initialTodos.length} tasks`);
+        }
+        else {
+            (0, logger_1.logInfo)(`📋 TODO list initialized (empty)`);
+        }
+    }
+    /**
+     * Create a new TODO item
+     */
+    createTodo(content, status = 'pending') {
+        const id = `todo_${this.nextId++}`;
+        const now = Date.now();
+        const todo = {
+            id,
+            content,
+            status,
+            created_at: now,
+            updated_at: now
+        };
+        this.todos.set(id, todo);
+        (0, logger_1.logDebugInfo)(`✅ Created TODO: ${content} (${status})`);
+        return todo;
+    }
+    /**
+     * Update an existing TODO item
+     */
+    updateTodo(id, updates) {
+        const todo = this.todos.get(id);
+        if (!todo) {
+            (0, logger_1.logDebugInfo)(`⚠️ TODO ${id} not found for update`);
+            return false;
+        }
+        const now = Date.now();
+        const oldStatus = todo.status;
+        if (updates.status) {
+            todo.status = updates.status;
+            if (updates.status === 'completed' && !todo.completed_at) {
+                todo.completed_at = now;
+            }
+        }
+        if (updates.notes !== undefined) {
+            todo.notes = updates.notes;
+        }
+        if (updates.related_files) {
+            todo.related_files = updates.related_files;
+        }
+        if (updates.related_changes) {
+            todo.related_changes = updates.related_changes;
+        }
+        todo.updated_at = now;
+        if (oldStatus !== todo.status) {
+            // logInfo(`📝 Updated TODO ${id}: ${oldStatus} → ${todo.status}`);
+        }
+        else {
+            // logDebugInfo(`📝 Updated TODO ${id} (notes/metadata)`);
+        }
+        return true;
+    }
+    /**
+     * Get all TODOs
+     */
+    getAllTodos() {
+        return Array.from(this.todos.values()).sort((a, b) => a.created_at - b.created_at);
+    }
+    /**
+     * Get TODOs by status
+     */
+    getTodosByStatus(status) {
+        return this.getAllTodos().filter(todo => todo.status === status);
+    }
+    /**
+     * Get active TODOs (pending or in_progress)
+     */
+    getActiveTodos() {
+        return this.getAllTodos().filter(todo => todo.status === 'pending' || todo.status === 'in_progress');
+    }
+    /**
+     * Get completion statistics
+     */
+    getStats() {
+        const all = this.getAllTodos();
+        const pending = all.filter(t => t.status === 'pending').length;
+        const in_progress = all.filter(t => t.status === 'in_progress').length;
+        const completed = all.filter(t => t.status === 'completed').length;
+        const cancelled = all.filter(t => t.status === 'cancelled').length;
+        const total = all.length;
+        const completion_rate = total > 0 ? (completed / total) * 100 : 0;
+        return {
+            total,
+            pending,
+            in_progress,
+            completed,
+            cancelled,
+            completion_rate
+        };
+    }
+    /**
+     * Get formatted TODO list for AI context
+     */
+    getContextForAI() {
+        const stats = this.getStats();
+        const activeTodos = this.getActiveTodos();
+        const completedTodos = this.getTodosByStatus('completed').slice(-5); // Last 5 completed
+        const allTodos = this.getAllTodos();
+        const context = [];
+        context.push(`\n## 📋 TODO List Status`);
+        context.push(`- **Total Tasks**: ${stats.total}`);
+        context.push(`- **Pending**: ${stats.pending}`);
+        context.push(`- **In Progress**: ${stats.in_progress}`);
+        context.push(`- **Completed**: ${stats.completed} (${stats.completion_rate.toFixed(1)}%)`);
+        context.push(`- **Cancelled**: ${stats.cancelled}`);
+        if (allTodos.length > 0) {
+            context.push(`\n### 📝 All TODO Items (with IDs for reference):`);
+            allTodos.forEach((todo, idx) => {
+                const statusEmoji = todo.status === 'completed' ? '✅' :
+                    todo.status === 'in_progress' ? '🔄' :
+                        todo.status === 'cancelled' ? '❌' : '⏳';
+                context.push(`${idx + 1}. ${statusEmoji} **[ID: ${todo.id}]** ${todo.status.toUpperCase()}: ${todo.content}`);
+                if (todo.related_files && todo.related_files.length > 0) {
+                    context.push(`   📁 Related files: ${todo.related_files.join(', ')}`);
+                }
+                if (todo.notes) {
+                    context.push(`   📝 Notes: ${todo.notes}`);
+                }
+            });
+            context.push(`\n**⚠️ IMPORTANT**: When updating TODOs, use the EXACT ID shown above (e.g., "${allTodos[0]?.id || 'todo_1'}"). Do NOT use numeric IDs like "1" or "2".`);
+        }
+        if (activeTodos.length > 0) {
+            context.push(`\n### 🔄 Active Tasks to Work On (${activeTodos.length}):`);
+            activeTodos.forEach((todo, idx) => {
+                const statusEmoji = todo.status === 'in_progress' ? '🔄' : '⏳';
+                context.push(`${idx + 1}. ${statusEmoji} **[ID: ${todo.id}]** ${todo.status.toUpperCase()}: ${todo.content}`);
+                if (todo.related_files && todo.related_files.length > 0) {
+                    context.push(`   📁 Related files: ${todo.related_files.join(', ')}`);
+                }
+                if (todo.notes) {
+                    context.push(`   📝 Notes: ${todo.notes}`);
+                }
+            });
+        }
+        if (completedTodos.length > 0) {
+            context.push(`\n### ✅ Recently Completed (${completedTodos.length}):`);
+            completedTodos.forEach((todo, idx) => {
+                context.push(`${idx + 1}. ✅ **[ID: ${todo.id}]** ${todo.content}`);
+            });
+        }
+        if (activeTodos.length === 0 && stats.total > 0) {
+            context.push(`\n🎉 All tasks completed!`);
+        }
+        return context.join('\n');
+    }
+    /**
+     * Link a TODO to proposed changes
+     */
+    linkTodoToChanges(todoId, changes) {
+        const todo = this.todos.get(todoId);
+        if (!todo)
+            return;
+        const changeDescriptions = changes.map(c => `${c.change_type}:${c.file_path}:${c.description.substring(0, 50)}`);
+        if (!todo.related_changes) {
+            todo.related_changes = [];
+        }
+        todo.related_changes.push(...changeDescriptions);
+        // Also update related files
+        const files = changes.map(c => c.file_path);
+        if (!todo.related_files) {
+            todo.related_files = [];
+        }
+        todo.related_files.push(...files);
+        todo.related_files = [...new Set(todo.related_files)]; // Remove duplicates
+        todo.updated_at = Date.now();
+    }
+    /**
+     * Auto-update TODO status based on progress
+     * If changes are applied for a TODO, mark it as in_progress or completed
+     */
+    autoUpdateFromChanges(changes) {
+        // Find active TODOs that might be related to these changes
+        const activeTodos = this.getActiveTodos();
+        for (const todo of activeTodos) {
+            // Check if any of the changes are related to this TODO's files
+            if (todo.related_files) {
+                const relatedChanges = changes.filter(c => todo.related_files.includes(c.file_path));
+                if (relatedChanges.length > 0) {
+                    // Link changes to TODO
+                    this.linkTodoToChanges(todo.id, relatedChanges);
+                    // If TODO was pending, mark as in_progress
+                    if (todo.status === 'pending') {
+                        this.updateTodo(todo.id, {
+                            status: 'in_progress',
+                            notes: `Auto-updated: ${relatedChanges.length} change(s) applied`
+                        });
+                    }
+                }
+            }
+        }
+    }
+    /**
+     * Get summary for final report
+     */
+    getSummary() {
+        const stats = this.getStats();
+        const allTodos = this.getAllTodos();
+        if (allTodos.length === 0) {
+            return 'No TODO list was created during this analysis.';
+        }
+        const summary = [];
+        summary.push(`\n## TODO List Summary`);
+        summary.push(`- Total tasks: ${stats.total}`);
+        summary.push(`- Completed: ${stats.completed} (${stats.completion_rate.toFixed(1)}%)`);
+        summary.push(`- In Progress: ${stats.in_progress}`);
+        summary.push(`- Pending: ${stats.pending}`);
+        summary.push(`\n### All Tasks:`);
+        allTodos.forEach((todo, idx) => {
+            const statusIcon = todo.status === 'completed' ? '✅' :
+                todo.status === 'in_progress' ? '🔄' :
+                    todo.status === 'cancelled' ? '❌' : '⏳';
+            summary.push(`${idx + 1}. ${statusIcon} **${todo.status.toUpperCase()}**: ${todo.content}`);
+            if (todo.notes) {
+                summary.push(`   Notes: ${todo.notes}`);
+            }
+        });
+        return summary.join('\n');
+    }
+}
+exports.ThinkTodoManager = ThinkTodoManager;
 
 
 /***/ }),

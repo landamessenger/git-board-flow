@@ -99,12 +99,13 @@ export class AiRepository {
                 messages: [
                     { role: 'user', content: prompt },
                 ],
+                max_tokens: 4096,
                 response_format: {
                     type: "json_schema",
                     json_schema: {
                         name: schemaName,
                         schema: responseSchema,
-                        strict: true
+                        strict: false
                     }
                 }
             };

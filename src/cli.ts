@@ -231,4 +231,312 @@ program
     await runLocalAction(params);
   });
 
+/**
+ * Test Agent SDK - Simple test without tools
+ */
+program
+  .command('agent:test-simple')
+  .description('Test Agent SDK with a simple prompt (no tools)')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Hello, can you introduce yourself?')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .option('--max-turns <number>', 'Maximum turns', '5')
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      console.error('   Set OPENROUTER_API_KEY environment variable or use --api-key');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    
+    console.log('🤖 Starting Agent SDK simple test...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      systemPrompt: 'You are a helpful AI assistant. Be concise and clear.',
+      maxTurns: parseInt(options.maxTurns) || 5,
+      onTurnComplete: (turn) => {
+        console.log(`\n🔄 Turn ${turn.turnNumber} completed`);
+        if (turn.toolCalls.length > 0) {
+          console.log(`   Tools called: ${turn.toolCalls.map(tc => tc.name).join(', ')}`);
+        }
+      }
+    });
+
+    try {
+      const result = await agent.query(options.prompt);
+      
+      console.log('\n✅ Agent execution completed\n');
+      console.log('📊 Results:');
+      console.log(`   Turns: ${result.turns.length}`);
+      console.log(`   Tool calls: ${result.toolCalls.length}`);
+      console.log(`   Final response:\n`);
+      console.log(result.finalResponse);
+      
+      if (result.error) {
+        console.error(`\n❌ Error: ${result.error.message}`);
+      }
+    } catch (error) {
+      console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Test Agent SDK - With file reading tool
+ */
+program
+  .command('agent:test-file')
+  .description('Test Agent SDK with file reading tool')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Read the package.json file and tell me what dependencies are used')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .option('--max-turns <number>', 'Maximum turns', '10')
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    const { ReadFileTool } = await import('./agent/tools/builtin_tools/read_file_tool');
+    const { FileRepository } = await import('./data/repository/file_repository');
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    console.log('🤖 Starting Agent SDK file reading test...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    // Load repository files
+    const fileRepo = new FileRepository();
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.error('❌ Error: Not in a git repository');
+      process.exit(1);
+    }
+
+    const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+    const branch = 'master';
+    
+    console.log('📚 Loading repository files...');
+    const repositoryFiles = await fileRepo.getRepositoryContent(
+      gitInfo.owner,
+      gitInfo.repo,
+      token,
+      branch,
+      ['node_modules/*', 'build/*'],
+      () => {},
+      () => {}
+    );
+    
+    console.log(`✅ Loaded ${repositoryFiles.size} files\n`);
+
+    // Create read file tool
+    const readFileTool = new ReadFileTool({
+      getFileContent: (filePath: string) => repositoryFiles.get(filePath),
+      repositoryFiles: repositoryFiles
+    });
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      systemPrompt: 'You are a helpful AI assistant that can read files from a codebase. When asked about files, use the read_file tool to examine them.',
+      maxTurns: parseInt(options.maxTurns) || 10,
+      tools: [readFileTool],
+      onTurnComplete: (turn) => {
+        console.log(`\n🔄 Turn ${turn.turnNumber} completed`);
+        if (turn.toolCalls.length > 0) {
+          console.log(`   Tools called: ${turn.toolCalls.map(tc => `${tc.name}(${JSON.stringify(tc.input)})`).join(', ')}`);
+        }
+      },
+      onToolCall: (toolCall) => {
+        console.log(`   🔧 Tool call: ${toolCall.name}`);
+      }
+    });
+
+    try {
+      const result = await agent.query(options.prompt);
+      
+      console.log('\n✅ Agent execution completed\n');
+      console.log('📊 Results:');
+      console.log(`   Turns: ${result.turns.length}`);
+      console.log(`   Tool calls: ${result.toolCalls.length}`);
+      console.log(`   Final response:\n`);
+      console.log(result.finalResponse);
+      
+      if (result.error) {
+        console.error(`\n❌ Error: ${result.error.message}`);
+      }
+    } catch (error) {
+      console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Test Agent SDK - Full test with all tools
+ */
+program
+  .command('agent:test-full')
+  .description('Test Agent SDK with all built-in tools (read_file, search_files, propose_change, manage_todos)')
+  .option('-p, --prompt <prompt>', 'Prompt to send', 'Analyze the codebase structure and create a TODO list for improvements')
+  .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+  .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .option('--max-turns <number>', 'Maximum turns', '20')
+  .action(async (options) => {
+    if (!options.apiKey) {
+      console.error('❌ Error: OpenRouter API key is required');
+      process.exit(1);
+    }
+
+    const { Agent } = await import('./agent/core/agent');
+    const { ReadFileTool } = await import('./agent/tools/builtin_tools/read_file_tool');
+    const { SearchFilesTool } = await import('./agent/tools/builtin_tools/search_files_tool');
+    const { ProposeChangeTool } = await import('./agent/tools/builtin_tools/propose_change_tool');
+    const { ManageTodosTool } = await import('./agent/tools/builtin_tools/manage_todos_tool');
+    const { FileRepository } = await import('./data/repository/file_repository');
+    const { ThinkCodeManager } = await import('./usecase/steps/common/think_code_manager');
+    const { ThinkTodoManager } = await import('./usecase/steps/common/think_todo_manager');
+    const { FileSearchService } = await import('./usecase/steps/common/services/file_search_service');
+    
+    console.log('🤖 Starting Agent SDK full test...\n');
+    console.log(`📝 Prompt: ${options.prompt}`);
+    console.log(`🔧 Model: ${options.model}\n`);
+
+    // Load repository files
+    const fileRepo = new FileRepository();
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.error('❌ Error: Not in a git repository');
+      process.exit(1);
+    }
+
+    const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+    const branch = 'master';
+    
+    console.log('📚 Loading repository files...');
+    const repositoryFiles = await fileRepo.getRepositoryContent(
+      gitInfo.owner,
+      gitInfo.repo,
+      token,
+      branch,
+      ['node_modules/*', 'build/*'],
+      () => {},
+      () => {}
+    );
+    
+    console.log(`✅ Loaded ${repositoryFiles.size} files\n`);
+
+    // Initialize managers
+    const codeManager = new ThinkCodeManager();
+    codeManager.initialize(repositoryFiles);
+    const todoManager = new ThinkTodoManager();
+    const fileSearchService = new FileSearchService();
+    const fileIndex = fileSearchService.buildFileIndex(repositoryFiles);
+
+    // Create tools
+    const readFileTool = new ReadFileTool({
+      getFileContent: (filePath: string) => codeManager.getFileContent(filePath),
+      repositoryFiles: repositoryFiles
+    });
+
+    const searchFilesTool = new SearchFilesTool({
+      searchFiles: (query: string) => {
+        // Simple search implementation
+        const results: string[] = [];
+        const queryLower = query.toLowerCase();
+        
+        for (const filePath of repositoryFiles.keys()) {
+          if (filePath.toLowerCase().includes(queryLower)) {
+            results.push(filePath);
+          }
+        }
+        
+        return results;
+      },
+      getAllFiles: () => Array.from(repositoryFiles.keys())
+    });
+
+    const proposeChangeTool = new ProposeChangeTool({
+      applyChange: (change) => {
+        return codeManager.applyChange({
+          file_path: change.file_path,
+          change_type: change.change_type,
+          description: change.description,
+          suggested_code: change.suggested_code,
+          reasoning: change.reasoning
+        });
+      }
+    });
+
+    const manageTodosTool = new ManageTodosTool({
+      createTodo: (content, status) => todoManager.createTodo(content, status),
+      updateTodo: (id, updates) => {
+        const typedUpdates: {
+          status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+          notes?: string;
+        } = {};
+        if (updates.status) {
+          typedUpdates.status = updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        }
+        if (updates.notes) {
+          typedUpdates.notes = updates.notes;
+        }
+        return todoManager.updateTodo(id, typedUpdates);
+      },
+      getAllTodos: () => todoManager.getAllTodos(),
+      getActiveTodos: () => todoManager.getActiveTodos()
+    });
+
+    const agent = new Agent({
+      model: options.model,
+      apiKey: options.apiKey,
+      systemPrompt: `You are an advanced code analysis assistant. You have access to tools to:
+- Read files from the repository
+- Search for files by name or content
+- Propose changes to files (changes are applied in a virtual codebase)
+- Manage a TODO list to track tasks
+
+Use these tools systematically to analyze code and propose improvements.`,
+      maxTurns: parseInt(options.maxTurns) || 20,
+      tools: [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool],
+      onTurnComplete: (turn) => {
+        console.log(`\n🔄 Turn ${turn.turnNumber} completed`);
+        if (turn.toolCalls.length > 0) {
+          console.log(`   Tools: ${turn.toolCalls.map(tc => tc.name).join(', ')}`);
+        }
+        if (turn.reasoning) {
+          console.log(`   Reasoning: ${turn.reasoning.substring(0, 100)}...`);
+        }
+      }
+    });
+
+    try {
+      const result = await agent.query(options.prompt);
+      
+      console.log('\n✅ Agent execution completed\n');
+      console.log('📊 Results:');
+      console.log(`   Turns: ${result.turns.length}`);
+      console.log(`   Tool calls: ${result.toolCalls.length}`);
+      console.log(`   TODOs: ${todoManager.getStats().total}`);
+      console.log(`   Changes: ${codeManager.getStats().totalChanges}`);
+      console.log(`\n📝 Final response:\n`);
+      console.log(result.finalResponse);
+      
+      if (result.error) {
+        console.error(`\n❌ Error: ${result.error.message}`);
+      }
+    } catch (error) {
+      console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+
 program.parse(process.argv); 

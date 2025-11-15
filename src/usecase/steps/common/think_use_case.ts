@@ -102,6 +102,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`📚 Loaded ${repositoryFiles.size} files from repository`);
 
+            
+
         } catch (error) {
             logError(`Error in ThinkUseCase: ${error}`);
             results.push(
