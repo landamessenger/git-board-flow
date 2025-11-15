@@ -80,6 +80,9 @@ export interface AgentOptions {
   
   // Retry
   retry?: RetryConfig;
+  
+  // MCP
+  enableMCP?: boolean; // Enable MCP support (default: true)
 }
 
 export interface TurnResult {

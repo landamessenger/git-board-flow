@@ -25,3 +25,10 @@ export * from './types';
 // Utils
 export * from './utils';
 
+// MCP
+export * from './mcp';
+
+// SubAgents
+export { SubAgentManager } from './core/subagent_manager';
+export { ContextSharing } from './core/context_sharing';
+

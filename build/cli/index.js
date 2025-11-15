@@ -64569,6 +64569,8 @@ const reasoning_loop_1 = __nccwpck_require__(7982);
 const tool_registry_1 = __nccwpck_require__(4138);
 const tool_executor_1 = __nccwpck_require__(4315);
 const session_manager_1 = __nccwpck_require__(7408);
+const mcp_manager_1 = __nccwpck_require__(4688);
+const subagent_manager_1 = __nccwpck_require__(2078);
 const logger_1 = __nccwpck_require__(8836);
 class Agent {
     constructor(options) {
@@ -64598,6 +64600,11 @@ class Agent {
         // Add system prompt if provided
         if (options.systemPrompt) {
             this.messageManager.addSystemMessage(options.systemPrompt);
+        }
+        // Initialize MCP if enabled
+        if (options.enableMCP !== false) {
+            this.mcpManager = new mcp_manager_1.MCPManager(this.toolRegistry);
+            // MCP initialization is async, so we'll do it lazily or via initializeMCP()
         }
     }
     /**
@@ -64745,6 +64752,87 @@ class Agent {
      */
     setSystemPrompt(prompt) {
         this.messageManager.addSystemMessage(prompt);
+    }
+    /**
+     * Initialize MCP connections
+     */
+    async initializeMCP(configPath) {
+        if (!this.mcpManager) {
+            this.mcpManager = new mcp_manager_1.MCPManager(this.toolRegistry);
+        }
+        await this.mcpManager.initialize(configPath);
+    }
+    /**
+     * Connect to an MCP server
+     */
+    async connectMCPServer(config) {
+        if (!this.mcpManager) {
+            this.mcpManager = new mcp_manager_1.MCPManager(this.toolRegistry);
+        }
+        await this.mcpManager.connectServer(config);
+    }
+    /**
+     * Get MCP manager
+     */
+    getMCPManager() {
+        return this.mcpManager;
+    }
+    /**
+     * Check if MCP server is connected
+     */
+    isMCPConnected(serverName) {
+        return this.mcpManager?.isConnected(serverName) || false;
+    }
+    /**
+     * Get connected MCP servers
+     */
+    getConnectedMCPServers() {
+        return this.mcpManager?.getConnectedServers() || [];
+    }
+    /**
+     * Create a subagent
+     */
+    createSubAgent(options) {
+        if (!this.subAgentManager) {
+            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
+        }
+        return this.subAgentManager.createSubAgent(options);
+    }
+    /**
+     * Execute multiple tasks in parallel using subagents
+     */
+    async executeParallel(tasks) {
+        if (!this.subAgentManager) {
+            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
+        }
+        return await this.subAgentManager.executeParallel(tasks);
+    }
+    /**
+     * Coordinate agents with dependencies
+     */
+    async coordinateAgents(tasks) {
+        if (!this.subAgentManager) {
+            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
+        }
+        return await this.subAgentManager.coordinateAgents(tasks);
+    }
+    /**
+     * Get subagent manager
+     */
+    getSubAgentManager() {
+        return this.subAgentManager;
+    }
+    /**
+     * Get subagent by name
+     */
+    getSubAgent(name) {
+        return this.subAgentManager?.getSubAgent(name);
+    }
+    /**
+     * Get all subagents
+     */
+    getAllSubAgents() {
+        return this.subAgentManager?.getAllSubAgents() || [];
     }
 }
 exports.Agent = Agent;
@@ -64978,6 +65066,106 @@ class ContextManager {
     }
 }
 exports.ContextManager = ContextManager;
+
+
+/***/ }),
+
+/***/ 3675:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Context Sharing
+ * Manages sharing context between agents
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ContextSharing = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class ContextSharing {
+    /**
+     * Extract relevant messages from an agent
+     */
+    static extractRelevantMessages(messages, maxMessages = 10) {
+        // Keep system messages and recent messages
+        const systemMessages = messages.filter(m => m.role === 'system');
+        const recentMessages = messages
+            .filter(m => m.role !== 'system')
+            .slice(-maxMessages);
+        return [...systemMessages, ...recentMessages];
+    }
+    /**
+     * Share context between agents
+     */
+    static shareContext(fromMessages, toMessageManager, options = {}) {
+        const { includeSystem = true, maxMessages = 10, filterByRole = ['user', 'assistant', 'system'] } = options;
+        let relevantMessages = fromMessages;
+        // Filter by role
+        if (filterByRole.length > 0) {
+            relevantMessages = relevantMessages.filter(m => filterByRole.includes(m.role));
+        }
+        // Exclude system if not needed
+        if (!includeSystem) {
+            relevantMessages = relevantMessages.filter(m => m.role !== 'system');
+        }
+        // Limit messages
+        relevantMessages = relevantMessages.slice(-maxMessages);
+        // Add to target message manager
+        for (const msg of relevantMessages) {
+            if (msg.role === 'system' && includeSystem) {
+                toMessageManager.addSystemMessage(typeof msg.content === 'string' ? msg.content : '');
+            }
+            else if (msg.role === 'user') {
+                toMessageManager.addUserMessage(msg.content);
+            }
+            else if (msg.role === 'assistant') {
+                toMessageManager.addAssistantMessage(msg.content);
+            }
+        }
+        (0, logger_1.logDebugInfo)(`📤 Shared ${relevantMessages.length} messages between agents`);
+    }
+    /**
+     * Merge contexts from multiple agents
+     */
+    static mergeContexts(contexts, options = {}) {
+        const { deduplicate = true, maxMessages = 20 } = options;
+        // Flatten all messages
+        let allMessages = [];
+        for (const context of contexts) {
+            allMessages.push(...context);
+        }
+        // Deduplicate if needed
+        if (deduplicate) {
+            const seen = new Set();
+            allMessages = allMessages.filter(msg => {
+                const key = `${msg.role}:${JSON.stringify(msg.content)}`;
+                if (seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+        }
+        // Sort by timestamp if available, otherwise keep order
+        // (Messages don't have timestamps in our current implementation,
+        // so we'll keep the order from contexts)
+        // Limit messages
+        return allMessages.slice(-maxMessages);
+    }
+    /**
+     * Create a summary of context for sharing
+     */
+    static createContextSummary(messages) {
+        const userMessages = messages.filter(m => m.role === 'user').length;
+        const assistantMessages = messages.filter(m => m.role === 'assistant').length;
+        const toolCalls = messages.filter(m => m.role === 'assistant' &&
+            typeof m.content !== 'string' &&
+            Array.isArray(m.content) &&
+            m.content.some((block) => block.type === 'tool_use')).length;
+        return `Context summary: ${userMessages} user messages, ${assistantMessages} assistant messages, ${toolCalls} tool calls`;
+    }
+}
+exports.ContextSharing = ContextSharing;
 
 
 /***/ }),
@@ -65815,6 +66003,212 @@ exports.SessionManager = SessionManager;
 
 /***/ }),
 
+/***/ 2078:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * SubAgent Manager
+ * Manages subagents and their coordination
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SubAgentManager = void 0;
+const agent_1 = __nccwpck_require__(1963);
+const context_sharing_1 = __nccwpck_require__(3675);
+const logger_1 = __nccwpck_require__(8836);
+class SubAgentManager {
+    constructor(parentAgent) {
+        this.subAgents = new Map();
+        this.sharedContext = [];
+        this.parentAgent = parentAgent;
+    }
+    /**
+     * Create a subagent
+     */
+    createSubAgent(options) {
+        if (this.subAgents.has(options.name)) {
+            (0, logger_1.logInfo)(`SubAgent ${options.name} already exists, returning existing`);
+            return this.subAgents.get(options.name);
+        }
+        (0, logger_1.logInfo)(`🤖 Creating subagent: ${options.name}`);
+        // Get parent options
+        const parentOptions = this.parentAgent['options'];
+        // Build subagent options
+        const subAgentOptions = {
+            ...parentOptions,
+            systemPrompt: options.systemPrompt || parentOptions.systemPrompt,
+            maxTurns: options.maxTurns || parentOptions.maxTurns || 10,
+            maxTokens: options.maxTokens || parentOptions.maxTokens,
+            temperature: options.temperature || parentOptions.temperature,
+            tools: [],
+            enableMCP: false // Subagents don't initialize MCP by default
+        };
+        // Inherit tools if requested
+        if (options.inheritTools !== false) {
+            const parentTools = this.parentAgent.getAvailableTools();
+            // Note: We can't directly get tool instances, so we'll need to pass them
+            // For now, we'll rely on tools being passed explicitly
+        }
+        // Add explicit tools
+        if (options.tools && options.tools.length > 0) {
+            subAgentOptions.tools = options.tools;
+        }
+        // Create subagent
+        const subAgent = new agent_1.Agent(subAgentOptions);
+        // Share context if requested
+        if (options.inheritContext !== false) {
+            const parentMessages = this.parentAgent.getMessages();
+            context_sharing_1.ContextSharing.shareContext(parentMessages, subAgent['messageManager'], {
+                includeSystem: true,
+                maxMessages: 5 // Share recent context
+            });
+        }
+        this.subAgents.set(options.name, subAgent);
+        return subAgent;
+    }
+    /**
+     * Execute multiple agents in parallel
+     */
+    async executeParallel(tasks) {
+        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} tasks in parallel`);
+        // Create or get subagents for each task
+        const agents = [];
+        for (const task of tasks) {
+            let agent = this.subAgents.get(task.name);
+            if (!agent) {
+                // Create subagent for this task
+                agent = this.createSubAgent({
+                    name: task.name,
+                    systemPrompt: task.systemPrompt,
+                    tools: task.tools,
+                    inheritContext: true
+                });
+            }
+            agents.push({ agent, task });
+        }
+        // Execute all agents in parallel
+        const promises = agents.map(async ({ agent, task }) => {
+            try {
+                (0, logger_1.logDebugInfo)(`▶️ Executing task: ${task.name}`);
+                const result = await agent.query(task.prompt);
+                (0, logger_1.logDebugInfo)(`✅ Completed task: ${task.name}`);
+                return { task: task.name, result };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`❌ Task ${task.name} failed: ${error}`);
+                throw error;
+            }
+        });
+        const results = await Promise.all(promises);
+        (0, logger_1.logInfo)(`✅ All ${results.length} tasks completed`);
+        return results;
+    }
+    /**
+     * Coordinate agents - execute with dependency management
+     */
+    async coordinateAgents(tasks) {
+        (0, logger_1.logInfo)(`🎯 Coordinating ${tasks.length} tasks with dependencies`);
+        const results = [];
+        const completed = new Set();
+        // Build dependency graph
+        const taskMap = new Map();
+        for (const task of tasks) {
+            taskMap.set(task.name, task);
+        }
+        // Execute tasks respecting dependencies
+        while (completed.size < tasks.length) {
+            const readyTasks = tasks.filter(task => {
+                if (completed.has(task.name))
+                    return false;
+                if (!task.dependsOn || task.dependsOn.length === 0)
+                    return true;
+                return task.dependsOn.every(dep => completed.has(dep));
+            });
+            if (readyTasks.length === 0) {
+                throw new Error('Circular dependency or missing dependency detected');
+            }
+            // Execute ready tasks in parallel
+            const promises = readyTasks.map(async (task) => {
+                let agent = this.subAgents.get(task.name);
+                if (!agent) {
+                    agent = this.createSubAgent({
+                        name: task.name,
+                        systemPrompt: task.systemPrompt,
+                        tools: task.tools,
+                        inheritContext: true
+                    });
+                }
+                try {
+                    const result = await agent.query(task.prompt);
+                    completed.add(task.name);
+                    return { task: task.name, result };
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`Task ${task.name} failed: ${error}`);
+                    throw error;
+                }
+            });
+            const batchResults = await Promise.all(promises);
+            results.push(...batchResults);
+        }
+        (0, logger_1.logInfo)(`✅ All coordinated tasks completed`);
+        return results;
+    }
+    /**
+     * Share context between subagents
+     */
+    shareContext(fromAgentName, toAgentName) {
+        const fromAgent = this.subAgents.get(fromAgentName);
+        const toAgent = this.subAgents.get(toAgentName);
+        if (!fromAgent || !toAgent) {
+            throw new Error(`Agent not found: ${fromAgentName} or ${toAgentName}`);
+        }
+        const fromMessages = fromAgent.getMessages();
+        context_sharing_1.ContextSharing.shareContext(fromMessages, toAgent['messageManager'], {
+            includeSystem: false,
+            maxMessages: 5
+        });
+        (0, logger_1.logDebugInfo)(`📤 Shared context from ${fromAgentName} to ${toAgentName}`);
+    }
+    /**
+     * Get subagent by name
+     */
+    getSubAgent(name) {
+        return this.subAgents.get(name);
+    }
+    /**
+     * Get all subagents
+     */
+    getAllSubAgents() {
+        return Array.from(this.subAgents.values());
+    }
+    /**
+     * Get subagent names
+     */
+    getSubAgentNames() {
+        return Array.from(this.subAgents.keys());
+    }
+    /**
+     * Remove subagent
+     */
+    removeSubAgent(name) {
+        this.subAgents.delete(name);
+        (0, logger_1.logInfo)(`🗑️ Removed subagent: ${name}`);
+    }
+    /**
+     * Clear all subagents
+     */
+    clear() {
+        this.subAgents.clear();
+        (0, logger_1.logInfo)(`🗑️ Cleared all subagents`);
+    }
+}
+exports.SubAgentManager = SubAgentManager;
+
+
+/***/ }),
+
 /***/ 2859:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -65866,6 +66260,719 @@ class ToolPermissionsManager {
     }
 }
 exports.ToolPermissionsManager = ToolPermissionsManager;
+
+
+/***/ }),
+
+/***/ 4244:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * MCP Client
+ * Client for Model Context Protocol
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MCPClient = void 0;
+const mcp_transport_1 = __nccwpck_require__(788);
+const logger_1 = __nccwpck_require__(8836);
+class MCPClient {
+    constructor() {
+        this.transports = new Map();
+        this.tools = new Map();
+        this.resources = new Map();
+        this.prompts = new Map();
+    }
+    /**
+     * Connect to an MCP server
+     */
+    async connect(config) {
+        (0, logger_1.logInfo)(`🔌 Connecting to MCP server: ${config.name}`);
+        let transport;
+        const transportType = config.transport || (config.url ? 'http' : 'stdio');
+        switch (transportType) {
+            case 'stdio':
+                if (!config.command) {
+                    throw new Error('Command required for stdio transport');
+                }
+                transport = new mcp_transport_1.StdioTransport(config.command, config.args || [], config.env || {});
+                if ('connect' in transport && typeof transport.connect === 'function') {
+                    await transport.connect();
+                }
+                break;
+            case 'http':
+                if (!config.url) {
+                    throw new Error('URL required for HTTP transport');
+                }
+                transport = new mcp_transport_1.HTTPTransport(config.url, config.headers);
+                if ('connect' in transport && typeof transport.connect === 'function') {
+                    await transport.connect();
+                }
+                break;
+            case 'sse':
+                if (!config.url) {
+                    throw new Error('URL required for SSE transport');
+                }
+                transport = new mcp_transport_1.SSETransport(config.url, config.headers);
+                if ('connect' in transport && typeof transport.connect === 'function') {
+                    await transport.connect();
+                }
+                break;
+            default:
+                throw new Error(`Unsupported transport: ${transportType}`);
+        }
+        this.transports.set(config.name, transport);
+        // Initialize MCP connection
+        await this.initialize(config.name);
+        (0, logger_1.logInfo)(`✅ Connected to MCP server: ${config.name}`);
+    }
+    /**
+     * Initialize MCP connection
+     */
+    async initialize(serverName) {
+        const transport = this.transports.get(serverName);
+        if (!transport) {
+            throw new Error(`Transport not found for server: ${serverName}`);
+        }
+        // Send initialize request
+        const initMessage = await this.sendRequest(serverName, 'initialize', {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: {
+                name: 'git-board-flow-agent',
+                version: '1.0.0'
+            }
+        });
+        if (initMessage.error) {
+            throw new Error(`MCP initialization failed: ${initMessage.error.message}`);
+        }
+        const result = initMessage.result;
+        (0, logger_1.logDebugInfo)(`MCP initialized: ${result.serverInfo.name} v${result.serverInfo.version}`);
+        // Load tools, resources, and prompts
+        await this.loadTools(serverName);
+        await this.loadResources(serverName);
+        await this.loadPrompts(serverName);
+    }
+    /**
+     * Load tools from MCP server
+     */
+    async loadTools(serverName) {
+        try {
+            const response = await this.sendRequest(serverName, 'tools/list', {});
+            if (response.error) {
+                (0, logger_1.logDebugInfo)(`MCP server ${serverName} does not support tools`);
+                return;
+            }
+            const tools = response.result?.tools || [];
+            for (const tool of tools) {
+                const toolKey = `${serverName}:${tool.name}`;
+                this.tools.set(toolKey, tool);
+                (0, logger_1.logDebugInfo)(`📦 MCP tool registered: ${toolKey}`);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logDebugInfo)(`Failed to load tools from ${serverName}: ${error}`);
+        }
+    }
+    /**
+     * Load resources from MCP server
+     */
+    async loadResources(serverName) {
+        try {
+            const response = await this.sendRequest(serverName, 'resources/list', {});
+            if (response.error) {
+                (0, logger_1.logDebugInfo)(`MCP server ${serverName} does not support resources`);
+                return;
+            }
+            const resources = response.result?.resources || [];
+            for (const resource of resources) {
+                const resourceKey = `${serverName}:${resource.uri}`;
+                this.resources.set(resourceKey, resource);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logDebugInfo)(`Failed to load resources from ${serverName}: ${error}`);
+        }
+    }
+    /**
+     * Load prompts from MCP server
+     */
+    async loadPrompts(serverName) {
+        try {
+            const response = await this.sendRequest(serverName, 'prompts/list', {});
+            if (response.error) {
+                (0, logger_1.logDebugInfo)(`MCP server ${serverName} does not support prompts`);
+                return;
+            }
+            const prompts = response.result?.prompts || [];
+            for (const prompt of prompts) {
+                const promptKey = `${serverName}:${prompt.name}`;
+                this.prompts.set(promptKey, prompt);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logDebugInfo)(`Failed to load prompts from ${serverName}: ${error}`);
+        }
+    }
+    /**
+     * Send request to MCP server
+     */
+    async sendRequest(serverName, method, params) {
+        const transport = this.transports.get(serverName);
+        if (!transport) {
+            throw new Error(`MCP server not connected: ${serverName}`);
+        }
+        if (transport instanceof mcp_transport_1.StdioTransport) {
+            return await transport.sendRequest(method, params);
+        }
+        else if (transport instanceof mcp_transport_1.HTTPTransport) {
+            return await transport.sendRequest(method, params);
+        }
+        else {
+            throw new Error(`Unsupported transport type for ${serverName}`);
+        }
+    }
+    /**
+     * Call an MCP tool
+     */
+    async callTool(serverName, toolName, input) {
+        (0, logger_1.logDebugInfo)(`🔧 Calling MCP tool: ${serverName}:${toolName}`);
+        const response = await this.sendRequest(serverName, 'tools/call', {
+            name: toolName,
+            arguments: input
+        });
+        if (response.error) {
+            throw new Error(`MCP tool error: ${response.error.message}`);
+        }
+        const result = response.result?.content || response.result;
+        return result;
+    }
+    /**
+     * Get all available tools
+     */
+    getTools() {
+        return Array.from(this.tools.values());
+    }
+    /**
+     * Get tool by name
+     */
+    getTool(serverName, toolName) {
+        // Try with server prefix first
+        const withPrefix = this.tools.get(`${serverName}:${toolName}`);
+        if (withPrefix)
+            return withPrefix;
+        // Try without prefix (tool might be stored with just name)
+        for (const [key, tool] of this.tools) {
+            if (key.endsWith(`:${toolName}`) || key === toolName) {
+                return tool;
+            }
+        }
+        return undefined;
+    }
+    /**
+     * Get all available resources
+     */
+    getResources() {
+        return Array.from(this.resources.values());
+    }
+    /**
+     * Get all available prompts
+     */
+    getPrompts() {
+        return Array.from(this.prompts.values());
+    }
+    /**
+     * Check if server is connected
+     */
+    isConnected(serverName) {
+        const transport = this.transports.get(serverName);
+        return transport ? transport.isConnected() : false;
+    }
+    /**
+     * Disconnect from MCP server
+     */
+    async disconnect(serverName) {
+        const transport = this.transports.get(serverName);
+        if (transport) {
+            await transport.close();
+            this.transports.delete(serverName);
+            // Remove tools from this server
+            for (const [key] of this.tools) {
+                if (key.startsWith(`${serverName}:`)) {
+                    this.tools.delete(key);
+                }
+            }
+            (0, logger_1.logInfo)(`🔌 Disconnected from MCP server: ${serverName}`);
+        }
+    }
+    /**
+     * Disconnect from all servers
+     */
+    async disconnectAll() {
+        const serverNames = Array.from(this.transports.keys());
+        for (const name of serverNames) {
+            await this.disconnect(name);
+        }
+    }
+}
+exports.MCPClient = MCPClient;
+
+
+/***/ }),
+
+/***/ 4688:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * MCP Manager
+ * Manages MCP connections and tool registration
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MCPManager = void 0;
+const mcp_client_1 = __nccwpck_require__(4244);
+const mcp_tool_1 = __nccwpck_require__(3425);
+const logger_1 = __nccwpck_require__(8836);
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+class MCPManager {
+    constructor(toolRegistry) {
+        this.connectedServers = new Set();
+        this.client = new mcp_client_1.MCPClient();
+        this.toolRegistry = toolRegistry;
+    }
+    /**
+     * Load MCP configuration from file
+     */
+    async loadConfig(configPath = '.mcp.json') {
+        const fullPath = path.resolve(configPath);
+        if (!fs.existsSync(fullPath)) {
+            (0, logger_1.logInfo)(`📝 MCP config not found at ${fullPath}, skipping MCP initialization`);
+            return { mcpServers: {} };
+        }
+        try {
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            const config = JSON.parse(content);
+            return config;
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to load MCP config: ${error}`);
+            return { mcpServers: {} };
+        }
+    }
+    /**
+     * Initialize MCP connections from config
+     */
+    async initialize(configPath) {
+        const config = await this.loadConfig(configPath);
+        for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+            try {
+                await this.connectServer({ ...serverConfig, name });
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Failed to connect to MCP server ${name}: ${error}`);
+            }
+        }
+    }
+    /**
+     * Connect to an MCP server
+     */
+    async connectServer(config) {
+        if (this.connectedServers.has(config.name)) {
+            (0, logger_1.logInfo)(`MCP server ${config.name} already connected`);
+            return;
+        }
+        try {
+            await this.client.connect(config);
+            this.connectedServers.add(config.name);
+            // Register MCP tools
+            const tools = this.client.getTools();
+            for (const tool of tools) {
+                // Get the tool name (remove server prefix if present)
+                const toolName = tool.name.includes(':')
+                    ? tool.name.split(':').slice(1).join(':')
+                    : tool.name;
+                // Get the actual tool from client
+                const mcpTool = this.client.getTool(config.name, toolName);
+                if (mcpTool) {
+                    const wrapper = new mcp_tool_1.MCPToolWrapper(this.client, config.name, mcpTool);
+                    this.toolRegistry.register(wrapper);
+                    (0, logger_1.logInfo)(`🔧 Registered MCP tool: ${wrapper.getName()}`);
+                }
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to connect to MCP server ${config.name}: ${error}`);
+            throw error;
+        }
+    }
+    /**
+     * Disconnect from an MCP server
+     */
+    async disconnectServer(serverName) {
+        if (!this.connectedServers.has(serverName)) {
+            return;
+        }
+        await this.client.disconnect(serverName);
+        this.connectedServers.delete(serverName);
+        // Remove tools from this server
+        const toolNames = this.toolRegistry.getToolNames();
+        for (const toolName of toolNames) {
+            if (toolName.startsWith(`${serverName}:`)) {
+                // Note: ToolRegistry doesn't have unregister, would need to add it
+                // For now, tools remain registered but disconnected
+            }
+        }
+    }
+    /**
+     * Get MCP client
+     */
+    getClient() {
+        return this.client;
+    }
+    /**
+     * Check if server is connected
+     */
+    isConnected(serverName) {
+        return this.connectedServers.has(serverName) &&
+            this.client.isConnected(serverName);
+    }
+    /**
+     * Get connected servers
+     */
+    getConnectedServers() {
+        return Array.from(this.connectedServers);
+    }
+    /**
+     * Disconnect from all servers
+     */
+    async disconnectAll() {
+        await this.client.disconnectAll();
+        this.connectedServers.clear();
+    }
+}
+exports.MCPManager = MCPManager;
+
+
+/***/ }),
+
+/***/ 3425:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * MCP Tool
+ * Wrapper for MCP tools to integrate with BaseTool interface
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MCPToolWrapper = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class MCPToolWrapper extends base_tool_1.BaseTool {
+    constructor(mcpClient, serverName, mcpTool) {
+        super();
+        this.mcpClient = mcpClient;
+        this.serverName = serverName;
+        this.mcpTool = mcpTool;
+    }
+    getName() {
+        return `${this.serverName}:${this.mcpTool.name}`;
+    }
+    getDescription() {
+        return this.mcpTool.description;
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: this.mcpTool.inputSchema.properties,
+            required: this.mcpTool.inputSchema.required || [],
+            additionalProperties: this.mcpTool.inputSchema.additionalProperties !== false
+        };
+    }
+    async execute(input) {
+        return await this.mcpClient.callTool(this.serverName, this.mcpTool.name, input);
+    }
+}
+exports.MCPToolWrapper = MCPToolWrapper;
+
+
+/***/ }),
+
+/***/ 788:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * MCP Transport
+ * Handles communication with MCP servers via different transports
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SSETransport = exports.HTTPTransport = exports.StdioTransport = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const child_process_1 = __nccwpck_require__(2081);
+/**
+ * STDIO Transport - for local processes
+ */
+class StdioTransport {
+    constructor(command, args = [], env = {}) {
+        this.command = command;
+        this.args = args;
+        this.env = env;
+        this.messageQueue = [];
+        this.messageHandlers = new Map();
+        this.connected = false;
+    }
+    async connect() {
+        return new Promise((resolve, reject) => {
+            try {
+                this.process = (0, child_process_1.spawn)(this.command, this.args, {
+                    env: { ...process.env, ...this.env },
+                    stdio: ['pipe', 'pipe', 'pipe']
+                });
+                let buffer = '';
+                this.process.stdout?.on('data', (data) => {
+                    buffer += data.toString();
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            try {
+                                const message = JSON.parse(line);
+                                this.handleMessage(message);
+                            }
+                            catch (error) {
+                                (0, logger_1.logError)(`Failed to parse MCP message: ${error}`);
+                            }
+                        }
+                    }
+                });
+                this.process.stderr?.on('data', (data) => {
+                    (0, logger_1.logDebugInfo)(`MCP stderr: ${data.toString()}`);
+                });
+                this.process.on('exit', (code) => {
+                    this.connected = false;
+                    (0, logger_1.logDebugInfo)(`MCP process exited with code ${code}`);
+                });
+                this.process.on('error', (error) => {
+                    this.connected = false;
+                    reject(error);
+                });
+                this.connected = true;
+                resolve();
+            }
+            catch (error) {
+                reject(error);
+            }
+        });
+    }
+    async send(message) {
+        if (!this.process || !this.process.stdin) {
+            throw new Error('MCP process not connected');
+        }
+        const json = JSON.stringify(message) + '\n';
+        return new Promise((resolve, reject) => {
+            this.process.stdin.write(json, (error) => {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    resolve();
+                }
+            });
+        });
+    }
+    async receive() {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('MCP receive timeout'));
+            }, 30000);
+            const handler = (message) => {
+                clearTimeout(timeout);
+                this.messageHandlers.delete(message.id);
+                resolve(message);
+            };
+            // Store handler temporarily (will be called by handleMessage)
+            const tempId = Date.now();
+            this.messageHandlers.set(tempId, handler);
+        });
+    }
+    handleMessage(message) {
+        if (message.id !== undefined) {
+            const handler = this.messageHandlers.get(message.id);
+            if (handler) {
+                handler(message);
+                return;
+            }
+        }
+        // Handle notifications (no id)
+        if (message.method) {
+            (0, logger_1.logDebugInfo)(`MCP notification: ${message.method}`);
+        }
+    }
+    async sendRequest(method, params) {
+        const id = Date.now() + Math.random();
+        const message = {
+            jsonrpc: '2.0',
+            id,
+            method,
+            params
+        };
+        return new Promise((resolve, reject) => {
+            const handler = (response) => {
+                if (response.error) {
+                    reject(new Error(`MCP error: ${response.error.message}`));
+                }
+                else {
+                    resolve(response);
+                }
+            };
+            this.messageHandlers.set(id, handler);
+            this.send(message).catch(reject);
+        });
+    }
+    async close() {
+        if (this.process) {
+            this.process.kill();
+            this.process = undefined;
+        }
+        this.connected = false;
+    }
+    isConnected() {
+        return this.connected && this.process !== undefined;
+    }
+}
+exports.StdioTransport = StdioTransport;
+/**
+ * HTTP Transport - for remote MCP servers
+ */
+class HTTPTransport {
+    constructor(url, headers = {}) {
+        this.url = url;
+        this.headers = headers;
+        this.connected = false;
+    }
+    async connect() {
+        // HTTP doesn't need explicit connection
+        this.connected = true;
+    }
+    async send(message) {
+        // HTTP transport sends and receives in one call
+        // This is handled by sendRequest
+    }
+    async receive() {
+        throw new Error('HTTP transport uses sendRequest instead');
+    }
+    async sendRequest(method, params) {
+        const message = {
+            jsonrpc: '2.0',
+            id: Date.now() + Math.random(),
+            method,
+            params
+        };
+        try {
+            const response = await fetch(this.url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.headers
+                },
+                body: JSON.stringify(message)
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error: ${response.status}`);
+            }
+            const result = await response.json();
+            return result;
+        }
+        catch (error) {
+            throw new Error(`MCP HTTP request failed: ${error}`);
+        }
+    }
+    async close() {
+        this.connected = false;
+    }
+    isConnected() {
+        return this.connected;
+    }
+}
+exports.HTTPTransport = HTTPTransport;
+/**
+ * SSE Transport - for Server-Sent Events
+ */
+class SSETransport {
+    constructor(url, headers = {}) {
+        this.url = url;
+        this.headers = headers;
+        this.messageHandlers = new Map();
+        this.connected = false;
+    }
+    async connect() {
+        // SSE connection handled by browser EventSource or polyfill
+        // For Node.js, we'd need a polyfill
+        this.connected = true;
+    }
+    async send(message) {
+        // SSE typically uses HTTP POST for sending
+        await fetch(this.url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.headers
+            },
+            body: JSON.stringify(message)
+        });
+    }
+    async receive() {
+        // SSE receives via event stream
+        throw new Error('SSE transport not fully implemented for Node.js');
+    }
+    async close() {
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+        this.connected = false;
+    }
+    isConnected() {
+        return this.connected;
+    }
+}
+exports.SSETransport = SSETransport;
 
 
 /***/ }),
@@ -67525,6 +68632,8 @@ const local_action_1 = __nccwpck_require__(7002);
 const issue_repository_1 = __nccwpck_require__(57);
 const constants_1 = __nccwpck_require__(8593);
 const agent_tester_commands_1 = __nccwpck_require__(5632);
+const mcp_tester_commands_1 = __nccwpck_require__(6355);
+const sub_agent_tester_commands_1 = __nccwpck_require__(5502);
 // Load environment variables from .env file
 dotenv.config();
 const program = new commander_1.Command();
@@ -67724,6 +68833,8 @@ program
 });
 // Register agent test commands
 (0, agent_tester_commands_1.registerAgentTestCommands)(program);
+(0, mcp_tester_commands_1.registerMCPTestCommands)(program);
+(0, sub_agent_tester_commands_1.registerSubAgentTestCommands)(program);
 program.parse(process.argv);
 
 
@@ -72714,6 +73825,485 @@ class ConfigurationHandler extends issue_content_interface_1.IssueContentInterfa
     }
 }
 exports.ConfigurationHandler = ConfigurationHandler;
+
+
+/***/ }),
+
+/***/ 6355:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * MCP Tester Commands
+ * CLI commands for testing MCP functionality
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.registerMCPTestCommands = registerMCPTestCommands;
+const agent_1 = __nccwpck_require__(1963);
+const logger_1 = __nccwpck_require__(8836);
+function registerMCPTestCommands(program) {
+    /**
+     * Test MCP connection (stdio)
+     */
+    program
+        .command('agent:test-mcp-stdio')
+        .description('Test MCP connection via stdio transport')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('-c, --command <command>', 'MCP server command', 'node')
+        .option('-a, --args <args...>', 'MCP server arguments', [])
+        .option('-p, --prompt <prompt>', 'Test prompt', 'List available tools')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🔌 Testing MCP stdio connection...');
+            const agent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                enableMCP: true,
+                maxTurns: 5
+            });
+            // Connect to MCP server
+            const mcpConfig = {
+                name: 'test-stdio',
+                command: options.command,
+                args: options.args.length > 0 ? options.args : ['--version'],
+                transport: 'stdio'
+            };
+            (0, logger_1.logInfo)(`📡 Connecting to MCP server: ${mcpConfig.command} ${mcpConfig.args?.join(' ')}`);
+            await agent.connectMCPServer(mcpConfig);
+            (0, logger_1.logInfo)('✅ MCP server connected');
+            (0, logger_1.logInfo)(`📦 Available tools: ${agent.getAvailableTools().join(', ')}`);
+            // Test query
+            if (options.prompt) {
+                (0, logger_1.logInfo)(`💬 Testing query: ${options.prompt}`);
+                const result = await agent.query(options.prompt);
+                (0, logger_1.logInfo)(`✅ Query completed`);
+                (0, logger_1.logInfo)(`📝 Response: ${result.finalResponse}`);
+            }
+            (0, logger_1.logInfo)('✅ MCP stdio test completed');
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ MCP test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+    /**
+     * Test MCP connection (HTTP)
+     */
+    program
+        .command('agent:test-mcp-http')
+        .description('Test MCP connection via HTTP transport')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('-u, --url <url>', 'MCP server URL', 'https://mcp.example.com')
+        .option('-p, --prompt <prompt>', 'Test prompt', 'List available tools')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🔌 Testing MCP HTTP connection...');
+            const agent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                enableMCP: true,
+                maxTurns: 5
+            });
+            // Connect to MCP server
+            const mcpConfig = {
+                name: 'test-http',
+                url: options.url,
+                transport: 'http'
+            };
+            (0, logger_1.logInfo)(`📡 Connecting to MCP server: ${mcpConfig.url}`);
+            await agent.connectMCPServer(mcpConfig);
+            (0, logger_1.logInfo)('✅ MCP server connected');
+            (0, logger_1.logInfo)(`📦 Available tools: ${agent.getAvailableTools().join(', ')}`);
+            // Test query
+            if (options.prompt) {
+                (0, logger_1.logInfo)(`💬 Testing query: ${options.prompt}`);
+                const result = await agent.query(options.prompt);
+                (0, logger_1.logInfo)(`✅ Query completed`);
+                (0, logger_1.logInfo)(`📝 Response: ${result.finalResponse}`);
+            }
+            (0, logger_1.logInfo)('✅ MCP HTTP test completed');
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ MCP test failed: ${error.message}`);
+            (0, logger_1.logInfo)('ℹ️ Note: HTTP MCP servers require a valid endpoint');
+            process.exit(1);
+        }
+    });
+    /**
+     * Test MCP with config file
+     */
+    program
+        .command('agent:test-mcp-config')
+        .description('Test MCP with .mcp.json config file')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('-c, --config <path>', 'MCP config path', '.mcp.json')
+        .option('-p, --prompt <prompt>', 'Test prompt', 'List available tools')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🔌 Testing MCP with config file...');
+            const agent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                enableMCP: true,
+                maxTurns: 5
+            });
+            (0, logger_1.logInfo)(`📂 Loading MCP config from: ${options.config}`);
+            await agent.initializeMCP(options.config);
+            const connectedServers = agent.getConnectedMCPServers();
+            (0, logger_1.logInfo)(`✅ Connected to ${connectedServers.length} MCP server(s): ${connectedServers.join(', ')}`);
+            (0, logger_1.logInfo)(`📦 Available tools: ${agent.getAvailableTools().join(', ')}`);
+            // Test query
+            if (options.prompt) {
+                (0, logger_1.logInfo)(`💬 Testing query: ${options.prompt}`);
+                const result = await agent.query(options.prompt);
+                (0, logger_1.logInfo)(`✅ Query completed`);
+                (0, logger_1.logInfo)(`📝 Response: ${result.finalResponse}`);
+            }
+            (0, logger_1.logInfo)('✅ MCP config test completed');
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ MCP config test failed: ${error.message}`);
+            (0, logger_1.logInfo)('ℹ️ Create a .mcp.json file with MCP server configurations');
+            process.exit(1);
+        }
+    });
+    /**
+     * Test MCP tool execution
+     */
+    program
+        .command('agent:test-mcp-tool')
+        .description('Test MCP tool execution')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('-s, --server <name>', 'MCP server name', 'test-server')
+        .option('-t, --tool <name>', 'Tool name to test')
+        .option('-i, --input <json>', 'Tool input as JSON', '{}')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        if (!options.tool) {
+            (0, logger_1.logError)('❌ Tool name required. Use -t flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🔧 Testing MCP tool execution...');
+            const agent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                enableMCP: true
+            });
+            const mcpManager = agent.getMCPManager();
+            if (!mcpManager) {
+                throw new Error('MCP manager not initialized');
+            }
+            const client = mcpManager.getClient();
+            const input = JSON.parse(options.input);
+            (0, logger_1.logInfo)(`🔧 Calling tool: ${options.server}:${options.tool}`);
+            (0, logger_1.logInfo)(`📥 Input: ${JSON.stringify(input, null, 2)}`);
+            const result = await client.callTool(options.server, options.tool, input);
+            (0, logger_1.logInfo)(`✅ Tool executed successfully`);
+            (0, logger_1.logInfo)(`📤 Result: ${JSON.stringify(result, null, 2)}`);
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ MCP tool test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+}
+
+
+/***/ }),
+
+/***/ 5502:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * SubAgent Tester Commands
+ * CLI commands for testing SubAgent functionality
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.registerSubAgentTestCommands = registerSubAgentTestCommands;
+const agent_1 = __nccwpck_require__(1963);
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const logger_1 = __nccwpck_require__(8836);
+function registerSubAgentTestCommands(program) {
+    /**
+     * Test creating a subagent
+     */
+    program
+        .command('agent:test-subagent-create')
+        .description('Test creating a subagent')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('-n, --name <name>', 'SubAgent name', 'test-subagent')
+        .option('-p, --prompt <prompt>', 'System prompt', 'You are a helpful assistant')
+        .option('-q, --query <query>', 'Test query', 'Hello, introduce yourself')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🤖 Testing subagent creation...');
+            const mainAgent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                maxTurns: 3
+            });
+            (0, logger_1.logInfo)(`📝 Creating subagent: ${options.name}`);
+            const subAgent = mainAgent.createSubAgent({
+                name: options.name,
+                systemPrompt: options.prompt,
+                inheritContext: false
+            });
+            (0, logger_1.logInfo)(`✅ SubAgent created: ${options.name}`);
+            (0, logger_1.logInfo)(`📦 Available tools: ${subAgent.getAvailableTools().join(', ')}`);
+            if (options.query) {
+                (0, logger_1.logInfo)(`💬 Testing query: ${options.query}`);
+                const result = await subAgent.query(options.query);
+                (0, logger_1.logInfo)(`✅ Query completed`);
+                (0, logger_1.logInfo)(`📝 Response: ${result.finalResponse}`);
+            }
+            (0, logger_1.logInfo)('✅ SubAgent creation test completed');
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ SubAgent test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+    /**
+     * Test parallel execution
+     */
+    program
+        .command('agent:test-subagent-parallel')
+        .description('Test parallel execution with subagents')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('--max-turns <number>', 'Max turns per agent', '3')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🚀 Testing parallel execution with subagents...');
+            const mainAgent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                maxTurns: parseInt(options.maxTurns)
+            });
+            const tasks = [
+                {
+                    name: 'analyzer',
+                    prompt: 'Explain what AI is in one sentence',
+                    systemPrompt: 'You are an AI expert'
+                },
+                {
+                    name: 'coder',
+                    prompt: 'Write a hello world function in JavaScript',
+                    systemPrompt: 'You are a coding expert'
+                },
+                {
+                    name: 'writer',
+                    prompt: 'Write a short poem about programming',
+                    systemPrompt: 'You are a creative writer'
+                }
+            ];
+            (0, logger_1.logInfo)(`📋 Executing ${tasks.length} tasks in parallel...`);
+            const startTime = Date.now();
+            const results = await mainAgent.executeParallel(tasks);
+            const duration = Date.now() - startTime;
+            (0, logger_1.logInfo)(`✅ All tasks completed in ${duration}ms`);
+            for (const { task, result } of results) {
+                (0, logger_1.logInfo)(`\n📝 Task: ${task}`);
+                (0, logger_1.logInfo)(`Response: ${result.finalResponse.substring(0, 100)}...`);
+            }
+            (0, logger_1.logInfo)('✅ Parallel execution test completed');
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ Parallel execution test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+    /**
+     * Test coordinated execution with dependencies
+     */
+    program
+        .command('agent:test-subagent-coordinate')
+        .description('Test coordinated execution with dependencies')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('--max-turns <number>', 'Max turns per agent', '3')
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🎯 Testing coordinated execution with dependencies...');
+            const mainAgent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                maxTurns: parseInt(options.maxTurns)
+            });
+            const tasks = [
+                {
+                    name: 'analyzer',
+                    prompt: 'What is the capital of France?',
+                    systemPrompt: 'You are a geography expert'
+                },
+                {
+                    name: 'summarizer',
+                    prompt: 'Summarize the previous answer in one word',
+                    systemPrompt: 'You are a summarization expert',
+                    dependsOn: ['analyzer']
+                },
+                {
+                    name: 'formatter',
+                    prompt: 'Format the summary as: "Answer: [summary]"',
+                    systemPrompt: 'You are a formatting expert',
+                    dependsOn: ['summarizer']
+                }
+            ];
+            (0, logger_1.logInfo)(`📋 Executing ${tasks.length} tasks with dependencies...`);
+            const startTime = Date.now();
+            const results = await mainAgent.coordinateAgents(tasks);
+            const duration = Date.now() - startTime;
+            (0, logger_1.logInfo)(`✅ All coordinated tasks completed in ${duration}ms`);
+            for (const { task, result } of results) {
+                (0, logger_1.logInfo)(`\n📝 Task: ${task}`);
+                (0, logger_1.logInfo)(`Response: ${result.finalResponse.substring(0, 100)}...`);
+            }
+            (0, logger_1.logInfo)('✅ Coordinated execution test completed');
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ Coordinated execution test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+    /**
+     * Test context sharing between subagents
+     */
+    program
+        .command('agent:test-subagent-context')
+        .description('Test context sharing between subagents')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('📤 Testing context sharing between subagents...');
+            const mainAgent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                maxTurns: 2
+            });
+            // Create first subagent
+            const agent1 = mainAgent.createSubAgent({
+                name: 'agent1',
+                systemPrompt: 'You are agent 1'
+            });
+            (0, logger_1.logInfo)('💬 Agent 1: Asking question...');
+            await agent1.query('My name is Alice. Remember this.');
+            // Create second subagent
+            const agent2 = mainAgent.createSubAgent({
+                name: 'agent2',
+                systemPrompt: 'You are agent 2',
+                inheritContext: true
+            });
+            (0, logger_1.logInfo)('💬 Agent 2: Asking about context...');
+            const result = await agent2.query('What is my name?');
+            (0, logger_1.logInfo)(`✅ Context sharing test completed`);
+            (0, logger_1.logInfo)(`📝 Agent 2 response: ${result.finalResponse}`);
+            // Test explicit context sharing
+            const subAgentManager = mainAgent.getSubAgentManager();
+            if (subAgentManager) {
+                (0, logger_1.logInfo)('📤 Testing explicit context sharing...');
+                subAgentManager.shareContext('agent1', 'agent2');
+                (0, logger_1.logInfo)('✅ Explicit context sharing completed');
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ Context sharing test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+    /**
+     * Test subagent with tools
+     */
+    program
+        .command('agent:test-subagent-tools')
+        .description('Test subagent with specific tools')
+        .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
+        .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .action(async (options) => {
+        if (!options.apiKey) {
+            (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+            process.exit(1);
+        }
+        try {
+            (0, logger_1.logInfo)('🔧 Testing subagent with specific tools...');
+            const mainAgent = new agent_1.Agent({
+                model: options.model,
+                apiKey: options.apiKey,
+                maxTurns: 5
+            });
+            // Create subagent with only search tool
+            const searchAgent = mainAgent.createSubAgent({
+                name: 'searcher',
+                systemPrompt: 'You are a search expert. Use search_files to find information.',
+                tools: [
+                    new search_files_tool_1.SearchFilesTool({
+                        searchFiles: () => [],
+                        getAllFiles: () => ['file1.ts', 'file2.ts', 'file3.ts']
+                    })
+                ]
+            });
+            (0, logger_1.logInfo)(`📦 Searcher tools: ${searchAgent.getAvailableTools().join(', ')}`);
+            // Create subagent with only read tool
+            const readAgent = mainAgent.createSubAgent({
+                name: 'reader',
+                systemPrompt: 'You are a reading expert. Use read_file to read files.',
+                tools: [
+                    new read_file_tool_1.ReadFileTool({
+                        getFileContent: () => '',
+                        repositoryFiles: new Map([['file1.ts', 'content']])
+                    })
+                ]
+            });
+            (0, logger_1.logInfo)(`📦 Reader tools: ${readAgent.getAvailableTools().join(', ')}`);
+            (0, logger_1.logInfo)('✅ SubAgent tools test completed');
+        }
+        catch (error) {
+            (0, logger_1.logError)(`❌ SubAgent tools test failed: ${error.message}`);
+            process.exit(1);
+        }
+    });
+}
 
 
 /***/ }),

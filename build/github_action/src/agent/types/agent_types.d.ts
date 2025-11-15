@@ -55,6 +55,7 @@ export interface AgentOptions {
     budget?: BudgetConfig;
     timeouts?: TimeoutConfig;
     retry?: RetryConfig;
+    enableMCP?: boolean;
 }
 export interface TurnResult {
     turnNumber: number;

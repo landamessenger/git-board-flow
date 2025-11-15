@@ -5,6 +5,9 @@
  */
 import { BaseTool } from '../tools/base_tool';
 import { AgentOptions, AgentResult, Message } from '../types';
+import { MCPManager } from '../mcp/mcp_manager';
+import { MCPServerConfig } from '../mcp/types';
+import { SubAgentManager, SubAgentOptions, Task } from './subagent_manager';
 export declare class Agent {
     private options;
     private messageManager;
@@ -12,6 +15,8 @@ export declare class Agent {
     private toolExecutor;
     private reasoningLoop;
     private sessionManager;
+    private mcpManager?;
+    private subAgentManager?;
     private sessionId;
     constructor(options: AgentOptions);
     /**
@@ -75,4 +80,56 @@ export declare class Agent {
      * Update system prompt
      */
     setSystemPrompt(prompt: string): void;
+    /**
+     * Initialize MCP connections
+     */
+    initializeMCP(configPath?: string): Promise<void>;
+    /**
+     * Connect to an MCP server
+     */
+    connectMCPServer(config: MCPServerConfig): Promise<void>;
+    /**
+     * Get MCP manager
+     */
+    getMCPManager(): MCPManager | undefined;
+    /**
+     * Check if MCP server is connected
+     */
+    isMCPConnected(serverName: string): boolean;
+    /**
+     * Get connected MCP servers
+     */
+    getConnectedMCPServers(): string[];
+    /**
+     * Create a subagent
+     */
+    createSubAgent(options: SubAgentOptions): Agent;
+    /**
+     * Execute multiple tasks in parallel using subagents
+     */
+    executeParallel(tasks: Task[]): Promise<Array<{
+        task: string;
+        result: AgentResult;
+    }>>;
+    /**
+     * Coordinate agents with dependencies
+     */
+    coordinateAgents(tasks: Array<Task & {
+        dependsOn?: string[];
+    }>): Promise<Array<{
+        task: string;
+        result: AgentResult;
+    }>>;
+    /**
+     * Get subagent manager
+     */
+    getSubAgentManager(): SubAgentManager | undefined;
+    /**
+     * Get subagent by name
+     */
+    getSubAgent(name: string): Agent | undefined;
+    /**
+     * Get all subagents
+     */
+    getAllSubAgents(): Agent[];
 }

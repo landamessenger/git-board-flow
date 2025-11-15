@@ -8,6 +8,8 @@ import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
 import { logInfo } from './utils/logger';
 import { registerAgentTestCommands } from './agent_tester_commands';
+import { registerMCPTestCommands } from './mcp_tester_commands';
+import { registerSubAgentTestCommands } from './sub_agent_tester_commands';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -234,5 +236,7 @@ program
 
 // Register agent test commands
 registerAgentTestCommands(program);
+registerMCPTestCommands(program);
+registerSubAgentTestCommands(program);
 
 program.parse(process.argv); 

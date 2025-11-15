@@ -11,6 +11,9 @@ import { ToolExecutor } from '../tools/tool_executor';
 import { BaseTool } from '../tools/base_tool';
 import { AgentOptions, AgentResult, Message } from '../types';
 import { SessionManager, SessionData } from './session_manager';
+import { MCPManager } from '../mcp/mcp_manager';
+import { MCPServerConfig } from '../mcp/types';
+import { SubAgentManager, SubAgentOptions, Task } from './subagent_manager';
 import { logInfo } from '../../utils/logger';
 
 export class Agent {
@@ -19,6 +22,8 @@ export class Agent {
   private toolExecutor: ToolExecutor;
   private reasoningLoop: ReasoningLoop | null = null;
   private sessionManager: SessionManager;
+  private mcpManager?: MCPManager;
+  private subAgentManager?: SubAgentManager;
   private sessionId: string;
 
   constructor(private options: AgentOptions) {
@@ -51,6 +56,12 @@ export class Agent {
     // Add system prompt if provided
     if (options.systemPrompt) {
       this.messageManager.addSystemMessage(options.systemPrompt);
+    }
+
+    // Initialize MCP if enabled
+    if (options.enableMCP !== false) {
+      this.mcpManager = new MCPManager(this.toolRegistry);
+      // MCP initialization is async, so we'll do it lazily or via initializeMCP()
     }
   }
 
@@ -235,6 +246,100 @@ export class Agent {
    */
   setSystemPrompt(prompt: string): void {
     this.messageManager.addSystemMessage(prompt);
+  }
+
+  /**
+   * Initialize MCP connections
+   */
+  async initializeMCP(configPath?: string): Promise<void> {
+    if (!this.mcpManager) {
+      this.mcpManager = new MCPManager(this.toolRegistry);
+    }
+    await this.mcpManager.initialize(configPath);
+  }
+
+  /**
+   * Connect to an MCP server
+   */
+  async connectMCPServer(config: MCPServerConfig): Promise<void> {
+    if (!this.mcpManager) {
+      this.mcpManager = new MCPManager(this.toolRegistry);
+    }
+    await this.mcpManager.connectServer(config);
+  }
+
+  /**
+   * Get MCP manager
+   */
+  getMCPManager(): MCPManager | undefined {
+    return this.mcpManager;
+  }
+
+  /**
+   * Check if MCP server is connected
+   */
+  isMCPConnected(serverName: string): boolean {
+    return this.mcpManager?.isConnected(serverName) || false;
+  }
+
+  /**
+   * Get connected MCP servers
+   */
+  getConnectedMCPServers(): string[] {
+    return this.mcpManager?.getConnectedServers() || [];
+  }
+
+  /**
+   * Create a subagent
+   */
+  createSubAgent(options: SubAgentOptions): Agent {
+    if (!this.subAgentManager) {
+      this.subAgentManager = new SubAgentManager(this);
+    }
+    return this.subAgentManager.createSubAgent(options);
+  }
+
+  /**
+   * Execute multiple tasks in parallel using subagents
+   */
+  async executeParallel(tasks: Task[]): Promise<Array<{ task: string; result: AgentResult }>> {
+    if (!this.subAgentManager) {
+      this.subAgentManager = new SubAgentManager(this);
+    }
+    return await this.subAgentManager.executeParallel(tasks);
+  }
+
+  /**
+   * Coordinate agents with dependencies
+   */
+  async coordinateAgents(
+    tasks: Array<Task & { dependsOn?: string[] }>
+  ): Promise<Array<{ task: string; result: AgentResult }>> {
+    if (!this.subAgentManager) {
+      this.subAgentManager = new SubAgentManager(this);
+    }
+    return await this.subAgentManager.coordinateAgents(tasks);
+  }
+
+  /**
+   * Get subagent manager
+   */
+  getSubAgentManager(): SubAgentManager | undefined {
+    return this.subAgentManager;
+  }
+
+  /**
+   * Get subagent by name
+   */
+  getSubAgent(name: string): Agent | undefined {
+    return this.subAgentManager?.getSubAgent(name);
+  }
+
+  /**
+   * Get all subagents
+   */
+  getAllSubAgents(): Agent[] {
+    return this.subAgentManager?.getAllSubAgents() || [];
   }
 }
 

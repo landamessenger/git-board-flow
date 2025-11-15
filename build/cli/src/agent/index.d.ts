@@ -16,3 +16,6 @@ export { ToolRegistry } from './tools/tool_registry';
 export { ToolExecutor } from './tools/tool_executor';
 export * from './types';
 export * from './utils';
+export * from './mcp';
+export { SubAgentManager } from './core/subagent_manager';
+export { ContextSharing } from './core/context_sharing';
