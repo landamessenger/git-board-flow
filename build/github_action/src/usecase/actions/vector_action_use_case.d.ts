@@ -4,13 +4,12 @@ import { ParamUseCase } from '../base/param_usecase';
 export declare class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string;
     private fileRepository;
+    private branchRepository;
     private aiRepository;
     private fileImportAnalyzer;
     private fileCacheManager;
     private codebaseAnalyzer;
     constructor();
     invoke(param: Execution): Promise<Result[]>;
-    private checkAICacheInSupabase;
-    private uploadAICacheToSupabase;
-    private duplicateAICacheToBranch;
+    private prepareCacheOnBranch;
 }

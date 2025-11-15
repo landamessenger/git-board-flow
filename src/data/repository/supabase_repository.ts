@@ -288,6 +288,41 @@ export class SupabaseRepository {
     }
 
     /**
+     * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
+     * Returns the first match found, which can be used to reuse descriptions
+     */
+    getAIFileCacheBySha = async (
+        owner: string,
+        repository: string,
+        sha: string,
+    ): Promise<AICachedFileInfo | null> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.AI_FILE_CACHE_TABLE)
+                .select('*')
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('sha', sha)
+                .limit(1)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // No rows returned
+                    return null;
+                }
+                logError(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+                return null;
+            }
+
+            return data as AICachedFileInfo;
+        } catch (error) {
+            logError(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+            return null;
+        }
+    }
+
+    /**
      * Verify that a table exists in Supabase
      */
     verifyTableExists = async (tableName: string): Promise<{ exists: boolean; error?: string }> => {

@@ -59,6 +59,11 @@ export declare class SupabaseRepository {
      */
     getDistinctPaths: (owner: string, repository: string, branch: string) => Promise<string[]>;
     /**
+     * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
+     * Returns the first match found, which can be used to reuse descriptions
+     */
+    getAIFileCacheBySha: (owner: string, repository: string, sha: string) => Promise<AICachedFileInfo | null>;
+    /**
      * Verify that a table exists in Supabase
      */
     verifyTableExists: (tableName: string) => Promise<{

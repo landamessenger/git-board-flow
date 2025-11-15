@@ -64672,6 +64672,35 @@ class SupabaseRepository {
             }
         };
         /**
+         * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
+         * Returns the first match found, which can be used to reuse descriptions
+         */
+        this.getAIFileCacheBySha = async (owner, repository, sha) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.AI_FILE_CACHE_TABLE)
+                    .select('*')
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('sha', sha)
+                    .limit(1)
+                    .single();
+                if (error) {
+                    if (error.code === 'PGRST116') {
+                        // No rows returned
+                        return null;
+                    }
+                    (0, logger_1.logError)(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+                    return null;
+                }
+                return data;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+                return null;
+            }
+        };
+        /**
          * Verify that a table exists in Supabase
          */
         this.verifyTableExists = async (tableName) => {
@@ -65597,14 +65626,16 @@ const file_import_analyzer_1 = __nccwpck_require__(5310);
 const file_cache_manager_1 = __nccwpck_require__(1855);
 const codebase_analyzer_1 = __nccwpck_require__(678);
 const constants_1 = __nccwpck_require__(8593);
+const branch_repository_1 = __nccwpck_require__(7701);
 class VectorActionUseCase {
     constructor() {
         this.taskId = 'VectorActionUseCase';
         this.fileRepository = new file_repository_1.FileRepository();
+        this.branchRepository = new branch_repository_1.BranchRepository();
         this.aiRepository = new ai_repository_1.AiRepository();
         this.fileImportAnalyzer = new file_import_analyzer_1.FileImportAnalyzer();
         this.fileCacheManager = new file_cache_manager_1.FileCacheManager();
-        this.checkAICacheInSupabase = async (param, branch, repositoryFiles) => {
+        this.prepareCacheOnBranch = async (param, branch) => {
             const results = [];
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
@@ -65617,100 +65648,91 @@ class VectorActionUseCase {
                 }));
                 return results;
             }
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                (0, logger_1.logError)(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                    ],
+                }));
+                return results;
+            }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
-            const remotePaths = await supabaseRepository.getDistinctPaths(param.owner, param.repo, branch);
-            // Get all local paths from repository files
-            const localPaths = new Set(Array.from(repositoryFiles.keys()));
-            // Find paths that exist in Supabase but not in the current branch
-            const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
-            if (pathsToRemove.length > 0 && remotePaths.length > 0) {
-                (0, logger_1.logInfo)(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
-                for (const path of pathsToRemove) {
-                    try {
-                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, path);
-                        (0, logger_1.logInfo)(`📦 ✅ Removed AI cache for path: ${path}`);
-                    }
-                    catch (error) {
-                        (0, logger_1.logError)(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
-                    }
+            try {
+                (0, logger_1.logDebugInfo)(`📦 Processing AI cache for branch ${branch} for ${param.owner}/${param.repo}.`, true);
+                const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), (fileName) => {
+                    // logSingleLine(`Checking file ${fileName}`);
+                }, (fileName) => {
+                    // logSingleLine(`Ignoring file ${fileName}`);
+                });
+                (0, logger_1.logSingleLine)(`📦 ✅ Files to process: ${repositoryFiles.size}`);
+                if (repositoryFiles.size === 0) {
+                    (0, logger_1.logSingleLine)(`📦 No files found in branch ${branch}, nothing to process.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No files found in branch ${branch}, nothing to process.`,
+                        ],
+                    }));
+                    return results;
                 }
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Removed ${pathsToRemove.length} paths from AI index as they no longer exist in \`${branch}\`.`,
-                    ],
-                }));
-            }
-            else {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                }));
-            }
-            return results;
-        };
-        this.uploadAICacheToSupabase = async (param, branch, repositoryFiles) => {
-            const results = [];
-            if (!param.supabaseConfig) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `Supabase config not found.`,
-                    ],
-                }));
-                return results;
-            }
-            const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
-            const startTime = Date.now();
-            const filePaths = Array.from(repositoryFiles.keys());
-            // Step 1: Build relationship map once for all files
-            (0, logger_1.logInfo)(`📦 Building relationship map from repository files...`);
-            const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
-            const consumesMap = relationshipMaps.consumes;
-            const consumedByMap = relationshipMaps.consumedBy;
-            (0, logger_1.logInfo)(`✅ Relationship map built for ${repositoryFiles.size} files`);
-            for (let i = 0; i < filePaths.length; i++) {
-                const filePath = filePaths[i];
-                const fileContent = repositoryFiles.get(filePath) || '';
-                const progress = ((i + 1) / filePaths.length) * 100;
-                const currentTime = Date.now();
-                const elapsedTime = (currentTime - startTime) / 1000; // in seconds
-                const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
-                const remainingTime = estimatedTotalTime - elapsedTime;
-                (0, logger_1.logSingleLine)(`🔘 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${filePath}]`);
-                // Normalize path for consistent comparison
-                const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
-                // Calculate SHA for comparison
-                const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
-                const remoteShasum = await supabaseRepository.getShasumByPath(param.owner, param.repo, branch, normalizedPath);
-                if (remoteShasum) {
+                const startTime = Date.now();
+                const filePaths = Array.from(repositoryFiles.keys());
+                // Step 1: Build relationship map once for all files
+                (0, logger_1.logSingleLine)(`📦 Building relationship map from repository files...`);
+                const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
+                const consumesMap = relationshipMaps.consumes;
+                const consumedByMap = relationshipMaps.consumedBy;
+                (0, logger_1.logSingleLine)(`✅ Relationship map built for ${repositoryFiles.size} files`);
+                let filesProcessed = 0;
+                let filesReused = 0;
+                let filesSkipped = 0;
+                let filesGenerated = 0;
+                // Process each file
+                for (let i = 0; i < filePaths.length; i++) {
+                    const filePath = filePaths[i];
+                    const fileContent = repositoryFiles.get(filePath) || '';
+                    const progress = ((i + 1) / filePaths.length) * 100;
+                    const currentTime = Date.now();
+                    const elapsedTime = (currentTime - startTime) / 1000; // in seconds
+                    const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
+                    const remainingTime = estimatedTotalTime - elapsedTime;
+                    (0, logger_1.logSingleLine)(`🔘 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Processing [${filePath}]`);
+                    // Normalize path for consistent comparison
+                    const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                    // Calculate SHA for comparison
+                    const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
+                    // Check if file already exists in target branch with same SHA
+                    const remoteShasum = await supabaseRepository.getShasumByPath(param.owner, param.repo, branch, normalizedPath);
                     if (remoteShasum === currentSHA) {
-                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
+                        // File already exists with same SHA - skip
+                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - File already indexed [${normalizedPath}]`);
+                        filesSkipped++;
                         continue;
                     }
-                    else if (remoteShasum !== currentSHA) {
-                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
-                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, normalizedPath);
+                    // Check if this SHA exists in any branch (to reuse description)
+                    const existingCache = await supabaseRepository.getAIFileCacheBySha(param.owner, param.repo, currentSHA);
+                    // Extract imports for this file (from pre-built map)
+                    const consumes = consumesMap.get(filePath) || [];
+                    const consumedBy = consumedByMap.get(filePath) || [];
+                    let description;
+                    if (existingCache) {
+                        // Reuse description from existing cache
+                        description = existingCache.description;
+                        filesReused++;
+                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Reusing description from cache [${normalizedPath}]`);
                     }
-                }
-                else {
-                    // File not in cache - will be processed below
-                    (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
-                }
-                // Generate AI cache for this file
-                if (fileContent) {
-                    try {
-                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
-                        // Step 2: Extract imports for this file (from pre-built map)
-                        const consumes = consumesMap.get(filePath) || [];
-                        const consumedBy = consumedByMap.get(filePath) || [];
-                        // Step 3: Generate description using AI (with fallback)
-                        let description = this.codebaseAnalyzer.generateBasicDescription(filePath);
+                    else {
+                        // Generate new description using AI
+                        filesGenerated++;
+                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Generating AI description [${normalizedPath}]`);
+                        description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                         try {
                             // Create schema for single file description
                             const FILE_DESCRIPTION_SCHEMA = {
@@ -65740,7 +65762,13 @@ ${fileContent}
                         catch (error) {
                             (0, logger_1.logError)(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                         }
-                        // Step 4: Save to Supabase (normalize path before saving)
+                    }
+                    // Remove existing cache if SHA changed
+                    if (remoteShasum && remoteShasum !== currentSHA) {
+                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, normalizedPath);
+                    }
+                    // Save to Supabase
+                    try {
                         const fileName = filePath.split('/').pop() || filePath;
                         const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
                         const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
@@ -65753,61 +65781,70 @@ ${fileContent}
                             consumes: normalizedConsumes,
                             consumed_by: normalizedConsumedBy
                         });
-                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
+                        filesProcessed++;
+                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - AI cache saved [${normalizedPath}]`);
                     }
                     catch (error) {
-                        (0, logger_1.logError)(`Error generating AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                        (0, logger_1.logError)(`Error saving AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
                     }
                 }
-            }
-            const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            (0, logger_1.logInfo)(`📦 🚀 All files stored in AI cache ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
-            results.push(new result_1.Result({
-                id: this.taskId,
-                success: true,
-                executed: true,
-                steps: [
-                    `All files up to date in AI cache for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
-                ],
-            }));
-            return results;
-        };
-        this.duplicateAICacheToBranch = async (param, sourceBranch, targetBranch) => {
-            const results = [];
-            if (!param.supabaseConfig) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `Supabase config not found.`,
-                    ],
-                }));
-                return results;
-            }
-            const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
-            try {
-                (0, logger_1.logInfo)(`📦 -> 📦 Clearing possible existing AI cache from ${targetBranch} for ${param.owner}/${param.repo}.`);
-                await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, targetBranch);
-                (0, logger_1.logInfo)(`📦 -> 📦 Duplicating AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
-                await supabaseRepository.duplicateAIFileCacheByBranch(param.owner, param.repo, sourceBranch, targetBranch);
+                // Step 2: Check for files that exist in Supabase but no longer exist in the repository
+                (0, logger_1.logSingleLine)(`📦 Checking for files to remove from AI cache (deleted files)...`);
+                const remotePaths = await supabaseRepository.getDistinctPaths(param.owner, param.repo, branch);
+                // Normalize local paths for consistent comparison
+                const localPaths = new Set();
+                for (const filePath of repositoryFiles.keys()) {
+                    const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                    localPaths.add(normalizedPath);
+                }
+                // Find paths that exist in Supabase but not in the current branch
+                const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
+                let filesRemoved = 0;
+                if (pathsToRemove.length > 0) {
+                    (0, logger_1.logSingleLine)(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
+                    for (const path of pathsToRemove) {
+                        try {
+                            await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, path);
+                            filesRemoved++;
+                            (0, logger_1.logSingleLine)(`📦 ✅ Removed AI cache for deleted path: ${path}`);
+                        }
+                        catch (error) {
+                            (0, logger_1.logError)(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
+                        }
+                    }
+                    if (filesRemoved > 0) {
+                        results.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `Removed ${filesRemoved} paths from AI index as they no longer exist in \`${branch}\`.`,
+                            ],
+                        }));
+                    }
+                }
+                else {
+                    (0, logger_1.logSingleLine)(`📦 No files to remove from AI cache.`);
+                }
+                const totalDurationSeconds = (Date.now() - startTime) / 1000;
+                (0, logger_1.logInfo)(`📦 ✅ Processing complete for ${branch}: ${filesProcessed} processed, ${filesReused} reused, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
                     steps: [
-                        `Duplicated AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
+                        `Processed AI cache for \`${branch}\`. ${filesProcessed} processed, ${filesReused} reused from other branches, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
                     ],
                 }));
             }
             catch (error) {
-                (0, logger_1.logError)(`📦 -> 📦 ❌ Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
+                (0, logger_1.logError)(`📦 ❌ Error processing AI cache for branch ${branch}: ${JSON.stringify(error, null, 2)}`);
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
+                        `Error processing AI cache for branch ${branch}: ${JSON.stringify(error, null, 2)}`,
                     ],
                 }));
             }
@@ -65844,23 +65881,16 @@ ${fileContent}
                 }));
                 return results;
             }
-            const branch = param.commit.branch || param.branches.main;
-            let duplicationBranch = undefined;
-            if (branch === param.branches.main && param.singleAction.isAiCacheLocalAction) {
-                (0, logger_1.logInfo)(`📦 AI cache from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
-                duplicationBranch = param.branches.development;
+            let branchesToProcess = [];
+            if (param.commit.branch) {
+                branchesToProcess.push(param.commit.branch);
             }
-            (0, logger_1.logInfo)(`📦 Getting repository files on ${param.owner}/${param.repo}/${branch}`);
-            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), (fileName) => {
-                (0, logger_1.logSingleLine)(`Checking file ${fileName}`);
-            }, (fileName) => {
-                (0, logger_1.logSingleLine)(`Ignoring file ${fileName}`);
-            });
-            (0, logger_1.logInfo)(`📦 ✅ Files to index: ${repositoryFiles.size}`, true);
-            results.push(...await this.checkAICacheInSupabase(param, branch, repositoryFiles));
-            results.push(...await this.uploadAICacheToSupabase(param, branch, repositoryFiles));
-            if (duplicationBranch) {
-                results.push(...await this.duplicateAICacheToBranch(param, branch, duplicationBranch));
+            if (branchesToProcess.length === 0) {
+                branchesToProcess = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
+            }
+            (0, logger_1.logInfo)(`📦 ${branchesToProcess.length} branches to process.`);
+            for (const branch of branchesToProcess) {
+                results.push(...await this.prepareCacheOnBranch(param, branch));
             }
             results.push(new result_1.Result({
                 id: this.taskId,
