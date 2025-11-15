@@ -261,7 +261,12 @@ export class MCPClient {
   async disconnect(serverName: string): Promise<void> {
     const transport = this.transports.get(serverName);
     if (transport) {
-      await transport.close();
+      try {
+        await transport.close();
+      } catch (error) {
+        logError(`Error closing transport for ${serverName}: ${error}`);
+      }
+      
       this.transports.delete(serverName);
       
       // Remove tools from this server

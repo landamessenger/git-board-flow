@@ -153,10 +153,42 @@ export class StdioTransport implements MCPTransport {
 
   async close(): Promise<void> {
     if (this.process) {
-      this.process.kill();
+      const proc = this.process;
       this.process = undefined;
+      this.connected = false;
+      
+      // Close stdin to signal the process to exit
+      if (proc.stdin && !proc.stdin.destroyed) {
+        try {
+          proc.stdin.end();
+        } catch (error) {
+          // Ignore errors closing stdin
+        }
+      }
+      
+      // Give the process a moment to exit gracefully
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // If still running, kill it
+      if (!proc.killed && proc.exitCode === null) {
+        try {
+          proc.kill('SIGTERM');
+          
+          // Wait a bit more for graceful shutdown
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Force kill if still running
+          if (!proc.killed && proc.exitCode === null) {
+            proc.kill('SIGKILL');
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (error) {
+          // Process might already be dead
+        }
+      }
+    } else {
+      this.connected = false;
     }
-    this.connected = false;
   }
 
   isConnected(): boolean {

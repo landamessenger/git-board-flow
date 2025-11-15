@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "test-server": {
+      "name": "test-server",
+      "command": "node",
+      "args": ["test-mcp-server/index.js"],
+      "transport": "stdio"
+    }
+  }
+}
+

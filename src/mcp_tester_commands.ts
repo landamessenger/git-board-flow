@@ -28,10 +28,12 @@ export function registerMCPTestCommands(program: Command) {
         process.exit(1);
       }
 
+      let agent: Agent | undefined;
+      
       try {
         logInfo('🔌 Testing MCP stdio connection...');
 
-        const agent = new Agent({
+        agent = new Agent({
           model: options.model,
           apiKey: options.apiKey,
           enableMCP: true,
@@ -61,8 +63,32 @@ export function registerMCPTestCommands(program: Command) {
         }
 
         logInfo('✅ MCP stdio test completed');
+        
+        // Disconnect MCP server
+        if (agent) {
+          const mcpManager = agent.getMCPManager();
+          if (mcpManager) {
+            await mcpManager.disconnectServer('test-stdio');
+            logInfo('🔌 Disconnected from MCP server');
+          }
+        }
+        
+        process.exit(0);
       } catch (error: any) {
         logError(`❌ MCP test failed: ${error.message}`);
+        
+        // Ensure cleanup on error
+        if (agent) {
+          try {
+            const mcpManager = agent.getMCPManager();
+            if (mcpManager) {
+              await mcpManager.disconnectServer('test-stdio');
+            }
+          } catch (cleanupError) {
+            // Ignore cleanup errors
+          }
+        }
+        
         process.exit(1);
       }
     });
@@ -83,10 +109,12 @@ export function registerMCPTestCommands(program: Command) {
         process.exit(1);
       }
 
+      let agent: Agent | undefined;
+      
       try {
         logInfo('🔌 Testing MCP HTTP connection...');
 
-        const agent = new Agent({
+        agent = new Agent({
           model: options.model,
           apiKey: options.apiKey,
           enableMCP: true,
@@ -115,9 +143,33 @@ export function registerMCPTestCommands(program: Command) {
         }
 
         logInfo('✅ MCP HTTP test completed');
+        
+        // Disconnect MCP server
+        if (agent) {
+          const mcpManager = agent.getMCPManager();
+          if (mcpManager) {
+            await mcpManager.disconnectServer('test-http');
+            logInfo('🔌 Disconnected from MCP server');
+          }
+        }
+        
+        process.exit(0);
       } catch (error: any) {
         logError(`❌ MCP test failed: ${error.message}`);
         logInfo('ℹ️ Note: HTTP MCP servers require a valid endpoint');
+        
+        // Ensure cleanup on error
+        if (agent) {
+          try {
+            const mcpManager = agent.getMCPManager();
+            if (mcpManager) {
+              await mcpManager.disconnectServer('test-http');
+            }
+          } catch (cleanupError) {
+            // Ignore cleanup errors
+          }
+        }
+        
         process.exit(1);
       }
     });
@@ -138,10 +190,12 @@ export function registerMCPTestCommands(program: Command) {
         process.exit(1);
       }
 
+      let agent: Agent | undefined;
+      
       try {
         logInfo('🔌 Testing MCP with config file...');
 
-        const agent = new Agent({
+        agent = new Agent({
           model: options.model,
           apiKey: options.apiKey,
           enableMCP: true,
@@ -164,9 +218,34 @@ export function registerMCPTestCommands(program: Command) {
         }
 
         logInfo('✅ MCP config test completed');
+        
+        // Disconnect all MCP servers
+        if (agent) {
+          const mcpManager = agent.getMCPManager();
+          if (mcpManager) {
+            await mcpManager.disconnectAll();
+            logInfo('🔌 Disconnected from all MCP servers');
+          }
+        }
+        
+        // Exit process to ensure cleanup
+        process.exit(0);
       } catch (error: any) {
         logError(`❌ MCP config test failed: ${error.message}`);
         logInfo('ℹ️ Create a .mcp.json file with MCP server configurations');
+        
+        // Ensure cleanup on error
+        if (agent) {
+          try {
+            const mcpManager = agent.getMCPManager();
+            if (mcpManager) {
+              await mcpManager.disconnectAll();
+            }
+          } catch (cleanupError) {
+            // Ignore cleanup errors
+          }
+        }
+        
         process.exit(1);
       }
     });

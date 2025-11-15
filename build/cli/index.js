@@ -66032,8 +66032,25 @@ class SubAgentManager {
             return this.subAgents.get(options.name);
         }
         (0, logger_1.logInfo)(`🤖 Creating subagent: ${options.name}`);
-        // Get parent options
-        const parentOptions = this.parentAgent['options'];
+        // Get parent options (access private property)
+        // In TypeScript, private properties are accessible at runtime
+        const parentOptions = this.parentAgent.options;
+        if (!parentOptions) {
+            // Fallback: create minimal options from agent's public methods
+            // This shouldn't happen in practice, but helps with testing
+            const fallbackOptions = {
+                model: 'unknown',
+                apiKey: 'unknown',
+                enableMCP: false
+            };
+            return this.createSubAgentWithOptions(options, fallbackOptions);
+        }
+        return this.createSubAgentWithOptions(options, parentOptions);
+    }
+    /**
+     * Internal method to create subagent with options
+     */
+    createSubAgentWithOptions(options, parentOptions) {
         // Build subagent options
         const subAgentOptions = {
             ...parentOptions,
@@ -66423,10 +66440,8 @@ class MCPClient {
         if (!transport) {
             throw new Error(`MCP server not connected: ${serverName}`);
         }
-        if (transport instanceof mcp_transport_1.StdioTransport) {
-            return await transport.sendRequest(method, params);
-        }
-        else if (transport instanceof mcp_transport_1.HTTPTransport) {
+        // Check if transport has sendRequest method
+        if ('sendRequest' in transport && typeof transport.sendRequest === 'function') {
             return await transport.sendRequest(method, params);
         }
         else {
@@ -66495,7 +66510,12 @@ class MCPClient {
     async disconnect(serverName) {
         const transport = this.transports.get(serverName);
         if (transport) {
-            await transport.close();
+            try {
+                await transport.close();
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error closing transport for ${serverName}: ${error}`);
+            }
             this.transports.delete(serverName);
             // Remove tools from this server
             for (const [key] of this.tools) {
@@ -66868,10 +66888,40 @@ class StdioTransport {
     }
     async close() {
         if (this.process) {
-            this.process.kill();
+            const proc = this.process;
             this.process = undefined;
+            this.connected = false;
+            // Close stdin to signal the process to exit
+            if (proc.stdin && !proc.stdin.destroyed) {
+                try {
+                    proc.stdin.end();
+                }
+                catch (error) {
+                    // Ignore errors closing stdin
+                }
+            }
+            // Give the process a moment to exit gracefully
+            await new Promise(resolve => setTimeout(resolve, 100));
+            // If still running, kill it
+            if (!proc.killed && proc.exitCode === null) {
+                try {
+                    proc.kill('SIGTERM');
+                    // Wait a bit more for graceful shutdown
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Force kill if still running
+                    if (!proc.killed && proc.exitCode === null) {
+                        proc.kill('SIGKILL');
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+                catch (error) {
+                    // Process might already be dead
+                }
+            }
         }
-        this.connected = false;
+        else {
+            this.connected = false;
+        }
     }
     isConnected() {
         return this.connected && this.process !== undefined;
@@ -73859,9 +73909,10 @@ function registerMCPTestCommands(program) {
             (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
             process.exit(1);
         }
+        let agent;
         try {
             (0, logger_1.logInfo)('🔌 Testing MCP stdio connection...');
-            const agent = new agent_1.Agent({
+            agent = new agent_1.Agent({
                 model: options.model,
                 apiKey: options.apiKey,
                 enableMCP: true,
@@ -73886,9 +73937,30 @@ function registerMCPTestCommands(program) {
                 (0, logger_1.logInfo)(`📝 Response: ${result.finalResponse}`);
             }
             (0, logger_1.logInfo)('✅ MCP stdio test completed');
+            // Disconnect MCP server
+            if (agent) {
+                const mcpManager = agent.getMCPManager();
+                if (mcpManager) {
+                    await mcpManager.disconnectServer('test-stdio');
+                    (0, logger_1.logInfo)('🔌 Disconnected from MCP server');
+                }
+            }
+            process.exit(0);
         }
         catch (error) {
             (0, logger_1.logError)(`❌ MCP test failed: ${error.message}`);
+            // Ensure cleanup on error
+            if (agent) {
+                try {
+                    const mcpManager = agent.getMCPManager();
+                    if (mcpManager) {
+                        await mcpManager.disconnectServer('test-stdio');
+                    }
+                }
+                catch (cleanupError) {
+                    // Ignore cleanup errors
+                }
+            }
             process.exit(1);
         }
     });
@@ -73907,9 +73979,10 @@ function registerMCPTestCommands(program) {
             (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
             process.exit(1);
         }
+        let agent;
         try {
             (0, logger_1.logInfo)('🔌 Testing MCP HTTP connection...');
-            const agent = new agent_1.Agent({
+            agent = new agent_1.Agent({
                 model: options.model,
                 apiKey: options.apiKey,
                 enableMCP: true,
@@ -73933,10 +74006,31 @@ function registerMCPTestCommands(program) {
                 (0, logger_1.logInfo)(`📝 Response: ${result.finalResponse}`);
             }
             (0, logger_1.logInfo)('✅ MCP HTTP test completed');
+            // Disconnect MCP server
+            if (agent) {
+                const mcpManager = agent.getMCPManager();
+                if (mcpManager) {
+                    await mcpManager.disconnectServer('test-http');
+                    (0, logger_1.logInfo)('🔌 Disconnected from MCP server');
+                }
+            }
+            process.exit(0);
         }
         catch (error) {
             (0, logger_1.logError)(`❌ MCP test failed: ${error.message}`);
             (0, logger_1.logInfo)('ℹ️ Note: HTTP MCP servers require a valid endpoint');
+            // Ensure cleanup on error
+            if (agent) {
+                try {
+                    const mcpManager = agent.getMCPManager();
+                    if (mcpManager) {
+                        await mcpManager.disconnectServer('test-http');
+                    }
+                }
+                catch (cleanupError) {
+                    // Ignore cleanup errors
+                }
+            }
             process.exit(1);
         }
     });
@@ -73955,9 +74049,10 @@ function registerMCPTestCommands(program) {
             (0, logger_1.logError)('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
             process.exit(1);
         }
+        let agent;
         try {
             (0, logger_1.logInfo)('🔌 Testing MCP with config file...');
-            const agent = new agent_1.Agent({
+            agent = new agent_1.Agent({
                 model: options.model,
                 apiKey: options.apiKey,
                 enableMCP: true,
@@ -73976,10 +74071,32 @@ function registerMCPTestCommands(program) {
                 (0, logger_1.logInfo)(`📝 Response: ${result.finalResponse}`);
             }
             (0, logger_1.logInfo)('✅ MCP config test completed');
+            // Disconnect all MCP servers
+            if (agent) {
+                const mcpManager = agent.getMCPManager();
+                if (mcpManager) {
+                    await mcpManager.disconnectAll();
+                    (0, logger_1.logInfo)('🔌 Disconnected from all MCP servers');
+                }
+            }
+            // Exit process to ensure cleanup
+            process.exit(0);
         }
         catch (error) {
             (0, logger_1.logError)(`❌ MCP config test failed: ${error.message}`);
             (0, logger_1.logInfo)('ℹ️ Create a .mcp.json file with MCP server configurations');
+            // Ensure cleanup on error
+            if (agent) {
+                try {
+                    const mcpManager = agent.getMCPManager();
+                    if (mcpManager) {
+                        await mcpManager.disconnectAll();
+                    }
+                }
+                catch (cleanupError) {
+                    // Ignore cleanup errors
+                }
+            }
             process.exit(1);
         }
     });

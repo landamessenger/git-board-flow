@@ -31,6 +31,10 @@ export declare class SubAgentManager {
      */
     createSubAgent(options: SubAgentOptions): Agent;
     /**
+     * Internal method to create subagent with options
+     */
+    private createSubAgentWithOptions;
+    /**
      * Execute multiple agents in parallel
      */
     executeParallel(tasks: Task[]): Promise<Array<{
