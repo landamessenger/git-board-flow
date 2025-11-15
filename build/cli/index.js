@@ -67346,7 +67346,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FileRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
-const crypto_1 = __nccwpck_require__(6113);
 class FileRepository {
     constructor() {
         this.getFileContent = async (owner, repository, path, token, branch) => {
@@ -67409,141 +67408,6 @@ class FileRepository {
                 return new Map();
             }
         };
-        this.extractCodeBlocks = (code) => {
-            const lines = code.split('\n');
-            const blocks = [];
-            let currentBlock;
-            let braceDepth = 0;
-            let indentLevel = 0;
-            const startBlock = (type, name, line, lineNumber) => {
-                currentBlock = {
-                    type,
-                    name,
-                    content: line + '\n',
-                    startLine: lineNumber,
-                    endLine: lineNumber,
-                };
-                braceDepth = (line.match(/{/g) || []).length - (line.match(/}/g) || []).length;
-                indentLevel = line.match(/^(\s*)/)?.[1].length ?? 0;
-            };
-            const endBlock = (lineNumber) => {
-                if (currentBlock) {
-                    currentBlock.endLine = lineNumber;
-                    blocks.push(currentBlock);
-                    currentBlock = undefined;
-                }
-            };
-            lines.forEach((line, idx) => {
-                const trimmed = line.trim();
-                const lineNumber = idx + 1;
-                // Detect class or function headers
-                const functionMatch = trimmed.match(/(?:function|def|fn|async|const|let)\s+(\w+)/);
-                const classMatch = trimmed.match(/class\s+(\w+)/);
-                if (!currentBlock && functionMatch) {
-                    startBlock('function', functionMatch[1], line, lineNumber);
-                }
-                else if (!currentBlock && classMatch) {
-                    startBlock('class', classMatch[1], line, lineNumber);
-                }
-                else if (currentBlock) {
-                    currentBlock.content += line + '\n';
-                    // Update brace depth
-                    braceDepth += (line.match(/{/g) || []).length;
-                    braceDepth -= (line.match(/}/g) || []).length;
-                    // Or detect dedentation (for Python-style)
-                    const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
-                    const dedented = currentIndent < indentLevel;
-                    if (braceDepth <= 0 && trimmed.endsWith('}') || dedented) {
-                        endBlock(lineNumber);
-                    }
-                }
-            });
-            // Catch any unfinished block
-            if (currentBlock) {
-                currentBlock.endLine = lines.length;
-                blocks.push(currentBlock);
-            }
-            return blocks;
-        };
-        this.shouldIgnoreLine = (line) => {
-            const trimmed = line.trim();
-            return (trimmed === '' ||
-                /^[}\]);]+;?$/.test(trimmed) ||
-                /^import\s.+from\s.+;?$/.test(trimmed) ||
-                /^(return|break|continue|pass);?$/.test(trimmed) ||
-                /^\/\/[-=]*$/.test(trimmed) || // comentarios de separación
-                /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed) ||
-                /^[\]],?;?$/.test(trimmed) ||
-                /^try\s*{$/.test(trimmed) ||
-                /^}\s*else\s*{$/.test(trimmed) ||
-                /^`;?$/.test(trimmed) ||
-                /^\/\*\*$/.test(trimmed) ||
-                /^\*\/$/.test(trimmed));
-        };
-        this.getFileTree = async (owner, repository, token, branch, ignoreFiles, progress, ignoredFiles) => {
-            const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress, ignoredFiles);
-            // Create root nodes for both trees
-            const rootWithContent = {
-                name: repository,
-                type: 'directory',
-                path: '',
-                children: []
-            };
-            const rootWithoutContent = {
-                name: repository,
-                type: 'directory',
-                path: '',
-                children: []
-            };
-            // Process each file path to build both trees
-            for (const [filePath, content] of fileContents.entries()) {
-                const parts = filePath.split('/');
-                let currentLevelWithContent = rootWithContent;
-                let currentLevelWithoutContent = rootWithoutContent;
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i];
-                    const isLastPart = i === parts.length - 1;
-                    const currentPath = parts.slice(0, i + 1).join('/');
-                    // Find or create the node in the content tree
-                    let nodeWithContent = currentLevelWithContent.children?.find(n => n.name === part);
-                    if (!nodeWithContent) {
-                        nodeWithContent = {
-                            name: part,
-                            type: isLastPart ? 'file' : 'directory',
-                            path: currentPath,
-                            children: isLastPart ? undefined : [],
-                            content: isLastPart ? content : undefined
-                        };
-                        if (!currentLevelWithContent.children) {
-                            currentLevelWithContent.children = [];
-                        }
-                        currentLevelWithContent.children.push(nodeWithContent);
-                    }
-                    // Find or create the node in the no-content tree
-                    let nodeWithoutContent = currentLevelWithoutContent.children?.find(n => n.name === part);
-                    if (!nodeWithoutContent) {
-                        nodeWithoutContent = {
-                            name: part,
-                            type: isLastPart ? 'file' : 'directory',
-                            path: currentPath,
-                            children: isLastPart ? undefined : []
-                        };
-                        if (!currentLevelWithoutContent.children) {
-                            currentLevelWithoutContent.children = [];
-                        }
-                        currentLevelWithoutContent.children.push(nodeWithoutContent);
-                    }
-                    if (!isLastPart) {
-                        currentLevelWithContent = nodeWithContent;
-                        currentLevelWithoutContent = nodeWithoutContent;
-                    }
-                }
-            }
-            return {
-                withContent: rootWithContent,
-                withoutContent: rootWithoutContent
-            };
-        };
     }
     isMediaOrPdfFile(path) {
         const mediaExtensions = [
@@ -67577,12 +67441,6 @@ class FileRepository {
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
-    }
-    shuffleArray(array) {
-        return [...array].sort(() => Math.random() - 0.5);
-    }
-    calculateShasum(content) {
-        return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
     }
 }
 exports.FileRepository = FileRepository;
@@ -69380,6 +69238,33 @@ class SupabaseRepository {
             }
         };
         /**
+         * Get distinct branches for an owner/repository
+         */
+        this.getDistinctBranches = async (owner, repository) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.AI_FILE_CACHE_TABLE)
+                    .select('branch')
+                    .eq('owner', owner)
+                    .eq('repository', repository);
+                if (error) {
+                    (0, logger_1.logError)(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+                    return [];
+                }
+                if (!data) {
+                    return [];
+                }
+                // Get unique branches with proper typing
+                const branches = data.map(item => item.branch);
+                const uniqueBranches = [...new Set(branches)];
+                return uniqueBranches;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+        };
+        /**
          * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
          * Returns the first match found, which can be used to reuse descriptions
          */
@@ -70531,9 +70416,6 @@ ${fileContent}
                         }));
                     }
                 }
-                else {
-                    (0, logger_1.logSingleLine)(`📦 No files to remove from AI cache.`);
-                }
                 const totalDurationSeconds = (Date.now() - startTime) / 1000;
                 (0, logger_1.logInfo)(`📦 ✅ Processing complete for ${branch}: ${filesProcessed} processed, ${filesReused} reused, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
                 results.push(new result_1.Result({
@@ -70553,6 +70435,98 @@ ${fileContent}
                     executed: true,
                     errors: [
                         `Error processing AI cache for branch ${branch}: ${JSON.stringify(error, null, 2)}`,
+                    ],
+                }));
+            }
+            return results;
+        };
+        this.removeOrphanedBranches = async (param, githubBranches) => {
+            const results = [];
+            if (!param.supabaseConfig) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Supabase config not found.`,
+                    ],
+                }));
+                return results;
+            }
+            const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
+            try {
+                (0, logger_1.logInfo)(`📦 Checking for orphaned branches in Supabase (branches that no longer exist in GitHub)...`);
+                // Get all branches from Supabase
+                const supabaseBranches = await supabaseRepository.getDistinctBranches(param.owner, param.repo);
+                if (supabaseBranches.length === 0) {
+                    (0, logger_1.logInfo)(`📦 No branches found in Supabase, nothing to clean.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No branches found in Supabase, nothing to clean.`,
+                        ],
+                    }));
+                    return results;
+                }
+                // Create a Set for faster lookup
+                const githubBranchesSet = new Set(githubBranches);
+                // Find branches that exist in Supabase but not in GitHub
+                const orphanedBranches = supabaseBranches.filter(branch => !githubBranchesSet.has(branch));
+                if (orphanedBranches.length === 0) {
+                    (0, logger_1.logInfo)(`📦 No orphaned branches found. All Supabase branches exist in GitHub.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No orphaned branches found. All Supabase branches exist in GitHub.`,
+                        ],
+                    }));
+                    return results;
+                }
+                (0, logger_1.logInfo)(`📦 Found ${orphanedBranches.length} orphaned branch(es) to remove: ${orphanedBranches.join(', ')}`);
+                let branchesRemoved = 0;
+                for (const branch of orphanedBranches) {
+                    try {
+                        await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, branch);
+                        branchesRemoved++;
+                        (0, logger_1.logInfo)(`📦 ✅ Removed AI cache for orphaned branch: ${branch}`);
+                    }
+                    catch (error) {
+                        (0, logger_1.logError)(`📦 ❌ Error removing AI cache for orphaned branch ${branch}: ${JSON.stringify(error, null, 2)}`);
+                    }
+                }
+                if (branchesRemoved > 0) {
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Removed ${branchesRemoved} orphaned branch(es) from AI cache: ${orphanedBranches.slice(0, branchesRemoved).join(', ')}`,
+                        ],
+                    }));
+                }
+                if (branchesRemoved < orphanedBranches.length) {
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: [
+                            `Failed to remove ${orphanedBranches.length - branchesRemoved} orphaned branch(es).`,
+                        ],
+                    }));
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`📦 ❌ Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`,
                     ],
                 }));
             }
@@ -70600,6 +70574,7 @@ ${fileContent}
             for (const branch of branchesToProcess) {
                 results.push(...await this.prepareCacheOnBranch(param, branch));
             }
+            results.push(...await this.removeOrphanedBranches(param, branchesToProcess));
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,

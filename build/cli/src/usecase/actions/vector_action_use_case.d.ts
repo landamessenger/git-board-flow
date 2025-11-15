@@ -12,4 +12,5 @@ export declare class VectorActionUseCase implements ParamUseCase<Execution, Resu
     constructor();
     invoke(param: Execution): Promise<Result[]>;
     private prepareCacheOnBranch;
+    private removeOrphanedBranches;
 }

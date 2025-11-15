@@ -310,8 +310,9 @@ export class SupabaseRepository {
                 return [];
             }
 
-            // Get unique branches
-            const uniqueBranches = [...new Set(data.map(item => item.branch))];
+            // Get unique branches with proper typing
+            const branches = (data as { branch: string }[]).map(item => item.branch);
+            const uniqueBranches = [...new Set(branches)];
             return uniqueBranches;
         } catch (error) {
             logError(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);

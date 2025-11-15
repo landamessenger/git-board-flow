@@ -380,8 +380,6 @@ ${fileContent}
                         })
                     );
                 }
-            } else {
-                logSingleLine(`📦 No files to remove from AI cache.`);
             }
 
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
