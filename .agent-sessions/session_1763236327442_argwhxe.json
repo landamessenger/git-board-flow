@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "sessionId": "session_1763236327442_argwhxe",
+    "createdAt": 1763236328388,
+    "lastUpdated": 1763236328388,
+    "messageCount": 2,
+    "turnCount": 1,
+    "toolCallCount": 0,
+    "metrics": {
+      "totalTokens": {
+        "input": 1,
+        "output": 9
+      },
+      "apiCalls": 1,
+      "toolCalls": 0,
+      "averageLatency": 944,
+      "totalDuration": 944,
+      "errors": 0
+    }
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello"
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hello! How can I assist you today?"
+        }
+      ]
+    }
+  ]
+}
