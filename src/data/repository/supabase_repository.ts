@@ -288,6 +288,38 @@ export class SupabaseRepository {
     }
 
     /**
+     * Get distinct branches for an owner/repository
+     */
+    getDistinctBranches = async (
+        owner: string,
+        repository: string,
+    ): Promise<string[]> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.AI_FILE_CACHE_TABLE)
+                .select('branch')
+                .eq('owner', owner)
+                .eq('repository', repository);
+
+            if (error) {
+                logError(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+
+            if (!data) {
+                return [];
+            }
+
+            // Get unique branches
+            const uniqueBranches = [...new Set(data.map(item => item.branch))];
+            return uniqueBranches;
+        } catch (error) {
+            logError(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+            return [];
+        }
+    }
+
+    /**
      * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
      * Returns the first match found, which can be used to reuse descriptions
      */

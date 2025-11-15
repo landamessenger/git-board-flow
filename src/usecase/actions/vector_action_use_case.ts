@@ -84,6 +84,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 results.push(...await this.prepareCacheOnBranch(param, branch));
             }
 
+            results.push(...await this.removeOrphanedBranches(param, branchesToProcess));
+
             results.push(
                 new Result({
                     id: this.taskId,
@@ -404,6 +406,130 @@ ${fileContent}
                     executed: true,
                     errors: [
                         `Error processing AI cache for branch ${branch}: ${JSON.stringify(error, null, 2)}`,
+                    ],
+                })
+            );
+        }
+
+        return results;
+    }
+
+    private removeOrphanedBranches = async (param: Execution, githubBranches: string[]) => {
+        const results: Result[] = [];
+        
+        if (!param.supabaseConfig) {
+            results.push(
+                new Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Supabase config not found.`,
+                    ],
+                })
+            )
+            return results;
+        }
+
+        const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
+
+        try {
+            logInfo(`📦 Checking for orphaned branches in Supabase (branches that no longer exist in GitHub)...`);
+            
+            // Get all branches from Supabase
+            const supabaseBranches = await supabaseRepository.getDistinctBranches(
+                param.owner,
+                param.repo
+            );
+
+            if (supabaseBranches.length === 0) {
+                logInfo(`📦 No branches found in Supabase, nothing to clean.`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No branches found in Supabase, nothing to clean.`,
+                        ],
+                    })
+                );
+                return results;
+            }
+
+            // Create a Set for faster lookup
+            const githubBranchesSet = new Set(githubBranches);
+
+            // Find branches that exist in Supabase but not in GitHub
+            const orphanedBranches = supabaseBranches.filter(branch => !githubBranchesSet.has(branch));
+
+            if (orphanedBranches.length === 0) {
+                logInfo(`📦 No orphaned branches found. All Supabase branches exist in GitHub.`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No orphaned branches found. All Supabase branches exist in GitHub.`,
+                        ],
+                    })
+                );
+                return results;
+            }
+
+            logInfo(`📦 Found ${orphanedBranches.length} orphaned branch(es) to remove: ${orphanedBranches.join(', ')}`);
+
+            let branchesRemoved = 0;
+            for (const branch of orphanedBranches) {
+                try {
+                    await supabaseRepository.removeAIFileCacheByBranch(
+                        param.owner,
+                        param.repo,
+                        branch
+                    );
+                    branchesRemoved++;
+                    logInfo(`📦 ✅ Removed AI cache for orphaned branch: ${branch}`);
+                } catch (error) {
+                    logError(`📦 ❌ Error removing AI cache for orphaned branch ${branch}: ${JSON.stringify(error, null, 2)}`);
+                }
+            }
+
+            if (branchesRemoved > 0) {
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Removed ${branchesRemoved} orphaned branch(es) from AI cache: ${orphanedBranches.slice(0, branchesRemoved).join(', ')}`,
+                        ],
+                    })
+                );
+            }
+
+            if (branchesRemoved < orphanedBranches.length) {
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: [
+                            `Failed to remove ${orphanedBranches.length - branchesRemoved} orphaned branch(es).`,
+                        ],
+                    })
+                );
+            }
+
+        } catch (error) {
+            logError(`📦 ❌ Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`);
+            results.push(
+                new Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`,
                     ],
                 })
             );
