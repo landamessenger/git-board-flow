@@ -62638,6 +62638,12 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FileRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
+const fs = __importStar(__nccwpck_require__(3292));
+const path = __importStar(__nccwpck_require__(1017));
+const os = __importStar(__nccwpck_require__(2037));
+const child_process_1 = __nccwpck_require__(2081);
+const util_1 = __nccwpck_require__(3837);
+const execAsync = (0, util_1.promisify)(child_process_1.exec);
 class FileRepository {
     constructor() {
         this.getFileContent = async (owner, repository, path, token, branch) => {
@@ -62660,44 +62666,74 @@ class FileRepository {
             }
         };
         this.getRepositoryContent = async (owner, repository, token, branch, ignoreFiles, progress, ignoredFiles) => {
-            const octokit = github.getOctokit(token);
             const fileContents = new Map();
+            let tempDir = null;
             try {
-                const getContentRecursively = async (path = '') => {
-                    const { data } = await octokit.rest.repos.getContent({
-                        owner,
-                        repo: repository,
-                        path,
-                        ref: branch
-                    });
-                    if (Array.isArray(data)) {
-                        const promises = [];
-                        for (const item of data) {
-                            if (item.type === 'file') {
-                                if (this.isMediaOrPdfFile(item.path) || this.shouldIgnoreFile(item.path, ignoreFiles)) {
-                                    ignoredFiles(item.path);
-                                    continue;
-                                }
-                                progress(item.path);
-                                const filePromise = (async () => {
-                                    const content = await this.getFileContent(owner, repository, item.path, token, branch);
-                                    fileContents.set(item.path, content);
-                                })();
-                                promises.push(filePromise);
+                // Create temporary directory
+                tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'git-clone-'));
+                const repoPath = path.join(tempDir, repository);
+                // Clone repository using git clone with authentication
+                // GitHub tokens are typically safe to use directly in URLs
+                const repoUrl = `https://${token}@github.com/${owner}/${repository}.git`;
+                (0, logger_1.logInfo)(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
+                // Use --single-branch to optimize clone and --depth 1 for shallow clone
+                // This significantly reduces clone time and size
+                await execAsync(`git clone --depth 1 --single-branch --branch ${branch} ${repoUrl} ${repoPath}`, {
+                    cwd: tempDir,
+                    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+                    maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
+                });
+                (0, logger_1.logInfo)(`✅ Repository cloned successfully`);
+                // Read files recursively from filesystem
+                const readFilesRecursively = async (dirPath, relativePath = '') => {
+                    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const fullPath = path.join(dirPath, entry.name);
+                        const relativeFilePath = relativePath ? path.join(relativePath, entry.name) : entry.name;
+                        // Normalize path separators to forward slashes (GitHub style)
+                        const normalizedPath = relativeFilePath.replace(/\\/g, '/');
+                        if (entry.isDirectory()) {
+                            // Skip .git directory
+                            if (entry.name === '.git') {
+                                continue;
                             }
-                            else if (item.type === 'dir') {
-                                promises.push(getContentRecursively(item.path));
+                            await readFilesRecursively(fullPath, normalizedPath);
+                        }
+                        else if (entry.isFile()) {
+                            // Check if file should be ignored
+                            if (this.isMediaOrPdfFile(normalizedPath) || this.shouldIgnoreFile(normalizedPath, ignoreFiles)) {
+                                ignoredFiles(normalizedPath);
+                                continue;
+                            }
+                            progress(normalizedPath);
+                            try {
+                                const content = await fs.readFile(fullPath, 'utf-8');
+                                fileContents.set(normalizedPath, content);
+                            }
+                            catch (error) {
+                                (0, logger_1.logError)(`Error reading file ${normalizedPath}: ${error}`);
                             }
                         }
-                        await Promise.all(promises);
                     }
                 };
-                await getContentRecursively();
+                await readFilesRecursively(repoPath);
                 return fileContents;
             }
             catch (error) {
                 (0, logger_1.logError)(`Error getting repository content: ${error}.`);
                 return new Map();
+            }
+            finally {
+                // Clean up temporary directory
+                if (tempDir) {
+                    try {
+                        await fs.rm(tempDir, { recursive: true, force: true });
+                        (0, logger_1.logInfo)(`🧹 Cleaned up temporary directory`);
+                    }
+                    catch (cleanupError) {
+                        (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
+                    }
+                }
             }
         };
     }
@@ -71283,6 +71319,14 @@ module.exports = require("events");
 
 "use strict";
 module.exports = require("fs");
+
+/***/ }),
+
+/***/ 3292:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("fs/promises");
 
 /***/ }),
 
