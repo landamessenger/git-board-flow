@@ -41,24 +41,24 @@ export class ManageTodosTool extends BaseTool {
         },
         content: {
           type: 'string',
-          description: 'Content/description of the TODO (required for create action)'
+          description: 'Content/description of the TODO (required for create action). This is the text that describes what needs to be done.'
         },
         todo_id: {
           type: 'string',
-          description: 'ID of the TODO to update (required for update action)'
+          description: 'ID of the TODO to update (required for update action). Get the ID from the list action.'
         },
         status: {
           type: 'string',
           enum: ['pending', 'in_progress', 'completed', 'cancelled'],
-          description: 'Status to set (for create or update)'
+          description: 'Status to set (for create or update). For create, use "pending" or "in_progress".'
         },
         notes: {
           type: 'string',
-          description: 'Additional notes about the TODO (for update)'
+          description: 'Additional notes about the TODO (for update action only)'
         }
       },
       required: ['action'],
-      additionalProperties: false
+      additionalProperties: true
     };
   }
 
@@ -70,11 +70,12 @@ export class ManageTodosTool extends BaseTool {
     }
 
     if (action === 'create') {
-      const content = input.content as string;
+      // Accept 'content', 'description', or 'text' for flexibility
+      const content = (input.content || input.description || input.text || input.task) as string;
       const status = (input.status as string) || 'pending';
 
       if (!content || typeof content !== 'string') {
-        throw new Error('content is required for create action');
+        throw new Error('content is required for create action. Provide the task description in the "content" field.');
       }
 
       if (!['pending', 'in_progress'].includes(status)) {

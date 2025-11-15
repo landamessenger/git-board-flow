@@ -79,6 +79,21 @@ export class ReasoningLoop {
           turnResult.toolResults = toolResults;
           allToolCalls.push(...toolCalls);
 
+          // Log tool execution details
+          for (let i = 0; i < toolCalls.length; i++) {
+            const toolCall = toolCalls[i];
+            const toolResult = toolResults[i];
+            logDebugInfo(`🔧 Tool: ${toolCall.name} | Input: ${JSON.stringify(toolCall.input)} | Success: ${!toolResult.isError}`);
+            if (toolResult.isError) {
+              logError(`❌ Tool ${toolCall.name} error: ${toolResult.errorMessage}`);
+            } else {
+              const resultPreview = typeof toolResult.content === 'string' 
+                ? toolResult.content.substring(0, 100) 
+                : JSON.stringify(toolResult.content).substring(0, 100);
+              logDebugInfo(`✅ Tool ${toolCall.name} result: ${resultPreview}...`);
+            }
+          }
+
           // Call callbacks
           for (const toolCall of toolCalls) {
             this.options.onToolCall?.(toolCall);

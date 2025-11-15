@@ -133,8 +133,8 @@ export class FileRepository {
             await readFilesRecursively(repoPath);
             return fileContents;
         } catch (error) {
-            logError(`Error getting repository content: ${error}.`);
-            return new Map();
+            logError(`Error getting repository content: ${error}`);
+            return fileContents;
         } finally {
             // Clean up temporary directory
             if (tempDir) {

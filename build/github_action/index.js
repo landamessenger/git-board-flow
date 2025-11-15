@@ -62722,18 +62722,17 @@ class FileRepository {
                 return fileContents;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error getting repository content: ${error}.`);
-                return new Map();
+                (0, logger_1.logError)(`Error getting repository content: ${error}`);
+                return fileContents;
             }
             finally {
-                // Clean up temporary directory
+                // Cleanup temporary directory
                 if (tempDir) {
                     try {
                         await fs.rm(tempDir, { recursive: true, force: true });
-                        // logInfo(`🧹 Cleaned up temporary directory`);
                     }
                     catch (cleanupError) {
-                        (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
+                        // Ignore cleanup errors
                     }
                 }
             }

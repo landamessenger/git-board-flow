@@ -28,20 +28,12 @@ export class PromptBuilder {
       parts.push(this.buildToolsSection(tools));
     }
 
-    // Add conversation history (only last 3 messages to avoid token limit)
-    const recentMessages = messages.filter(m => m.role !== 'system').slice(-3);
+    // Add conversation history (only last 5 messages to avoid token limit)
+    const recentMessages = messages.filter(m => m.role !== 'system').slice(-5);
     if (recentMessages.length > 0) {
+      parts.push('## Conversation History\n\n');
       for (const message of recentMessages) {
-        // Simplified format - just show role and truncated content
-        if (typeof message.content === 'string') {
-          const truncated = message.content.length > 200 
-            ? message.content.substring(0, 200) + '...' 
-            : message.content;
-          parts.push(`${message.role}: ${truncated}\n`);
-        } else {
-          // For content blocks, just show summary
-          parts.push(`${message.role}: [${message.content.length} content blocks]\n`);
-        }
+        parts.push(this.formatMessage(message));
       }
     }
 
@@ -89,16 +81,18 @@ export class PromptBuilder {
       if (block.type === 'text') {
         blocks.push(block.text);
       } else if (block.type === 'tool_use') {
-        blocks.push(`[Tool Call: ${block.name} with id ${block.id}]`);
+        const inputStr = JSON.stringify(block.input);
+        blocks.push(`[Called tool: ${block.name}(${inputStr})]`);
       } else if (block.type === 'tool_result') {
         const result = typeof block.content === 'string' 
           ? block.content 
-          : JSON.stringify(block.content);
-        blocks.push(`[Tool Result for ${block.tool_use_id}]: ${result}`);
+          : JSON.stringify(block.content, null, 2);
+        const status = block.is_error ? 'ERROR' : 'SUCCESS';
+        blocks.push(`[Tool Result (${status}) for ${block.tool_use_id}]:\n${result}`);
       }
     }
 
-    return `**${role}**: ${blocks.join('\n')}\n\n`;
+    return `**${role}**: ${blocks.join('\n\n')}\n\n`;
   }
 
   /**

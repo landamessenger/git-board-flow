@@ -64857,6 +64857,21 @@ class ReasoningLoop {
                     const toolResults = await this.toolExecutor.executeAll(toolCalls);
                     turnResult.toolResults = toolResults;
                     allToolCalls.push(...toolCalls);
+                    // Log tool execution details
+                    for (let i = 0; i < toolCalls.length; i++) {
+                        const toolCall = toolCalls[i];
+                        const toolResult = toolResults[i];
+                        (0, logger_1.logDebugInfo)(`🔧 Tool: ${toolCall.name} | Input: ${JSON.stringify(toolCall.input)} | Success: ${!toolResult.isError}`);
+                        if (toolResult.isError) {
+                            (0, logger_1.logError)(`❌ Tool ${toolCall.name} error: ${toolResult.errorMessage}`);
+                        }
+                        else {
+                            const resultPreview = typeof toolResult.content === 'string'
+                                ? toolResult.content.substring(0, 100)
+                                : JSON.stringify(toolResult.content).substring(0, 100);
+                            (0, logger_1.logDebugInfo)(`✅ Tool ${toolCall.name} result: ${resultPreview}...`);
+                        }
+                    }
                     // Call callbacks
                     for (const toolCall of toolCalls) {
                         this.options.onToolCall?.(toolCall);
@@ -65068,24 +65083,24 @@ class ManageTodosTool extends base_tool_1.BaseTool {
                 },
                 content: {
                     type: 'string',
-                    description: 'Content/description of the TODO (required for create action)'
+                    description: 'Content/description of the TODO (required for create action). This is the text that describes what needs to be done.'
                 },
                 todo_id: {
                     type: 'string',
-                    description: 'ID of the TODO to update (required for update action)'
+                    description: 'ID of the TODO to update (required for update action). Get the ID from the list action.'
                 },
                 status: {
                     type: 'string',
                     enum: ['pending', 'in_progress', 'completed', 'cancelled'],
-                    description: 'Status to set (for create or update)'
+                    description: 'Status to set (for create or update). For create, use "pending" or "in_progress".'
                 },
                 notes: {
                     type: 'string',
-                    description: 'Additional notes about the TODO (for update)'
+                    description: 'Additional notes about the TODO (for update action only)'
                 }
             },
             required: ['action'],
-            additionalProperties: false
+            additionalProperties: true
         };
     }
     async execute(input) {
@@ -65094,10 +65109,11 @@ class ManageTodosTool extends base_tool_1.BaseTool {
             throw new Error('action must be one of: create, update, list');
         }
         if (action === 'create') {
-            const content = input.content;
+            // Accept 'content', 'description', or 'text' for flexibility
+            const content = (input.content || input.description || input.text || input.task);
             const status = input.status || 'pending';
             if (!content || typeof content !== 'string') {
-                throw new Error('content is required for create action');
+                throw new Error('content is required for create action. Provide the task description in the "content" field.');
             }
             if (!['pending', 'in_progress'].includes(status)) {
                 throw new Error('status for create must be "pending" or "in_progress"');
@@ -65709,21 +65725,12 @@ class PromptBuilder {
         if (tools && tools.length > 0) {
             parts.push(this.buildToolsSection(tools));
         }
-        // Add conversation history (only last 3 messages to avoid token limit)
-        const recentMessages = messages.filter(m => m.role !== 'system').slice(-3);
+        // Add conversation history (only last 5 messages to avoid token limit)
+        const recentMessages = messages.filter(m => m.role !== 'system').slice(-5);
         if (recentMessages.length > 0) {
+            parts.push('## Conversation History\n\n');
             for (const message of recentMessages) {
-                // Simplified format - just show role and truncated content
-                if (typeof message.content === 'string') {
-                    const truncated = message.content.length > 200
-                        ? message.content.substring(0, 200) + '...'
-                        : message.content;
-                    parts.push(`${message.role}: ${truncated}\n`);
-                }
-                else {
-                    // For content blocks, just show summary
-                    parts.push(`${message.role}: [${message.content.length} content blocks]\n`);
-                }
+                parts.push(this.formatMessage(message));
             }
         }
         // Add current instruction (simplified)
@@ -65763,16 +65770,18 @@ class PromptBuilder {
                 blocks.push(block.text);
             }
             else if (block.type === 'tool_use') {
-                blocks.push(`[Tool Call: ${block.name} with id ${block.id}]`);
+                const inputStr = JSON.stringify(block.input);
+                blocks.push(`[Called tool: ${block.name}(${inputStr})]`);
             }
             else if (block.type === 'tool_result') {
                 const result = typeof block.content === 'string'
                     ? block.content
-                    : JSON.stringify(block.content);
-                blocks.push(`[Tool Result for ${block.tool_use_id}]: ${result}`);
+                    : JSON.stringify(block.content, null, 2);
+                const status = block.is_error ? 'ERROR' : 'SUCCESS';
+                blocks.push(`[Tool Result (${status}) for ${block.tool_use_id}]:\n${result}`);
             }
         }
-        return `**${role}**: ${blocks.join('\n')}\n\n`;
+        return `**${role}**: ${blocks.join('\n\n')}\n\n`;
     }
     /**
      * Get response schema for JSON mode
@@ -69039,18 +69048,17 @@ class FileRepository {
                 return fileContents;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error getting repository content: ${error}.`);
-                return new Map();
+                (0, logger_1.logError)(`Error getting repository content: ${error}`);
+                return fileContents;
             }
             finally {
-                // Clean up temporary directory
+                // Cleanup temporary directory
                 if (tempDir) {
                     try {
                         await fs.rm(tempDir, { recursive: true, force: true });
-                        // logInfo(`🧹 Cleaned up temporary directory`);
                     }
                     catch (cleanupError) {
-                        (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
+                        // Ignore cleanup errors
                     }
                 }
             }
