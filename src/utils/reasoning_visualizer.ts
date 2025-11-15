@@ -54,7 +54,7 @@ export class ReasoningVisualizer {
         logInfo(chalk.cyan.bold('║') + chalk.white.bold('  🤖 AI Reasoning Process') + chalk.cyan.bold('                                    ║'));
         logInfo(chalk.cyan.bold('╚═══════════════════════════════════════════════════════════════╝'));
         logInfo('');
-        logInfo(chalk.gray('Task: ') + chalk.white(question.substring(0, 70) + (question.length > 70 ? '...' : '')));
+        logInfo(chalk.gray('Task: ') + chalk.white(question));
         logInfo('');
     }
 

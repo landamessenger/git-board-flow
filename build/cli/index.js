@@ -64597,7 +64597,6 @@ const dotenv = __importStar(__nccwpck_require__(2437));
 const local_action_1 = __nccwpck_require__(7002);
 const issue_repository_1 = __nccwpck_require__(57);
 const constants_1 = __nccwpck_require__(8593);
-const logger_1 = __nccwpck_require__(8836);
 // Load environment variables from .env file
 dotenv.config();
 const program = new commander_1.Command();
@@ -64756,7 +64755,7 @@ program
         `Starting deep code analysis for ${gitInfo.owner}/${gitInfo.repo}/${branch}...`,
         `Question: ${question.substring(0, 100)}${question.length > 100 ? '...' : ''}`,
     ];
-    (0, logger_1.logInfo)(JSON.stringify(params, null, 2));
+    // logInfo(JSON.stringify(params, null, 2));
     (0, local_action_1.runLocalAction)(params);
 });
 /**
@@ -72438,19 +72437,15 @@ class ThinkUseCase {
         const visualizer = new reasoning_visualizer_1.ReasoningVisualizer();
         const results = [];
         try {
-            // Extract the question/prompt from the issue, PR, or comment
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, param.issueNumber, param.tokens.token) ?? '';
             let question = '';
-            let description = '';
             if (param.issue.isIssueComment) {
                 question = param.issue.commentBody || '';
-                description = await this.getIssueDescription(param) || '';
             }
             else if (param.pullRequest.isPullRequestReviewComment) {
                 question = param.pullRequest.commentBody || '';
-                description = await this.getIssueDescription(param) || '';
             }
             else if (param.issue.isIssue) {
-                description = await this.getIssueDescription(param) || '';
                 question = description;
             }
             else if (param.singleAction.isThinkAction) {
@@ -72459,10 +72454,8 @@ class ThinkUseCase {
                 const commentBody = param.issue.commentBody || param.inputs?.comment?.body || '';
                 if (commentBody) {
                     question = commentBody;
-                    description = await this.getIssueDescription(param) || '';
                 }
                 else {
-                    description = await this.getIssueDescription(param) || '';
                     question = description || '';
                 }
             }
@@ -72502,7 +72495,9 @@ class ThinkUseCase {
             }
             // Get full repository content
             (0, logger_1.logInfo)(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);
-            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (fileName) => (0, logger_1.logDebugInfo)(`Loading: ${fileName}`), (fileName) => {
+            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (fileName) => {
+                // logDebugInfo(`Loading: ${fileName}`)
+            }, (fileName) => {
                 // logDebugInfo(`Ignoring: ${fileName}`)
             });
             (0, logger_1.logInfo)(`📚 Loaded ${repositoryFiles.size} files from repository`);
@@ -75472,7 +75467,7 @@ class ReasoningVisualizer {
         (0, logger_1.logInfo)(chalk_1.default.cyan.bold('║') + chalk_1.default.white.bold('  🤖 AI Reasoning Process') + chalk_1.default.cyan.bold('                                    ║'));
         (0, logger_1.logInfo)(chalk_1.default.cyan.bold('╚═══════════════════════════════════════════════════════════════╝'));
         (0, logger_1.logInfo)('');
-        (0, logger_1.logInfo)(chalk_1.default.gray('Task: ') + chalk_1.default.white(question.substring(0, 70) + (question.length > 70 ? '...' : '')));
+        (0, logger_1.logInfo)(chalk_1.default.gray('Task: ') + chalk_1.default.white(question));
         (0, logger_1.logInfo)('');
     }
     /**

@@ -16,18 +16,19 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         const results: Result[] = [];
 
         try {
-            // Extract the question/prompt from the issue, PR, or comment
-            let question = '';
-            let description = '';
+            const description = await this.issueRepository.getDescription(
+                param.owner,
+                param.repo,
+                param.issueNumber,
+                param.tokens.token
+            ) ?? '';
 
+            let question = '';
             if (param.issue.isIssueComment) {
                 question = param.issue.commentBody || '';
-                description = await this.getIssueDescription(param) || '';
             } else if (param.pullRequest.isPullRequestReviewComment) {
                 question = param.pullRequest.commentBody || '';
-                description = await this.getIssueDescription(param) || '';
             } else if (param.issue.isIssue) {
-                description = await this.getIssueDescription(param) || '';
                 question = description;
             } else if (param.singleAction.isThinkAction) {
                 // For CLI usage, get question from comment body if available
@@ -35,9 +36,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 const commentBody = param.issue.commentBody || param.inputs?.comment?.body || '';
                 if (commentBody) {
                     question = commentBody;
-                    description = await this.getIssueDescription(param) || '';
                 } else {
-                    description = await this.getIssueDescription(param) || '';
                     question = description || '';
                 }
             }
@@ -93,7 +92,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 param.tokens.token,
                 param.commit.branch,
                 param.ai.getAiIgnoreFiles(),
-                (fileName: string) => logDebugInfo(`Loading: ${fileName}`),
+                (fileName: string) => {
+                    // logDebugInfo(`Loading: ${fileName}`)
+                },
                 (fileName: string) => {
                     // logDebugInfo(`Ignoring: ${fileName}`)
                 }

@@ -186,7 +186,7 @@ program
       `Question: ${question.substring(0, 100)}${question.length > 100 ? '...' : ''}`,
     ];
 
-    logInfo(JSON.stringify(params, null, 2));
+    // logInfo(JSON.stringify(params, null, 2));
     runLocalAction(params);
   });
 
