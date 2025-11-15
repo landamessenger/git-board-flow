@@ -30,11 +30,17 @@ export class ToolExecutor {
       const executionResult = await tool.executeWithValidation(toolCall.input);
 
       if (!executionResult.success) {
+        // Provide helpful error message with tool schema info
+        const toolDef = tool.getDefinition();
+        const requiredFields = toolDef.inputSchema.required || [];
+        const errorMsg = executionResult.error || 'Tool execution failed';
+        const helpfulError = `${errorMsg}. Required fields: ${requiredFields.join(', ')}. Available fields: ${Object.keys(toolDef.inputSchema.properties).join(', ')}.`;
+        
         return {
           toolCallId: toolCall.id,
-          content: executionResult.error || 'Tool execution failed',
+          content: helpfulError,
           isError: true,
-          errorMessage: executionResult.error
+          errorMessage: errorMsg
         };
       }
 

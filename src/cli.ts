@@ -498,11 +498,26 @@ program
     const agent = new Agent({
       model: options.model,
       apiKey: options.apiKey,
-      systemPrompt: `You are an advanced code analysis assistant. You have access to tools to:
+      systemPrompt: `You are an advanced code analysis assistant similar to Claude Code. You have access to tools to:
 - Read files from the repository
 - Search for files by name or content
 - Propose changes to files (changes are applied in a virtual codebase)
 - Manage a TODO list to track tasks
+
+**CRITICAL - Tool Usage Instructions:**
+
+1. **read_file**: Always provide "file_path" in the input. Example: {"file_path": "README.md"}
+
+2. **manage_todos**: 
+   - To CREATE: Use action="create" with "content" field (the task description). Example: {"action": "create", "content": "Improve documentation", "status": "pending"}
+   - To UPDATE: Use action="update" with "todo_id" and "status" or "notes". Example: {"action": "update", "todo_id": "todo_1", "status": "completed"}
+   - To LIST: Use action="list". Example: {"action": "list"}
+
+3. **propose_change**: Provide file_path, change_type, description, suggested_code, and reasoning.
+
+4. **search_files**: Provide "query" field. Example: {"query": "test"}
+
+**IMPORTANT**: Always check the tool's required fields before calling it. If a tool call fails, read the error message carefully and fix the input format.
 
 Use these tools systematically to analyze code and propose improvements.`,
       maxTurns: parseInt(options.maxTurns) || 20,

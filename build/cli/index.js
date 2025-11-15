@@ -65430,11 +65430,16 @@ class ToolExecutor {
         try {
             const executionResult = await tool.executeWithValidation(toolCall.input);
             if (!executionResult.success) {
+                // Provide helpful error message with tool schema info
+                const toolDef = tool.getDefinition();
+                const requiredFields = toolDef.inputSchema.required || [];
+                const errorMsg = executionResult.error || 'Tool execution failed';
+                const helpfulError = `${errorMsg}. Required fields: ${requiredFields.join(', ')}. Available fields: ${Object.keys(toolDef.inputSchema.properties).join(', ')}.`;
                 return {
                     toolCallId: toolCall.id,
-                    content: executionResult.error || 'Tool execution failed',
+                    content: helpfulError,
                     isError: true,
-                    errorMessage: executionResult.error
+                    errorMessage: errorMsg
                 };
             }
             // Convert result to string if needed
@@ -65752,7 +65757,8 @@ class PromptBuilder {
                 parts.push(`  Required: ${required.join(', ')}\n`);
             }
         }
-        parts.push('\n**Instructions**: Use tools via `tool_calls` array. Format: `{"id": "call_1", "name": "tool_name", "input": {...}}`\n\n');
+        parts.push('\n**Instructions**: Use tools via `tool_calls` array. Format: `{"id": "call_1", "name": "tool_name", "input": {...}}`\n');
+        parts.push('\n**CRITICAL**: When calling tools, ensure the "input" object contains ALL required fields shown above. Missing required fields will cause errors.\n\n');
         return parts.join('\n');
     }
     /**
@@ -66374,11 +66380,26 @@ program
     const agent = new Agent({
         model: options.model,
         apiKey: options.apiKey,
-        systemPrompt: `You are an advanced code analysis assistant. You have access to tools to:
+        systemPrompt: `You are an advanced code analysis assistant similar to Claude Code. You have access to tools to:
 - Read files from the repository
 - Search for files by name or content
 - Propose changes to files (changes are applied in a virtual codebase)
 - Manage a TODO list to track tasks
+
+**CRITICAL - Tool Usage Instructions:**
+
+1. **read_file**: Always provide "file_path" in the input. Example: {"file_path": "README.md"}
+
+2. **manage_todos**: 
+   - To CREATE: Use action="create" with "content" field (the task description). Example: {"action": "create", "content": "Improve documentation", "status": "pending"}
+   - To UPDATE: Use action="update" with "todo_id" and "status" or "notes". Example: {"action": "update", "todo_id": "todo_1", "status": "completed"}
+   - To LIST: Use action="list". Example: {"action": "list"}
+
+3. **propose_change**: Provide file_path, change_type, description, suggested_code, and reasoning.
+
+4. **search_files**: Provide "query" field. Example: {"query": "test"}
+
+**IMPORTANT**: Always check the tool's required fields before calling it. If a tool call fails, read the error message carefully and fix the input format.
 
 Use these tools systematically to analyze code and propose improvements.`,
         maxTurns: parseInt(options.maxTurns) || 20,
@@ -69052,13 +69073,14 @@ class FileRepository {
                 return fileContents;
             }
             finally {
-                // Cleanup temporary directory
+                // Clean up temporary directory
                 if (tempDir) {
                     try {
                         await fs.rm(tempDir, { recursive: true, force: true });
+                        // logInfo(`🧹 Cleaned up temporary directory`);
                     }
                     catch (cleanupError) {
-                        // Ignore cleanup errors
+                        (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
                     }
                 }
             }

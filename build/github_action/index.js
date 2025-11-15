@@ -62726,13 +62726,14 @@ class FileRepository {
                 return fileContents;
             }
             finally {
-                // Cleanup temporary directory
+                // Clean up temporary directory
                 if (tempDir) {
                     try {
                         await fs.rm(tempDir, { recursive: true, force: true });
+                        // logInfo(`🧹 Cleaned up temporary directory`);
                     }
                     catch (cleanupError) {
-                        // Ignore cleanup errors
+                        (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
                     }
                 }
             }

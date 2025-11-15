@@ -60,7 +60,8 @@ export class PromptBuilder {
       }
     }
 
-    parts.push('\n**Instructions**: Use tools via `tool_calls` array. Format: `{"id": "call_1", "name": "tool_name", "input": {...}}`\n\n');
+    parts.push('\n**Instructions**: Use tools via `tool_calls` array. Format: `{"id": "call_1", "name": "tool_name", "input": {...}}`\n');
+    parts.push('\n**CRITICAL**: When calling tools, ensure the "input" object contains ALL required fields shown above. Missing required fields will cause errors.\n\n');
 
     return parts.join('\n');
   }
