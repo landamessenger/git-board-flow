@@ -80,8 +80,39 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`📦 ${branchesToProcess.length} branches to process.`);
 
-            for (const branch of branchesToProcess) {
-                results.push(...await this.prepareCacheOnBranch(param, branch));
+            const branchResults: Array<{ branch: string; filesProcessed: number; filesReused: number; filesSkipped: number; filesGenerated: number; filesRemoved: number; duration: number; success: boolean }> = [];
+            
+            for (let i = 0; i < branchesToProcess.length; i++) {
+                const branch = branchesToProcess[i];
+                const branchProgress = ((i + 1) / branchesToProcess.length) * 100;
+                logSingleLine(`📦 [${i + 1}/${branchesToProcess.length}] (${branchProgress.toFixed(1)}%) Processing branch: ${branch}...`);
+                
+                const branchStartTime = Date.now();
+                const branchResult = await this.prepareCacheOnBranch(param, branch, i + 1, branchesToProcess.length);
+                const branchDuration = Math.ceil((Date.now() - branchStartTime) / 1000);
+                
+                results.push(...branchResult.results);
+                branchResults.push({
+                    branch,
+                    filesProcessed: branchResult.filesProcessed,
+                    filesReused: branchResult.filesReused,
+                    filesSkipped: branchResult.filesSkipped,
+                    filesGenerated: branchResult.filesGenerated,
+                    filesRemoved: branchResult.filesRemoved,
+                    duration: branchDuration,
+                    success: branchResult.success
+                });
+            }
+            
+            // Print all results at the end
+            logInfo(``); // Empty line for clarity
+            logInfo(`📦 Processing Summary:`);
+            for (const result of branchResults) {
+                if (result.success) {
+                    logInfo(`  ✅ ${result.branch}: ${result.filesProcessed} processed, ${result.filesReused} reused, ${result.filesSkipped} skipped, ${result.filesGenerated} generated, ${result.filesRemoved} removed. Duration: ${result.duration}s`);
+                } else {
+                    logInfo(`  ❌ ${result.branch}: Failed`);
+                }
             }
 
             results.push(...await this.removeOrphanedBranches(param, branchesToProcess));
@@ -114,8 +145,27 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
-    private prepareCacheOnBranch = async (param: Execution, branch: string) => {
+    private prepareCacheOnBranch = async (
+        param: Execution, 
+        branch: string, 
+        branchIndex: number = 1, 
+        totalBranches: number = 1
+    ): Promise<{
+        results: Result[];
+        filesProcessed: number;
+        filesReused: number;
+        filesSkipped: number;
+        filesGenerated: number;
+        filesRemoved: number;
+        success: boolean;
+    }> => {
         const results: Result[] = [];
+        let filesProcessed = 0;
+        let filesReused = 0;
+        let filesSkipped = 0;
+        let filesGenerated = 0;
+        let filesRemoved = 0;
+        let success = false;
         
         if (!param.supabaseConfig) {
             results.push(
@@ -128,7 +178,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     ],
                 })
             )
-            return results;
+            return {
+                results,
+                filesProcessed: 0,
+                filesReused: 0,
+                filesSkipped: 0,
+                filesGenerated: 0,
+                filesRemoved: 0,
+                success: false
+            };
         }
 
         // Check if AI configuration is available
@@ -144,14 +202,21 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     ],
                 })
             )
-            return results;
+            return {
+                results,
+                filesProcessed: 0,
+                filesReused: 0,
+                filesSkipped: 0,
+                filesGenerated: 0,
+                filesRemoved: 0,
+                success: false
+            };
         }
 
         const supabaseRepository: SupabaseRepository = new SupabaseRepository(param.supabaseConfig);
 
         try {
-            logDebugInfo(`--------------------------------`, true);
-            logDebugInfo(`📦 Processing AI cache for branch ${branch} for ${param.owner}/${param.repo}.`, false);
+            const branchProgress = `[${branchIndex}/${totalBranches}]`;
             
             const repositoryFiles = await this.fileRepository.getRepositoryContent(
                 param.owner,
@@ -160,17 +225,17 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 branch,
                 param.ai.getAiIgnoreFiles(),
                 (fileName: string) => {
-                    // logSingleLine(`Checking file ${fileName}`);
+                    // Silent - files are processed in background
                 },
                 (fileName: string) => {
-                    // logSingleLine(`Ignoring file ${fileName}`);
+                    // Silent - ignored files
                 }
             );
             
-            logSingleLine(`📦 ✅ Files to process: ${repositoryFiles.size}`);
+            logSingleLine(`📦 ${branchProgress} Branch ${branch}: Found ${repositoryFiles.size} files to process...`);
 
             if (repositoryFiles.size === 0) {
-                logSingleLine(`📦 No files found in branch ${branch}, nothing to process.`);
+                logSingleLine(`📦 ${branchProgress} Branch ${branch}: No files found, skipping.`);
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -181,23 +246,25 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                         ],
                     })
                 );
-                return results;
+                return {
+                    results,
+                    filesProcessed: 0,
+                    filesReused: 0,
+                    filesSkipped: 0,
+                    filesGenerated: 0,
+                    filesRemoved: 0,
+                    success: true
+                };
             }
 
             const startTime = Date.now();
             const filePaths = Array.from(repositoryFiles.keys());
             
             // Step 1: Build relationship map once for all files
-            logSingleLine(`📦 Building relationship map from repository files...`);
+            logSingleLine(`📦 ${branchProgress} Branch ${branch}: Building relationship map for ${repositoryFiles.size} files...`);
             const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
             const consumesMap = relationshipMaps.consumes;
             const consumedByMap = relationshipMaps.consumedBy;
-            logSingleLine(`✅ Relationship map built for ${repositoryFiles.size} files`);
-            
-            let filesProcessed = 0;
-            let filesReused = 0;
-            let filesSkipped = 0;
-            let filesGenerated = 0;
 
             // Process each file
             for (let i = 0; i < filePaths.length; i++) {
@@ -209,10 +276,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
                 const remainingTime = estimatedTotalTime - elapsedTime;
 
-                logSingleLine(`🔘 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Processing [${filePath}]`);
+                logSingleLine(`📦 ${branchProgress} Branch ${branch}: Processing files ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) | ETA: ${Math.ceil(remainingTime)}s | Current: ${filePath.split('/').pop() || filePath}`);
 
-                // Normalize path for consistent comparison
-                const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                // Paths from file_repository are already normalized, use directly
+                const normalizedPath = filePath;
                 
                 // Calculate SHA for comparison
                 const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
@@ -227,10 +294,10 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
                 if (remoteShasum === currentSHA) {
                     // File already exists with same SHA - skip
-                    logSingleLine(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - File already indexed [${normalizedPath}]`);
                     filesSkipped++;
                     continue;
                 }
+                
 
                 // Check if this SHA exists in any branch (to reuse description)
                 const existingCache = await supabaseRepository.getAIFileCacheBySha(
@@ -249,11 +316,9 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     // Reuse description from existing cache
                     description = existingCache.description;
                     filesReused++;
-                    logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Reusing description from cache [${normalizedPath}]`);
                 } else {
                     // Generate new description using AI
                     filesGenerated++;
-                    logSingleLine(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Generating AI description [${normalizedPath}]`);
                     
                     description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                     try {
@@ -326,7 +391,6 @@ ${fileContent}
                     );
                     
                     filesProcessed++;
-                    logSingleLine(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - AI cache saved [${normalizedPath}]`);
                 } catch (error) {
                     const errorData = JSON.stringify(error, null, 2);
                     if (errorData.includes('Please try again in a few minutes.')) {
@@ -345,11 +409,10 @@ ${fileContent}
                 branch,
             );
 
-            // Normalize local paths for consistent comparison
+            // Paths from file_repository are already normalized, use directly
             const localPaths = new Set<string>();
             for (const filePath of repositoryFiles.keys()) {
-                const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
-                localPaths.add(normalizedPath);
+                localPaths.add(filePath);
             }
 
             // Find paths that exist in Supabase but not in the current branch
@@ -357,7 +420,7 @@ ${fileContent}
 
             let filesRemoved = 0;
             if (pathsToRemove.length > 0) {
-                logSingleLine(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
+                logSingleLine(`📦 ${branchProgress} Branch ${branch}: Removing ${pathsToRemove.length} deleted files from cache...`);
                 
                 for (const path of pathsToRemove) {
                     try {
@@ -368,7 +431,6 @@ ${fileContent}
                             path
                         );
                         filesRemoved++;
-                        logSingleLine(`📦 ✅ Removed AI cache for deleted path: ${path}`);
                     } catch (error) {
                         logError(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
                     }
@@ -389,8 +451,8 @@ ${fileContent}
             }
 
             const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            logSingleLine(`📦 ✅ Processing complete for ${branch}: ${filesProcessed} processed, ${filesReused} reused, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`);
-
+            success = true;
+            
             results.push(
                 new Result({
                     id: this.taskId,
@@ -403,6 +465,7 @@ ${fileContent}
             );
         } catch (error) {
             logError(`📦 ❌ Error processing AI cache for branch ${branch}: ${JSON.stringify(error, null, 2)}`);
+            success = false;
             results.push(
                 new Result({
                     id: this.taskId,
@@ -415,7 +478,15 @@ ${fileContent}
             );
         }
 
-        return results;
+        return {
+            results,
+            filesProcessed,
+            filesReused,
+            filesSkipped,
+            filesGenerated,
+            filesRemoved,
+            success
+        };
     }
 
     private removeOrphanedBranches = async (param: Execution, githubBranches: string[]) => {

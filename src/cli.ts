@@ -62,9 +62,9 @@ program
       },
     };
 
-    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Container Build';
+    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Cache Indexing';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [
-      `Building AI container for ${gitInfo.owner}/${gitInfo.repo}...`,
+      `Indexing AI cache for ${gitInfo.owner}/${gitInfo.repo}...`,
     ];
 
     await runLocalAction(params);
