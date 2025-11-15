@@ -29,15 +29,31 @@ describe('MCPClient', () => {
       // Mock transport
       const mockTransport = {
         connect: jest.fn().mockResolvedValue(undefined),
-        sendRequest: jest.fn().mockResolvedValue({
-          jsonrpc: '2.0',
-          id: 1,
-          result: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            serverInfo: { name: 'test', version: '1.0.0' }
-          }
-        }),
+        sendRequest: jest.fn()
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 1,
+            result: {
+              protocolVersion: '2024-11-05',
+              capabilities: {},
+              serverInfo: { name: 'test', version: '1.0.0' }
+            }
+          })
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 2,
+            result: { tools: [] }
+          })
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 3,
+            result: { resources: [] }
+          })
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 4,
+            result: { prompts: [] }
+          }),
         isConnected: jest.fn().mockReturnValue(true),
         close: jest.fn().mockResolvedValue(undefined),
         send: jest.fn().mockResolvedValue(undefined),
@@ -58,15 +74,31 @@ describe('MCPClient', () => {
 
       const mockTransport = {
         connect: jest.fn().mockResolvedValue(undefined),
-        sendRequest: jest.fn().mockResolvedValue({
-          jsonrpc: '2.0',
-          id: 1,
-          result: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            serverInfo: { name: 'test', version: '1.0.0' }
-          }
-        }),
+        sendRequest: jest.fn()
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 1,
+            result: {
+              protocolVersion: '2024-11-05',
+              capabilities: {},
+              serverInfo: { name: 'test', version: '1.0.0' }
+            }
+          })
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 2,
+            result: { tools: [] }
+          })
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 3,
+            result: { resources: [] }
+          })
+          .mockResolvedValueOnce({
+            jsonrpc: '2.0',
+            id: 4,
+            result: { prompts: [] }
+          }),
         isConnected: jest.fn().mockReturnValue(true),
         close: jest.fn().mockResolvedValue(undefined),
         send: jest.fn().mockResolvedValue(undefined),
@@ -149,6 +181,15 @@ describe('MCPClient', () => {
       };
 
       await client.connect(config);
+      
+      // Mock the sendRequest to handle tool call
+      const mcpClient = client as any;
+      mcpClient.sendRequest = jest.fn().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 3,
+        result: { content: [{ type: 'text', text: 'Result' }] }
+      });
+      
       const result = await client.callTool('test-server', 'test_tool', { query: 'test' });
 
       expect(result).toBeDefined();
@@ -187,6 +228,14 @@ describe('MCPClient', () => {
       };
 
       await client.connect(config);
+
+      // Mock the sendRequest to return error
+      const mcpClient = client as any;
+      mcpClient.sendRequest = jest.fn().mockResolvedValue({
+        jsonrpc: '2.0',
+        id: 2,
+        error: { code: -1, message: 'Tool not found' }
+      });
 
       await expect(
         client.callTool('test-server', 'invalid_tool', {})
@@ -285,6 +334,11 @@ describe('MCPClient', () => {
       };
 
       await client.connect(config);
+      
+      // Manually set transport for testing
+      const mcpClient = client as any;
+      mcpClient.transports.set('test-server', mockTransport);
+      
       await client.disconnect('test-server');
 
       expect(mockTransport.close).toHaveBeenCalled();

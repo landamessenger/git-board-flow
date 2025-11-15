@@ -181,9 +181,8 @@ export class MCPClient {
       throw new Error(`MCP server not connected: ${serverName}`);
     }
 
-    if (transport instanceof StdioTransport) {
-      return await transport.sendRequest(method, params);
-    } else if (transport instanceof HTTPTransport) {
+    // Check if transport has sendRequest method
+    if ('sendRequest' in transport && typeof transport.sendRequest === 'function') {
       return await transport.sendRequest(method, params);
     } else {
       throw new Error(`Unsupported transport type for ${serverName}`);

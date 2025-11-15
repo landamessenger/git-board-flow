@@ -14,19 +14,16 @@ describe('SubAgentManager', () => {
   let mockParentAgent: jest.Mocked<Agent>;
 
   beforeEach(() => {
-    mockParentAgent = {
-      getMessages: jest.fn().mockReturnValue([]),
-      getAvailableTools: jest.fn().mockReturnValue([]),
-      'messageManager': {
-        addSystemMessage: jest.fn(),
-        addUserMessage: jest.fn(),
-        addAssistantMessage: jest.fn()
-      },
-      'options': {
-        model: 'test-model',
-        apiKey: 'test-key'
-      } as AgentOptions
-    } as any;
+    // Create a real Agent instance for testing
+    mockParentAgent = new Agent({
+      model: 'test-model',
+      apiKey: 'test-key',
+      enableMCP: false
+    }) as any;
+
+    // Mock the methods we need
+    mockParentAgent.getMessages = jest.fn().mockReturnValue([]);
+    mockParentAgent.getAvailableTools = jest.fn().mockReturnValue([]);
 
     manager = new SubAgentManager(mockParentAgent);
     jest.clearAllMocks();
@@ -58,19 +55,23 @@ describe('SubAgentManager', () => {
     });
 
     it('should inherit context from parent if enabled', () => {
-      mockParentAgent.getMessages.mockReturnValue([
-        { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Hi there' }
-      ] as any);
+      // Use real messageManager from the agent
+      const realMessageManager = (mockParentAgent as any).messageManager;
+      if (realMessageManager) {
+        realMessageManager.addUserMessage('Hello');
+        realMessageManager.addAssistantMessage('Hi there');
+      }
 
       const options: SubAgentOptions = {
         name: 'test-agent',
         inheritContext: true
       };
 
-      manager.createSubAgent(options);
+      const subAgent = manager.createSubAgent(options);
 
-      // Context should be shared (checked via messageManager calls)
+      // Verify subagent was created
+      expect(subAgent).toBeDefined();
+      // Verify parent messages were accessed
       expect(mockParentAgent.getMessages).toHaveBeenCalled();
     });
   });
@@ -213,6 +214,13 @@ describe('SubAgentManager', () => {
 
   describe('getSubAgent', () => {
     it('should return subagent by name', () => {
+      // Ensure parent agent has options accessible
+      (mockParentAgent as any).options = {
+        model: 'test-model',
+        apiKey: 'test-key',
+        enableMCP: false
+      };
+      
       const agent = manager.createSubAgent({ name: 'test-agent' });
 
       expect(manager.getSubAgent('test-agent')).toBe(agent);
@@ -222,6 +230,13 @@ describe('SubAgentManager', () => {
 
   describe('removeSubAgent', () => {
     it('should remove subagent', () => {
+      // Ensure parent agent has options accessible
+      (mockParentAgent as any).options = {
+        model: 'test-model',
+        apiKey: 'test-key',
+        enableMCP: false
+      };
+      
       manager.createSubAgent({ name: 'test-agent' });
       expect(manager.getSubAgent('test-agent')).toBeDefined();
 
@@ -232,6 +247,13 @@ describe('SubAgentManager', () => {
 
   describe('clear', () => {
     it('should clear all subagents', () => {
+      // Ensure parent agent has options accessible
+      (mockParentAgent as any).options = {
+        model: 'test-model',
+        apiKey: 'test-key',
+        enableMCP: false
+      };
+      
       manager.createSubAgent({ name: 'agent1' });
       manager.createSubAgent({ name: 'agent2' });
 

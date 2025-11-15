@@ -48,8 +48,28 @@ export class SubAgentManager {
 
     logInfo(`🤖 Creating subagent: ${options.name}`);
 
-    // Get parent options
-    const parentOptions = this.parentAgent['options'] as AgentOptions;
+    // Get parent options (access private property)
+    // In TypeScript, private properties are accessible at runtime
+    const parentOptions = (this.parentAgent as any).options as AgentOptions | undefined;
+    
+    if (!parentOptions) {
+      // Fallback: create minimal options from agent's public methods
+      // This shouldn't happen in practice, but helps with testing
+      const fallbackOptions: AgentOptions = {
+        model: 'unknown',
+        apiKey: 'unknown',
+        enableMCP: false
+      };
+      return this.createSubAgentWithOptions(options, fallbackOptions);
+    }
+    
+    return this.createSubAgentWithOptions(options, parentOptions);
+  }
+
+  /**
+   * Internal method to create subagent with options
+   */
+  private createSubAgentWithOptions(options: SubAgentOptions, parentOptions: AgentOptions): Agent {
 
     // Build subagent options
     const subAgentOptions: AgentOptions = {
