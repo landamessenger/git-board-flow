@@ -60677,7 +60677,7 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             this.currentConfiguration.branchType = this.issueType;
-            (0, logger_1.logDebugInfo)(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
+            // logDebugInfo(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
         };
         this.debug = debug;
         this.singleAction = singleAction;

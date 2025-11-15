@@ -403,6 +403,6 @@ export class Execution {
 
         this.currentConfiguration.branchType = this.issueType
 
-        logDebugInfo(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
+        // logDebugInfo(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
     }
 }
