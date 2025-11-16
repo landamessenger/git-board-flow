@@ -30,6 +30,7 @@ export class ErrorDetector {
       useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
       maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5,
       targetFile: options.targetFile,
+      analyzeOnlyTargetFile: options.analyzeOnlyTargetFile || false,
       includeDependencies: options.includeDependencies || false
     };
   }
@@ -54,7 +55,10 @@ export class ErrorDetector {
     }
     if (this.options.targetFile) {
       logInfo(`   - Target File: ${this.options.targetFile}`);
-      logInfo(`   - Include Dependencies: ${this.options.includeDependencies}`);
+      logInfo(`   - Analyze Only Target File: ${this.options.analyzeOnlyTargetFile || false}`);
+      if (!this.options.analyzeOnlyTargetFile) {
+        logInfo(`   - Include Dependencies: ${this.options.includeDependencies || false}`);
+      }
     }
 
     // Initialize agent if not already initialized

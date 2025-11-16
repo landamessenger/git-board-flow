@@ -20,17 +20,25 @@ export class SystemPromptBuilder {
 
     // Special instructions for target file analysis
     const targetFileInstructions = options.targetFile
-      ? `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
-        `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
-        `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
-        `You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - just like in full analysis mode.\n` +
-        `Additionally, also check:\n` +
-        `- Interface/API mismatches: how the target file is defined vs how consumers use it\n` +
-        `- Breaking changes: modifications that would break consumers\n` +
-        `- How consumers use the target file - check for misuse patterns, incorrect usage\n` +
-        `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
-        `- Dependency issues: ensure the target file's dependencies are correct and secure\n` +
-        `**But remember: detect ALL types of errors in ALL files, not just relationship issues.**\n`
+      ? options.analyzeOnlyTargetFile
+        ? `\n\n**SINGLE FILE ANALYSIS MODE**\n` +
+          `You are analyzing ONLY a specific file: ${options.targetFile}\n` +
+          `**IMPORTANT:**\n` +
+          `- Analyze ONLY this file, do NOT analyze any related files (consumers, dependencies, etc.)\n` +
+          `- This focused mode does NOT limit the types of errors you should detect\n` +
+          `- You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
+          `- Focus on issues within this single file only\n`
+        : `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
+          `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
+          `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
+          `You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - just like in full analysis mode.\n` +
+          `Additionally, also check:\n` +
+          `- Interface/API mismatches: how the target file is defined vs how consumers use it\n` +
+          `- Breaking changes: modifications that would break consumers\n` +
+          `- How consumers use the target file - check for misuse patterns, incorrect usage\n` +
+          `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+          `- Dependency issues: ensure the target file's dependencies are correct and secure\n` +
+          `**But remember: detect ALL types of errors in ALL files, not just relationship issues.**\n`
       : '';
 
     return `You are an expert code reviewer, security auditor, and bug detector. Your task is to analyze files and detect bugs, vulnerabilities, security issues, logic errors, and any potential problems - regardless of programming language or file type.${targetFileInstructions}

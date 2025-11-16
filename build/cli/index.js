@@ -67367,6 +67367,7 @@ class ErrorDetector {
             useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
             maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5,
             targetFile: options.targetFile,
+            analyzeOnlyTargetFile: options.analyzeOnlyTargetFile || false,
             includeDependencies: options.includeDependencies || false
         };
     }
@@ -67390,7 +67391,10 @@ class ErrorDetector {
         }
         if (this.options.targetFile) {
             (0, logger_1.logInfo)(`   - Target File: ${this.options.targetFile}`);
-            (0, logger_1.logInfo)(`   - Include Dependencies: ${this.options.includeDependencies}`);
+            (0, logger_1.logInfo)(`   - Analyze Only Target File: ${this.options.analyzeOnlyTargetFile || false}`);
+            if (!this.options.analyzeOnlyTargetFile) {
+                (0, logger_1.logInfo)(`   - Include Dependencies: ${this.options.includeDependencies || false}`);
+            }
         }
         // Initialize agent if not already initialized
         if (!this.agent) {
@@ -67745,16 +67749,29 @@ class SubagentHandler {
      */
     static async detectErrorsWithSubAgents(agent, repositoryFiles, options, userPrompt) {
         let allFiles = Array.from(repositoryFiles.keys());
-        // If targetFile is specified, analyze it and its consumers
+        // If targetFile is specified, analyze it (and optionally its consumers)
         if (options.targetFile) {
-            const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
-            const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
-            if (relationships) {
-                allFiles = relationships.allRelatedFiles;
-                (0, logger_1.logInfo)(`🎯 Focused analysis: ${relationships.allRelatedFiles.length} files (target + ${relationships.consumers.length} consumers${options.includeDependencies ? ` + ${relationships.dependencies.length} dependencies` : ''})`);
+            if (options.analyzeOnlyTargetFile) {
+                // Analyze only the target file, ignore relationships
+                if (repositoryFiles.has(options.targetFile)) {
+                    allFiles = [options.targetFile];
+                    (0, logger_1.logInfo)(`🎯 Single file analysis: ${options.targetFile}`);
+                }
+                else {
+                    (0, logger_1.logWarn)(`⚠️ Target file not found: ${options.targetFile}, falling back to full analysis`);
+                }
             }
             else {
-                (0, logger_1.logWarn)(`⚠️ Could not analyze relationships for ${options.targetFile}, falling back to full analysis`);
+                // Analyze target file and its consumers
+                const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
+                const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
+                if (relationships) {
+                    allFiles = relationships.allRelatedFiles;
+                    (0, logger_1.logInfo)(`🎯 Focused analysis: ${relationships.allRelatedFiles.length} files (target + ${relationships.consumers.length} consumers${options.includeDependencies ? ` + ${relationships.dependencies.length} dependencies` : ''})`);
+                }
+                else {
+                    (0, logger_1.logWarn)(`⚠️ Could not analyze relationships for ${options.targetFile}, falling back to full analysis`);
+                }
             }
         }
         // Optimal number of files per subagent (comfortable for AI processing)
@@ -67778,20 +67795,31 @@ class SubagentHandler {
         // If targetFile is specified, get relationship info for context
         let relationshipContext = '';
         if (options.targetFile) {
-            const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
-            const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
-            if (relationships) {
-                relationshipContext = `\n\n**FOCUSED ANALYSIS MODE**\n` +
-                    `Target file: ${relationships.targetFile}\n` +
-                    `This file is consumed by ${relationships.consumers.length} other file(s).\n` +
-                    `**IMPORTANT: You must detect ALL types of errors in ALL files (target + consumers), not just relationship issues.**\n` +
-                    `Detect bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - everything you would detect in full analysis mode.\n` +
-                    `Additionally, also check:\n` +
-                    `- Interface/API mismatches between the target file and its consumers\n` +
-                    `- Breaking changes in APIs, exports, or interfaces\n` +
-                    `- How consumers use the target file (check for misuse patterns)\n` +
-                    `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
-                    `**But do NOT limit yourself to these - detect ALL types of errors in ALL files.**\n`;
+            if (options.analyzeOnlyTargetFile) {
+                // Single file analysis mode
+                relationshipContext = `\n\n**SINGLE FILE ANALYSIS MODE**\n` +
+                    `Target file: ${options.targetFile}\n` +
+                    `**IMPORTANT: Analyze ONLY this file. Do NOT analyze any related files (consumers, dependencies, etc.).**\n` +
+                    `Detect ALL types of errors: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
+                    `Focus on issues within this single file only.\n`;
+            }
+            else {
+                // Focused analysis mode with relationships
+                const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
+                const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
+                if (relationships) {
+                    relationshipContext = `\n\n**FOCUSED ANALYSIS MODE**\n` +
+                        `Target file: ${relationships.targetFile}\n` +
+                        `This file is consumed by ${relationships.consumers.length} other file(s).\n` +
+                        `**IMPORTANT: You must detect ALL types of errors in ALL files (target + consumers), not just relationship issues.**\n` +
+                        `Detect bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - everything you would detect in full analysis mode.\n` +
+                        `Additionally, also check:\n` +
+                        `- Interface/API mismatches between the target file and its consumers\n` +
+                        `- Breaking changes in APIs, exports, or interfaces\n` +
+                        `- How consumers use the target file (check for misuse patterns)\n` +
+                        `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+                        `**But do NOT limit yourself to these - detect ALL types of errors in ALL files.**\n`;
+                }
             }
         }
         const tasks = fileGroups.map((files, index) => {
@@ -68079,17 +68107,25 @@ class SystemPromptBuilder {
             : `Look for all types of issues. Available standard types include: ${Object.values(types_1.IssueType).slice(0, 15).join(', ')}, and more. Use the most specific type that matches each issue.`;
         // Special instructions for target file analysis
         const targetFileInstructions = options.targetFile
-            ? `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
-                `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
-                `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
-                `You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - just like in full analysis mode.\n` +
-                `Additionally, also check:\n` +
-                `- Interface/API mismatches: how the target file is defined vs how consumers use it\n` +
-                `- Breaking changes: modifications that would break consumers\n` +
-                `- How consumers use the target file - check for misuse patterns, incorrect usage\n` +
-                `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
-                `- Dependency issues: ensure the target file's dependencies are correct and secure\n` +
-                `**But remember: detect ALL types of errors in ALL files, not just relationship issues.**\n`
+            ? options.analyzeOnlyTargetFile
+                ? `\n\n**SINGLE FILE ANALYSIS MODE**\n` +
+                    `You are analyzing ONLY a specific file: ${options.targetFile}\n` +
+                    `**IMPORTANT:**\n` +
+                    `- Analyze ONLY this file, do NOT analyze any related files (consumers, dependencies, etc.)\n` +
+                    `- This focused mode does NOT limit the types of errors you should detect\n` +
+                    `- You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
+                    `- Focus on issues within this single file only\n`
+                : `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
+                    `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
+                    `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
+                    `You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - just like in full analysis mode.\n` +
+                    `Additionally, also check:\n` +
+                    `- Interface/API mismatches: how the target file is defined vs how consumers use it\n` +
+                    `- Breaking changes: modifications that would break consumers\n` +
+                    `- How consumers use the target file - check for misuse patterns, incorrect usage\n` +
+                    `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+                    `- Dependency issues: ensure the target file's dependencies are correct and secure\n` +
+                    `**But remember: detect ALL types of errors in ALL files, not just relationship issues.**\n`
             : '';
         return `You are an expert code reviewer, security auditor, and bug detector. Your task is to analyze files and detect bugs, vulnerabilities, security issues, logic errors, and any potential problems - regardless of programming language or file type.${targetFileInstructions}
 
@@ -76056,8 +76092,9 @@ function registerTECTestCommands(program) {
         .option('--error-types <types...>', 'Types of errors to look for', [])
         .option('--owner <owner>', 'GitHub repository owner (auto-detected if not provided)')
         .option('--repo <repo>', 'GitHub repository name (auto-detected if not provided)')
-        .option('--target-file <file>', 'Specific file to analyze along with its consumers (files that import/use it)')
-        .option('--include-dependencies', 'Also analyze files that the target file depends on', false)
+        .option('--target-file <file>', 'Specific file to analyze')
+        .option('--analyze-only-target', 'Analyze only the target file (ignore consumers and dependencies)', false)
+        .option('--include-dependencies', 'Also analyze files that the target file depends on (only if --analyze-only-target is false)', false)
         .option('--output <format>', 'Output format (text|json)', 'text')
         .action(async (options) => {
         if (!options.apiKey) {
@@ -76088,6 +76125,7 @@ function registerTECTestCommands(program) {
                 useSubAgents: true, // Enable subagents by default for parallel processing
                 maxConcurrentSubAgents: 5,
                 targetFile: options.targetFile,
+                analyzeOnlyTargetFile: options.analyzeOnlyTarget || false,
                 includeDependencies: options.includeDependencies || false
             };
             const detector = new index_1.ErrorDetector(detectorOptions);

@@ -80,6 +80,7 @@ export interface ErrorDetectionOptions {
     useSubAgents?: boolean;
     maxConcurrentSubAgents?: number;
     targetFile?: string;
+    analyzeOnlyTargetFile?: boolean;
     includeDependencies?: boolean;
 }
 export interface DetectedError {

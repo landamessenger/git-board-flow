@@ -47,20 +47,31 @@ export class SubagentHandler {
   ): Promise<ErrorDetectionResult> {
     let allFiles = Array.from(repositoryFiles.keys());
     
-    // If targetFile is specified, analyze it and its consumers
+    // If targetFile is specified, analyze it (and optionally its consumers)
     if (options.targetFile) {
-      const relationshipAnalyzer = new FileRelationshipAnalyzer();
-      const relationships = relationshipAnalyzer.analyzeFileRelationships(
-        options.targetFile,
-        repositoryFiles,
-        options.includeDependencies || false
-      );
-      
-      if (relationships) {
-        allFiles = relationships.allRelatedFiles;
-        logInfo(`🎯 Focused analysis: ${relationships.allRelatedFiles.length} files (target + ${relationships.consumers.length} consumers${options.includeDependencies ? ` + ${relationships.dependencies.length} dependencies` : ''})`);
+      if (options.analyzeOnlyTargetFile) {
+        // Analyze only the target file, ignore relationships
+        if (repositoryFiles.has(options.targetFile)) {
+          allFiles = [options.targetFile];
+          logInfo(`🎯 Single file analysis: ${options.targetFile}`);
+        } else {
+          logWarn(`⚠️ Target file not found: ${options.targetFile}, falling back to full analysis`);
+        }
       } else {
-        logWarn(`⚠️ Could not analyze relationships for ${options.targetFile}, falling back to full analysis`);
+        // Analyze target file and its consumers
+        const relationshipAnalyzer = new FileRelationshipAnalyzer();
+        const relationships = relationshipAnalyzer.analyzeFileRelationships(
+          options.targetFile,
+          repositoryFiles,
+          options.includeDependencies || false
+        );
+        
+        if (relationships) {
+          allFiles = relationships.allRelatedFiles;
+          logInfo(`🎯 Focused analysis: ${relationships.allRelatedFiles.length} files (target + ${relationships.consumers.length} consumers${options.includeDependencies ? ` + ${relationships.dependencies.length} dependencies` : ''})`);
+        } else {
+          logWarn(`⚠️ Could not analyze relationships for ${options.targetFile}, falling back to full analysis`);
+        }
       }
     }
     
@@ -92,25 +103,35 @@ export class SubagentHandler {
     // If targetFile is specified, get relationship info for context
     let relationshipContext = '';
     if (options.targetFile) {
-      const relationshipAnalyzer = new FileRelationshipAnalyzer();
-      const relationships = relationshipAnalyzer.analyzeFileRelationships(
-        options.targetFile,
-        repositoryFiles,
-        options.includeDependencies || false
-      );
-      
-      if (relationships) {
-        relationshipContext = `\n\n**FOCUSED ANALYSIS MODE**\n` +
-          `Target file: ${relationships.targetFile}\n` +
-          `This file is consumed by ${relationships.consumers.length} other file(s).\n` +
-          `**IMPORTANT: You must detect ALL types of errors in ALL files (target + consumers), not just relationship issues.**\n` +
-          `Detect bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - everything you would detect in full analysis mode.\n` +
-          `Additionally, also check:\n` +
-          `- Interface/API mismatches between the target file and its consumers\n` +
-          `- Breaking changes in APIs, exports, or interfaces\n` +
-          `- How consumers use the target file (check for misuse patterns)\n` +
-          `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
-          `**But do NOT limit yourself to these - detect ALL types of errors in ALL files.**\n`;
+      if (options.analyzeOnlyTargetFile) {
+        // Single file analysis mode
+        relationshipContext = `\n\n**SINGLE FILE ANALYSIS MODE**\n` +
+          `Target file: ${options.targetFile}\n` +
+          `**IMPORTANT: Analyze ONLY this file. Do NOT analyze any related files (consumers, dependencies, etc.).**\n` +
+          `Detect ALL types of errors: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
+          `Focus on issues within this single file only.\n`;
+      } else {
+        // Focused analysis mode with relationships
+        const relationshipAnalyzer = new FileRelationshipAnalyzer();
+        const relationships = relationshipAnalyzer.analyzeFileRelationships(
+          options.targetFile,
+          repositoryFiles,
+          options.includeDependencies || false
+        );
+        
+        if (relationships) {
+          relationshipContext = `\n\n**FOCUSED ANALYSIS MODE**\n` +
+            `Target file: ${relationships.targetFile}\n` +
+            `This file is consumed by ${relationships.consumers.length} other file(s).\n` +
+            `**IMPORTANT: You must detect ALL types of errors in ALL files (target + consumers), not just relationship issues.**\n` +
+            `Detect bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - everything you would detect in full analysis mode.\n` +
+            `Additionally, also check:\n` +
+            `- Interface/API mismatches between the target file and its consumers\n` +
+            `- Breaking changes in APIs, exports, or interfaces\n` +
+            `- How consumers use the target file (check for misuse patterns)\n` +
+            `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+            `**But do NOT limit yourself to these - detect ALL types of errors in ALL files.**\n`;
+        }
       }
     }
     

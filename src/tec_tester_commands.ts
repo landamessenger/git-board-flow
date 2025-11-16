@@ -60,8 +60,9 @@ export function registerTECTestCommands(program: Command) {
     .option('--error-types <types...>', 'Types of errors to look for', [])
     .option('--owner <owner>', 'GitHub repository owner (auto-detected if not provided)')
     .option('--repo <repo>', 'GitHub repository name (auto-detected if not provided)')
-    .option('--target-file <file>', 'Specific file to analyze along with its consumers (files that import/use it)')
-    .option('--include-dependencies', 'Also analyze files that the target file depends on', false)
+    .option('--target-file <file>', 'Specific file to analyze')
+    .option('--analyze-only-target', 'Analyze only the target file (ignore consumers and dependencies)', false)
+    .option('--include-dependencies', 'Also analyze files that the target file depends on (only if --analyze-only-target is false)', false)
     .option('--output <format>', 'Output format (text|json)', 'text')
     .action(async (options) => {
       if (!options.apiKey) {
@@ -95,6 +96,7 @@ export function registerTECTestCommands(program: Command) {
           useSubAgents: true, // Enable subagents by default for parallel processing
           maxConcurrentSubAgents: 5,
           targetFile: options.targetFile,
+          analyzeOnlyTargetFile: options.analyzeOnlyTarget || false,
           includeDependencies: options.includeDependencies || false
         };
 
