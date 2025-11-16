@@ -208,8 +208,6 @@ export const INPUT_KEYS = {
     TOKEN: 'token',
 
     // AI
-    ANTHROPIC_API_KEY: 'anthropic-api-key',
-    ANTHROPIC_MODEL: 'anthropic-model',
     OPENROUTER_API_KEY: 'openrouter-api-key',
     OPENROUTER_MODEL: 'openrouter-model',
     AI_PULL_REQUEST_DESCRIPTION: 'ai-pull-request-description',

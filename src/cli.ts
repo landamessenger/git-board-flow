@@ -93,8 +93,6 @@ program
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('-q, --question <question...>', 'Question or prompt for analysis', '')
-  .option('--anthropic-api-key <key>', 'Anthropic API key', '')
-  .option('--anthropic-model <model>', 'Anthropic model', '')
   .option('--openrouter-api-key <key>', 'OpenRouter API key', '')
   .option('--openrouter-model <model>', 'OpenRouter model', '')
   .option('--openrouter-provider-order <provider>', 'OpenRouter provider', '')
@@ -139,8 +137,6 @@ program
       [INPUT_KEYS.SUPABASE_URL]: options?.supabaseUrl?.length > 0 ? options.supabaseUrl : process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: options?.supabaseKey?.length > 0 ? options.supabaseKey : process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options?.token?.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.ANTHROPIC_API_KEY]: options?.anthropicApiKey?.length > 0 ? options.anthropicApiKey : process.env.ANTHROPIC_API_KEY,
-      [INPUT_KEYS.ANTHROPIC_MODEL]: options?.anthropicModel?.length > 0 ? options.anthropicModel : process.env.ANTHROPIC_MODEL,
       [INPUT_KEYS.OPENROUTER_API_KEY]: options?.openrouterApiKey?.length > 0 ? options.openrouterApiKey : process.env.OPENROUTER_API_KEY,
       [INPUT_KEYS.OPENROUTER_MODEL]: options?.openrouterModel?.length > 0 ? options.openrouterModel : process.env.OPENROUTER_MODEL,
       [INPUT_KEYS.OPENROUTER_PROVIDER_ORDER]: options?.openrouterProviderOrder?.length > 0 ? options.openrouterProviderOrder : process.env.OPENROUTER_PROVIDER_ORDER,

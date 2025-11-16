@@ -1169,15 +1169,6 @@ Be thorough, clear, and actionable.
     }
 
     /**
-     * Check if the model is an Anthropic Claude model
-     */
-    private isClaudeModel(model: string): boolean {
-        if (!model) return false;
-        const modelLower = model.toLowerCase();
-        return modelLower.includes('claude') || modelLower.includes('anthropic');
-    }
-
-    /**
      * Detect generic search terms that are too common and not useful
      */
     private detectGenericSearchTerms(searchTerms: string[]): string[] {

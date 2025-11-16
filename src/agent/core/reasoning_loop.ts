@@ -38,8 +38,6 @@ export class ReasoningLoop {
   ) {
     this.aiRepository = new AiRepository();
     this.ai = new Ai(
-      '', // anthropicApiKey (not used)
-      '', // anthropicModel (not used)
       options.apiKey,
       options.model,
       false, // aiPullRequestDescription

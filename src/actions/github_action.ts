@@ -52,8 +52,6 @@ export async function runGitHubAction(): Promise<void> {
     /**
      * AI
      */
-    const anthropicApiKey = getInput(INPUT_KEYS.ANTHROPIC_API_KEY);
-    const anthropicModel = getInput(INPUT_KEYS.ANTHROPIC_MODEL);
     const openrouterApiKey = getInput(INPUT_KEYS.OPENROUTER_API_KEY);
     const openrouterModel = getInput(INPUT_KEYS.OPENROUTER_MODEL)
     const aiPullRequestDescription = getInput(INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION) === 'true';
@@ -543,8 +541,6 @@ export async function runGitHubAction(): Promise<void> {
             token,
         ),
         new Ai(
-            anthropicApiKey,
-            anthropicModel,
             openrouterApiKey,
             openrouterModel,
             aiPullRequestDescription,
