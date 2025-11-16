@@ -39,6 +39,7 @@ program
   .description(`${TITLE} - Build AI container and execute AI cache indexing`)
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('-b, --branch <name>', 'Branch name')
   .action(async (options) => {    
     const gitInfo = getGitInfo();
     
@@ -46,7 +47,8 @@ program
       console.log(gitInfo.error);
       return;
     }
-    
+    const branch = options.branch;
+  
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.AI_CACHE_LOCAL,
@@ -65,6 +67,12 @@ program
         number: 1,
       },
     };
+
+    if (branch && branch.length > 0) {
+      params.commits = {
+        ref: `refs/heads/${branch}`,
+      };
+    }
 
     params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Cache Indexing';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [

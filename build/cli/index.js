@@ -70281,12 +70281,14 @@ program
     .description(`${constants_1.TITLE} - Build AI container and execute AI cache indexing`)
     .option('-d, --debug', 'Debug mode', false)
     .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+    .option('-b, --branch <name>', 'Branch name')
     .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
         console.log(gitInfo.error);
         return;
     }
+    const branch = options.branch;
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.AI_CACHE_LOCAL,
@@ -70305,6 +70307,11 @@ program
             number: 1,
         },
     };
+    if (branch && branch.length > 0) {
+        params.commits = {
+            ref: `refs/heads/${branch}`,
+        };
+    }
     params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Cache Indexing';
     params[constants_1.INPUT_KEYS.WELCOME_MESSAGES] = [
         `Indexing AI cache for ${gitInfo.owner}/${gitInfo.repo}...`,
@@ -77212,18 +77219,20 @@ ${fileContent}
                     repositoryBranch: branch,
                     targetFile: filePath,
                     analyzeOnlyTargetFile: true, // Only analyze this file, ignore related files
-                    useSubAgents: false // Single file doesn't need subagents
+                    useSubAgents: true // Single file doesn't need subagents
                 };
                 const detector = new error_detector_1.ErrorDetector(detectorOptions);
-                // Detect errors - use clear prompt with explicit stop instruction
-                const result = await detector.detectErrors(`Analyze ONLY this single file for errors, bugs, vulnerabilities, and code quality issues: ${filePath}
+                // Detect errors - use structured prompt similar to subagents to prevent loops
+                // The structured format helps the agent understand when to stop
+                const result = await detector.detectErrors(`You have been assigned 1 file to analyze: ${filePath}
 
-**IMPORTANT INSTRUCTIONS:**
-1. Read the file using read_file
-2. Analyze it for errors, bugs, vulnerabilities, and code quality issues
-3. Call report_errors ONCE with all errors you found
+**CRITICAL INSTRUCTIONS:**
+1. Read the file using read_file: ${filePath}
+2. Analyze it thoroughly for errors, bugs, vulnerabilities, and code quality issues
+3. Call report_errors ONCE with ALL errors you found in this file
 4. After calling report_errors, provide a brief final summary text response and STOP
-5. Do NOT call report_errors multiple times - call it once with all errors and then finish`);
+5. **DO NOT call report_errors multiple times** - call it once with all errors, then provide your summary and finish
+6. **You have exactly 1 file to analyze** - after analyzing it and reporting errors, you are DONE`);
                 // Extract error information from result
                 const { errors, summary } = result;
                 // Get unique error types
