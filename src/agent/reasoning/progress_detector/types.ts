@@ -25,6 +25,8 @@ export interface ProgressDetectionOptions {
     deletions?: number;
     patch?: string;
   }>; // Files that have changed between branch and development branch
+  useSubAgents?: boolean; // Use subagents to parallelize file reading (default: false)
+  maxConcurrentSubAgents?: number; // Maximum number of subagents to run in parallel (default: 5)
 }
 
 /**

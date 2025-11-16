@@ -9,6 +9,7 @@ import { ProgressDetectionOptions, ProgressDetectionResult } from './types';
 import { logInfo } from '../../../utils/logger';
 import { AgentInitializer } from './agent_initializer';
 import { ProgressParser } from './progress_parser';
+import { SubagentHandler } from './subagent_handler';
 
 export class ProgressDetector {
   private agent!: Agent; // Will be initialized in initializeAgent
@@ -27,7 +28,9 @@ export class ProgressDetector {
       developmentBranch: options.developmentBranch || 'develop',
       issueNumber: options.issueNumber,
       issueDescription: options.issueDescription,
-      changedFiles: options.changedFiles || []
+      changedFiles: options.changedFiles || [],
+      useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
+      maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
     };
   }
 
@@ -45,6 +48,10 @@ export class ProgressDetector {
     logInfo(`   - Branch: ${this.options.repositoryBranch || 'N/A'}`);
     logInfo(`   - Issue: #${this.options.issueNumber || 'N/A'}`);
     logInfo(`   - Changed Files: ${this.options.changedFiles?.length || 0}`);
+    logInfo(`   - Use Subagents: ${this.options.useSubAgents}`);
+    if (this.options.useSubAgents) {
+      logInfo(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
+    }
 
     // Initialize agent if not already initialized
     if (!this.agent) {
@@ -60,9 +67,30 @@ export class ProgressDetector {
       }
     }
 
-    // Execute agent query
-    logInfo('🚀 Executing agent query...');
-    const result: AgentResult = await this.agent.query(userPrompt);
+    let result: AgentResult;
+    
+    // Use subagents if enabled AND files > 20
+    const shouldUseSubAgents = this.options.useSubAgents && 
+      this.repositoryFiles.size > 20;
+    
+    if (shouldUseSubAgents) {
+      logInfo('🚀 Executing progress detection with subagents...');
+      const subagentResult = await SubagentHandler.detectProgressWithSubAgents(
+        this.agent,
+        this.repositoryFiles,
+        this.options,
+        userPrompt
+      );
+      result = subagentResult.agentResult;
+      
+      // Return result from subagents (already combined)
+      logInfo(`✅ Progress detection completed: ${subagentResult.progress}%`);
+      return subagentResult;
+    } else {
+      // Execute agent query
+      logInfo('🚀 Executing agent query...');
+      result = await this.agent.query(userPrompt);
+    }
     
     logInfo(`📈 Agent execution completed:`);
     logInfo(`   - Total Turns: ${result.turns.length}`);

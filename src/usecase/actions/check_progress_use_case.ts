@@ -1,6 +1,6 @@
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
-import { logError, logInfo } from '../../utils/logger';
+import { logError, logInfo, logDebugInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 import { IssueRepository } from '../../data/repository/issue_repository';
 import { BranchRepository } from '../../data/repository/branch_repository';
@@ -33,6 +33,9 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 );
                 return results;
             }
+
+            const ignoreFiles = param.ai.getAiIgnoreFiles();
+            logInfo(`🔍 Ignore patterns: ${ignoreFiles.length > 0 ? ignoreFiles.join(', ') : 'none'}`);
 
             // Get issue number
             const issueNumber = param.issueNumber;
@@ -76,36 +79,49 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            // Get branch - use commit.branch if available, otherwise try to determine from issue
+            // Get branch - use commit.branch if available, otherwise search for branch by issue number
             let branch: string | undefined = param.commit.branch;
             
-            // If no branch in commit, try to get it from issue branch pattern
+            // If no branch in commit, search for branch matching issue number pattern
             if (!branch) {
-                // Try to construct branch name from issue type and number
-                // This is a fallback - ideally branch should be provided
-                const issueType = param.issueType;
-                if (issueType && issueNumber !== -1) {
-                    if (issueType === param.branches.featureTree) {
-                        branch = `${param.branches.featureTree}/${issueNumber}`;
-                    } else if (issueType === param.branches.bugfixTree) {
-                        branch = `${param.branches.bugfixTree}/${issueNumber}`;
-                    } else if (issueType === param.branches.docsTree) {
-                        branch = `${param.branches.docsTree}/${issueNumber}`;
-                    } else if (issueType === param.branches.choreTree) {
-                        branch = `${param.branches.choreTree}/${issueNumber}`;
+                logInfo(`📦 Searching for branch related to issue #${issueNumber}...`);
+                
+                const branchTypes = [
+                    param.branches.featureTree,
+                    param.branches.bugfixTree,
+                    param.branches.docsTree,
+                    param.branches.choreTree,
+                    param.branches.hotfixTree,
+                    param.branches.releaseTree,
+                ];
+
+                const branches = await this.branchRepository.getListOfBranches(
+                    param.owner,
+                    param.repo,
+                    param.tokens.token,
+                );
+
+                // Search for branch matching the pattern: ${type}/${issueNumber}-
+                for (const type of branchTypes) {
+                    const prefix = `${type}/${issueNumber}-`;
+                    const matchingBranch = branches.find(b => b.indexOf(prefix) > -1);
+                    if (matchingBranch) {
+                        branch = matchingBranch;
+                        logInfo(`✅ Found branch: ${branch}`);
+                        break;
                     }
                 }
             }
 
             if (!branch) {
-                logError(`Could not determine branch for issue #${issueNumber}. Please provide branch information.`);
+                logError(`Could not find branch for issue #${issueNumber}. Please ensure a branch exists with pattern: feature/${issueNumber}-*, bugfix/${issueNumber}-*, docs/${issueNumber}-*, or chore/${issueNumber}-*`);
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
                         errors: [
-                            `Could not determine branch for issue #${issueNumber}. Please provide branch information.`,
+                            `Could not find branch for issue #${issueNumber}. Please ensure a branch exists with pattern: feature/${issueNumber}-*, bugfix/${issueNumber}-*, docs/${issueNumber}-*, or chore/${issueNumber}-*`,
                         ],
                     })
                 );
@@ -135,7 +151,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                     param.tokens.token
                 );
 
-                changedFiles = changes.files.map(file => ({
+                const allFiles = changes.files.map(file => ({
                     filename: file.filename,
                     status: file.status as 'added' | 'modified' | 'removed' | 'renamed',
                     additions: file.additions,
@@ -143,7 +159,27 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                     patch: file.patch
                 }));
 
-                logInfo(`📄 Found ${changedFiles.length} changed file(s)`);
+                // Debug: show first few files being checked
+                if (allFiles.length > 0) {
+                    logDebugInfo(`Checking ${allFiles.length} files against ${ignoreFiles.length} ignore patterns`);
+                    const sampleFiles = allFiles.slice(0, 5).map(f => f.filename);
+                    logDebugInfo(`Sample files: ${sampleFiles.join(', ')}`);
+                }
+
+                changedFiles = allFiles.filter(file => {
+                    const shouldIgnore = this.shouldIgnoreFile(file.filename, ignoreFiles);
+                    if (shouldIgnore) {
+                        logDebugInfo(`⏭️  Ignoring file: ${file.filename}`);
+                    }
+                    return !shouldIgnore;
+                });
+
+                const ignoredCount = allFiles.length - changedFiles.length;
+                if (ignoredCount > 0) {
+                    logInfo(`📄 Found ${changedFiles.length} changed file(s) (${ignoredCount} ignored)`);
+                } else {
+                    logInfo(`📄 Found ${changedFiles.length} changed file(s)`);
+                }
             } catch (error) {
                 logError(`Error getting changed files: ${JSON.stringify(error, null, 2)}`);
                 results.push(
@@ -183,10 +219,28 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             // Create ProgressDetector options
+            const token = param.tokens.token;
+            if (!token || token.length === 0) {
+                logError(`GitHub token is missing or empty. Cannot load repository files.`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: [
+                            `GitHub token is missing or empty. Cannot load repository files for progress analysis.`,
+                        ],
+                    })
+                );
+                return results;
+            }
+
+            logDebugInfo(`🔑 Token available: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
+
             const detectorOptions: ProgressDetectionOptions = {
                 model: param.ai.getOpenRouterModel(),
                 apiKey: param.ai.getOpenRouterApiKey(),
-                personalAccessToken: param.tokens.token,
+                personalAccessToken: token,
                 maxTurns: 20,
                 repositoryOwner: param.owner,
                 repositoryName: param.repo,
@@ -194,7 +248,8 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 developmentBranch: developmentBranch,
                 issueNumber: issueNumber,
                 issueDescription: issueDescription,
-                changedFiles: changedFiles
+                changedFiles: changedFiles,
+                useSubAgents: true,
             };
 
             // Detect progress
@@ -241,6 +296,37 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
         }
 
         return results;
+    }
+
+    /**
+     * Check if a file should be ignored based on ignore patterns
+     * This method matches the implementation in FileRepository.shouldIgnoreFile
+     */
+    private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
+        // First check for .DS_Store
+        if (filename.endsWith('.DS_Store')) {
+            return true;
+        }
+
+        if (ignorePatterns.length === 0) {
+            return false;
+        }
+
+        return ignorePatterns.some(pattern => {
+            // Convert glob pattern to regex
+            const regexPattern = pattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
+                .replace(/\*/g, '.*') // Convert * to match anything
+                .replace(/\//g, '\\/'); // Escape forward slashes
+    
+            // Allow pattern ending on /* to ignore also subdirectories and files inside
+            if (pattern.endsWith("/*")) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+            }
+    
+            const regex = new RegExp(`^${regexPattern}$`);
+            return regex.test(filename);
+        });
     }
 }
 

@@ -98,6 +98,7 @@ export class AgentInitializer {
         if (!token) {
           logWarn('⚠️ personalAccessToken not provided in options, cannot load repository files');
         } else {
+          logDebugInfo(`🔑 Using token: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
           if (!options.repositoryBranch) {
             throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
           }
@@ -114,27 +115,31 @@ export class AgentInitializer {
             for (const changedFile of options.changedFiles) {
               // Skip removed files
               if (changedFile.status === 'removed') {
-                logDebugInfo(`   ⏭️  Skipping removed file: ${changedFile.filename}`);
+                // logDebugInfo(`   ⏭️  Skipping removed file: ${changedFile.filename}`);
                 continue;
               }
               
               try {
+                // logDebugInfo(`📥 Loading: ${changedFile.filename}...`);
                 const content = await fileRepository.getFileContent(
                   options.repositoryOwner!,
                   options.repositoryName!,
+                  changedFile.filename,
                   token,
-                  branch,
-                  changedFile.filename
+                  branch
                 );
                 
                 if (content) {
                   repositoryFiles.set(changedFile.filename, content);
-                  logDebugInfo(`   ✅ Loaded: ${changedFile.filename}`);
+                  // logDebugInfo(`   ✅ Loaded: ${changedFile.filename} (${content.length} bytes) from ${branch}`);
                 } else {
-                  logWarn(`   ⚠️  Could not load: ${changedFile.filename}`);
+                  logWarn(`   ⚠️  Could not load: ${changedFile.filename} (empty content returned) from ${branch}`);
                 }
-              } catch (error) {
-                logWarn(`   ⚠️  Error loading ${changedFile.filename}: ${error}`);
+              } catch (error: any) {
+                const errorMessage = error?.message || String(error);
+                const errorStatus = error?.status || 'unknown';
+                logWarn(`   ⚠️  Error loading ${changedFile.filename}: ${errorMessage} (status: ${errorStatus})`);
+                // Continue loading other files even if one fails
               }
             }
           } else {

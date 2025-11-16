@@ -1,5 +1,5 @@
 import * as github from "@actions/github";
-import { logError, logInfo } from "../../utils/logger";
+import { logError } from "../../utils/logger";
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
@@ -43,6 +43,11 @@ export class FileRepository {
         token: string,
         branch: string
     ): Promise<string> => {
+        if (!token || token.length === 0) {
+            logError(`Error getting file content: Token is empty or undefined for ${path}`);
+            return '';
+        }
+
         const octokit = github.getOctokit(token);
 
         try {
@@ -57,8 +62,10 @@ export class FileRepository {
                 return Buffer.from(data.content, 'base64').toString();
             }
             return '';
-        } catch (error) {
-            logError(`Error getting file content: ${error}.`);
+        } catch (error: any) {
+            const errorMessage = error?.message || String(error);
+            const errorStatus = error?.status || 'unknown';
+            logError(`Error getting file content for ${path}: ${errorMessage} (status: ${errorStatus}). Token length: ${token.length}`);
             return '';
         }
     };

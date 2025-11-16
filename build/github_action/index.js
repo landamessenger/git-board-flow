@@ -63884,6 +63884,753 @@ var IssueType;
 
 /***/ }),
 
+/***/ 6827:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Agent Initializer
+ * Initializes agent with tools and repository files for progress detection
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AgentInitializer = void 0;
+const agent_1 = __nccwpck_require__(1963);
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const report_progress_tool_1 = __nccwpck_require__(1422);
+const file_repository_1 = __nccwpck_require__(1503);
+const logger_1 = __nccwpck_require__(8836);
+const system_prompt_builder_1 = __nccwpck_require__(5021);
+class AgentInitializer {
+    /**
+     * Initialize agent with tools and repository files
+     */
+    static async initialize(options) {
+        const repositoryFiles = await this.loadRepositoryFiles(options);
+        // Store for progress reported via report_progress tool
+        let reportedProgress = undefined;
+        const tools = await this.createTools(repositoryFiles, (progress, summary) => {
+            reportedProgress = { progress, summary };
+        });
+        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
+        const agentOptions = {
+            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+            apiKey: options.apiKey,
+            systemPrompt,
+            tools,
+            maxTurns: options.maxTurns || 20,
+            enableMCP: false
+        };
+        const agent = new agent_1.Agent(agentOptions);
+        return {
+            agent,
+            repositoryFiles,
+            reportedProgress
+        };
+    }
+    /**
+     * Load repository files from GitHub
+     * Only loads changed files if available, otherwise loads all files from the branch
+     */
+    static async loadRepositoryFiles(options) {
+        const repositoryFiles = new Map();
+        if (options.repositoryOwner && options.repositoryName) {
+            try {
+                const token = options.personalAccessToken;
+                if (!token) {
+                    (0, logger_1.logWarn)('⚠️ personalAccessToken not provided in options, cannot load repository files');
+                }
+                else {
+                    (0, logger_1.logDebugInfo)(`🔑 Using token: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
+                    if (!options.repositoryBranch) {
+                        throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
+                    }
+                    const branch = options.repositoryBranch;
+                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
+                    const fileRepository = new file_repository_1.FileRepository();
+                    // If we have changed files, only load those
+                    if (options.changedFiles && options.changedFiles.length > 0) {
+                        (0, logger_1.logInfo)(`📄 Loading ${options.changedFiles.length} changed file(s)...`);
+                        for (const changedFile of options.changedFiles) {
+                            // Skip removed files
+                            if (changedFile.status === 'removed') {
+                                // logDebugInfo(`   ⏭️  Skipping removed file: ${changedFile.filename}`);
+                                continue;
+                            }
+                            try {
+                                // logDebugInfo(`📥 Loading: ${changedFile.filename}...`);
+                                const content = await fileRepository.getFileContent(options.repositoryOwner, options.repositoryName, changedFile.filename, token, branch);
+                                if (content) {
+                                    repositoryFiles.set(changedFile.filename, content);
+                                    // logDebugInfo(`   ✅ Loaded: ${changedFile.filename} (${content.length} bytes) from ${branch}`);
+                                }
+                                else {
+                                    (0, logger_1.logWarn)(`   ⚠️  Could not load: ${changedFile.filename} (empty content returned) from ${branch}`);
+                                }
+                            }
+                            catch (error) {
+                                const errorMessage = error?.message || String(error);
+                                const errorStatus = error?.status || 'unknown';
+                                (0, logger_1.logWarn)(`   ⚠️  Error loading ${changedFile.filename}: ${errorMessage} (status: ${errorStatus})`);
+                                // Continue loading other files even if one fails
+                            }
+                        }
+                    }
+                    else {
+                        // Load all files from the branch
+                        const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
+                            (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
+                        }, (fileName) => {
+                            (0, logger_1.logDebugInfo)(`   ⏭️  Ignored: ${fileName}`);
+                        });
+                        files.forEach((content, path) => {
+                            repositoryFiles.set(path, content);
+                        });
+                    }
+                    (0, logger_1.logInfo)(`✅ Loaded ${repositoryFiles.size} file(s) from repository`);
+                }
+            }
+            catch (error) {
+                (0, logger_1.logWarn)(`Failed to load repository files: ${error}`);
+            }
+        }
+        return repositoryFiles;
+    }
+    /**
+     * Create tools for the agent
+     */
+    static async createTools(repositoryFiles, onProgressReported) {
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                return this.searchFiles(repositoryFiles, query);
+            },
+            getAllFiles: () => {
+                return this.getAllFiles(repositoryFiles);
+            }
+        });
+        // Report progress tool for structured progress reporting
+        const reportProgressTool = new report_progress_tool_1.ReportProgressTool({
+            onProgressReported: (progress, summary) => {
+                if (onProgressReported) {
+                    onProgressReported(progress, summary);
+                }
+            }
+        });
+        return [readFileTool, searchFilesTool, reportProgressTool];
+    }
+    /**
+     * Search files in repository
+     */
+    static searchFiles(repositoryFiles, query) {
+        const results = [];
+        const queryLower = query.toLowerCase();
+        for (const [path] of repositoryFiles) {
+            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+            if (shouldExclude) {
+                continue;
+            }
+            const pathLower = path.toLowerCase();
+            if (pathLower.includes(queryLower) ||
+                pathLower.endsWith(queryLower) ||
+                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
+                results.push(path);
+            }
+        }
+        return results;
+    }
+    /**
+     * Get all files (excluding compiled files)
+     */
+    static getAllFiles(repositoryFiles) {
+        return Array.from(repositoryFiles.keys()).filter((path) => {
+            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+        });
+    }
+}
+exports.AgentInitializer = AgentInitializer;
+AgentInitializer.EXCLUDE_PATTERNS = [
+    /^build\//,
+    /^dist\//,
+    /^node_modules\//,
+    /\.d\.ts$/,
+    /^\.next\//,
+    /^out\//,
+    /^coverage\//,
+    /\.min\.(js|css)$/,
+    /\.map$/,
+    /^\.git\//,
+    /^\.vscode\//,
+    /^\.idea\//
+];
+AgentInitializer.IGNORE_FILES = [
+    'build/**',
+    'dist/**',
+    'node_modules/**',
+    '*.d.ts',
+    '.next/**',
+    'out/**',
+    'coverage/**',
+    '.turbo/**',
+    '.cache/**',
+    '*.min.js',
+    '*.min.css',
+    '*.map',
+    '.git/**',
+    '.vscode/**',
+    '.idea/**'
+];
+
+
+/***/ }),
+
+/***/ 4538:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * File Partitioner
+ * Partitions files by directory for subagent distribution
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FilePartitioner = void 0;
+class FilePartitioner {
+    /**
+     * Partition files by directory to keep related files together
+     * Tries to balance file distribution across groups
+     */
+    static partitionFilesByDirectory(files, maxGroups) {
+        // Group files by top-level directory
+        const dirGroups = new Map();
+        for (const file of files) {
+            const parts = file.split('/');
+            const topDir = parts.length > 1 ? parts[0] : 'root';
+            if (!dirGroups.has(topDir)) {
+                dirGroups.set(topDir, []);
+            }
+            dirGroups.get(topDir).push(file);
+        }
+        // Convert to array and sort by size (largest first)
+        const groups = Array.from(dirGroups.values()).sort((a, b) => b.length - a.length);
+        // Initialize result groups
+        const result = Array(maxGroups).fill(null).map(() => []);
+        // Distribute groups across subagents, trying to balance sizes
+        // Use a balanced approach: always assign to the subagent with the least files
+        for (let i = 0; i < groups.length; i++) {
+            // Find the subagent with the least files
+            let minIndex = 0;
+            let minSize = result[0].length;
+            for (let j = 1; j < result.length; j++) {
+                if (result[j].length < minSize) {
+                    minSize = result[j].length;
+                    minIndex = j;
+                }
+            }
+            result[minIndex].push(...groups[i]);
+        }
+        // Remove empty groups
+        return result.filter(group => group.length > 0);
+    }
+}
+exports.FilePartitioner = FilePartitioner;
+
+
+/***/ }),
+
+/***/ 7887:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Progress Detector
+ * Uses Agent SDK to detect progress of a task based on code changes
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProgressDetector = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const agent_initializer_1 = __nccwpck_require__(6827);
+const progress_parser_1 = __nccwpck_require__(9025);
+const subagent_handler_1 = __nccwpck_require__(9480);
+class ProgressDetector {
+    constructor(options) {
+        this.repositoryFiles = new Map();
+        this.options = {
+            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+            apiKey: options.apiKey,
+            personalAccessToken: options.personalAccessToken,
+            maxTurns: options.maxTurns || 20,
+            repositoryOwner: options.repositoryOwner,
+            repositoryName: options.repositoryName,
+            repositoryBranch: options.repositoryBranch,
+            developmentBranch: options.developmentBranch || 'develop',
+            issueNumber: options.issueNumber,
+            issueDescription: options.issueDescription,
+            changedFiles: options.changedFiles || [],
+            useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
+            maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
+        };
+    }
+    /**
+     * Detect progress of the task
+     */
+    async detectProgress(prompt) {
+        (0, logger_1.logInfo)('📊 Starting progress detection...');
+        const userPrompt = prompt || `Analyze the progress of issue #${this.options.issueNumber || 'the task'} based on the changes made.`;
+        (0, logger_1.logInfo)(`📋 User Prompt: ${userPrompt}`);
+        (0, logger_1.logInfo)(`📊 Configuration:`);
+        (0, logger_1.logInfo)(`   - Model: ${this.options.model}`);
+        (0, logger_1.logInfo)(`   - Max Turns: ${this.options.maxTurns}`);
+        (0, logger_1.logInfo)(`   - Repository: ${this.options.repositoryOwner}/${this.options.repositoryName || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Branch: ${this.options.repositoryBranch || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Issue: #${this.options.issueNumber || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Changed Files: ${this.options.changedFiles?.length || 0}`);
+        (0, logger_1.logInfo)(`   - Use Subagents: ${this.options.useSubAgents}`);
+        if (this.options.useSubAgents) {
+            (0, logger_1.logInfo)(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
+        }
+        // Initialize agent if not already initialized
+        if (!this.agent) {
+            (0, logger_1.logInfo)('🤖 Initializing agent...');
+            const { agent, repositoryFiles, reportedProgress } = await agent_initializer_1.AgentInitializer.initialize(this.options);
+            this.agent = agent;
+            this.repositoryFiles = repositoryFiles;
+            (0, logger_1.logInfo)('✅ Agent initialized');
+            // If progress was already reported during initialization (shouldn't happen, but handle it)
+            if (reportedProgress) {
+                (0, logger_1.logInfo)(`📊 Progress already reported during initialization: ${reportedProgress.progress}%`);
+            }
+        }
+        let result;
+        // Use subagents if enabled AND files > 20
+        const shouldUseSubAgents = this.options.useSubAgents &&
+            this.repositoryFiles.size > 20;
+        if (shouldUseSubAgents) {
+            (0, logger_1.logInfo)('🚀 Executing progress detection with subagents...');
+            const subagentResult = await subagent_handler_1.SubagentHandler.detectProgressWithSubAgents(this.agent, this.repositoryFiles, this.options, userPrompt);
+            result = subagentResult.agentResult;
+            // Return result from subagents (already combined)
+            (0, logger_1.logInfo)(`✅ Progress detection completed: ${subagentResult.progress}%`);
+            return subagentResult;
+        }
+        else {
+            // Execute agent query
+            (0, logger_1.logInfo)('🚀 Executing agent query...');
+            result = await this.agent.query(userPrompt);
+        }
+        (0, logger_1.logInfo)(`📈 Agent execution completed:`);
+        (0, logger_1.logInfo)(`   - Total Turns: ${result.turns.length}`);
+        (0, logger_1.logInfo)(`   - Tool Calls: ${result.toolCalls.length}`);
+        if (result.metrics) {
+            (0, logger_1.logInfo)(`   - Input Tokens: ${result.metrics.totalTokens.input}`);
+            (0, logger_1.logInfo)(`   - Output Tokens: ${result.metrics.totalTokens.output}`);
+            (0, logger_1.logInfo)(`   - Total Duration: ${result.metrics.totalDuration}ms`);
+            (0, logger_1.logInfo)(`   - Average Latency: ${result.metrics.averageLatency}ms`);
+        }
+        // Parse progress from agent response
+        const { progress, summary } = progress_parser_1.ProgressParser.parseProgress(result);
+        (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
+        return {
+            progress,
+            summary,
+            agentResult: result
+        };
+    }
+    /**
+     * Get agent instance (for advanced usage)
+     */
+    getAgent() {
+        return this.agent;
+    }
+}
+exports.ProgressDetector = ProgressDetector;
+
+
+/***/ }),
+
+/***/ 9025:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Progress Parser
+ * Parses progress percentage from agent results
+ * Only uses structured format from report_progress tool - no text parsing
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProgressParser = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class ProgressParser {
+    /**
+     * Parse progress from agent result
+     * Only uses structured format from report_progress tool - no text parsing
+     * The tool already validates and cleans the data, so we just extract it directly
+     */
+    static parseProgress(result) {
+        const defaultProgress = 0;
+        const defaultSummary = 'Unable to determine progress from agent response.';
+        (0, logger_1.logDebugInfo)(`📝 Parsing progress from agent response (${result.toolCalls.length} tool calls)`);
+        // Only parse progress from report_progress tool calls (structured format)
+        // The tool already validated and cleaned the data, so we extract it directly
+        for (const toolCall of result.toolCalls) {
+            if (toolCall.name === 'report_progress' && toolCall.input.progress !== undefined) {
+                const progress = typeof toolCall.input.progress === 'number'
+                    ? toolCall.input.progress
+                    : parseFloat(String(toolCall.input.progress));
+                const summary = toolCall.input.summary
+                    ? String(toolCall.input.summary).trim()
+                    : defaultSummary;
+                // Validate progress range
+                if (!isNaN(progress) && progress >= 0 && progress <= 100) {
+                    const roundedProgress = Math.round(progress);
+                    (0, logger_1.logDebugInfo)(`   ✅ Found report_progress call with progress: ${roundedProgress}%`);
+                    (0, logger_1.logDebugInfo)(`   📝 Summary: ${summary.substring(0, 100)}...`);
+                    return {
+                        progress: roundedProgress,
+                        summary: summary || defaultSummary
+                    };
+                }
+                else {
+                    (0, logger_1.logWarn)(`   ⚠️ Invalid progress value: ${progress}, must be between 0 and 100`);
+                }
+            }
+        }
+        (0, logger_1.logWarn)('⚠️ No report_progress tool call found in agent result');
+        (0, logger_1.logDebugInfo)(`   📊 Final progress: ${defaultProgress}%`);
+        (0, logger_1.logDebugInfo)(`   📝 Summary: ${defaultSummary}`);
+        return { progress: defaultProgress, summary: defaultSummary };
+    }
+}
+exports.ProgressParser = ProgressParser;
+
+
+/***/ }),
+
+/***/ 9480:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Subagent Handler
+ * Handles progress detection using subagents for parallel processing
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SubagentHandler = void 0;
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const report_progress_tool_1 = __nccwpck_require__(1422);
+const logger_1 = __nccwpck_require__(8836);
+const file_partitioner_1 = __nccwpck_require__(4538);
+const progress_parser_1 = __nccwpck_require__(9025);
+const system_prompt_builder_1 = __nccwpck_require__(5021);
+class SubagentHandler {
+    /**
+     * Detect progress using subagents for parallel processing
+     */
+    static async detectProgressWithSubAgents(agent, repositoryFiles, options, userPrompt) {
+        const allFiles = Array.from(repositoryFiles.keys());
+        // Optimal number of files per subagent (comfortable for AI processing)
+        const OPTIMAL_FILES_PER_AGENT = 15;
+        const MAX_FILES_IN_PROMPT = 20; // Maximum files to list in prompt
+        // Calculate number of subagents needed based on optimal files per agent
+        // But respect maxConcurrentSubAgents as an upper limit
+        const maxConcurrent = options.maxConcurrentSubAgents || 5;
+        const calculatedSubagents = Math.ceil(allFiles.length / OPTIMAL_FILES_PER_AGENT);
+        const numSubagents = Math.min(calculatedSubagents, maxConcurrent);
+        const filesPerAgent = Math.ceil(allFiles.length / numSubagents);
+        (0, logger_1.logInfo)(`📦 Partitioning ${allFiles.length} files into ${numSubagents} subagents (~${filesPerAgent} files each)`);
+        (0, logger_1.logInfo)(`   Optimal: ${OPTIMAL_FILES_PER_AGENT} files per agent, creating ${numSubagents} subagents for comfortable processing`);
+        // Group files by directory to keep related files together
+        const fileGroups = file_partitioner_1.FilePartitioner.partitionFilesByDirectory(allFiles, numSubagents);
+        (0, logger_1.logInfo)(`📁 Created ${fileGroups.length} file groups for parallel analysis`);
+        // Create tools for subagents (all files available through tools)
+        const tools = await this.createSubagentTools(repositoryFiles);
+        // Create tasks for each subagent
+        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
+        const tasks = fileGroups.map((files, index) => {
+            const totalFiles = files.length;
+            // Show first N files in prompt, rest available through tools
+            const filesToShow = files.slice(0, MAX_FILES_IN_PROMPT);
+            const remainingFiles = totalFiles - filesToShow.length;
+            let fileListSection = '';
+            if (filesToShow.length > 0) {
+                fileListSection = `\n\nFiles assigned to you (${totalFiles} total):\n${filesToShow.map(f => `- ${f}`).join('\n')}`;
+                if (remainingFiles > 0) {
+                    fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
+                }
+            }
+            return {
+                name: `progress-detector-${index + 1}`,
+                prompt: userPrompt
+                    ? `${userPrompt}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for progress assessment. After analyzing all files, use report_progress to report the progress percentage for YOUR assigned files.**`
+                    : `You have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for progress assessment using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for progress assessment. After analyzing all files, use report_progress to report the progress percentage for YOUR assigned files.**`,
+                systemPrompt,
+                tools
+            };
+        });
+        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} subagents in parallel...`);
+        const results = await agent.executeParallel(tasks);
+        (0, logger_1.logInfo)(`✅ All ${results.length} subagents completed`);
+        // Combine results from all subagents
+        return this.combineSubagentResults(results, options);
+    }
+    /**
+     * Create tools for subagents
+     */
+    static async createSubagentTools(repositoryFiles) {
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                return this.searchFiles(repositoryFiles, query);
+            },
+            getAllFiles: () => {
+                return this.getAllFiles(repositoryFiles);
+            }
+        });
+        // ReportProgressTool for subagents - progress will be extracted from results via ProgressParser
+        const reportProgressTool = new report_progress_tool_1.ReportProgressTool({
+            onProgressReported: () => {
+                // Progress will be extracted from tool calls in the result, not via callback
+            }
+        });
+        return [readFileTool, searchFilesTool, reportProgressTool];
+    }
+    /**
+     * Search files in repository
+     */
+    static searchFiles(repositoryFiles, query) {
+        const results = [];
+        const queryLower = query.toLowerCase();
+        for (const [path] of repositoryFiles) {
+            // Skip compiled files
+            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+            if (shouldExclude) {
+                continue;
+            }
+            const pathLower = path.toLowerCase();
+            // Support multiple search strategies
+            if (pathLower.includes(queryLower) ||
+                pathLower.endsWith(queryLower) ||
+                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
+                results.push(path);
+            }
+        }
+        return results;
+    }
+    /**
+     * Get all files (excluding compiled files)
+     */
+    static getAllFiles(repositoryFiles) {
+        return Array.from(repositoryFiles.keys()).filter((path) => {
+            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+        });
+    }
+    /**
+     * Combine results from all subagents
+     * Calculates average progress and combines summaries
+     */
+    static combineSubagentResults(results, options) {
+        const allProgressReports = [];
+        const allToolCalls = [];
+        const allTurns = [];
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let maxDuration = 0;
+        for (const { task, result } of results) {
+            (0, logger_1.logInfo)(`   📊 Subagent "${task}": ${result.turns.length} turns, ${result.toolCalls.length} tool calls`);
+            // Parse progress from each subagent
+            const { progress, summary } = progress_parser_1.ProgressParser.parseProgress(result);
+            allProgressReports.push({ progress, summary });
+            allToolCalls.push(...result.toolCalls);
+            allTurns.push(...result.turns);
+            if (result.metrics) {
+                totalInputTokens += result.metrics.totalTokens.input;
+                totalOutputTokens += result.metrics.totalTokens.output;
+                maxDuration = Math.max(maxDuration, result.metrics.totalDuration);
+            }
+        }
+        // Calculate average progress (weighted by number of files analyzed if needed)
+        // For now, simple average - could be improved with weighting
+        const averageProgress = allProgressReports.length > 0
+            ? Math.round(allProgressReports.reduce((sum, r) => sum + r.progress, 0) / allProgressReports.length)
+            : 0;
+        // Combine summaries
+        const combinedSummary = allProgressReports.length > 0
+            ? allProgressReports.map((r, i) => `Subagent ${i + 1}: ${r.progress}% - ${r.summary}`).join('\n')
+            : 'Unable to determine progress from subagent responses.';
+        // Calculate average latency from all subagents
+        const totalApiCalls = results.reduce((sum, r) => sum + (r.result.metrics?.apiCalls || 0), 0);
+        const totalLatency = results.reduce((sum, r) => {
+            if (r.result.metrics?.averageLatency && r.result.metrics?.apiCalls) {
+                return sum + (r.result.metrics.averageLatency * r.result.metrics.apiCalls);
+            }
+            return sum;
+        }, 0);
+        const averageLatency = totalApiCalls > 0 ? totalLatency / totalApiCalls : 0;
+        // Create combined agent result
+        const combinedResult = {
+            finalResponse: `Progress analysis completed by ${results.length} subagents. Average progress: ${averageProgress}%.`,
+            turns: allTurns,
+            toolCalls: allToolCalls,
+            messages: results.flatMap(r => r.result.messages),
+            metrics: {
+                totalTokens: {
+                    input: totalInputTokens,
+                    output: totalOutputTokens
+                },
+                totalDuration: maxDuration,
+                apiCalls: totalApiCalls,
+                toolCalls: allToolCalls.length,
+                errors: results.reduce((sum, r) => sum + (r.result.metrics?.errors || 0), 0),
+                averageLatency: averageLatency
+            }
+        };
+        (0, logger_1.logInfo)(`✅ Combined results: Average progress ${averageProgress}% across ${results.length} subagents`);
+        (0, logger_1.logInfo)(`   Individual progress reports:`);
+        allProgressReports.forEach((r, i) => {
+            (0, logger_1.logInfo)(`   - Subagent ${i + 1}: ${r.progress}%`);
+        });
+        (0, logger_1.logInfo)(`   - Total Tokens: ${totalInputTokens + totalOutputTokens} (${totalInputTokens} in, ${totalOutputTokens} out)`);
+        (0, logger_1.logInfo)(`   - Duration: ${maxDuration}ms (parallel execution)`);
+        return {
+            progress: averageProgress,
+            summary: combinedSummary,
+            agentResult: combinedResult
+        };
+    }
+}
+exports.SubagentHandler = SubagentHandler;
+SubagentHandler.EXCLUDE_PATTERNS = [
+    /^build\//,
+    /^dist\//,
+    /^node_modules\//,
+    /\.d\.ts$/,
+    /^\.next\//,
+    /^out\//,
+    /^coverage\//,
+    /\.min\.(js|css)$/,
+    /\.map$/,
+    /^\.git\//,
+    /^\.vscode\//,
+    /^\.idea\//
+];
+
+
+/***/ }),
+
+/***/ 5021:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * System Prompt Builder
+ * Builds system prompts for progress detection
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SystemPromptBuilder = void 0;
+class SystemPromptBuilder {
+    /**
+     * Build system prompt for progress detection
+     */
+    static build(options) {
+        const issueInfo = options.issueNumber
+            ? `Issue #${options.issueNumber}`
+            : 'the task';
+        const issueDescription = options.issueDescription
+            ? `\n\n**Task Description:**\n${options.issueDescription}`
+            : '';
+        const changedFilesInfo = options.changedFiles && options.changedFiles.length > 0
+            ? `\n\n**Changed Files (${options.changedFiles.length}):**\n${options.changedFiles.map(f => `- ${f.filename} (${f.status})${f.additions && f.deletions ? ` [+${f.additions}/-${f.deletions}]` : ''}`).join('\n')}`
+            : '\n\n**No files have been changed yet.**';
+        return `You are an expert code reviewer and task progress assessor. Your task is to analyze the progress of ${issueInfo} based on the changes made in the codebase compared to the development branch.
+
+${issueDescription}
+
+**Context:**
+- You are analyzing changes made in a feature branch compared to the development branch
+- Your goal is to determine what percentage of the task has been completed
+- Consider both the quantity and quality of changes
+- Look at what was requested vs what has been implemented
+
+${changedFilesInfo}
+
+**Your Task:**
+1. Read and analyze the changed files to understand what has been implemented
+2. Compare the implementation against the task description
+3. Determine what percentage of the task is complete (0-100%)
+4. Consider:
+   - Are the core requirements implemented?
+   - Are edge cases handled?
+   - Is the code complete and functional?
+   - Are there any obvious missing pieces?
+   - Is the implementation aligned with the task description?
+
+**IMPORTANT INSTRUCTIONS:**
+1. **Read ALL changed files** using the read_file tool
+   - Read every file that has been modified, added, or changed
+   - Analyze the actual code, not just file names
+   - Understand what functionality has been implemented
+2. **Compare with task requirements**
+   - Check if the task description requirements are met
+   - Identify what's been done vs what's still needed
+3. **Provide progress assessment**
+   - After analyzing all files, provide a progress percentage (0-100)
+   - Include a brief summary explaining your assessment
+   - Be realistic: 0% means nothing done, 100% means task is complete
+   - Consider partial completion (e.g., if core feature is done but tests are missing, that might be 70-80%)
+
+**CRITICAL - REPORTING PROGRESS:**
+After analyzing all files, you MUST use the report_progress tool to report your progress assessment.
+- Call report_progress ONCE with:
+  - progress: A number between 0-100 (the percentage of task completion)
+  - summary: A brief explanation of why you assigned this percentage
+- **DO NOT provide progress in text format** - you MUST use the report_progress tool
+- After calling report_progress, provide a brief final summary text response and STOP
+- **DO NOT call report_progress multiple times** - call it once with your final assessment, then provide your summary and finish
+
+**Example:**
+After analyzing, call:
+report_progress({
+  progress: 75,
+  summary: "The core functionality has been implemented in the main files. The feature works as described, but unit tests are missing and error handling could be improved. The main requirements are met, but some polish is still needed."
+})
+
+**Remember:**
+- Be thorough: read all changed files before making your assessment
+- Be realistic: don't overestimate or underestimate progress
+- Consider both code quality and completeness
+- If no files have changed, progress is 0%
+- If the task description is unclear or missing, make your best assessment based on the code changes
+
+**CRITICAL INSTRUCTIONS:**
+1. **You MUST read ALL changed files before making your assessment**
+2. **You MUST use the report_progress tool to report progress** - do NOT provide progress in text format
+3. **Call report_progress ONCE** with your final assessment after analyzing all files
+4. **After calling report_progress, provide a brief final summary and STOP**`;
+    }
+}
+exports.SystemPromptBuilder = SystemPromptBuilder;
+
+
+/***/ }),
+
 /***/ 9121:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -64465,6 +65212,105 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
     }
 }
 exports.ReportErrorsTool = ReportErrorsTool;
+
+
+/***/ }),
+
+/***/ 1422:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Report Progress Tool
+ * Tool for reporting task progress in structured format
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReportProgressTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ReportProgressTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'report_progress';
+    }
+    getDescription() {
+        return 'Report the progress percentage of a task based on code changes analysis. Use this tool to report the completion percentage (0-100) and a brief summary of your assessment. This is the PRIMARY way to report progress - you MUST use this tool after analyzing the changes.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                progress: {
+                    type: 'number',
+                    description: 'Progress percentage as a number between 0 and 100 (inclusive). 0 means nothing done, 100 means task is complete. MUST be a number, not a string.',
+                    minimum: 0,
+                    maximum: 100
+                },
+                summary: {
+                    type: 'string',
+                    description: 'Brief summary explaining why you assigned this progress percentage. Plain text description. Can contain newlines for readability, but NO markdown formatting (NO **, NO *, NO #). Just plain descriptive text explaining the assessment.'
+                }
+            },
+            required: ['progress', 'summary'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        // Validate progress
+        if (input.progress === undefined || input.progress === null) {
+            throw new Error('progress is required');
+        }
+        let progress;
+        if (typeof input.progress === 'number') {
+            progress = input.progress;
+        }
+        else if (typeof input.progress === 'string') {
+            // Try to extract number from string
+            const match = input.progress.match(/(\d+(?:\.\d+)?)/);
+            if (match) {
+                progress = parseFloat(match[1]);
+            }
+            else {
+                throw new Error(`Invalid progress value: "${input.progress}". Must be a number between 0 and 100.`);
+            }
+        }
+        else {
+            throw new Error(`Invalid progress type: ${typeof input.progress}. Must be a number between 0 and 100.`);
+        }
+        // Validate progress range
+        if (isNaN(progress) || progress < 0 || progress > 100) {
+            throw new Error(`Progress must be a number between 0 and 100, got: ${progress}`);
+        }
+        // Round to integer
+        progress = Math.round(progress);
+        // Validate summary
+        if (!input.summary || typeof input.summary !== 'string') {
+            throw new Error('summary is required and must be a string');
+        }
+        // Clean summary - remove markdown but preserve content
+        let summary = String(input.summary)
+            .replace(/\*\*/g, '')
+            .replace(/\*/g, '')
+            .replace(/^#+\s*/gm, '')
+            .replace(/^-\s*/gm, '')
+            .replace(/^\d+\.\s*/gm, '')
+            .replace(/\\n/g, '\n')
+            .trim();
+        if (!summary || summary.length === 0) {
+            throw new Error('summary is required and cannot be empty');
+        }
+        logInfo(`   📊 Progress reported: ${progress}%`);
+        logInfo(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
+        // Notify callback
+        this.options.onProgressReported(progress, summary);
+        return `Successfully reported progress: ${progress}%. Progress has been recorded.`;
+    }
+}
+exports.ReportProgressTool = ReportProgressTool;
 
 
 /***/ }),
@@ -66328,6 +67174,9 @@ class SingleAction {
     get isInitialSetupAction() {
         return this.currentSingleAction === constants_1.ACTIONS.INITIAL_SETUP;
     }
+    get isCheckProgressAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.CHECK_PROGRESS;
+    }
     get enabledSingleAction() {
         return this.currentSingleAction.length > 0;
     }
@@ -66352,6 +67201,7 @@ class SingleAction {
             constants_1.ACTIONS.CREATE_RELEASE,
             constants_1.ACTIONS.THINK,
             constants_1.ACTIONS.INITIAL_SETUP,
+            constants_1.ACTIONS.CHECK_PROGRESS,
         ];
         /**
          * Actions that throw an error if the last step failed
@@ -67650,6 +68500,10 @@ const execAsync = (0, util_1.promisify)(child_process_1.exec);
 class FileRepository {
     constructor() {
         this.getFileContent = async (owner, repository, path, token, branch) => {
+            if (!token || token.length === 0) {
+                (0, logger_1.logError)(`Error getting file content: Token is empty or undefined for ${path}`);
+                return '';
+            }
             const octokit = github.getOctokit(token);
             try {
                 const { data } = await octokit.rest.repos.getContent({
@@ -67664,7 +68518,9 @@ class FileRepository {
                 return '';
             }
             catch (error) {
-                (0, logger_1.logError)(`Error getting file content: ${error}.`);
+                const errorMessage = error?.message || String(error);
+                const errorStatus = error?.status || 'unknown';
+                (0, logger_1.logError)(`Error getting file content for ${path}: ${errorMessage} (status: ${errorStatus}). Token length: ${token.length}`);
                 return '';
             }
         };
@@ -70033,6 +70889,273 @@ exports.ConfigurationHandler = ConfigurationHandler;
 
 /***/ }),
 
+/***/ 7744:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckProgressUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(8836);
+const issue_repository_1 = __nccwpck_require__(57);
+const branch_repository_1 = __nccwpck_require__(7701);
+const progress_detector_1 = __nccwpck_require__(7887);
+class CheckProgressUseCase {
+    constructor() {
+        this.taskId = 'CheckProgressUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.branchRepository = new branch_repository_1.BranchRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        try {
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                (0, logger_1.logError)(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                    ],
+                }));
+                return results;
+            }
+            const ignoreFiles = param.ai.getAiIgnoreFiles();
+            (0, logger_1.logInfo)(`🔍 Ignore patterns: ${ignoreFiles.length > 0 ? ignoreFiles.join(', ') : 'none'}`);
+            // Get issue number
+            const issueNumber = param.issueNumber;
+            if (issueNumber === -1) {
+                (0, logger_1.logError)(`Issue number not found. Cannot check progress without an issue number.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Issue number not found. Cannot check progress without an issue number.`,
+                    ],
+                }));
+                return results;
+            }
+            (0, logger_1.logInfo)(`📋 Checking progress for issue #${issueNumber}`);
+            // Get issue description
+            const issueDescription = await this.issueRepository.getDescription(param.owner, param.repo, issueNumber, param.tokens.token);
+            if (!issueDescription) {
+                (0, logger_1.logError)(`Could not retrieve issue description for issue #${issueNumber}`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Could not retrieve issue description for issue #${issueNumber}`,
+                    ],
+                }));
+                return results;
+            }
+            // Get branch - use commit.branch if available, otherwise search for branch by issue number
+            let branch = param.commit.branch;
+            // If no branch in commit, search for branch matching issue number pattern
+            if (!branch) {
+                (0, logger_1.logInfo)(`📦 Searching for branch related to issue #${issueNumber}...`);
+                const branchTypes = [
+                    param.branches.featureTree,
+                    param.branches.bugfixTree,
+                    param.branches.docsTree,
+                    param.branches.choreTree,
+                    param.branches.hotfixTree,
+                    param.branches.releaseTree,
+                ];
+                const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
+                // Search for branch matching the pattern: ${type}/${issueNumber}-
+                for (const type of branchTypes) {
+                    const prefix = `${type}/${issueNumber}-`;
+                    const matchingBranch = branches.find(b => b.indexOf(prefix) > -1);
+                    if (matchingBranch) {
+                        branch = matchingBranch;
+                        (0, logger_1.logInfo)(`✅ Found branch: ${branch}`);
+                        break;
+                    }
+                }
+            }
+            if (!branch) {
+                (0, logger_1.logError)(`Could not find branch for issue #${issueNumber}. Please ensure a branch exists with pattern: feature/${issueNumber}-*, bugfix/${issueNumber}-*, docs/${issueNumber}-*, or chore/${issueNumber}-*`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Could not find branch for issue #${issueNumber}. Please ensure a branch exists with pattern: feature/${issueNumber}-*, bugfix/${issueNumber}-*, docs/${issueNumber}-*, or chore/${issueNumber}-*`,
+                    ],
+                }));
+                return results;
+            }
+            // Get development branch
+            const developmentBranch = param.branches.development || 'develop';
+            (0, logger_1.logInfo)(`📦 Comparing branch ${branch} with ${developmentBranch}`);
+            // Get changed files between branch and development branch
+            let changedFiles = [];
+            try {
+                const changes = await this.branchRepository.getChanges(param.owner, param.repo, branch, developmentBranch, param.tokens.token);
+                const allFiles = changes.files.map(file => ({
+                    filename: file.filename,
+                    status: file.status,
+                    additions: file.additions,
+                    deletions: file.deletions,
+                    patch: file.patch
+                }));
+                // Debug: show first few files being checked
+                if (allFiles.length > 0) {
+                    (0, logger_1.logDebugInfo)(`Checking ${allFiles.length} files against ${ignoreFiles.length} ignore patterns`);
+                    const sampleFiles = allFiles.slice(0, 5).map(f => f.filename);
+                    (0, logger_1.logDebugInfo)(`Sample files: ${sampleFiles.join(', ')}`);
+                }
+                changedFiles = allFiles.filter(file => {
+                    const shouldIgnore = this.shouldIgnoreFile(file.filename, ignoreFiles);
+                    if (shouldIgnore) {
+                        (0, logger_1.logDebugInfo)(`⏭️  Ignoring file: ${file.filename}`);
+                    }
+                    return !shouldIgnore;
+                });
+                const ignoredCount = allFiles.length - changedFiles.length;
+                if (ignoredCount > 0) {
+                    (0, logger_1.logInfo)(`📄 Found ${changedFiles.length} changed file(s) (${ignoredCount} ignored)`);
+                }
+                else {
+                    (0, logger_1.logInfo)(`📄 Found ${changedFiles.length} changed file(s)`);
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting changed files: ${JSON.stringify(error, null, 2)}`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Error getting changed files: ${JSON.stringify(error, null, 2)}`,
+                    ],
+                }));
+                return results;
+            }
+            // If no files changed, progress is 0%
+            if (changedFiles.length === 0) {
+                (0, logger_1.logInfo)(`📊 No files changed. Progress: 0%`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `No files have been changed yet. Progress: 0%`,
+                    ],
+                    payload: {
+                        progress: 0,
+                        summary: 'No files have been changed yet.',
+                        issueNumber,
+                        branch,
+                        changedFilesCount: 0
+                    }
+                }));
+                return results;
+            }
+            // Create ProgressDetector options
+            const token = param.tokens.token;
+            if (!token || token.length === 0) {
+                (0, logger_1.logError)(`GitHub token is missing or empty. Cannot load repository files.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `GitHub token is missing or empty. Cannot load repository files for progress analysis.`,
+                    ],
+                }));
+                return results;
+            }
+            (0, logger_1.logDebugInfo)(`🔑 Token available: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
+            const detectorOptions = {
+                model: param.ai.getOpenRouterModel(),
+                apiKey: param.ai.getOpenRouterApiKey(),
+                personalAccessToken: token,
+                maxTurns: 20,
+                repositoryOwner: param.owner,
+                repositoryName: param.repo,
+                repositoryBranch: branch,
+                developmentBranch: developmentBranch,
+                issueNumber: issueNumber,
+                issueDescription: issueDescription,
+                changedFiles: changedFiles,
+                useSubAgents: true,
+            };
+            // Detect progress
+            (0, logger_1.logInfo)(`🤖 Analyzing progress using AI...`);
+            const detector = new progress_detector_1.ProgressDetector(detectorOptions);
+            const progressResult = await detector.detectProgress(`Analyze the progress of issue #${issueNumber} based on the changes made in branch ${branch} compared to ${developmentBranch}.`);
+            (0, logger_1.logInfo)(`✅ Progress detection completed: ${progressResult.progress}%`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [
+                    `Progress for issue #${issueNumber}: ${progressResult.progress}%`,
+                    progressResult.summary
+                ],
+                payload: {
+                    progress: progressResult.progress,
+                    summary: progressResult.summary,
+                    issueNumber,
+                    branch,
+                    developmentBranch,
+                    changedFilesCount: changedFiles.length
+                }
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [
+                    `Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`,
+                ],
+            }));
+        }
+        return results;
+    }
+    /**
+     * Check if a file should be ignored based on ignore patterns
+     * This method matches the implementation in FileRepository.shouldIgnoreFile
+     */
+    shouldIgnoreFile(filename, ignorePatterns) {
+        // First check for .DS_Store
+        if (filename.endsWith('.DS_Store')) {
+            return true;
+        }
+        if (ignorePatterns.length === 0) {
+            return false;
+        }
+        return ignorePatterns.some(pattern => {
+            // Convert glob pattern to regex
+            const regexPattern = pattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
+                .replace(/\*/g, '.*') // Convert * to match anything
+                .replace(/\//g, '\\/'); // Escape forward slashes
+            // Allow pattern ending on /* to ignore also subdirectories and files inside
+            if (pattern.endsWith("/*")) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+            }
+            const regex = new RegExp(`^${regexPattern}$`);
+            return regex.test(filename);
+        });
+    }
+}
+exports.CheckProgressUseCase = CheckProgressUseCase;
+
+
+/***/ }),
+
 /***/ 2430:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -71422,6 +72545,7 @@ const create_release_use_case_1 = __nccwpck_require__(2430);
 const create_tag_use_case_1 = __nccwpck_require__(5279);
 const think_use_case_1 = __nccwpck_require__(3841);
 const initial_setup_use_case_1 = __nccwpck_require__(3943);
+const check_progress_use_case_1 = __nccwpck_require__(7744);
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -71454,6 +72578,9 @@ class SingleActionUseCase {
             }
             else if (param.singleAction.isInitialSetupAction) {
                 results.push(...await new initial_setup_use_case_1.InitialSetupUseCase().invoke(param));
+            }
+            else if (param.singleAction.isCheckProgressAction) {
+                results.push(...await new check_progress_use_case_1.CheckProgressUseCase().invoke(param));
             }
         }
         catch (error) {
@@ -76166,6 +77293,7 @@ exports.ACTIONS = {
     CREATE_TAG: 'create_tag',
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
+    CHECK_PROGRESS: 'check_progress_action',
 };
 exports.PROMPTS = {
     CODE_BASE_ANALYSIS: `
