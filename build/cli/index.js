@@ -77381,7 +77381,7 @@ class CheckProgressUseCase {
                 issueNumber: issueNumber,
                 issueDescription: issueDescription,
                 changedFiles: changedFiles,
-                useSubAgents: true,
+                useSubAgents: false,
             };
             // Detect progress
             (0, logger_1.logInfo)(`🤖 Analyzing progress using AI...`);

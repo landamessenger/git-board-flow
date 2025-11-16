@@ -249,7 +249,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 issueNumber: issueNumber,
                 issueDescription: issueDescription,
                 changedFiles: changedFiles,
-                useSubAgents: true,
+                useSubAgents: false,
             };
 
             // Detect progress
