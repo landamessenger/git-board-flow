@@ -688,7 +688,7 @@ ${fileContent}
             const detectorOptions: ErrorDetectionOptions = {
                 model: param.ai.getOpenRouterModel(),
                 apiKey: param.ai.getOpenRouterApiKey(),
-                maxTurns: 30,
+                maxTurns: 10, // Reduced for single file analysis to prevent loops
                 repositoryOwner: param.owner,
                 repositoryName: param.repo,
                 repositoryBranch: branch,
@@ -699,9 +699,16 @@ ${fileContent}
 
             const detector = new ErrorDetector(detectorOptions);
             
-            // Detect errors - use minimal prompt since we're analyzing a single file
+            // Detect errors - use clear prompt with explicit stop instruction
             const result: ErrorDetectionResult = await detector.detectErrors(
-                `Analyze this file for errors, bugs, vulnerabilities, and code quality issues: ${filePath}`
+                `Analyze ONLY this single file for errors, bugs, vulnerabilities, and code quality issues: ${filePath}
+
+**IMPORTANT INSTRUCTIONS:**
+1. Read the file using read_file
+2. Analyze it for errors, bugs, vulnerabilities, and code quality issues
+3. Call report_errors ONCE with all errors you found
+4. After calling report_errors, provide a brief final summary text response and STOP
+5. Do NOT call report_errors multiple times - call it once with all errors and then finish`
             );
 
             // Extract error information from result

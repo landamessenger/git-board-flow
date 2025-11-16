@@ -68114,7 +68114,10 @@ class SystemPromptBuilder {
                     `- Analyze ONLY this file, do NOT analyze any related files (consumers, dependencies, etc.)\n` +
                     `- This focused mode does NOT limit the types of errors you should detect\n` +
                     `- You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
-                    `- Focus on issues within this single file only\n`
+                    `- Focus on issues within this single file only\n` +
+                    `- **CRITICAL**: After reading the file and analyzing it, call report_errors ONCE with all errors found\n` +
+                    `- **STOP AFTER report_errors**: After calling report_errors, provide a brief final summary and STOP. Do NOT call report_errors again.\n` +
+                    `- Do NOT repeat the same errors multiple times - collect all errors, call report_errors once, then finish\n`
                 : `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
                     `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
                     `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
@@ -68231,8 +68234,10 @@ ${errorTypes}
    - Look for patterns that might indicate systemic issues
 6. **FINAL STEP - REQUIRED**: Before finishing, you MUST call report_errors with ALL errors you found during your analysis
    - Collect all errors from all files you analyzed
-   - Call report_errors with a complete list of all issues
-   - Only after calling report_errors should you provide your final text summary
+   - Call report_errors ONCE with a complete list of all issues
+   - **CRITICAL**: After calling report_errors, you MUST provide your final text summary and STOP
+   - **DO NOT call report_errors multiple times** - call it once with all errors, then provide your summary and finish
+   - If you've already called report_errors, provide your final summary and STOP - do not call report_errors again
 
 **Issue Severity Levels:**
 - **critical**: Will cause system failure, data loss, or critical security breach (e.g., SQL injection, exposed credentials, remote code execution)
@@ -77201,7 +77206,7 @@ ${fileContent}
                 const detectorOptions = {
                     model: param.ai.getOpenRouterModel(),
                     apiKey: param.ai.getOpenRouterApiKey(),
-                    maxTurns: 30,
+                    maxTurns: 10, // Reduced for single file analysis to prevent loops
                     repositoryOwner: param.owner,
                     repositoryName: param.repo,
                     repositoryBranch: branch,
@@ -77210,8 +77215,15 @@ ${fileContent}
                     useSubAgents: false // Single file doesn't need subagents
                 };
                 const detector = new error_detector_1.ErrorDetector(detectorOptions);
-                // Detect errors - use minimal prompt since we're analyzing a single file
-                const result = await detector.detectErrors(`Analyze this file for errors, bugs, vulnerabilities, and code quality issues: ${filePath}`);
+                // Detect errors - use clear prompt with explicit stop instruction
+                const result = await detector.detectErrors(`Analyze ONLY this single file for errors, bugs, vulnerabilities, and code quality issues: ${filePath}
+
+**IMPORTANT INSTRUCTIONS:**
+1. Read the file using read_file
+2. Analyze it for errors, bugs, vulnerabilities, and code quality issues
+3. Call report_errors ONCE with all errors you found
+4. After calling report_errors, provide a brief final summary text response and STOP
+5. Do NOT call report_errors multiple times - call it once with all errors and then finish`);
                 // Extract error information from result
                 const { errors, summary } = result;
                 // Get unique error types

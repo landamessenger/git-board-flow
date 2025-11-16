@@ -27,7 +27,10 @@ export class SystemPromptBuilder {
           `- Analyze ONLY this file, do NOT analyze any related files (consumers, dependencies, etc.)\n` +
           `- This focused mode does NOT limit the types of errors you should detect\n` +
           `- You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
-          `- Focus on issues within this single file only\n`
+          `- Focus on issues within this single file only\n` +
+          `- **CRITICAL**: After reading the file and analyzing it, call report_errors ONCE with all errors found\n` +
+          `- **STOP AFTER report_errors**: After calling report_errors, provide a brief final summary and STOP. Do NOT call report_errors again.\n` +
+          `- Do NOT repeat the same errors multiple times - collect all errors, call report_errors once, then finish\n`
         : `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
           `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
           `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
@@ -145,8 +148,10 @@ ${errorTypes}
    - Look for patterns that might indicate systemic issues
 6. **FINAL STEP - REQUIRED**: Before finishing, you MUST call report_errors with ALL errors you found during your analysis
    - Collect all errors from all files you analyzed
-   - Call report_errors with a complete list of all issues
-   - Only after calling report_errors should you provide your final text summary
+   - Call report_errors ONCE with a complete list of all issues
+   - **CRITICAL**: After calling report_errors, you MUST provide your final text summary and STOP
+   - **DO NOT call report_errors multiple times** - call it once with all errors, then provide your summary and finish
+   - If you've already called report_errors, provide your final summary and STOP - do not call report_errors again
 
 **Issue Severity Levels:**
 - **critical**: Will cause system failure, data loss, or critical security breach (e.g., SQL injection, exposed credentials, remote code execution)
