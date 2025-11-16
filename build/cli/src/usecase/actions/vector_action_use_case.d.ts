@@ -13,4 +13,9 @@ export declare class VectorActionUseCase implements ParamUseCase<Execution, Resu
     invoke(param: Execution): Promise<Result[]>;
     private prepareCacheOnBranch;
     private removeOrphanedBranches;
+    /**
+     * Detect errors for a specific file using ErrorDetector
+     * Analyzes only the target file, ignoring related files
+     */
+    private detectErrorsForFile;
 }

@@ -9,6 +9,13 @@ export interface AICachedFileInfo {
     description: string;
     consumes: string[];
     consumed_by: string[];
+    error_counter_total?: number;
+    error_counter_critical?: number;
+    error_counter_high?: number;
+    error_counter_medium?: number;
+    error_counter_low?: number;
+    error_types?: string[];
+    errors_payload?: string;
     created_at?: string;
     last_updated?: string;
 }
@@ -29,6 +36,13 @@ export declare class SupabaseRepository {
         description: string;
         consumes: string[];
         consumed_by: string[];
+        error_counter_total?: number;
+        error_counter_critical?: number;
+        error_counter_high?: number;
+        error_counter_medium?: number;
+        error_counter_low?: number;
+        error_types?: string[];
+        errors_payload?: string;
     }) => Promise<void>;
     /**
      * Get AI file cache entry by path

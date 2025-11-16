@@ -10,6 +10,8 @@ import { FileCacheManager } from '../steps/common/services/file_cache_manager';
 import { CodebaseAnalyzer } from '../steps/common/services/codebase_analyzer';
 import { PROMPTS } from '../../utils/constants';
 import { BranchRepository } from '../../data/repository/branch_repository';
+import { ErrorDetector } from '../../agent/reasoning/error_detector/error_detector';
+import { ErrorDetectionOptions, ErrorDetectionResult } from '../../agent/reasoning/error_detector/types';
 
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
@@ -299,7 +301,7 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
                 
 
-                // Check if this SHA exists in any branch (to reuse description)
+                // Check if this SHA exists in any branch (to reuse description and errors)
                 const existingCache = await supabaseRepository.getAIFileCacheBySha(
                     param.owner,
                     param.repo,
@@ -311,10 +313,24 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const consumedBy = consumedByMap.get(filePath) || [];
                 
                 let description: string;
+                let errorCounterTotal = 0;
+                let errorCounterCritical = 0;
+                let errorCounterHigh = 0;
+                let errorCounterMedium = 0;
+                let errorCounterLow = 0;
+                let errorTypes: string[] = [];
+                let errorsPayload: string | undefined = undefined;
                 
                 if (existingCache) {
-                    // Reuse description from existing cache
+                    // Reuse description and error information from existing cache
                     description = existingCache.description;
+                    errorCounterTotal = existingCache.error_counter_total ?? 0;
+                    errorCounterCritical = existingCache.error_counter_critical ?? 0;
+                    errorCounterHigh = existingCache.error_counter_high ?? 0;
+                    errorCounterMedium = existingCache.error_counter_medium ?? 0;
+                    errorCounterLow = existingCache.error_counter_low ?? 0;
+                    errorTypes = existingCache.error_types ?? [];
+                    errorsPayload = existingCache.errors_payload;
                     filesReused++;
                 } else {
                     // Generate new description using AI
@@ -357,6 +373,29 @@ ${fileContent}
                     } catch (error) {
                         logError(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                     }
+
+                    // Detect errors for this file
+                    try {
+                        const errorInfo = await this.detectErrorsForFile(
+                            param,
+                            branch,
+                            normalizedPath,
+                            fileContent
+                        );
+                        
+                        if (errorInfo) {
+                            errorCounterTotal = errorInfo.error_counter_total;
+                            errorCounterCritical = errorInfo.error_counter_critical;
+                            errorCounterHigh = errorInfo.error_counter_high;
+                            errorCounterMedium = errorInfo.error_counter_medium;
+                            errorCounterLow = errorInfo.error_counter_low;
+                            errorTypes = errorInfo.error_types;
+                            errorsPayload = errorInfo.errors_payload;
+                        }
+                    } catch (error) {
+                        logError(`Error detecting errors for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                        // Continue with default values (all zeros)
+                    }
                 }
 
                 // Remove existing cache if SHA changed
@@ -386,7 +425,14 @@ ${fileContent}
                             sha: currentSHA,
                             description: description,
                             consumes: normalizedConsumes,
-                            consumed_by: normalizedConsumedBy
+                            consumed_by: normalizedConsumedBy,
+                            error_counter_total: errorCounterTotal,
+                            error_counter_critical: errorCounterCritical,
+                            error_counter_high: errorCounterHigh,
+                            error_counter_medium: errorCounterMedium,
+                            error_counter_low: errorCounterLow,
+                            error_types: errorTypes,
+                            errors_payload: errorsPayload
                         }
                     );
                     
@@ -611,5 +657,74 @@ ${fileContent}
         }
 
         return results;
+    }
+
+    /**
+     * Detect errors for a specific file using ErrorDetector
+     * Analyzes only the target file, ignoring related files
+     */
+    private detectErrorsForFile = async (
+        param: Execution,
+        branch: string,
+        filePath: string,
+        fileContent: string
+    ): Promise<{
+        error_counter_total: number;
+        error_counter_critical: number;
+        error_counter_high: number;
+        error_counter_medium: number;
+        error_counter_low: number;
+        error_types: string[];
+        errors_payload: string;
+    } | null> => {
+        try {
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                logDebugInfo(`Skipping error detection for ${filePath}: Missing AI configuration`);
+                return null;
+            }
+
+            // Create ErrorDetector options for single file analysis
+            const detectorOptions: ErrorDetectionOptions = {
+                model: param.ai.getOpenRouterModel(),
+                apiKey: param.ai.getOpenRouterApiKey(),
+                maxTurns: 30,
+                repositoryOwner: param.owner,
+                repositoryName: param.repo,
+                repositoryBranch: branch,
+                targetFile: filePath,
+                analyzeOnlyTargetFile: true, // Only analyze this file, ignore related files
+                useSubAgents: false // Single file doesn't need subagents
+            };
+
+            const detector = new ErrorDetector(detectorOptions);
+            
+            // Detect errors - use minimal prompt since we're analyzing a single file
+            const result: ErrorDetectionResult = await detector.detectErrors(
+                `Analyze this file for errors, bugs, vulnerabilities, and code quality issues: ${filePath}`
+            );
+
+            // Extract error information from result
+            const { errors, summary } = result;
+            
+            // Get unique error types
+            const uniqueErrorTypes = Array.from(new Set(errors.map(e => e.type)));
+            
+            // Create errors payload as JSON string
+            const errorsPayload = JSON.stringify(errors);
+
+            return {
+                error_counter_total: summary.total,
+                error_counter_critical: summary.bySeverity.critical,
+                error_counter_high: summary.bySeverity.high,
+                error_counter_medium: summary.bySeverity.medium,
+                error_counter_low: summary.bySeverity.low,
+                error_types: uniqueErrorTypes,
+                errors_payload: errorsPayload
+            };
+        } catch (error) {
+            logError(`Error in detectErrorsForFile for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+            return null;
+        }
     }
 }

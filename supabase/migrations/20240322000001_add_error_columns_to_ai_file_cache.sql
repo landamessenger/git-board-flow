@@ -1,46 +1,91 @@
--- Create the ai_file_cache table to store AI-generated file descriptions and relationships
-CREATE TABLE IF NOT EXISTS ai_file_cache (
-    owner TEXT NOT NULL,
-    repository TEXT NOT NULL,
-    branch TEXT NOT NULL,
-    file_name TEXT NOT NULL,
-    path TEXT NOT NULL,
-    sha TEXT NOT NULL,
-    description TEXT NOT NULL,
-    consumes TEXT[] DEFAULT ARRAY[]::TEXT[],
-    consumed_by TEXT[] DEFAULT ARRAY[]::TEXT[],
-    error_counter_total INTEGER DEFAULT 0,
-    error_counter_critical INTEGER DEFAULT 0,
-    error_counter_high INTEGER DEFAULT 0,
-    error_counter_medium INTEGER DEFAULT 0,
-    error_counter_low INTEGER DEFAULT 0,
-    error_types TEXT[] DEFAULT ARRAY[]::TEXT[],
-    errors_payload TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (owner, repository, branch, path)
-);
+-- Migration script to add error columns to existing ai_file_cache table
+-- This script adds the new error-related columns and fills existing rows with default values
 
--- Create indexes for faster lookups
-CREATE INDEX IF NOT EXISTS ai_file_cache_owner_repo_branch_idx ON ai_file_cache(owner, repository, branch);
-CREATE INDEX IF NOT EXISTS ai_file_cache_path_idx ON ai_file_cache(path);
-CREATE INDEX IF NOT EXISTS ai_file_cache_sha_idx ON ai_file_cache(sha);
-
--- Create a trigger to update the last_updated timestamp
-CREATE OR REPLACE FUNCTION update_ai_file_cache_updated_at()
-RETURNS TRIGGER AS $$
+-- Add new columns if they don't exist
+DO $$
 BEGIN
-    NEW.last_updated = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+    -- Add error_counter_total
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_file_cache' AND column_name = 'error_counter_total'
+    ) THEN
+        ALTER TABLE ai_file_cache ADD COLUMN error_counter_total INTEGER DEFAULT 0;
+    END IF;
 
-CREATE TRIGGER update_ai_file_cache_updated_at
-    BEFORE UPDATE ON ai_file_cache
-    FOR EACH ROW
-    EXECUTE FUNCTION update_ai_file_cache_updated_at();
+    -- Add error_counter_critical
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_file_cache' AND column_name = 'error_counter_critical'
+    ) THEN
+        ALTER TABLE ai_file_cache ADD COLUMN error_counter_critical INTEGER DEFAULT 0;
+    END IF;
 
--- Create a function to get file cache by path
+    -- Add error_counter_high
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_file_cache' AND column_name = 'error_counter_high'
+    ) THEN
+        ALTER TABLE ai_file_cache ADD COLUMN error_counter_high INTEGER DEFAULT 0;
+    END IF;
+
+    -- Add error_counter_medium
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_file_cache' AND column_name = 'error_counter_medium'
+    ) THEN
+        ALTER TABLE ai_file_cache ADD COLUMN error_counter_medium INTEGER DEFAULT 0;
+    END IF;
+
+    -- Add error_counter_low
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_file_cache' AND column_name = 'error_counter_low'
+    ) THEN
+        ALTER TABLE ai_file_cache ADD COLUMN error_counter_low INTEGER DEFAULT 0;
+    END IF;
+
+    -- Add error_types
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_file_cache' AND column_name = 'error_types'
+    ) THEN
+        ALTER TABLE ai_file_cache ADD COLUMN error_types TEXT[] DEFAULT ARRAY[]::TEXT[];
+    END IF;
+
+    -- Add errors_payload
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'ai_file_cache' AND column_name = 'errors_payload'
+    ) THEN
+        ALTER TABLE ai_file_cache ADD COLUMN errors_payload TEXT;
+    END IF;
+END $$;
+
+-- Update existing rows to set default values for new columns
+-- This ensures all existing rows have the correct default values
+UPDATE ai_file_cache
+SET 
+    error_counter_total = COALESCE(error_counter_total, 0),
+    error_counter_critical = COALESCE(error_counter_critical, 0),
+    error_counter_high = COALESCE(error_counter_high, 0),
+    error_counter_medium = COALESCE(error_counter_medium, 0),
+    error_counter_low = COALESCE(error_counter_low, 0),
+    error_types = COALESCE(error_types, ARRAY[]::TEXT[]),
+    errors_payload = COALESCE(errors_payload, NULL)
+WHERE 
+    error_counter_total IS NULL 
+    OR error_counter_critical IS NULL 
+    OR error_counter_high IS NULL 
+    OR error_counter_medium IS NULL 
+    OR error_counter_low IS NULL 
+    OR error_types IS NULL;
+
+-- Drop existing functions before recreating them with new columns
+DROP FUNCTION IF EXISTS get_ai_file_cache(TEXT, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS get_ai_file_caches_by_branch(TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS duplicate_ai_file_cache_by_branch(TEXT, TEXT, TEXT, TEXT);
+
+-- Update the get_ai_file_cache function to include new columns
 CREATE OR REPLACE FUNCTION get_ai_file_cache(
     owner_param TEXT,
     repository_param TEXT,
@@ -100,7 +145,7 @@ BEGIN
 END;
 $$;
 
--- Create a function to get all file caches for a branch
+-- Update the get_ai_file_caches_by_branch function to include new columns
 CREATE OR REPLACE FUNCTION get_ai_file_caches_by_branch(
     owner_param TEXT,
     repository_param TEXT,
@@ -158,45 +203,7 @@ BEGIN
 END;
 $$;
 
--- Create a function to delete file cache entries by branch
-CREATE OR REPLACE FUNCTION delete_ai_file_cache_by_branch(
-    owner_param TEXT,
-    repository_param TEXT,
-    branch_param TEXT
-)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    DELETE FROM ai_file_cache
-    WHERE owner = owner_param
-    AND repository = repository_param
-    AND branch = branch_param;
-END;
-$$;
-
--- Create a function to delete file cache entries by path
-CREATE OR REPLACE FUNCTION delete_ai_file_cache_by_path(
-    owner_param TEXT,
-    repository_param TEXT,
-    branch_param TEXT,
-    path_param TEXT
-)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    DELETE FROM ai_file_cache
-    WHERE owner = owner_param
-    AND repository = repository_param
-    AND branch = branch_param
-    AND path = path_param;
-END;
-$$;
-
--- Create a function to duplicate file cache entries from one branch to another
+-- Update the duplicate_ai_file_cache_by_branch function to include new columns
 CREATE OR REPLACE FUNCTION duplicate_ai_file_cache_by_branch(
     owner_param TEXT,
     repository_param TEXT,

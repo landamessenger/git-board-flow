@@ -74844,6 +74844,13 @@ class SupabaseRepository {
                     description: fileInfo.description,
                     consumes: fileInfo.consumes,
                     consumed_by: fileInfo.consumed_by,
+                    error_counter_total: fileInfo.error_counter_total ?? 0,
+                    error_counter_critical: fileInfo.error_counter_critical ?? 0,
+                    error_counter_high: fileInfo.error_counter_high ?? 0,
+                    error_counter_medium: fileInfo.error_counter_medium ?? 0,
+                    error_counter_low: fileInfo.error_counter_low ?? 0,
+                    error_types: fileInfo.error_types ?? [],
+                    errors_payload: fileInfo.errors_payload ?? null,
                     last_updated: new Date().toISOString()
                 }, {
                     onConflict: 'owner,repository,branch,path'
@@ -76794,6 +76801,7 @@ const file_cache_manager_1 = __nccwpck_require__(1855);
 const codebase_analyzer_1 = __nccwpck_require__(678);
 const constants_1 = __nccwpck_require__(8593);
 const branch_repository_1 = __nccwpck_require__(7701);
+const error_detector_1 = __nccwpck_require__(1111);
 class VectorActionUseCase {
     constructor() {
         this.taskId = 'VectorActionUseCase';
@@ -76907,15 +76915,29 @@ class VectorActionUseCase {
                         filesSkipped++;
                         continue;
                     }
-                    // Check if this SHA exists in any branch (to reuse description)
+                    // Check if this SHA exists in any branch (to reuse description and errors)
                     const existingCache = await supabaseRepository.getAIFileCacheBySha(param.owner, param.repo, currentSHA);
                     // Extract imports for this file (from pre-built map)
                     const consumes = consumesMap.get(filePath) || [];
                     const consumedBy = consumedByMap.get(filePath) || [];
                     let description;
+                    let errorCounterTotal = 0;
+                    let errorCounterCritical = 0;
+                    let errorCounterHigh = 0;
+                    let errorCounterMedium = 0;
+                    let errorCounterLow = 0;
+                    let errorTypes = [];
+                    let errorsPayload = undefined;
                     if (existingCache) {
-                        // Reuse description from existing cache
+                        // Reuse description and error information from existing cache
                         description = existingCache.description;
+                        errorCounterTotal = existingCache.error_counter_total ?? 0;
+                        errorCounterCritical = existingCache.error_counter_critical ?? 0;
+                        errorCounterHigh = existingCache.error_counter_high ?? 0;
+                        errorCounterMedium = existingCache.error_counter_medium ?? 0;
+                        errorCounterLow = existingCache.error_counter_low ?? 0;
+                        errorTypes = existingCache.error_types ?? [];
+                        errorsPayload = existingCache.errors_payload;
                         filesReused++;
                     }
                     else {
@@ -76951,6 +76973,23 @@ ${fileContent}
                         catch (error) {
                             (0, logger_1.logError)(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                         }
+                        // Detect errors for this file
+                        try {
+                            const errorInfo = await this.detectErrorsForFile(param, branch, normalizedPath, fileContent);
+                            if (errorInfo) {
+                                errorCounterTotal = errorInfo.error_counter_total;
+                                errorCounterCritical = errorInfo.error_counter_critical;
+                                errorCounterHigh = errorInfo.error_counter_high;
+                                errorCounterMedium = errorInfo.error_counter_medium;
+                                errorCounterLow = errorInfo.error_counter_low;
+                                errorTypes = errorInfo.error_types;
+                                errorsPayload = errorInfo.errors_payload;
+                            }
+                        }
+                        catch (error) {
+                            (0, logger_1.logError)(`Error detecting errors for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                            // Continue with default values (all zeros)
+                        }
                     }
                     // Remove existing cache if SHA changed
                     if (remoteShasum && remoteShasum !== currentSHA) {
@@ -76968,7 +77007,14 @@ ${fileContent}
                             sha: currentSHA,
                             description: description,
                             consumes: normalizedConsumes,
-                            consumed_by: normalizedConsumedBy
+                            consumed_by: normalizedConsumedBy,
+                            error_counter_total: errorCounterTotal,
+                            error_counter_critical: errorCounterCritical,
+                            error_counter_high: errorCounterHigh,
+                            error_counter_medium: errorCounterMedium,
+                            error_counter_low: errorCounterLow,
+                            error_types: errorTypes,
+                            errors_payload: errorsPayload
                         });
                         filesProcessed++;
                     }
@@ -77139,6 +77185,53 @@ ${fileContent}
                 }));
             }
             return results;
+        };
+        /**
+         * Detect errors for a specific file using ErrorDetector
+         * Analyzes only the target file, ignoring related files
+         */
+        this.detectErrorsForFile = async (param, branch, filePath, fileContent) => {
+            try {
+                // Check if AI configuration is available
+                if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                    (0, logger_1.logDebugInfo)(`Skipping error detection for ${filePath}: Missing AI configuration`);
+                    return null;
+                }
+                // Create ErrorDetector options for single file analysis
+                const detectorOptions = {
+                    model: param.ai.getOpenRouterModel(),
+                    apiKey: param.ai.getOpenRouterApiKey(),
+                    maxTurns: 30,
+                    repositoryOwner: param.owner,
+                    repositoryName: param.repo,
+                    repositoryBranch: branch,
+                    targetFile: filePath,
+                    analyzeOnlyTargetFile: true, // Only analyze this file, ignore related files
+                    useSubAgents: false // Single file doesn't need subagents
+                };
+                const detector = new error_detector_1.ErrorDetector(detectorOptions);
+                // Detect errors - use minimal prompt since we're analyzing a single file
+                const result = await detector.detectErrors(`Analyze this file for errors, bugs, vulnerabilities, and code quality issues: ${filePath}`);
+                // Extract error information from result
+                const { errors, summary } = result;
+                // Get unique error types
+                const uniqueErrorTypes = Array.from(new Set(errors.map(e => e.type)));
+                // Create errors payload as JSON string
+                const errorsPayload = JSON.stringify(errors);
+                return {
+                    error_counter_total: summary.total,
+                    error_counter_critical: summary.bySeverity.critical,
+                    error_counter_high: summary.bySeverity.high,
+                    error_counter_medium: summary.bySeverity.medium,
+                    error_counter_low: summary.bySeverity.low,
+                    error_types: uniqueErrorTypes,
+                    errors_payload: errorsPayload
+                };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error in detectErrorsForFile for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                return null;
+            }
         };
         // Initialize CodebaseAnalyzer with dependencies
         this.codebaseAnalyzer = new codebase_analyzer_1.CodebaseAnalyzer(this.aiRepository, this.fileImportAnalyzer, this.fileCacheManager);

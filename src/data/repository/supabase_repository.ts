@@ -13,6 +13,13 @@ export interface AICachedFileInfo {
     description: string;
     consumes: string[];
     consumed_by: string[];
+    error_counter_total?: number;
+    error_counter_critical?: number;
+    error_counter_high?: number;
+    error_counter_medium?: number;
+    error_counter_low?: number;
+    error_types?: string[];
+    errors_payload?: string;
     created_at?: string;
     last_updated?: string;
 }
@@ -72,6 +79,13 @@ export class SupabaseRepository {
             description: string;
             consumes: string[];
             consumed_by: string[];
+            error_counter_total?: number;
+            error_counter_critical?: number;
+            error_counter_high?: number;
+            error_counter_medium?: number;
+            error_counter_low?: number;
+            error_types?: string[];
+            errors_payload?: string;
         }
     ): Promise<void> => {
         try {
@@ -87,6 +101,13 @@ export class SupabaseRepository {
                     description: fileInfo.description,
                     consumes: fileInfo.consumes,
                     consumed_by: fileInfo.consumed_by,
+                    error_counter_total: fileInfo.error_counter_total ?? 0,
+                    error_counter_critical: fileInfo.error_counter_critical ?? 0,
+                    error_counter_high: fileInfo.error_counter_high ?? 0,
+                    error_counter_medium: fileInfo.error_counter_medium ?? 0,
+                    error_counter_low: fileInfo.error_counter_low ?? 0,
+                    error_types: fileInfo.error_types ?? [],
+                    errors_payload: fileInfo.errors_payload ?? null,
                     last_updated: new Date().toISOString()
                 }, {
                     onConflict: 'owner,repository,branch,path'
