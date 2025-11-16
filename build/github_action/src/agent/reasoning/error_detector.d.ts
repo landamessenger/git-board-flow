@@ -13,6 +13,8 @@ export interface ErrorDetectionOptions {
     repositoryBranch?: string;
     focusAreas?: string[];
     errorTypes?: string[];
+    useSubAgents?: boolean;
+    maxConcurrentSubAgents?: number;
 }
 export interface DetectedError {
     file: string;
@@ -40,6 +42,7 @@ export declare class ErrorDetector {
     private agent;
     private fileRepository;
     private options;
+    private repositoryFiles;
     constructor(options: ErrorDetectionOptions);
     private initializeAgent;
     private buildSystemPrompt;
@@ -63,6 +66,14 @@ export declare class ErrorDetector {
      * Generate summary of detected errors
      */
     private generateSummary;
+    /**
+     * Detect errors using subagents for parallel processing
+     */
+    private detectErrorsWithSubAgents;
+    /**
+     * Partition files by directory to keep related files together
+     */
+    private partitionFilesByDirectory;
     /**
      * Get agent instance (for advanced usage)
      */

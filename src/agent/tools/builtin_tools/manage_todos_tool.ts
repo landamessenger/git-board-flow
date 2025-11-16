@@ -68,7 +68,9 @@ export class ManageTodosTool extends BaseTool {
   }
 
   async execute(input: Record<string, any>): Promise<string> {
+    const { logInfo } = require('../../../utils/logger');
     const action = input.action as string;
+    logInfo(`   📋 Managing TODOs - Action: ${action}`);
 
     if (!['create', 'update', 'list'].includes(action)) {
       throw new Error('action must be one of: create, update, list');

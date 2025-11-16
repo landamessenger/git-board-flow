@@ -66,7 +66,10 @@ export class ProposeChangeTool extends BaseTool {
   }
 
   async execute(input: Record<string, any>): Promise<string> {
+    const { logInfo } = require('../../../utils/logger');
     const filePath = input.file_path as string;
+    logInfo(`   ✏️ Proposing change: ${filePath} (${input.change_type})`);
+    logInfo(`      Description: ${input.description?.substring(0, 100) || 'N/A'}${input.description && input.description.length > 100 ? '...' : ''}`);
     const changeType = input.change_type as 'create' | 'modify' | 'delete' | 'refactor';
     const description = input.description as string;
     const suggestedCode = input.suggested_code as string;

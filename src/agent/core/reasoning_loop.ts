@@ -142,6 +142,10 @@ export class ReasoningLoop {
           // 6. Execute tools if any
           if (toolCalls.length > 0) {
             logInfo(`🔧 Executing ${toolCalls.length} tool call(s)`);
+      for (const toolCall of toolCalls) {
+        logInfo(`   🔨 Tool: ${toolCall.name}`);
+        logInfo(`      Input: ${JSON.stringify(toolCall.input).substring(0, 150)}${JSON.stringify(toolCall.input).length > 150 ? '...' : ''}`);
+      }
             
             // Record tool calls in metrics
             for (const _ of toolCalls) {
@@ -156,15 +160,16 @@ export class ReasoningLoop {
             for (let i = 0; i < toolCalls.length; i++) {
               const toolCall = toolCalls[i];
               const toolResult = toolResults[i];
-              logDebugInfo(`🔧 Tool: ${toolCall.name} | Input: ${JSON.stringify(toolCall.input)} | Success: ${!toolResult.isError}`);
+              
+              logInfo(`   ✅ Tool result (${toolCall.name}):`);
               if (toolResult.isError) {
-                logError(`❌ Tool ${toolCall.name} error: ${toolResult.errorMessage}`);
+                logError(`      ❌ Error: ${toolResult.errorMessage || 'Unknown error'}`);
                 this.metricsTracker.recordError();
               } else {
                 const resultPreview = typeof toolResult.content === 'string' 
-                  ? toolResult.content.substring(0, 100) 
-                  : JSON.stringify(toolResult.content).substring(0, 100);
-                logDebugInfo(`✅ Tool ${toolCall.name} result: ${resultPreview}...`);
+                  ? toolResult.content.substring(0, 500)
+                  : JSON.stringify(toolResult.content).substring(0, 500);
+                logInfo(`      ${resultPreview}${(typeof toolResult.content === 'string' && toolResult.content.length > 500) || (typeof toolResult.content !== 'string' && JSON.stringify(toolResult.content).length > 500) ? '...' : ''}`);
               }
             }
 
@@ -196,6 +201,10 @@ export class ReasoningLoop {
           }
 
           // 9. No tool calls = final response
+          // Log the response to see what the agent is saying
+          if (parsedResponse.text) {
+            logInfo(`   📝 Final response: ${parsedResponse.text.substring(0, 300)}${parsedResponse.text.length > 300 ? '...' : ''}`);
+          }
           logInfo(`✅ Final response received (no more tool calls)`);
           
           this.messageManager.addAssistantMessage(parsedResponse.text);

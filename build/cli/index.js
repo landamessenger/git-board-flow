@@ -65484,6 +65484,10 @@ class ReasoningLoop {
                     // 6. Execute tools if any
                     if (toolCalls.length > 0) {
                         (0, logger_1.logInfo)(`🔧 Executing ${toolCalls.length} tool call(s)`);
+                        for (const toolCall of toolCalls) {
+                            (0, logger_1.logInfo)(`   🔨 Tool: ${toolCall.name}`);
+                            (0, logger_1.logInfo)(`      Input: ${JSON.stringify(toolCall.input).substring(0, 150)}${JSON.stringify(toolCall.input).length > 150 ? '...' : ''}`);
+                        }
                         // Record tool calls in metrics
                         for (const _ of toolCalls) {
                             this.metricsTracker.recordToolCall();
@@ -65495,16 +65499,16 @@ class ReasoningLoop {
                         for (let i = 0; i < toolCalls.length; i++) {
                             const toolCall = toolCalls[i];
                             const toolResult = toolResults[i];
-                            (0, logger_1.logDebugInfo)(`🔧 Tool: ${toolCall.name} | Input: ${JSON.stringify(toolCall.input)} | Success: ${!toolResult.isError}`);
+                            (0, logger_1.logInfo)(`   ✅ Tool result (${toolCall.name}):`);
                             if (toolResult.isError) {
-                                (0, logger_1.logError)(`❌ Tool ${toolCall.name} error: ${toolResult.errorMessage}`);
+                                (0, logger_1.logError)(`      ❌ Error: ${toolResult.errorMessage || 'Unknown error'}`);
                                 this.metricsTracker.recordError();
                             }
                             else {
                                 const resultPreview = typeof toolResult.content === 'string'
-                                    ? toolResult.content.substring(0, 100)
-                                    : JSON.stringify(toolResult.content).substring(0, 100);
-                                (0, logger_1.logDebugInfo)(`✅ Tool ${toolCall.name} result: ${resultPreview}...`);
+                                    ? toolResult.content.substring(0, 500)
+                                    : JSON.stringify(toolResult.content).substring(0, 500);
+                                (0, logger_1.logInfo)(`      ${resultPreview}${(typeof toolResult.content === 'string' && toolResult.content.length > 500) || (typeof toolResult.content !== 'string' && JSON.stringify(toolResult.content).length > 500) ? '...' : ''}`);
                             }
                         }
                         // Call callbacks
@@ -65530,6 +65534,10 @@ class ReasoningLoop {
                         continue;
                     }
                     // 9. No tool calls = final response
+                    // Log the response to see what the agent is saying
+                    if (parsedResponse.text) {
+                        (0, logger_1.logInfo)(`   📝 Final response: ${parsedResponse.text.substring(0, 300)}${parsedResponse.text.length > 300 ? '...' : ''}`);
+                    }
                     (0, logger_1.logInfo)(`✅ Final response received (no more tool calls)`);
                     this.messageManager.addAssistantMessage(parsedResponse.text);
                     turns.push(turnResult);
@@ -67080,14 +67088,17 @@ const file_repository_1 = __nccwpck_require__(1503);
 const logger_1 = __nccwpck_require__(8836);
 class ErrorDetector {
     constructor(options) {
+        this.repositoryFiles = new Map();
         this.options = {
-            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini', // Changed from gpt-4.1-nano to gpt-4o-mini for better instruction following
             apiKey: options.apiKey,
             maxTurns: options.maxTurns || 30,
             repositoryOwner: options.repositoryOwner,
             repositoryName: options.repositoryName,
             focusAreas: options.focusAreas || [],
-            errorTypes: options.errorTypes || []
+            errorTypes: options.errorTypes || [],
+            useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
+            maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
         };
         this.fileRepository = new file_repository_1.FileRepository();
         // Note: initializeAgent is async, but we can't await in constructor
@@ -67122,38 +67133,109 @@ class ErrorDetector {
                             branch = 'master';
                         }
                     }
-                    const files = await this.fileRepository.getRepositoryContent(this.options.repositoryOwner, this.options.repositoryName, token, branch, [], // ignoreFiles
-                    () => { }, // progress callback
-                    () => { } // ignoredFiles callback
+                    (0, logger_1.logInfo)(`📥 Loading repository files from ${this.options.repositoryOwner}/${this.options.repositoryName}...`);
+                    // Exclude compiled files and build artifacts
+                    const ignoreFiles = [
+                        'build/**',
+                        'dist/**',
+                        'node_modules/**',
+                        '*.d.ts', // TypeScript declaration files (compiled)
+                        '.next/**',
+                        'out/**',
+                        'coverage/**',
+                        '.turbo/**',
+                        '.cache/**',
+                        '*.min.js',
+                        '*.min.css',
+                        '*.map', // Source maps
+                        '.git/**',
+                        '.vscode/**',
+                        '.idea/**'
+                    ];
+                    const files = await this.fileRepository.getRepositoryContent(this.options.repositoryOwner, this.options.repositoryName, token, branch, ignoreFiles, // ignoreFiles - exclude compiled files
+                    (fileName) => {
+                        (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
+                    }, // progress callback
+                    (fileName) => {
+                        (0, logger_1.logDebugInfo)(`   ⏭️  Ignored: ${fileName}`);
+                    } // ignoredFiles callback
                     );
                     repositoryFiles = files;
+                    this.repositoryFiles = files; // Store for subagent partitioning
+                    (0, logger_1.logInfo)(`✅ Loaded ${repositoryFiles.size} file(s) from repository (excluding compiled files)`);
                 }
             }
             catch (error) {
                 (0, logger_1.logWarn)(`Failed to load repository files: ${error}`);
             }
         }
-        // Create tools
+        // Create tools (use this.repositoryFiles to ensure we have the latest)
+        const filesToUse = this.repositoryFiles.size > 0 ? this.repositoryFiles : repositoryFiles;
         const readFileTool = new read_file_tool_1.ReadFileTool({
             getFileContent: (filePath) => {
-                return repositoryFiles.get(filePath);
+                return filesToUse.get(filePath);
             },
-            repositoryFiles
+            repositoryFiles: filesToUse
         });
         const searchFilesTool = new search_files_tool_1.SearchFilesTool({
             searchFiles: (query) => {
                 const results = [];
-                for (const [path] of repositoryFiles) {
-                    if (path.toLowerCase().includes(query.toLowerCase())) {
+                const queryLower = query.toLowerCase();
+                // Patterns to exclude compiled files
+                const excludePatterns = [
+                    /^build\//,
+                    /^dist\//,
+                    /^node_modules\//,
+                    /\.d\.ts$/,
+                    /^\.next\//,
+                    /^out\//,
+                    /^coverage\//,
+                    /\.min\.(js|css)$/,
+                    /\.map$/,
+                    /^\.git\//,
+                    /^\.vscode\//,
+                    /^\.idea\//
+                ];
+                for (const [path] of filesToUse) {
+                    // Skip compiled files
+                    const shouldExclude = excludePatterns.some(pattern => pattern.test(path));
+                    if (shouldExclude) {
+                        continue;
+                    }
+                    const pathLower = path.toLowerCase();
+                    // Support multiple search strategies
+                    if (pathLower.includes(queryLower) ||
+                        pathLower.endsWith(queryLower) ||
+                        (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                        (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
                         results.push(path);
                     }
                 }
                 return results;
             },
-            getAllFiles: () => Array.from(repositoryFiles.keys())
+            getAllFiles: () => {
+                // Filter out compiled files
+                const excludePatterns = [
+                    /^build\//,
+                    /^dist\//,
+                    /^node_modules\//,
+                    /\.d\.ts$/,
+                    /^\.next\//,
+                    /^out\//,
+                    /^coverage\//,
+                    /\.min\.(js|css)$/,
+                    /\.map$/,
+                    /^\.git\//,
+                    /^\.vscode\//,
+                    /^\.idea\//
+                ];
+                return Array.from(filesToUse.keys()).filter((path) => {
+                    return !excludePatterns.some(pattern => pattern.test(path));
+                });
+            }
         });
         // Virtual codebase for proposed changes
-        const virtualCodebase = new Map(repositoryFiles);
+        const virtualCodebase = new Map(filesToUse);
         const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
             applyChange: (change) => {
                 if (change.change_type === 'create' || change.change_type === 'modify') {
@@ -67229,6 +67311,30 @@ class ErrorDetector {
 ${focusAreas}
 ${errorTypes}
 
+**STOP! DO NOT give a text response yet. You MUST use tools first.**
+
+**MANDATORY WORKFLOW (follow this EXACTLY):**
+1. Use search_files tool to find TypeScript files
+   - Query examples: "src/agent", "src/utils", "src/data", "test", "core", "repository"
+   - Do NOT use wildcards like "*.ts" - use directory names or keywords
+   - **IMPORTANT: Use max_results: 200-500 to get comprehensive results, not just 10 files**
+   - Example: search_files with query "src/agent" and max_results: 200
+2. **IMMEDIATELY after each search_files, use read_file on multiple files from the results**
+   - When search_files returns a list, read as many files as needed (10-20+ files per search)
+   - Prioritize reading .ts files (source files) over .d.ts files (type definitions)
+   - Read files from different subdirectories to get comprehensive coverage
+   - Do NOT skip this step - reading files is MANDATORY
+3. Repeat steps 1-2 multiple times with different search queries
+4. Only after reading 20-30+ files total, you can provide your analysis
+
+**CRITICAL: After every search_files call, you MUST call read_file on multiple files from the results. Do NOT give a text response until you've read files. Use max_results: 200-500 in search_files to get comprehensive file lists.**
+
+**IMPORTANT ABOUT FILE PATHS:**
+- The repository contains source files (.ts) and compiled files (.d.ts)
+- Prioritize reading .ts source files over .d.ts type definition files
+- Files in "build/" directories are compiled - look for files in "src/" directories
+- If search_files returns files from "build/", search again with more specific queries to find source files
+
 **Your workflow:**
 1. Start by exploring the codebase structure using search_files
 2. Read relevant files using read_file to understand the code
@@ -67247,7 +67353,11 @@ ${errorTypes}
    - Type of error
    - Suggested fix
 5. Use propose_change to suggest fixes for critical and high severity errors
-6. In your final response, summarize all errors found in a structured format:
+6. **Continue exploring and analyzing until you have examined a representative sample of the codebase**
+   - Don't stop after just 1-2 files
+   - Explore different areas: core logic, utilities, tests, configuration
+   - Look for patterns that might indicate systemic issues
+7. In your final response, summarize all errors found in a structured format:
    - File: path/to/file.ts
    - Line: line number (if applicable)
    - Type: error type
@@ -67270,7 +67380,29 @@ For each error, provide:
 - Description: detailed explanation
 - Suggestion: how to fix it
 
-Be thorough but efficient. Prioritize critical and high severity errors.`;
+**CRITICAL INSTRUCTIONS - READ CAREFULLY:**
+- **DO NOT give a final response until you have READ at least 10-15 files using read_file**
+- Searching for files is NOT enough - you MUST actually read the file contents
+- Use search_files multiple times with different queries to find files in different directories
+  - Try: "src/agent", "src/utils", "src/data", "test", "core", "repository"
+  - The search tool finds files by substring matching in the path
+- After each search, read 3-5 files from the results using read_file
+- Continue this pattern: search → read multiple files → search again → read more files
+- Don't give a final response until you've READ and analyzed 10-15+ files
+- If you find no errors after thorough analysis, state that clearly
+- Be thorough but efficient. Prioritize critical and high severity errors.
+
+**Example workflow (you MUST follow this pattern):**
+1. search_files with query "src/agent" → find agent files
+2. read_file on 3-5 of those files (e.g., "src/agent/core/agent.ts", "src/agent/tools/base_tool.ts")
+3. search_files with query "src/utils" → find utility files  
+4. read_file on 3-5 of those files
+5. search_files with query "src/data" → find data files
+6. read_file on 3-5 of those files
+7. Continue until you've READ 10-15+ files from different areas
+8. Only THEN provide your final analysis
+
+**REMEMBER: Searching is not analyzing. You MUST read files to analyze them.**`;
     }
     /**
      * Detect errors in the codebase
@@ -67278,12 +67410,42 @@ Be thorough but efficient. Prioritize critical and high severity errors.`;
     async detectErrors(prompt = 'Busca potenciales errores en todo el proyecto') {
         (0, logger_1.logInfo)('🔍 Starting error detection...');
         (0, logger_1.logInfo)(`📋 Prompt: ${prompt}`);
+        (0, logger_1.logInfo)(`📊 Configuration:`);
+        (0, logger_1.logInfo)(`   - Model: ${this.options.model}`);
+        (0, logger_1.logInfo)(`   - Max Turns: ${this.options.maxTurns}`);
+        (0, logger_1.logInfo)(`   - Repository: ${this.options.repositoryOwner}/${this.options.repositoryName || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Focus Areas: ${this.options.focusAreas?.join(', ') || 'All'}`);
+        (0, logger_1.logInfo)(`   - Error Types: ${this.options.errorTypes?.join(', ') || 'All'}`);
+        (0, logger_1.logInfo)(`   - Use Subagents: ${this.options.useSubAgents}`);
+        if (this.options.useSubAgents) {
+            (0, logger_1.logInfo)(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
+        }
         // Initialize agent if not already initialized
         if (!this.agent) {
+            (0, logger_1.logInfo)('🤖 Initializing agent...');
             await this.initializeAgent();
+            (0, logger_1.logInfo)('✅ Agent initialized');
         }
-        // Execute agent query
-        const result = await this.agent.query(prompt);
+        let result;
+        if (this.options.useSubAgents && this.repositoryFiles.size > 20) {
+            (0, logger_1.logInfo)('🚀 Executing error detection with subagents...');
+            const subagentResult = await this.detectErrorsWithSubAgents(prompt);
+            result = subagentResult.agentResult; // Use the combined agent result
+        }
+        else {
+            // Execute agent query
+            (0, logger_1.logInfo)('🚀 Executing agent query...');
+            result = await this.agent.query(prompt);
+        }
+        (0, logger_1.logInfo)(`📈 Agent execution completed:`);
+        (0, logger_1.logInfo)(`   - Total Turns: ${result.turns.length}`);
+        (0, logger_1.logInfo)(`   - Tool Calls: ${result.toolCalls.length}`);
+        if (result.metrics) {
+            (0, logger_1.logInfo)(`   - Input Tokens: ${result.metrics.totalTokens.input}`);
+            (0, logger_1.logInfo)(`   - Output Tokens: ${result.metrics.totalTokens.output}`);
+            (0, logger_1.logInfo)(`   - Total Duration: ${result.metrics.totalDuration}ms`);
+            (0, logger_1.logInfo)(`   - Average Latency: ${result.metrics.averageLatency}ms`);
+        }
         // Parse errors from agent response and TODOs
         const errors = this.parseErrors(result);
         // Generate summary
@@ -67300,8 +67462,14 @@ Be thorough but efficient. Prioritize critical and high severity errors.`;
      */
     parseErrors(result) {
         const errors = [];
+        (0, logger_1.logDebugInfo)(`📝 Parsing ${result.messages.length} messages from agent`);
+        (0, logger_1.logDebugInfo)(`📝 Parsing ${result.toolCalls.length} tool calls from agent`);
+        (0, logger_1.logDebugInfo)(`📝 Parsing ${result.turns.length} turns from agent`);
         // Parse errors from agent messages
         for (const message of result.messages) {
+            if (message.role === 'assistant') {
+                (0, logger_1.logDebugInfo)(`   Analyzing assistant message (${typeof message.content === 'string' ? message.content.length : 'object'} chars)`);
+            }
             if (message.role === 'assistant') {
                 const content = typeof message.content === 'string'
                     ? message.content
@@ -67312,8 +67480,10 @@ Be thorough but efficient. Prioritize critical and high severity errors.`;
             }
         }
         // Parse errors from tool calls (manage_todos might have created error TODOs)
+        (0, logger_1.logDebugInfo)(`🔍 Analyzing ${result.toolCalls.length} tool calls for error indicators`);
         for (const toolCall of result.toolCalls) {
             if (toolCall.name === 'manage_todos' && toolCall.input.action === 'create') {
+                (0, logger_1.logDebugInfo)(`   Found TODO creation: ${toolCall.input.content?.substring(0, 100) || 'N/A'}`);
                 // TODOs created might represent errors found
                 const todoContent = toolCall.input.content || toolCall.input.description || toolCall.input.text || '';
                 if (todoContent.toLowerCase().includes('error') ||
@@ -67415,6 +67585,235 @@ Be thorough but efficient. Prioritize critical and high severity errors.`;
             bySeverity,
             byType
         };
+    }
+    /**
+     * Detect errors using subagents for parallel processing
+     */
+    async detectErrorsWithSubAgents(prompt) {
+        const allFiles = Array.from(this.repositoryFiles.keys());
+        const maxConcurrent = this.options.maxConcurrentSubAgents || 5;
+        const filesPerAgent = Math.ceil(allFiles.length / maxConcurrent);
+        (0, logger_1.logInfo)(`📦 Partitioning ${allFiles.length} files into ${maxConcurrent} subagents (~${filesPerAgent} files each)`);
+        // Group files by directory to keep related files together
+        const fileGroups = this.partitionFilesByDirectory(allFiles, maxConcurrent);
+        (0, logger_1.logInfo)(`📁 Created ${fileGroups.length} file groups for parallel analysis`);
+        // Create tools for subagents (same as in initializeAgent)
+        const filesToUse = this.repositoryFiles;
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return filesToUse.get(filePath);
+            },
+            repositoryFiles: filesToUse
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                const results = [];
+                const queryLower = query.toLowerCase();
+                // Patterns to exclude compiled files
+                const excludePatterns = [
+                    /^build\//,
+                    /^dist\//,
+                    /^node_modules\//,
+                    /\.d\.ts$/,
+                    /^\.next\//,
+                    /^out\//,
+                    /^coverage\//,
+                    /\.min\.(js|css)$/,
+                    /\.map$/,
+                    /^\.git\//,
+                    /^\.vscode\//,
+                    /^\.idea\//
+                ];
+                for (const [path] of filesToUse) {
+                    // Skip compiled files
+                    const shouldExclude = excludePatterns.some(pattern => pattern.test(path));
+                    if (shouldExclude) {
+                        continue;
+                    }
+                    const pathLower = path.toLowerCase();
+                    // Support multiple search strategies
+                    if (pathLower.includes(queryLower) ||
+                        pathLower.endsWith(queryLower) ||
+                        (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                        (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
+                        results.push(path);
+                    }
+                }
+                return results;
+            },
+            getAllFiles: () => {
+                // Filter out compiled files
+                const excludePatterns = [
+                    /^build\//,
+                    /^dist\//,
+                    /^node_modules\//,
+                    /\.d\.ts$/,
+                    /^\.next\//,
+                    /^out\//,
+                    /^coverage\//,
+                    /\.min\.(js|css)$/,
+                    /\.map$/,
+                    /^\.git\//,
+                    /^\.vscode\//,
+                    /^\.idea\//
+                ];
+                return Array.from(filesToUse.keys()).filter((path) => {
+                    return !excludePatterns.some(pattern => pattern.test(path));
+                });
+            }
+        });
+        // Virtual codebase for proposed changes
+        const virtualCodebase = new Map(filesToUse);
+        const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
+            applyChange: (change) => {
+                if (change.change_type === 'create' || change.change_type === 'modify') {
+                    virtualCodebase.set(change.file_path, change.suggested_code);
+                    return true;
+                }
+                else if (change.change_type === 'delete') {
+                    virtualCodebase.delete(change.file_path);
+                    return true;
+                }
+                return false;
+            },
+            onChangeApplied: (change) => {
+                // Silent for subagents
+            }
+        });
+        // Initialize TODO manager for tracking findings
+        const { ThinkTodoManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(3618)));
+        const todoManager = new ThinkTodoManager();
+        const manageTodosTool = new manage_todos_tool_1.ManageTodosTool({
+            createTodo: (content, status) => {
+                const todo = todoManager.createTodo(content, status || 'pending');
+                return {
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                };
+            },
+            updateTodo: (id, updates) => {
+                return todoManager.updateTodo(id, updates);
+            },
+            getAllTodos: () => {
+                return todoManager.getAllTodos().map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status,
+                    notes: todo.notes
+                }));
+            },
+            getActiveTodos: () => {
+                const todos = todoManager.getAllTodos();
+                return todos
+                    .filter((todo) => todo.status !== 'completed' && todo.status !== 'cancelled')
+                    .map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                }));
+            }
+        });
+        const tools = [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+        // Create tasks for each subagent
+        const tasks = fileGroups.map((files, index) => {
+            const fileList = files.slice(0, 30).join(', '); // Limit to 30 files per agent to avoid token limits
+            return {
+                name: `error-detector-${index + 1}`,
+                prompt: `${prompt}\n\nFocus on these files: ${fileList}\n\nAnalyze these specific files for errors. Read each file and identify potential issues.`,
+                systemPrompt: this.buildSystemPrompt(),
+                tools: tools // Pass tools to each subagent
+            };
+        });
+        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} subagents in parallel...`);
+        const results = await this.agent.executeParallel(tasks);
+        (0, logger_1.logInfo)(`✅ All ${results.length} subagents completed`);
+        // Combine results from all subagents
+        const allErrors = [];
+        const allToolCalls = [];
+        const allTurns = [];
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let maxDuration = 0;
+        for (const { task, result } of results) {
+            (0, logger_1.logInfo)(`   📊 Subagent "${task}": ${result.turns.length} turns, ${result.toolCalls.length} tool calls`);
+            const errors = this.parseErrors(result);
+            allErrors.push(...errors);
+            allToolCalls.push(...result.toolCalls);
+            allTurns.push(...result.turns);
+            if (result.metrics) {
+                totalInputTokens += result.metrics.totalTokens.input;
+                totalOutputTokens += result.metrics.totalTokens.output;
+                maxDuration = Math.max(maxDuration, result.metrics.totalDuration);
+            }
+        }
+        // Generate combined summary
+        const summary = this.generateSummary(allErrors);
+        // Calculate average latency from all subagents
+        const totalApiCalls = results.reduce((sum, r) => sum + (r.result.metrics?.apiCalls || 0), 0);
+        const totalLatency = results.reduce((sum, r) => {
+            if (r.result.metrics?.averageLatency && r.result.metrics?.apiCalls) {
+                return sum + (r.result.metrics.averageLatency * r.result.metrics.apiCalls);
+            }
+            return sum;
+        }, 0);
+        const averageLatency = totalApiCalls > 0 ? totalLatency / totalApiCalls : 0;
+        // Create combined agent result
+        const combinedResult = {
+            finalResponse: `Analysis completed by ${results.length} subagents. Found ${summary.total} error(s).`,
+            turns: allTurns,
+            toolCalls: allToolCalls,
+            messages: results.flatMap(r => r.result.messages),
+            metrics: {
+                totalTokens: {
+                    input: totalInputTokens,
+                    output: totalOutputTokens
+                },
+                totalDuration: maxDuration,
+                apiCalls: totalApiCalls,
+                toolCalls: allToolCalls.length,
+                errors: results.reduce((sum, r) => sum + (r.result.metrics?.errors || 0), 0),
+                averageLatency: averageLatency
+            }
+        };
+        (0, logger_1.logInfo)(`✅ Combined results: ${summary.total} error(s) found across all subagents`);
+        (0, logger_1.logInfo)(`   Breakdown:`);
+        (0, logger_1.logInfo)(`   - Critical: ${summary.bySeverity.critical}`);
+        (0, logger_1.logInfo)(`   - High: ${summary.bySeverity.high}`);
+        (0, logger_1.logInfo)(`   - Medium: ${summary.bySeverity.medium}`);
+        (0, logger_1.logInfo)(`   - Low: ${summary.bySeverity.low}`);
+        (0, logger_1.logInfo)(`   - Total Tokens: ${totalInputTokens + totalOutputTokens} (${totalInputTokens} in, ${totalOutputTokens} out)`);
+        (0, logger_1.logInfo)(`   - Duration: ${maxDuration}ms (parallel execution)`);
+        return {
+            errors: allErrors,
+            summary,
+            agentResult: combinedResult
+        };
+    }
+    /**
+     * Partition files by directory to keep related files together
+     */
+    partitionFilesByDirectory(files, maxGroups) {
+        // Group files by top-level directory
+        const dirGroups = new Map();
+        for (const file of files) {
+            const parts = file.split('/');
+            const topDir = parts.length > 1 ? parts[0] : 'root';
+            if (!dirGroups.has(topDir)) {
+                dirGroups.set(topDir, []);
+            }
+            dirGroups.get(topDir).push(file);
+        }
+        // Convert to array and sort by size (largest first)
+        const groups = Array.from(dirGroups.values()).sort((a, b) => b.length - a.length);
+        // Distribute groups across maxGroups subagents
+        const result = Array(maxGroups).fill(null).map(() => []);
+        for (let i = 0; i < groups.length; i++) {
+            const targetIndex = i % maxGroups;
+            result[targetIndex].push(...groups[i]);
+        }
+        // Remove empty groups
+        return result.filter(group => group.length > 0);
     }
     /**
      * Get agent instance (for advanced usage)
@@ -67568,7 +67967,9 @@ class ManageTodosTool extends base_tool_1.BaseTool {
         };
     }
     async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
         const action = input.action;
+        logInfo(`   📋 Managing TODOs - Action: ${action}`);
         if (!['create', 'update', 'list'].includes(action)) {
             throw new Error('action must be one of: create, update, list');
         }
@@ -67693,7 +68094,10 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         };
     }
     async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
         const filePath = input.file_path;
+        logInfo(`   ✏️ Proposing change: ${filePath} (${input.change_type})`);
+        logInfo(`      Description: ${input.description?.substring(0, 100) || 'N/A'}${input.description && input.description.length > 100 ? '...' : ''}`);
         const changeType = input.change_type;
         const description = input.description;
         const suggestedCode = input.suggested_code;
@@ -67777,7 +68181,9 @@ class ReadFileTool extends base_tool_1.BaseTool {
         };
     }
     async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
         const filePath = input.file_path;
+        logInfo(`   📖 Reading file: ${filePath}`);
         if (!filePath || typeof filePath !== 'string') {
             throw new Error('file_path is required and must be a string');
         }
@@ -67833,7 +68239,7 @@ class SearchFilesTool extends base_tool_1.BaseTool {
                 },
                 max_results: {
                     type: 'number',
-                    description: 'Maximum number of results to return (default: 10)'
+                    description: 'Maximum number of results to return (default: 100, use higher values like 200-500 for comprehensive searches)'
                 }
             },
             required: ['query'],
@@ -67841,13 +68247,15 @@ class SearchFilesTool extends base_tool_1.BaseTool {
         };
     }
     async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
         const query = input.query;
-        const maxResults = input.max_results || 10;
+        logInfo(`   🔍 Searching files with query: "${query}"`);
+        const maxResults = input.max_results || 100; // Default to 100 instead of 10
         if (!query || typeof query !== 'string') {
             throw new Error('query is required and must be a string');
         }
-        if (maxResults < 1 || maxResults > 100) {
-            throw new Error('max_results must be between 1 and 100');
+        if (maxResults < 1 || maxResults > 1000) {
+            throw new Error('max_results must be between 1 and 1000');
         }
         // Perform search
         const results = this.options.searchFiles(query);
@@ -70996,7 +71404,7 @@ class AiRepository {
                     messages: [
                         { role: 'user', content: prompt },
                     ],
-                    max_tokens: 4096,
+                    max_tokens: 1000, // Reduced to fit within credit limits (1119 available)
                     response_format: {
                         type: "json_schema",
                         json_schema: {
@@ -74952,7 +75360,9 @@ function registerTECTestCommands(program) {
                 repositoryOwner: owner,
                 repositoryName: repo,
                 focusAreas: options.focus.length > 0 ? options.focus : undefined,
-                errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined
+                errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
+                useSubAgents: true, // Enable subagents by default for parallel processing
+                maxConcurrentSubAgents: 5
             };
             const detector = new error_detector_1.ErrorDetector(detectorOptions);
             // Detect errors
@@ -75050,7 +75460,9 @@ function registerTECTestCommands(program) {
                 maxTurns: 10, // Fewer turns for quick check
                 repositoryOwner: gitInfo?.owner,
                 repositoryName: gitInfo?.repo,
-                focusAreas: options.focus.length > 0 ? options.focus : undefined
+                focusAreas: options.focus.length > 0 ? options.focus : undefined,
+                useSubAgents: true, // Enable subagents for parallel processing
+                maxConcurrentSubAgents: 3 // Fewer subagents for quick check
             });
             const result = await detector.detectErrors('Haz una revisión rápida buscando errores críticos y de alta severidad');
             console.log(`\n⚡ Quick Check Results:`);

@@ -38,7 +38,7 @@ export class SearchFilesTool extends BaseTool {
         },
         max_results: {
           type: 'number',
-          description: 'Maximum number of results to return (default: 10)'
+          description: 'Maximum number of results to return (default: 100, use higher values like 200-500 for comprehensive searches)'
         }
       },
       required: ['query'],
@@ -47,15 +47,17 @@ export class SearchFilesTool extends BaseTool {
   }
 
   async execute(input: Record<string, any>): Promise<string> {
+    const { logInfo } = require('../../../utils/logger');
     const query = input.query as string;
-    const maxResults = input.max_results || 10;
+    logInfo(`   🔍 Searching files with query: "${query}"`);
+    const maxResults = input.max_results || 100; // Default to 100 instead of 10
 
     if (!query || typeof query !== 'string') {
       throw new Error('query is required and must be a string');
     }
 
-    if (maxResults < 1 || maxResults > 100) {
-      throw new Error('max_results must be between 1 and 100');
+    if (maxResults < 1 || maxResults > 1000) {
+      throw new Error('max_results must be between 1 and 1000');
     }
 
     // Perform search

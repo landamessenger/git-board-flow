@@ -43,7 +43,9 @@ export class ReadFileTool extends BaseTool {
   }
 
   async execute(input: Record<string, any>): Promise<string> {
+    const { logInfo } = require('../../../utils/logger');
     const filePath = input.file_path as string;
+    logInfo(`   📖 Reading file: ${filePath}`);
 
     if (!filePath || typeof filePath !== 'string') {
       throw new Error('file_path is required and must be a string');

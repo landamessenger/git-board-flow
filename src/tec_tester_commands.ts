@@ -82,15 +82,17 @@ export function registerTECTestCommands(program: Command) {
         }
 
         // Create error detector
-        const detectorOptions: ErrorDetectionOptions = {
-          model: options.model,
-          apiKey: options.apiKey,
-          maxTurns: parseInt(options.maxTurns),
-          repositoryOwner: owner,
-          repositoryName: repo,
-          focusAreas: options.focus.length > 0 ? options.focus : undefined,
-          errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined
-        };
+            const detectorOptions: ErrorDetectionOptions = {
+              model: options.model,
+              apiKey: options.apiKey,
+              maxTurns: parseInt(options.maxTurns),
+              repositoryOwner: owner,
+              repositoryName: repo,
+              focusAreas: options.focus.length > 0 ? options.focus : undefined,
+              errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
+              useSubAgents: true, // Enable subagents by default for parallel processing
+              maxConcurrentSubAgents: 5
+            };
 
         const detector = new ErrorDetector(detectorOptions);
 
@@ -191,14 +193,16 @@ export function registerTECTestCommands(program: Command) {
         logInfo('⚡ Quick error check...');
 
         const gitInfo = getGitInfo();
-        const detector = new ErrorDetector({
-          model: options.model,
-          apiKey: options.apiKey,
-          maxTurns: 10, // Fewer turns for quick check
-          repositoryOwner: gitInfo?.owner,
-          repositoryName: gitInfo?.repo,
-          focusAreas: options.focus.length > 0 ? options.focus : undefined
-        });
+            const detector = new ErrorDetector({
+              model: options.model,
+              apiKey: options.apiKey,
+              maxTurns: 10, // Fewer turns for quick check
+              repositoryOwner: gitInfo?.owner,
+              repositoryName: gitInfo?.repo,
+              focusAreas: options.focus.length > 0 ? options.focus : undefined,
+              useSubAgents: true, // Enable subagents for parallel processing
+              maxConcurrentSubAgents: 3 // Fewer subagents for quick check
+            });
 
         const result = await detector.detectErrors('Haz una revisión rápida buscando errores críticos y de alta severidad');
 
