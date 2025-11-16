@@ -183,7 +183,7 @@ export class AgentInitializer {
     
     const proposeChangeTool = new ProposeChangeTool({
       applyChange: (change) => {
-        if (change.change_type === 'create' || change.change_type === 'modify') {
+        if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
           virtualCodebase.set(change.file_path, change.suggested_code);
           logInfo(`📝 Proposed change: ${change.file_path} (${change.description})`);
           return true;

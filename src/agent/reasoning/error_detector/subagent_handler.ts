@@ -172,7 +172,7 @@ export class SubagentHandler {
     
     const proposeChangeTool = new ProposeChangeTool({
       applyChange: (change) => {
-        if (change.change_type === 'create' || change.change_type === 'modify') {
+        if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
           virtualCodebase.set(change.file_path, change.suggested_code);
           return true;
         } else if (change.change_type === 'delete') {

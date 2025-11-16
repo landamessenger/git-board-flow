@@ -129,6 +129,7 @@ ${errorTypes}
    - **DO NOT** include markdown formatting in any field. Use plain strings only.
    - This is the PRIMARY way to report errors - do NOT rely only on text responses
 4. Use propose_change to suggest fixes for critical and high severity issues (optional, for important fixes)
+   - change_type must be one of: "create" (new file), "modify" (update existing - use for bugfixes, features, any code changes), "delete" (remove file), "refactor" (restructure code without changing functionality)
 5. **Continue analyzing until you have examined ALL files assigned to you**
    - Read every single file in your assigned list
    - Do not stop until you've read ALL files

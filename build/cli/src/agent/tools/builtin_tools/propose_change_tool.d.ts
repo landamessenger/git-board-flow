@@ -3,10 +3,11 @@
  * Proposes changes to files in the virtual codebase
  */
 import { BaseTool } from '../base_tool';
+export type ChangeType = 'create' | 'modify' | 'delete' | 'refactor';
 export interface ProposeChangeToolOptions {
     applyChange: (change: {
         file_path: string;
-        change_type: 'create' | 'modify' | 'delete' | 'refactor';
+        change_type: ChangeType;
         description: string;
         suggested_code: string;
         reasoning: string;

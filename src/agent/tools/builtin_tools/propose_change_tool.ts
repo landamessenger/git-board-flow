@@ -5,10 +5,12 @@
 
 import { BaseTool } from '../base_tool';
 
+export type ChangeType = 'create' | 'modify' | 'delete' | 'refactor';
+
 export interface ProposeChangeToolOptions {
   applyChange: (change: {
     file_path: string;
-    change_type: 'create' | 'modify' | 'delete' | 'refactor';
+    change_type: ChangeType;
     description: string;
     suggested_code: string;
     reasoning: string;
@@ -45,7 +47,7 @@ export class ProposeChangeTool extends BaseTool {
         change_type: {
           type: 'string',
           enum: ['create', 'modify', 'delete', 'refactor'],
-          description: 'Type of change to make'
+          description: 'Type of change to make: create (new file), modify (update existing code - use for bugfixes, features, updates), delete (remove file), refactor (restructure code without changing functionality)'
         },
         description: {
           type: 'string',
@@ -70,7 +72,7 @@ export class ProposeChangeTool extends BaseTool {
     const filePath = input.file_path as string;
     logInfo(`   ✏️ Proposing change: ${filePath} (${input.change_type})`);
     logInfo(`      Description: ${input.description?.substring(0, 100) || 'N/A'}${input.description && input.description.length > 100 ? '...' : ''}`);
-    const changeType = input.change_type as 'create' | 'modify' | 'delete' | 'refactor';
+    const changeType = input.change_type as ChangeType;
     const description = input.description as string;
     const suggestedCode = input.suggested_code as string;
     const reasoning = input.reasoning as string;
@@ -80,8 +82,9 @@ export class ProposeChangeTool extends BaseTool {
       throw new Error('file_path is required and must be a string');
     }
 
-    if (!['create', 'modify', 'delete', 'refactor'].includes(changeType)) {
-      throw new Error('change_type must be one of: create, modify, delete, refactor');
+    const validChangeTypes: ChangeType[] = ['create', 'modify', 'delete', 'refactor'];
+    if (!validChangeTypes.includes(changeType)) {
+      throw new Error(`change_type must be one of: ${validChangeTypes.join(', ')}`);
     }
 
     if (!description || typeof description !== 'string') {

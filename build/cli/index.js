@@ -67202,7 +67202,7 @@ class AgentInitializer {
         const virtualCodebase = new Map(repositoryFiles);
         const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
             applyChange: (change) => {
-                if (change.change_type === 'create' || change.change_type === 'modify') {
+                if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
                     virtualCodebase.set(change.file_path, change.suggested_code);
                     (0, logger_1.logInfo)(`📝 Proposed change: ${change.file_path} (${change.description})`);
                     return true;
@@ -67843,7 +67843,7 @@ class SubagentHandler {
         const virtualCodebase = new Map(repositoryFiles);
         const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
             applyChange: (change) => {
-                if (change.change_type === 'create' || change.change_type === 'modify') {
+                if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
                     virtualCodebase.set(change.file_path, change.suggested_code);
                     return true;
                 }
@@ -68187,6 +68187,7 @@ ${errorTypes}
    - **DO NOT** include markdown formatting in any field. Use plain strings only.
    - This is the PRIMARY way to report errors - do NOT rely only on text responses
 4. Use propose_change to suggest fixes for critical and high severity issues (optional, for important fixes)
+   - change_type must be one of: "create" (new file), "modify" (update existing - use for bugfixes, features, any code changes), "delete" (remove file), "refactor" (restructure code without changing functionality)
 5. **Continue analyzing until you have examined ALL files assigned to you**
    - Read every single file in your assigned list
    - Do not stop until you've read ALL files
@@ -68587,7 +68588,7 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
                 change_type: {
                     type: 'string',
                     enum: ['create', 'modify', 'delete', 'refactor'],
-                    description: 'Type of change to make'
+                    description: 'Type of change to make: create (new file), modify (update existing code - use for bugfixes, features, updates), delete (remove file), refactor (restructure code without changing functionality)'
                 },
                 description: {
                     type: 'string',
@@ -68619,8 +68620,9 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         if (!filePath || typeof filePath !== 'string') {
             throw new Error('file_path is required and must be a string');
         }
-        if (!['create', 'modify', 'delete', 'refactor'].includes(changeType)) {
-            throw new Error('change_type must be one of: create, modify, delete, refactor');
+        const validChangeTypes = ['create', 'modify', 'delete', 'refactor'];
+        if (!validChangeTypes.includes(changeType)) {
+            throw new Error(`change_type must be one of: ${validChangeTypes.join(', ')}`);
         }
         if (!description || typeof description !== 'string') {
             throw new Error('description is required and must be a string');
@@ -76128,7 +76130,10 @@ function registerTECTestCommands(program) {
                         console.log(`\n${severityEmojis[severity]} ${severity.toUpperCase()} (${severityErrors.length})`);
                         console.log('-'.repeat(80));
                         severityErrors.forEach(error => {
-                            console.log(`\nFile: ${error.file}${error.line ? `:${error.line}` : ''}`);
+                            console.log(`\nFile: ${error.file}`);
+                            if (error.line) {
+                                console.log(`Line: ${error.line}`);
+                            }
                             console.log(`Type: ${error.type}`);
                             console.log(`Description: ${error.description}`);
                             if (error.suggestion) {

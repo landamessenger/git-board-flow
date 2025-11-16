@@ -146,7 +146,10 @@ export function registerTECTestCommands(program: Command) {
               console.log(`\n${severityEmojis[severity]} ${severity.toUpperCase()} (${severityErrors.length})`);
               console.log('-'.repeat(80));
               severityErrors.forEach(error => {
-                console.log(`\nFile: ${error.file}${error.line ? `:${error.line}` : ''}`);
+                console.log(`\nFile: ${error.file}`);
+                if (error.line) {
+                  console.log(`Line: ${error.line}`);
+                }
                 console.log(`Type: ${error.type}`);
                 console.log(`Description: ${error.description}`);
                 if (error.suggestion) {
