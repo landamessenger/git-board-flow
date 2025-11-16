@@ -1,32 +1,26 @@
 import * as github from "@actions/github";
 import { logError } from "../../utils/logger";
-import { createHash } from "crypto";
+import * as fs from "fs/promises";
+import * as path from "path";
+import * as os from "os";
+import { exec } from "child_process";
+import { promisify } from "util";
 
-type Block = {
-    type: 'function' | 'class' | 'other';
-    name?: string;
-    content: string;
-    startLine: number;
-    endLine: number;
-};
-
-export interface FileTreeNodeWithNoContent {
-    name: string;
-    type: 'file' | 'directory';
-    children?: FileTreeNodeWithNoContent[];
-    path: string;
-    content?: string;
-}
-
-export interface FileTreeNodeWithContent {
-    name: string;
-    type: 'file' | 'directory';
-    children?: FileTreeNodeWithContent[];
-    path: string;
-    content?: string;
-}
+const execAsync = promisify(exec);
 
 export class FileRepository {
+    /**
+     * Normalize file path for consistent comparison
+     * This must match the normalization used in FileCacheManager
+     * Removes leading ./ and normalizes path separators
+     */
+    private normalizePath(path: string): string {
+        return path
+            .replace(/^\.\//, '') // Remove leading ./
+            .replace(/\\/g, '/')  // Normalize separators
+            .trim();
+    }
+
     private isMediaOrPdfFile(path: string): boolean {
         const mediaExtensions = [
             // Image formats
@@ -49,6 +43,11 @@ export class FileRepository {
         token: string,
         branch: string
     ): Promise<string> => {
+        if (!token || token.length === 0) {
+            logError(`Error getting file content: Token is empty or undefined for ${path}`);
+            return '';
+        }
+
         const octokit = github.getOctokit(token);
 
         try {
@@ -63,8 +62,10 @@ export class FileRepository {
                 return Buffer.from(data.content, 'base64').toString();
             }
             return '';
-        } catch (error) {
-            logError(`Error getting file content: ${error}.`);
+        } catch (error: any) {
+            const errorMessage = error?.message || String(error);
+            const errorStatus = error?.status || 'unknown';
+            logError(`Error getting file content for ${path}: ${errorMessage} (status: ${errorStatus}). Token length: ${token.length}`);
             return '';
         }
     };
@@ -78,47 +79,79 @@ export class FileRepository {
         progress: (fileName: string) => void,
         ignoredFiles: (fileName: string) => void,
     ): Promise<Map<string, string>> => {
-        const octokit = github.getOctokit(token);
         const fileContents = new Map<string, string>();
+        let tempDir: string | null = null;
 
         try {
-            const getContentRecursively = async (path: string = ''): Promise<void> => {
-                const { data } = await octokit.rest.repos.getContent({
-                    owner,
-                    repo: repository,
-                    path,
-                    ref: branch
-                });
+            // Create temporary directory
+            tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'git-clone-'));
+            const repoPath = path.join(tempDir, repository);
 
-                if (Array.isArray(data)) {
-                    const promises: Promise<void>[] = [];
+            // Clone repository using git clone with authentication
+            // GitHub tokens are typically safe to use directly in URLs
+            const repoUrl = `https://${token}@github.com/${owner}/${repository}.git`;
+            // logInfo(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
+            
+            // Use --single-branch to optimize clone and --depth 1 for shallow clone
+            // This significantly reduces clone time and size
+            await execAsync(`git clone --depth 1 --single-branch --branch ${branch} ${repoUrl} ${repoPath}`, {
+                cwd: tempDir,
+                env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+                maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
+            });
 
-                    for (const item of data) {
-                        if (item.type === 'file') {
-                            if (this.isMediaOrPdfFile(item.path) || this.shouldIgnoreFile(item.path, ignoreFiles)) {
-                                ignoredFiles(item.path);
-                                continue;
-                            }
-                            progress(item.path);
-                            const filePromise = (async () => {
-                                const content = await this.getFileContent(owner, repository, item.path, token, branch);
-                                fileContents.set(item.path, content);
-                            })();
-                            promises.push(filePromise);
-                        } else if (item.type === 'dir') {
-                            promises.push(getContentRecursively(item.path));
+            // logInfo(`✅ Repository cloned successfully`);
+
+            // Read files recursively from filesystem
+            const readFilesRecursively = async (dirPath: string, relativePath: string = ''): Promise<void> => {
+                const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+                for (const entry of entries) {
+                    const fullPath = path.join(dirPath, entry.name);
+                    const relativeFilePath = relativePath ? path.join(relativePath, entry.name) : entry.name;
+                    // Normalize path using the same method as FileCacheManager
+                    // This ensures paths match when comparing with cached entries
+                    const normalizedPath = this.normalizePath(relativeFilePath);
+
+                    if (entry.isDirectory()) {
+                        // Skip .git directory
+                        if (entry.name === '.git') {
+                            continue;
+                        }
+                        await readFilesRecursively(fullPath, normalizedPath);
+                    } else if (entry.isFile()) {
+                        // Check if file should be ignored
+                        if (this.isMediaOrPdfFile(normalizedPath) || this.shouldIgnoreFile(normalizedPath, ignoreFiles)) {
+                            ignoredFiles(normalizedPath);
+                            continue;
+                        }
+
+                        progress(normalizedPath);
+                        try {
+                            const content = await fs.readFile(fullPath, 'utf-8');
+                            fileContents.set(normalizedPath, content);
+                        } catch (error) {
+                            logError(`Error reading file ${normalizedPath}: ${error}`);
                         }
                     }
-
-                    await Promise.all(promises);
                 }
             };
 
-            await getContentRecursively();
+            await readFilesRecursively(repoPath);
             return fileContents;
         } catch (error) {
-            logError(`Error getting repository content: ${error}.`);
-            return new Map();
+            logError(`Error getting repository content: ${error}`);
+            return fileContents;
+        } finally {
+            // Clean up temporary directory
+            if (tempDir) {
+                try {
+                    await fs.rm(tempDir, { recursive: true, force: true });
+                    // logInfo(`🧹 Cleaned up temporary directory`);
+                } catch (cleanupError) {
+                    logError(`Error cleaning up temporary directory: ${cleanupError}`);
+                }
+            }
         }
     }
 
@@ -143,187 +176,5 @@ export class FileRepository {
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
-    }
-      
-    private extractCodeBlocks = (code: string): Block[] => {
-        const lines = code.split('\n');
-        const blocks: Block[] = [];
-      
-        let currentBlock: Block | undefined;
-        let braceDepth = 0;
-        let indentLevel = 0;
-      
-        const startBlock = (type: Block['type'], name: string, line: string, lineNumber: number) => {
-          currentBlock = {
-            type,
-            name,
-            content: line + '\n',
-            startLine: lineNumber,
-            endLine: lineNumber,
-          };
-          braceDepth = (line.match(/{/g) || []).length - (line.match(/}/g) || []).length;
-          indentLevel = line.match(/^(\s*)/)?.[1].length ?? 0;
-        };
-      
-        const endBlock = (lineNumber: number) => {
-          if (currentBlock) {
-            currentBlock.endLine = lineNumber;
-            blocks.push(currentBlock);
-            currentBlock = undefined;
-          }
-        };
-      
-        lines.forEach((line, idx) => {
-          const trimmed = line.trim();
-          const lineNumber = idx + 1;
-      
-          // Detect class or function headers
-          const functionMatch = trimmed.match(/(?:function|def|fn|async|const|let)\s+(\w+)/);
-          const classMatch = trimmed.match(/class\s+(\w+)/);
-      
-          if (!currentBlock && functionMatch) {
-            startBlock('function', functionMatch[1], line, lineNumber);
-          } else if (!currentBlock && classMatch) {
-            startBlock('class', classMatch[1], line, lineNumber);
-          } else if (currentBlock) {
-            currentBlock.content += line + '\n';
-      
-            // Update brace depth
-            braceDepth += (line.match(/{/g) || []).length;
-            braceDepth -= (line.match(/}/g) || []).length;
-      
-            // Or detect dedentation (for Python-style)
-            const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
-            const dedented = currentIndent < indentLevel;
-      
-            if (braceDepth <= 0 && trimmed.endsWith('}') || dedented) {
-              endBlock(lineNumber);
-            }
-          }
-        });
-      
-        // Catch any unfinished block
-        if (currentBlock) {
-          currentBlock.endLine = lines.length;
-          blocks.push(currentBlock);
-        }
-      
-        return blocks;
-    }
-      
-    private shouldIgnoreLine = (line: string) => {
-        const trimmed = line.trim();
-      
-        return (
-          trimmed === '' ||
-          /^[}\]);]+;?$/.test(trimmed) ||
-          /^import\s.+from\s.+;?$/.test(trimmed) ||
-          /^(return|break|continue|pass);?$/.test(trimmed) ||
-          /^\/\/[-=]*$/.test(trimmed) || // comentarios de separación
-          /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed) ||
-          /^[\]],?;?$/.test(trimmed) ||
-          /^try\s*{$/.test(trimmed) ||
-          /^}\s*else\s*{$/.test(trimmed) ||
-          /^`;?$/.test(trimmed) ||
-          /^\/\*\*$/.test(trimmed) ||
-          /^\*\/$/.test(trimmed)
-        );
-    };
-
-    private shuffleArray<T>(array: T[]): T[] {
-        return [...array].sort(() => Math.random() - 0.5);
-    }
-
-    private calculateShasum(content: string): string {
-        return createHash('sha256').update(content).digest('hex');
-    }
-
-    getFileTree = async (
-        owner: string,
-        repository: string,
-        token: string,
-        branch: string,
-        ignoreFiles: string[],
-        progress: (fileName: string) => void,
-        ignoredFiles: (fileName: string) => void,
-    ): Promise<{ withContent: FileTreeNodeWithContent; withoutContent: FileTreeNodeWithNoContent }> => {
-        const fileContents = await this.getRepositoryContent(
-            owner,
-            repository,
-            token,
-            branch,
-            ignoreFiles,
-            progress,
-            ignoredFiles,
-        );
-
-        // Create root nodes for both trees
-        const rootWithContent: FileTreeNodeWithContent = {
-            name: repository,
-            type: 'directory',
-            path: '',
-            children: []
-        };
-
-        const rootWithoutContent: FileTreeNodeWithNoContent = {
-            name: repository,
-            type: 'directory',
-            path: '',
-            children: []
-        };
-
-        // Process each file path to build both trees
-        for (const [filePath, content] of fileContents.entries()) {
-            const parts = filePath.split('/');
-            let currentLevelWithContent = rootWithContent;
-            let currentLevelWithoutContent = rootWithoutContent;
-
-            for (let i = 0; i < parts.length; i++) {
-                const part = parts[i];
-                const isLastPart = i === parts.length - 1;
-                const currentPath = parts.slice(0, i + 1).join('/');
-
-                // Find or create the node in the content tree
-                let nodeWithContent = currentLevelWithContent.children?.find(n => n.name === part);
-                if (!nodeWithContent) {
-                    nodeWithContent = {
-                        name: part,
-                        type: isLastPart ? 'file' : 'directory',
-                        path: currentPath,
-                        children: isLastPart ? undefined : [],
-                        content: isLastPart ? content : undefined
-                    };
-                    if (!currentLevelWithContent.children) {
-                        currentLevelWithContent.children = [];
-                    }
-                    currentLevelWithContent.children.push(nodeWithContent);
-                }
-
-                // Find or create the node in the no-content tree
-                let nodeWithoutContent = currentLevelWithoutContent.children?.find(n => n.name === part);
-                if (!nodeWithoutContent) {
-                    nodeWithoutContent = {
-                        name: part,
-                        type: isLastPart ? 'file' : 'directory',
-                        path: currentPath,
-                        children: isLastPart ? undefined : []
-                    };
-                    if (!currentLevelWithoutContent.children) {
-                        currentLevelWithoutContent.children = [];
-                    }
-                    currentLevelWithoutContent.children.push(nodeWithoutContent);
-                }
-
-                if (!isLastPart) {
-                    currentLevelWithContent = nodeWithContent;
-                    currentLevelWithoutContent = nodeWithoutContent;
-                }
-            }
-        }
-
-        return {
-            withContent: rootWithContent,
-            withoutContent: rootWithoutContent
-        };
     }
 } 

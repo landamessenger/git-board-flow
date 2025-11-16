@@ -13,6 +13,13 @@ export interface AICachedFileInfo {
     description: string;
     consumes: string[];
     consumed_by: string[];
+    error_counter_total?: number;
+    error_counter_critical?: number;
+    error_counter_high?: number;
+    error_counter_medium?: number;
+    error_counter_low?: number;
+    error_types?: string[];
+    errors_payload?: string;
     created_at?: string;
     last_updated?: string;
 }
@@ -72,6 +79,13 @@ export class SupabaseRepository {
             description: string;
             consumes: string[];
             consumed_by: string[];
+            error_counter_total?: number;
+            error_counter_critical?: number;
+            error_counter_high?: number;
+            error_counter_medium?: number;
+            error_counter_low?: number;
+            error_types?: string[];
+            errors_payload?: string;
         }
     ): Promise<void> => {
         try {
@@ -87,6 +101,13 @@ export class SupabaseRepository {
                     description: fileInfo.description,
                     consumes: fileInfo.consumes,
                     consumed_by: fileInfo.consumed_by,
+                    error_counter_total: fileInfo.error_counter_total ?? 0,
+                    error_counter_critical: fileInfo.error_counter_critical ?? 0,
+                    error_counter_high: fileInfo.error_counter_high ?? 0,
+                    error_counter_medium: fileInfo.error_counter_medium ?? 0,
+                    error_counter_low: fileInfo.error_counter_low ?? 0,
+                    error_types: fileInfo.error_types ?? [],
+                    errors_payload: fileInfo.errors_payload ?? null,
                     last_updated: new Date().toISOString()
                 }, {
                     onConflict: 'owner,repository,branch,path'
@@ -284,6 +305,123 @@ export class SupabaseRepository {
         } catch (error) {
             logError(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
             return [];
+        }
+    }
+
+    /**
+     * Get distinct branches for an owner/repository
+     */
+    getDistinctBranches = async (
+        owner: string,
+        repository: string,
+    ): Promise<string[]> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.AI_FILE_CACHE_TABLE)
+                .select('branch')
+                .eq('owner', owner)
+                .eq('repository', repository);
+
+            if (error) {
+                logError(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+
+            if (!data) {
+                return [];
+            }
+
+            // Get unique branches with proper typing
+            const branches = (data as { branch: string }[]).map(item => item.branch);
+            const uniqueBranches = [...new Set(branches)];
+            return uniqueBranches;
+        } catch (error) {
+            logError(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+            return [];
+        }
+    }
+
+    /**
+     * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
+     * Returns the first match found, which can be used to reuse descriptions
+     */
+    getAIFileCacheBySha = async (
+        owner: string,
+        repository: string,
+        sha: string,
+    ): Promise<AICachedFileInfo | null> => {
+        try {
+            const { data, error } = await this.supabase
+                .from(this.AI_FILE_CACHE_TABLE)
+                .select('*')
+                .eq('owner', owner)
+                .eq('repository', repository)
+                .eq('sha', sha)
+                .limit(1)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // No rows returned
+                    return null;
+                }
+                logError(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+                return null;
+            }
+
+            return data as AICachedFileInfo;
+        } catch (error) {
+            logError(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+            return null;
+        }
+    }
+
+    /**
+     * Verify that a table exists in Supabase
+     */
+    verifyTableExists = async (tableName: string): Promise<{ exists: boolean; error?: string }> => {
+        try {
+            const { error } = await this.supabase
+                .from(tableName)
+                .select('*')
+                .limit(1);
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // PGRST116 is "no rows returned", which means the table exists but is empty
+                    return { exists: true };
+                } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                    // Table does not exist
+                    return { exists: false, error: `Table ${tableName} does not exist` };
+                } else {
+                    return { exists: false, error: error.message || String(error) };
+                }
+            }
+
+            return { exists: true };
+        } catch (error: any) {
+            if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                return { exists: false, error: `Table ${tableName} does not exist` };
+            }
+            return { exists: false, error: error.message || String(error) };
+        }
+    }
+
+    /**
+     * Verify that an RPC function exists in Supabase
+     */
+    verifyRpcFunctionExists = async (functionName: string, testParams: any): Promise<{ exists: boolean; error?: string }> => {
+        try {
+            await this.supabase.rpc(functionName, testParams);
+            // If it doesn't throw, the function exists (even if it fails due to invalid params)
+            return { exists: true };
+        } catch (error: any) {
+            // If the error is that the function doesn't exist (42883), return false
+            if (error.code === '42883' || (error.message?.includes('function') && error.message?.includes('does not exist'))) {
+                return { exists: false, error: `Function ${functionName} does not exist` };
+            }
+            // Other errors (like invalid parameters) are expected and mean the function exists
+            return { exists: true };
         }
     }
 

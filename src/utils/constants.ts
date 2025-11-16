@@ -391,6 +391,8 @@ export const ACTIONS = {
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',
     THINK: 'think_action',
+    INITIAL_SETUP: 'initial_setup',
+    CHECK_PROGRESS: 'check_progress_action',
 } as const; 
 
 export const PROMPTS = {

@@ -398,7 +398,7 @@ inputs:
     default: ""
   openrouter-model:
     description: "OpenRouter model for AI operations."
-    default: "deepseek/deepseek-chat"
+    default: "openai/gpt-4o-mini"
   openrouter-provider-order:
     description: "Comma-separated list of provider names to try in order."
     default: ""

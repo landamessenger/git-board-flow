@@ -9,6 +9,13 @@ export interface AICachedFileInfo {
     description: string;
     consumes: string[];
     consumed_by: string[];
+    error_counter_total?: number;
+    error_counter_critical?: number;
+    error_counter_high?: number;
+    error_counter_medium?: number;
+    error_counter_low?: number;
+    error_types?: string[];
+    errors_payload?: string;
     created_at?: string;
     last_updated?: string;
 }
@@ -29,6 +36,13 @@ export declare class SupabaseRepository {
         description: string;
         consumes: string[];
         consumed_by: string[];
+        error_counter_total?: number;
+        error_counter_critical?: number;
+        error_counter_high?: number;
+        error_counter_medium?: number;
+        error_counter_low?: number;
+        error_types?: string[];
+        errors_payload?: string;
     }) => Promise<void>;
     /**
      * Get AI file cache entry by path
@@ -58,4 +72,27 @@ export declare class SupabaseRepository {
      * Get distinct paths for a branch
      */
     getDistinctPaths: (owner: string, repository: string, branch: string) => Promise<string[]>;
+    /**
+     * Get distinct branches for an owner/repository
+     */
+    getDistinctBranches: (owner: string, repository: string) => Promise<string[]>;
+    /**
+     * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
+     * Returns the first match found, which can be used to reuse descriptions
+     */
+    getAIFileCacheBySha: (owner: string, repository: string, sha: string) => Promise<AICachedFileInfo | null>;
+    /**
+     * Verify that a table exists in Supabase
+     */
+    verifyTableExists: (tableName: string) => Promise<{
+        exists: boolean;
+        error?: string;
+    }>;
+    /**
+     * Verify that an RPC function exists in Supabase
+     */
+    verifyRpcFunctionExists: (functionName: string, testParams: any) => Promise<{
+        exists: boolean;
+        error?: string;
+    }>;
 }
