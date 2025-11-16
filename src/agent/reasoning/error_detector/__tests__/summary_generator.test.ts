@@ -3,7 +3,7 @@
  */
 
 import { SummaryGenerator } from '../summary_generator';
-import { DetectedError } from '../types';
+import { DetectedError, IssueType } from '../types';
 
 describe('SummaryGenerator', () => {
   describe('generateSummary', () => {
@@ -23,25 +23,25 @@ describe('SummaryGenerator', () => {
       const errors: DetectedError[] = [
         {
           file: 'file1.ts',
-          type: 'type-error',
+          type: IssueType.TYPE_ERROR,
           severity: 'critical',
           description: 'Critical error'
         },
         {
           file: 'file2.ts',
-          type: 'logic-error',
+          type: IssueType.LOGIC_ERROR,
           severity: 'high',
           description: 'High error'
         },
         {
           file: 'file3.ts',
-          type: 'type-error',
+          type: IssueType.TYPE_ERROR,
           severity: 'medium',
           description: 'Medium error'
         },
         {
           file: 'file4.ts',
-          type: 'security-issue',
+          type: IssueType.SECURITY_VULNERABILITY,
           severity: 'low',
           description: 'Low error'
         }
@@ -54,28 +54,28 @@ describe('SummaryGenerator', () => {
       expect(summary.bySeverity.high).toBe(1);
       expect(summary.bySeverity.medium).toBe(1);
       expect(summary.bySeverity.low).toBe(1);
-      expect(summary.byType['type-error']).toBe(2);
-      expect(summary.byType['logic-error']).toBe(1);
-      expect(summary.byType['security-issue']).toBe(1);
+      expect(summary.byType[IssueType.TYPE_ERROR]).toBe(2);
+      expect(summary.byType[IssueType.LOGIC_ERROR]).toBe(1);
+      expect(summary.byType[IssueType.SECURITY_VULNERABILITY]).toBe(1);
     });
 
     it('should count multiple errors of the same type', () => {
       const errors: DetectedError[] = [
         {
           file: 'file1.ts',
-          type: 'type-error',
+          type: IssueType.TYPE_ERROR,
           severity: 'critical',
           description: 'Error 1'
         },
         {
           file: 'file2.ts',
-          type: 'type-error',
+          type: IssueType.TYPE_ERROR,
           severity: 'high',
           description: 'Error 2'
         },
         {
           file: 'file3.ts',
-          type: 'type-error',
+          type: IssueType.TYPE_ERROR,
           severity: 'medium',
           description: 'Error 3'
         }
@@ -84,7 +84,7 @@ describe('SummaryGenerator', () => {
       const summary = SummaryGenerator.generateSummary(errors);
 
       expect(summary.total).toBe(3);
-      expect(summary.byType['type-error']).toBe(3);
+      expect(summary.byType[IssueType.TYPE_ERROR]).toBe(3);
     });
   });
 });

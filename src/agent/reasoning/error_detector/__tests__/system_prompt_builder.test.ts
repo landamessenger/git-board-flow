@@ -3,7 +3,7 @@
  */
 
 import { SystemPromptBuilder } from '../system_prompt_builder';
-import { ErrorDetectionOptions } from '../types';
+import { ErrorDetectionOptions, IssueType } from '../types';
 
 describe('SystemPromptBuilder', () => {
   describe('build', () => {
@@ -35,26 +35,25 @@ describe('SystemPromptBuilder', () => {
     it('should include error types when provided', () => {
       const options: ErrorDetectionOptions = {
         apiKey: 'test-key',
-        errorTypes: ['type-errors', 'security-issues']
+        errorTypes: [IssueType.TYPE_ERROR, IssueType.SECURITY_VULNERABILITY]
       };
 
       const prompt = SystemPromptBuilder.build(options);
 
-      expect(prompt).toContain('Look for these types of errors: type-errors, security-issues');
-      expect(prompt).not.toContain('all types of errors');
+      expect(prompt).toContain(`Look for these types of issues: ${IssueType.TYPE_ERROR}, ${IssueType.SECURITY_VULNERABILITY}`);
     });
 
     it('should include both focus areas and error types', () => {
       const options: ErrorDetectionOptions = {
         apiKey: 'test-key',
         focusAreas: ['src/agent'],
-        errorTypes: ['type-errors']
+        errorTypes: [IssueType.TYPE_ERROR]
       };
 
       const prompt = SystemPromptBuilder.build(options);
 
       expect(prompt).toContain('Focus on these areas: src/agent');
-      expect(prompt).toContain('Look for these types of errors: type-errors');
+      expect(prompt).toContain(`Look for these types of issues: ${IssueType.TYPE_ERROR}`);
     });
 
     it('should include mandatory workflow instructions', () => {

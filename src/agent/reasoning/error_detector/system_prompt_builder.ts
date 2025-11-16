@@ -3,7 +3,7 @@
  * Builds system prompts for error detection
  */
 
-import { ErrorDetectionOptions } from './types';
+import { ErrorDetectionOptions, IssueType } from './types';
 
 export class SystemPromptBuilder {
   /**
@@ -16,7 +16,7 @@ export class SystemPromptBuilder {
 
     const errorTypes = options.errorTypes?.length
       ? `Look for these types of issues: ${options.errorTypes.join(', ')}`
-      : 'Look for all types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.';
+      : `Look for all types of issues. Available standard types include: ${Object.values(IssueType).slice(0, 15).join(', ')}, and more. Use the most specific type that matches each issue.`;
 
     // Special instructions for target file analysis
     const targetFileInstructions = options.targetFile
@@ -122,7 +122,7 @@ ${errorTypes}
    - **CRITICAL**: The tool input MUST be valid JSON. Each error object must have:
      - file: Plain string path (e.g., "docker/main.py") - NO markdown, NO "File:" prefix, NO newlines
      - line: Number (optional) - MUST be a number, not a string
-     - type: Plain string (e.g., "bug", "security-issue") - NO markdown, NO formatting
+     - type: MUST be one of the standard IssueType values (e.g., "bug", "security-vulnerability", "logic-error", "performance-issue", "sql-injection", "xss", "memory-leak", "code-smell", "configuration-error", etc.) - Use the most specific type that matches the issue. See IssueType enum for complete list.
      - severity: One of "critical", "high", "medium", "low" - lowercase, exact match
      - description: Plain text description - NO markdown formatting (NO **, NO *, NO #)
      - suggestion: Plain text (optional) - NO markdown formatting
@@ -149,7 +149,7 @@ ${errorTypes}
 For each bug, vulnerability, or issue found, provide:
 - File: path/to/file (any extension)
 - Line: line number (if applicable)
-- Type: bug/vulnerability/security-issue/performance/logic-error/etc.
+- Type: Use standard IssueType values (e.g., "bug", "security-vulnerability", "logic-error", "performance-issue", "sql-injection", "xss", "memory-leak", "code-smell", "configuration-error", "race-condition", etc.) - Use the most specific type available
 - Severity: critical/high/medium/low
 - Description: detailed explanation of the problem
 - Suggestion: how to fix it

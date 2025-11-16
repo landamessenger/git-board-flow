@@ -4,7 +4,7 @@
  */
 
 import { BaseTool } from '../base_tool';
-import { DetectedError } from '../../reasoning/error_detector/types';
+import { DetectedError, IssueType } from '../../reasoning/error_detector/types';
 
 export interface ReportErrorsToolOptions {
   onErrorsReported: (errors: DetectedError[]) => void;
@@ -48,7 +48,8 @@ export class ReportErrorsTool extends BaseTool {
               },
               type: {
                 type: 'string',
-                description: 'Type of error. MUST be a single plain string value like "bug", "security-issue", "logic-error", "performance-issue", "code-issue", "type-error", "runtime-error", "configuration-error", "code-quality". NO markdown, NO formatting, NO newlines, NO colons or prefixes. Just the type name.'
+                enum: Object.values(IssueType),
+                description: `Type of error. MUST be one of the standard issue types: ${Object.values(IssueType).slice(0, 10).join(', ')}, ... (see IssueType enum for complete list). NO markdown, NO formatting, NO newlines, NO colons or prefixes. Just the type name.`
               },
               severity: {
                 type: 'string',
@@ -120,7 +121,7 @@ export class ReportErrorsTool extends BaseTool {
         throw new Error(`Error at index ${i}: file path is required and cannot be empty`);
       }
 
-      // Clean type - remove markdown, prefixes, newlines
+      // Clean and validate type - must be a valid IssueType
       let type = String(error.type)
         .replace(/\*\*/g, '')
         .replace(/\*/g, '')
@@ -132,10 +133,24 @@ export class ReportErrorsTool extends BaseTool {
         .split('\n')[0]
         .split('\\n')[0]
         .split(':')[0]
-        .trim();
+        .trim()
+        .toLowerCase();
       
       if (!type || type.length === 0) {
         throw new Error(`Error at index ${i}: type is required and cannot be empty`);
+      }
+      
+      // Validate that type is a valid IssueType enum value
+      if (!Object.values(IssueType).includes(type as IssueType)) {
+        // Try to find a close match or use CODE_ISSUE as fallback
+        const validTypes = Object.values(IssueType);
+        const closeMatch = validTypes.find(t => t.includes(type) || type.includes(t));
+        if (closeMatch) {
+          type = closeMatch;
+        } else {
+          // Use generic fallback
+          type = IssueType.CODE_ISSUE;
+        }
       }
 
       // Validate and normalize severity
@@ -196,7 +211,7 @@ export class ReportErrorsTool extends BaseTool {
       cleanedErrors.push({
         file,
         line,
-        type,
+        type: type as IssueType,
         severity: severity as DetectedError['severity'],
         description,
         suggestion

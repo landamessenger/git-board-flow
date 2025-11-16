@@ -67457,164 +67457,63 @@ exports.ErrorDetector = ErrorDetector;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ErrorParser = void 0;
+const types_1 = __nccwpck_require__(9978);
 const logger_1 = __nccwpck_require__(8836);
 class ErrorParser {
     /**
      * Parse errors from agent result
      * Only uses structured format from report_errors tool - no text parsing
+     * The tool already validates and cleans the data, so we just extract it directly
      */
     static parseErrors(result) {
         const errors = [];
         (0, logger_1.logDebugInfo)(`📝 Parsing ${result.toolCalls.length} tool calls from agent`);
         // Only parse errors from report_errors tool calls (structured format)
+        // The tool already validated and cleaned the data, so we extract it directly
         for (const toolCall of result.toolCalls) {
             if (toolCall.name === 'report_errors' && toolCall.input.errors) {
-                (0, logger_1.logDebugInfo)(`   Found report_errors call with ${Array.isArray(toolCall.input.errors) ? toolCall.input.errors.length : 0} error(s)`);
                 const reportedErrors = toolCall.input.errors;
+                const errorCount = Array.isArray(reportedErrors) ? reportedErrors.length : 0;
+                (0, logger_1.logDebugInfo)(`   Found report_errors call with ${errorCount} error(s)`);
                 if (Array.isArray(reportedErrors)) {
-                    // Clean and normalize each error (handles any edge cases from AI)
-                    const cleanedErrors = reportedErrors.map(err => this.cleanError(err)).filter(err => err !== null);
-                    errors.push(...cleanedErrors);
+                    // Tool already validated and cleaned, so we can use the data directly
+                    // Just ensure each error has the required structure
+                    for (let i = 0; i < reportedErrors.length; i++) {
+                        const err = reportedErrors[i];
+                        if (err && typeof err === 'object' && err.file && err.type && err.severity && err.description) {
+                            // Validate and convert type to IssueType enum
+                            let issueType;
+                            const typeStr = String(err.type).trim().toLowerCase();
+                            if (Object.values(types_1.IssueType).includes(typeStr)) {
+                                issueType = typeStr;
+                            }
+                            else {
+                                // Try to find a close match
+                                const validTypes = Object.values(types_1.IssueType);
+                                const closeMatch = validTypes.find(t => t.includes(typeStr) || typeStr.includes(t));
+                                issueType = closeMatch || types_1.IssueType.CODE_ISSUE;
+                                if (!closeMatch) {
+                                    (0, logger_1.logDebugInfo)(`   ⚠️ Error at index ${i}: invalid type "${typeStr}", using fallback "${issueType}"`);
+                                }
+                            }
+                            errors.push({
+                                file: String(err.file).trim(),
+                                line: typeof err.line === 'number' ? err.line : (err.line ? parseInt(String(err.line), 10) : undefined),
+                                type: issueType,
+                                severity: String(err.severity).toLowerCase().trim(),
+                                description: String(err.description).trim(),
+                                suggestion: err.suggestion ? String(err.suggestion).trim() : undefined
+                            });
+                        }
+                        else {
+                            (0, logger_1.logDebugInfo)(`   ⚠️ Error at index ${i} missing required fields, skipping`);
+                        }
+                    }
                 }
             }
         }
-        // Deduplicate errors based on file + line + type
-        return this.deduplicateErrors(errors);
-    }
-    /**
-     * Deduplicate errors based on file, line, and type
-     */
-    static deduplicateErrors(errors) {
-        const seen = new Set();
-        const unique = [];
-        for (const error of errors) {
-            // Create a unique key: file + line + type
-            const key = `${error.file}:${error.line || 'no-line'}:${error.type}`;
-            if (!seen.has(key)) {
-                seen.add(key);
-                unique.push(error);
-            }
-            else {
-                (0, logger_1.logDebugInfo)(`   Skipping duplicate error: ${key}`);
-            }
-        }
-        return unique;
-    }
-    /**
-     * Clean and normalize error data from report_errors tool
-     */
-    static cleanError(error) {
-        if (!error || typeof error !== 'object') {
-            return null;
-        }
-        // Clean file path - remove markdown, newlines, and extra whitespace
-        let file = error.file;
-        if (typeof file === 'string') {
-            file = file
-                .replace(/\*\*/g, '') // Remove markdown bold
-                .replace(/\n/g, ' ') // Replace newlines with spaces
-                .replace(/\\n/g, ' ') // Replace escaped newlines
-                .trim()
-                .split('\n')[0] // Take only first line if multiple
-                .split('\\n')[0]; // Take only first part if escaped
-            // Remove common prefixes/suffixes
-            file = file.replace(/^File:\s*/i, '').replace(/^-\s*/, '').trim();
-        }
-        else {
-            return null; // File is required
-        }
-        if (!file || file.length === 0) {
-            return null;
-        }
-        // Clean type - remove markdown and newlines
-        let type = error.type;
-        if (typeof type === 'string') {
-            type = type
-                .replace(/\*\*/g, '')
-                .replace(/\n/g, ' ')
-                .replace(/\\n/g, ' ')
-                .trim()
-                .split('\n')[0]
-                .split('\\n')[0]
-                .split(':')[0] // Remove anything after colon
-                .trim();
-        }
-        else {
-            type = 'code-issue'; // Default
-        }
-        // Clean description - remove markdown but preserve content
-        let description = error.description;
-        if (typeof description === 'string') {
-            description = description
-                .replace(/\*\*/g, '') // Remove markdown bold
-                .replace(/\*/g, '') // Remove markdown italic
-                .replace(/\\n/g, '\n') // Convert escaped newlines to real newlines
-                .replace(/\n{3,}/g, '\n\n') // Limit consecutive newlines
-                .trim();
-            // Remove common markdown patterns
-            description = description
-                .replace(/^-\s*/, '')
-                .replace(/^\d+\.\s*/, '')
-                .trim();
-            // If description contains multiple errors (separated by patterns), take only the first relevant part
-            const firstErrorMatch = description.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
-            if (firstErrorMatch) {
-                description = firstErrorMatch[1].trim();
-            }
-        }
-        else {
-            description = 'Error detected';
-        }
-        // Clean suggestion - similar to description
-        let suggestion = error.suggestion;
-        if (suggestion && typeof suggestion === 'string') {
-            suggestion = suggestion
-                .replace(/\*\*/g, '')
-                .replace(/\*/g, '')
-                .replace(/\\n/g, '\n')
-                .replace(/\n{3,}/g, '\n\n')
-                .trim()
-                .replace(/^-\s*/, '')
-                .replace(/^\d+\.\s*/, '')
-                .trim();
-            // Take only first suggestion if multiple
-            const firstSuggestionMatch = suggestion.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
-            if (firstSuggestionMatch) {
-                suggestion = firstSuggestionMatch[1].trim();
-            }
-        }
-        // Parse line number
-        let line = undefined;
-        if (error.line !== undefined && error.line !== null) {
-            if (typeof error.line === 'number') {
-                line = error.line;
-            }
-            else if (typeof error.line === 'string') {
-                const lineMatch = error.line.match(/(\d+)/);
-                if (lineMatch) {
-                    line = parseInt(lineMatch[1], 10);
-                }
-            }
-        }
-        // Validate severity
-        let severity = error.severity;
-        if (typeof severity === 'string') {
-            severity = severity.toLowerCase().trim();
-            if (!['critical', 'high', 'medium', 'low'].includes(severity)) {
-                severity = 'medium'; // Default
-            }
-        }
-        else {
-            severity = 'medium';
-        }
-        return {
-            file,
-            line,
-            type,
-            severity: severity,
-            description,
-            suggestion
-        };
+        (0, logger_1.logDebugInfo)(`   ✅ Extracted ${errors.length} error(s) from report_errors tool calls`);
+        return errors;
     }
 }
 exports.ErrorParser = ErrorParser;
@@ -68156,7 +68055,7 @@ exports.SummaryGenerator = SummaryGenerator;
 /***/ }),
 
 /***/ 6058:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -68166,6 +68065,7 @@ exports.SummaryGenerator = SummaryGenerator;
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SystemPromptBuilder = void 0;
+const types_1 = __nccwpck_require__(9978);
 class SystemPromptBuilder {
     /**
      * Build system prompt for error detection
@@ -68176,7 +68076,7 @@ class SystemPromptBuilder {
             : 'Analyze the entire codebase';
         const errorTypes = options.errorTypes?.length
             ? `Look for these types of issues: ${options.errorTypes.join(', ')}`
-            : 'Look for all types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.';
+            : `Look for all types of issues. Available standard types include: ${Object.values(types_1.IssueType).slice(0, 15).join(', ')}, and more. Use the most specific type that matches each issue.`;
         // Special instructions for target file analysis
         const targetFileInstructions = options.targetFile
             ? `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
@@ -68280,7 +68180,7 @@ ${errorTypes}
    - **CRITICAL**: The tool input MUST be valid JSON. Each error object must have:
      - file: Plain string path (e.g., "docker/main.py") - NO markdown, NO "File:" prefix, NO newlines
      - line: Number (optional) - MUST be a number, not a string
-     - type: Plain string (e.g., "bug", "security-issue") - NO markdown, NO formatting
+     - type: MUST be one of the standard IssueType values (e.g., "bug", "security-vulnerability", "logic-error", "performance-issue", "sql-injection", "xss", "memory-leak", "code-smell", "configuration-error", etc.) - Use the most specific type that matches the issue. See IssueType enum for complete list.
      - severity: One of "critical", "high", "medium", "low" - lowercase, exact match
      - description: Plain text description - NO markdown formatting (NO **, NO *, NO #)
      - suggestion: Plain text (optional) - NO markdown formatting
@@ -68307,7 +68207,7 @@ ${errorTypes}
 For each bug, vulnerability, or issue found, provide:
 - File: path/to/file (any extension)
 - Line: line number (if applicable)
-- Type: bug/vulnerability/security-issue/performance/logic-error/etc.
+- Type: Use standard IssueType values (e.g., "bug", "security-vulnerability", "logic-error", "performance-issue", "sql-injection", "xss", "memory-leak", "code-smell", "configuration-error", "race-condition", etc.) - Use the most specific type available
 - Severity: critical/high/medium/low
 - Description: detailed explanation of the problem
 - Suggestion: how to fix it
@@ -68346,6 +68246,96 @@ For each bug, vulnerability, or issue found, provide:
     }
 }
 exports.SystemPromptBuilder = SystemPromptBuilder;
+
+
+/***/ }),
+
+/***/ 9978:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Types and interfaces for Error Detector
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueType = void 0;
+/**
+ * Standard issue types for code analysis
+ * Based on common industry standards (SonarQube, ESLint, PMD, CWE, OWASP)
+ */
+var IssueType;
+(function (IssueType) {
+    // Bugs and Logic Errors
+    IssueType["BUG"] = "bug";
+    IssueType["LOGIC_ERROR"] = "logic-error";
+    IssueType["RUNTIME_ERROR"] = "runtime-error";
+    IssueType["NULL_POINTER"] = "null-pointer";
+    IssueType["ARRAY_BOUNDS"] = "array-bounds";
+    IssueType["DIVISION_BY_ZERO"] = "division-by-zero";
+    IssueType["TYPE_ERROR"] = "type-error";
+    IssueType["TYPE_MISMATCH"] = "type-mismatch";
+    // Security Issues
+    IssueType["SECURITY_VULNERABILITY"] = "security-vulnerability";
+    IssueType["SQL_INJECTION"] = "sql-injection";
+    IssueType["COMMAND_INJECTION"] = "command-injection";
+    IssueType["XSS"] = "xss";
+    IssueType["CSRF"] = "csrf";
+    IssueType["AUTHENTICATION_BYPASS"] = "authentication-bypass";
+    IssueType["AUTHORIZATION_BYPASS"] = "authorization-bypass";
+    IssueType["SENSITIVE_DATA_EXPOSURE"] = "sensitive-data-exposure";
+    IssueType["INSECURE_DESERIALIZATION"] = "insecure-deserialization";
+    IssueType["SSRF"] = "ssrf";
+    IssueType["BUFFER_OVERFLOW"] = "buffer-overflow";
+    IssueType["INSECURE_CRYPTO"] = "insecure-crypto";
+    IssueType["WEAK_RANDOM"] = "weak-random";
+    IssueType["HARDCODED_SECRET"] = "hardcoded-secret";
+    IssueType["INSECURE_DEPENDENCY"] = "insecure-dependency";
+    // Performance Issues
+    IssueType["PERFORMANCE_ISSUE"] = "performance-issue";
+    IssueType["MEMORY_LEAK"] = "memory-leak";
+    IssueType["RESOURCE_LEAK"] = "resource-leak";
+    IssueType["INEFFICIENT_ALGORITHM"] = "inefficient-algorithm";
+    IssueType["UNNECESSARY_COMPUTATION"] = "unnecessary-computation";
+    IssueType["BLOCKING_OPERATION"] = "blocking-operation";
+    // Code Quality Issues
+    IssueType["CODE_SMELL"] = "code-smell";
+    IssueType["DEAD_CODE"] = "dead-code";
+    IssueType["DUPLICATE_CODE"] = "duplicate-code";
+    IssueType["HIGH_COMPLEXITY"] = "high-complexity";
+    IssueType["CYCLOMATIC_COMPLEXITY"] = "cyclomatic-complexity";
+    IssueType["LONG_METHOD"] = "long-method";
+    IssueType["LONG_PARAMETER_LIST"] = "long-parameter-list";
+    IssueType["GOD_CLASS"] = "god-class";
+    IssueType["MAGIC_NUMBER"] = "magic-number";
+    IssueType["MISSING_ERROR_HANDLING"] = "missing-error-handling";
+    IssueType["EMPTY_CATCH_BLOCK"] = "empty-catch-block";
+    // Configuration Issues
+    IssueType["CONFIGURATION_ERROR"] = "configuration-error";
+    IssueType["MISCONFIGURATION"] = "misconfiguration";
+    IssueType["MISSING_CONFIGURATION"] = "missing-configuration";
+    IssueType["INVALID_CONFIGURATION"] = "invalid-configuration";
+    IssueType["EXPOSED_CREDENTIALS"] = "exposed-credentials";
+    IssueType["INSECURE_PERMISSIONS"] = "insecure-permissions";
+    // Concurrency Issues
+    IssueType["RACE_CONDITION"] = "race-condition";
+    IssueType["DEADLOCK"] = "deadlock";
+    IssueType["THREAD_SAFETY"] = "thread-safety";
+    IssueType["UNSAFE_CONCURRENCY"] = "unsafe-concurrency";
+    // Deprecated and Maintenance
+    IssueType["DEPRECATED_API"] = "deprecated-api";
+    IssueType["UNUSED_CODE"] = "unused-code";
+    IssueType["UNUSED_IMPORT"] = "unused-import";
+    IssueType["UNUSED_VARIABLE"] = "unused-variable";
+    IssueType["UNUSED_PARAMETER"] = "unused-parameter";
+    // Best Practices
+    IssueType["BEST_PRACTICE_VIOLATION"] = "best-practice-violation";
+    IssueType["CODING_STANDARD_VIOLATION"] = "coding-standard-violation";
+    IssueType["NAMING_CONVENTION"] = "naming-convention";
+    IssueType["CODE_STYLE"] = "code-style";
+    // Generic fallback
+    IssueType["CODE_ISSUE"] = "code-issue";
+})(IssueType || (exports.IssueType = IssueType = {}));
 
 
 /***/ }),
@@ -68741,6 +68731,7 @@ exports.ReadFileTool = ReadFileTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportErrorsTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const types_1 = __nccwpck_require__(9978);
 class ReportErrorsTool extends base_tool_1.BaseTool {
     constructor(options) {
         super();
@@ -68772,7 +68763,8 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
                             },
                             type: {
                                 type: 'string',
-                                description: 'Type of error. MUST be a single plain string value like "bug", "security-issue", "logic-error", "performance-issue", "code-issue", "type-error", "runtime-error", "configuration-error", "code-quality". NO markdown, NO formatting, NO newlines, NO colons or prefixes. Just the type name.'
+                                enum: Object.values(types_1.IssueType),
+                                description: `Type of error. MUST be one of the standard issue types: ${Object.values(types_1.IssueType).slice(0, 10).join(', ')}, ... (see IssueType enum for complete list). NO markdown, NO formatting, NO newlines, NO colons or prefixes. Just the type name.`
                             },
                             severity: {
                                 type: 'string',
@@ -68834,7 +68826,7 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
             if (!file || file.length === 0) {
                 throw new Error(`Error at index ${i}: file path is required and cannot be empty`);
             }
-            // Clean type - remove markdown, prefixes, newlines
+            // Clean and validate type - must be a valid IssueType
             let type = String(error.type)
                 .replace(/\*\*/g, '')
                 .replace(/\*/g, '')
@@ -68846,9 +68838,23 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
                 .split('\n')[0]
                 .split('\\n')[0]
                 .split(':')[0]
-                .trim();
+                .trim()
+                .toLowerCase();
             if (!type || type.length === 0) {
                 throw new Error(`Error at index ${i}: type is required and cannot be empty`);
+            }
+            // Validate that type is a valid IssueType enum value
+            if (!Object.values(types_1.IssueType).includes(type)) {
+                // Try to find a close match or use CODE_ISSUE as fallback
+                const validTypes = Object.values(types_1.IssueType);
+                const closeMatch = validTypes.find(t => t.includes(type) || type.includes(t));
+                if (closeMatch) {
+                    type = closeMatch;
+                }
+                else {
+                    // Use generic fallback
+                    type = types_1.IssueType.CODE_ISSUE;
+                }
             }
             // Validate and normalize severity
             let severity = String(error.severity).toLowerCase().trim();
@@ -68902,7 +68908,7 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
             cleanedErrors.push({
                 file,
                 line,
-                type,
+                type: type,
                 severity: severity,
                 description,
                 suggestion

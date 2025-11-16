@@ -8,14 +8,7 @@ export declare class ErrorParser {
     /**
      * Parse errors from agent result
      * Only uses structured format from report_errors tool - no text parsing
+     * The tool already validates and cleans the data, so we just extract it directly
      */
     static parseErrors(result: AgentResult): DetectedError[];
-    /**
-     * Deduplicate errors based on file, line, and type
-     */
-    private static deduplicateErrors;
-    /**
-     * Clean and normalize error data from report_errors tool
-     */
-    private static cleanError;
 }
