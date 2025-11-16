@@ -6,7 +6,7 @@
 import * as dotenv from 'dotenv';
 import * as github from '@actions/github';
 import { Command } from 'commander';
-import { ErrorDetector, ErrorDetectionOptions } from './agent/reasoning/error_detector';
+import { ErrorDetector, ErrorDetectionOptions } from './agent/reasoning/error_detector/index';
 import { logInfo, logError, logWarn } from './utils/logger';
 import { execSync } from 'child_process';
 
