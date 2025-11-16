@@ -67130,18 +67130,18 @@ class AgentInitializer {
         const repositoryFiles = new Map();
         if (options.repositoryOwner && options.repositoryName) {
             try {
-                // Get GitHub token from environment
-                const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+                // Get GitHub token from options
+                const token = options.personalAccessToken;
                 if (!token) {
-                    (0, logger_1.logWarn)('⚠️ PERSONAL_ACCESS_TOKEN not set, cannot load repository files');
+                    (0, logger_1.logWarn)('⚠️ personalAccessToken not provided in options, cannot load repository files');
                 }
                 else {
-                    // Get default branch if not specified
-                    let branch = options.repositoryBranch;
-                    if (!branch) {
-                        branch = await this.getDefaultBranch(options.repositoryOwner, options.repositoryName, token);
+                    // Branch is required - fail if not provided
+                    if (!options.repositoryBranch) {
+                        throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
                     }
-                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName}...`);
+                    const branch = options.repositoryBranch;
+                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
                     const fileRepository = new file_repository_1.FileRepository();
                     const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
                         (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
@@ -67159,26 +67159,6 @@ class AgentInitializer {
             }
         }
         return repositoryFiles;
-    }
-    /**
-     * Get default branch from repository
-     */
-    static async getDefaultBranch(owner, repo, token) {
-        try {
-            const { getOctokit } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(5438)));
-            const octokit = getOctokit(token);
-            const { data } = await octokit.rest.repos.get({
-                owner,
-                repo
-            });
-            const branch = data.default_branch || 'master';
-            (0, logger_1.logInfo)(`🌿 Using default branch: ${branch}`);
-            return branch;
-        }
-        catch (error) {
-            (0, logger_1.logWarn)(`⚠️ Could not fetch default branch, using 'master' as fallback: ${error}`);
-            return 'master';
-        }
     }
     /**
      * Create tools for the agent
@@ -67358,6 +67338,7 @@ class ErrorDetector {
         this.options = {
             model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
             apiKey: options.apiKey,
+            personalAccessToken: options.personalAccessToken,
             maxTurns: options.maxTurns || 30,
             repositoryOwner: options.repositoryOwner,
             repositoryName: options.repositoryName,
@@ -76063,7 +76044,10 @@ const index_1 = __nccwpck_require__(1578);
 const logger_1 = __nccwpck_require__(8836);
 const child_process_1 = __nccwpck_require__(2081);
 // Load environment variables from .env file
-dotenv.config();
+// Try multiple paths to find .env file
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '../.env' });
+dotenv.config({ path: '../../.env' });
 // Function to get git repository info (same as in cli.ts)
 function getGitInfo() {
     try {
@@ -76106,11 +76090,13 @@ function registerTECTestCommands(program) {
         .option('-p, --prompt <prompt>', 'Optional: Custom detection prompt (system prompt already has all instructions)')
         .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
         .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+        .option('-t, --token <token>', 'GitHub Personal Access Token', process.env.PERSONAL_ACCESS_TOKEN)
         .option('--max-turns <number>', 'Maximum turns', '30')
         .option('--focus <areas...>', 'Focus on specific areas (e.g., src/agent src/utils)', [])
         .option('--error-types <types...>', 'Types of errors to look for', [])
         .option('--owner <owner>', 'GitHub repository owner (auto-detected if not provided)')
         .option('--repo <repo>', 'GitHub repository name (auto-detected if not provided)')
+        .option('--branch <branch>', 'GitHub branch to analyze')
         .option('--target-file <file>', 'Specific file to analyze')
         .option('--analyze-only-target', 'Analyze only the target file (ignore consumers and dependencies)', false)
         .option('--include-dependencies', 'Also analyze files that the target file depends on (only if --analyze-only-target is false)', false)
@@ -76126,19 +76112,35 @@ function registerTECTestCommands(program) {
             const gitInfo = getGitInfo();
             const owner = options.owner || gitInfo?.owner;
             const repo = options.repo || gitInfo?.repo;
-            if (!owner || !repo) {
+            const token = options.token || process.env.PERSONAL_ACCESS_TOKEN;
+            const branch = options.branch;
+            // Debug: Log token status (without exposing the actual token)
+            if (token) {
+                (0, logger_1.logInfo)(`✅ GitHub token found (${token.substring(0, 4)}...${token.substring(token.length - 4)})`);
+            }
+            else {
+                (0, logger_1.logWarn)('⚠️ GitHub Personal Access Token not found. Checking environment...');
+                (0, logger_1.logWarn)(`   - options.token: ${options.token ? 'provided' : 'not provided'}`);
+                (0, logger_1.logWarn)(`   - process.env.PERSONAL_ACCESS_TOKEN: ${process.env.PERSONAL_ACCESS_TOKEN ? 'found' : 'not found'}`);
+            }
+            if (!owner || !repo || !branch) {
                 (0, logger_1.logInfo)('⚠️ Repository info not found. Using local file system only.');
             }
             else {
                 (0, logger_1.logInfo)(`📂 Repository: ${owner}/${repo}`);
+                if (!token) {
+                    (0, logger_1.logWarn)('⚠️ GitHub Personal Access Token not provided. Set PERSONAL_ACCESS_TOKEN env var or use -t/--token flag. Repository files will not be loaded.');
+                }
             }
             // Create error detector
             const detectorOptions = {
                 model: options.model,
                 apiKey: options.apiKey,
+                personalAccessToken: token, // Use token from options or env var
                 maxTurns: parseInt(options.maxTurns),
                 repositoryOwner: owner,
                 repositoryName: repo,
+                repositoryBranch: branch,
                 focusAreas: options.focus.length > 0 ? options.focus : undefined,
                 errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
                 useSubAgents: true, // Enable subagents by default for parallel processing
@@ -77213,6 +77215,7 @@ ${fileContent}
                 const detectorOptions = {
                     model: param.ai.getOpenRouterModel(),
                     apiKey: param.ai.getOpenRouterApiKey(),
+                    personalAccessToken: param.tokens.token, // GitHub token for loading repository files
                     maxTurns: 10, // Reduced for single file analysis to prevent loops
                     repositoryOwner: param.owner,
                     repositoryName: param.repo,

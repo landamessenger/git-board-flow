@@ -21,6 +21,7 @@ export class ErrorDetector {
     this.options = {
       model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       apiKey: options.apiKey,
+      personalAccessToken: options.personalAccessToken,
       maxTurns: options.maxTurns || 30,
       repositoryOwner: options.repositoryOwner,
       repositoryName: options.repositoryName,

@@ -96,10 +96,10 @@ export class AgentInitializer {
 
     if (options.repositoryOwner && options.repositoryName) {
       try {
-        // Get GitHub token from environment
-        const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+        // Get GitHub token from options
+        const token = options.personalAccessToken;
         if (!token) {
-          logWarn('⚠️ PERSONAL_ACCESS_TOKEN not set, cannot load repository files');
+          logWarn('⚠️ personalAccessToken not provided in options, cannot load repository files');
         } else {
           // Branch is required - fail if not provided
           if (!options.repositoryBranch) {

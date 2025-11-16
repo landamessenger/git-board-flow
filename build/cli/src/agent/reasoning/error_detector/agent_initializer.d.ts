@@ -27,10 +27,6 @@ export declare class AgentInitializer {
      */
     private static loadRepositoryFiles;
     /**
-     * Get default branch from repository
-     */
-    private static getDefaultBranch;
-    /**
      * Create tools for the agent
      */
     static createTools(repositoryFiles: Map<string, string>, onErrorsReported?: (errors: DetectedError[]) => void): Promise<(ReadFileTool | SearchFilesTool | ProposeChangeTool | ManageTodosTool | ReportErrorsTool)[]>;

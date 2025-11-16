@@ -91,10 +91,11 @@ export enum IssueType {
 export interface ErrorDetectionOptions {
   model?: string;
   apiKey: string;
+  personalAccessToken?: string; // GitHub Personal Access Token for loading repository files
   maxTurns?: number;
   repositoryOwner?: string;
   repositoryName?: string;
-  repositoryBranch?: string; // Branch to analyze (default: will be detected)
+  repositoryBranch?: string; // Branch to analyze (required if repositoryOwner and repositoryName are provided)
   focusAreas?: string[]; // Specific areas to focus on (e.g., ['src/agent', 'src/utils'])
   errorTypes?: IssueType[]; // Types of errors to look for (default: all)
   useSubAgents?: boolean; // Use subagents to parallelize file reading (default: false)

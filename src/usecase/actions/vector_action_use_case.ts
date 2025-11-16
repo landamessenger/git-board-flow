@@ -688,6 +688,7 @@ ${fileContent}
             const detectorOptions: ErrorDetectionOptions = {
                 model: param.ai.getOpenRouterModel(),
                 apiKey: param.ai.getOpenRouterApiKey(),
+                personalAccessToken: param.tokens.token, // GitHub token for loading repository files
                 maxTurns: 10, // Reduced for single file analysis to prevent loops
                 repositoryOwner: param.owner,
                 repositoryName: param.repo,

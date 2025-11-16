@@ -62687,18 +62687,18 @@ class AgentInitializer {
         const repositoryFiles = new Map();
         if (options.repositoryOwner && options.repositoryName) {
             try {
-                // Get GitHub token from environment
-                const token = process.env.PERSONAL_ACCESS_TOKEN || '';
+                // Get GitHub token from options
+                const token = options.personalAccessToken;
                 if (!token) {
-                    (0, logger_1.logWarn)('⚠️ PERSONAL_ACCESS_TOKEN not set, cannot load repository files');
+                    (0, logger_1.logWarn)('⚠️ personalAccessToken not provided in options, cannot load repository files');
                 }
                 else {
-                    // Get default branch if not specified
-                    let branch = options.repositoryBranch;
-                    if (!branch) {
-                        branch = await this.getDefaultBranch(options.repositoryOwner, options.repositoryName, token);
+                    // Branch is required - fail if not provided
+                    if (!options.repositoryBranch) {
+                        throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
                     }
-                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName}...`);
+                    const branch = options.repositoryBranch;
+                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
                     const fileRepository = new file_repository_1.FileRepository();
                     const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
                         (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
@@ -62716,26 +62716,6 @@ class AgentInitializer {
             }
         }
         return repositoryFiles;
-    }
-    /**
-     * Get default branch from repository
-     */
-    static async getDefaultBranch(owner, repo, token) {
-        try {
-            const { getOctokit } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(5438)));
-            const octokit = getOctokit(token);
-            const { data } = await octokit.rest.repos.get({
-                owner,
-                repo
-            });
-            const branch = data.default_branch || 'master';
-            (0, logger_1.logInfo)(`🌿 Using default branch: ${branch}`);
-            return branch;
-        }
-        catch (error) {
-            (0, logger_1.logWarn)(`⚠️ Could not fetch default branch, using 'master' as fallback: ${error}`);
-            return 'master';
-        }
     }
     /**
      * Create tools for the agent
@@ -62915,6 +62895,7 @@ class ErrorDetector {
         this.options = {
             model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
             apiKey: options.apiKey,
+            personalAccessToken: options.personalAccessToken,
             maxTurns: options.maxTurns || 30,
             repositoryOwner: options.repositoryOwner,
             repositoryName: options.repositoryName,
@@ -71001,6 +70982,7 @@ ${fileContent}
                 const detectorOptions = {
                     model: param.ai.getOpenRouterModel(),
                     apiKey: param.ai.getOpenRouterApiKey(),
+                    personalAccessToken: param.tokens.token, // GitHub token for loading repository files
                     maxTurns: 10, // Reduced for single file analysis to prevent loops
                     repositoryOwner: param.owner,
                     repositoryName: param.repo,

@@ -71,6 +71,7 @@ export declare enum IssueType {
 export interface ErrorDetectionOptions {
     model?: string;
     apiKey: string;
+    personalAccessToken?: string;
     maxTurns?: number;
     repositoryOwner?: string;
     repositoryName?: string;

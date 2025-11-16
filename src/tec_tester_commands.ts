@@ -11,7 +11,10 @@ import { logInfo, logError, logWarn } from './utils/logger';
 import { execSync } from 'child_process';
 
 // Load environment variables from .env file
-dotenv.config();
+// Try multiple paths to find .env file
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '../.env' });
+dotenv.config({ path: '../../.env' });
 
 // Function to get git repository info (same as in cli.ts)
 function getGitInfo() {
@@ -55,11 +58,13 @@ export function registerTECTestCommands(program: Command) {
     .option('-p, --prompt <prompt>', 'Optional: Custom detection prompt (system prompt already has all instructions)')
     .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
     .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-t, --token <token>', 'GitHub Personal Access Token', process.env.PERSONAL_ACCESS_TOKEN)
     .option('--max-turns <number>', 'Maximum turns', '30')
     .option('--focus <areas...>', 'Focus on specific areas (e.g., src/agent src/utils)', [])
     .option('--error-types <types...>', 'Types of errors to look for', [])
     .option('--owner <owner>', 'GitHub repository owner (auto-detected if not provided)')
     .option('--repo <repo>', 'GitHub repository name (auto-detected if not provided)')
+    .option('--branch <branch>', 'GitHub branch to analyze')
     .option('--target-file <file>', 'Specific file to analyze')
     .option('--analyze-only-target', 'Analyze only the target file (ignore consumers and dependencies)', false)
     .option('--include-dependencies', 'Also analyze files that the target file depends on (only if --analyze-only-target is false)', false)
@@ -77,20 +82,36 @@ export function registerTECTestCommands(program: Command) {
         const gitInfo = getGitInfo();
         const owner = options.owner || gitInfo?.owner;
         const repo = options.repo || gitInfo?.repo;
+        const token = options.token || process.env.PERSONAL_ACCESS_TOKEN;
+        const branch = options.branch;
 
-        if (!owner || !repo) {
+        // Debug: Log token status (without exposing the actual token)
+        if (token) {
+          logInfo(`✅ GitHub token found (${token.substring(0, 4)}...${token.substring(token.length - 4)})`);
+        } else {
+          logWarn('⚠️ GitHub Personal Access Token not found. Checking environment...');
+          logWarn(`   - options.token: ${options.token ? 'provided' : 'not provided'}`);
+          logWarn(`   - process.env.PERSONAL_ACCESS_TOKEN: ${process.env.PERSONAL_ACCESS_TOKEN ? 'found' : 'not found'}`);
+        }
+
+        if (!owner || !repo || !branch) {
           logInfo('⚠️ Repository info not found. Using local file system only.');
         } else {
           logInfo(`📂 Repository: ${owner}/${repo}`);
+          if (!token) {
+            logWarn('⚠️ GitHub Personal Access Token not provided. Set PERSONAL_ACCESS_TOKEN env var or use -t/--token flag. Repository files will not be loaded.');
+          }
         }
 
         // Create error detector
         const detectorOptions: ErrorDetectionOptions = {
           model: options.model,
           apiKey: options.apiKey,
+          personalAccessToken: token, // Use token from options or env var
           maxTurns: parseInt(options.maxTurns),
           repositoryOwner: owner,
           repositoryName: repo,
+          repositoryBranch: branch,
           focusAreas: options.focus.length > 0 ? options.focus : undefined,
           errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
           useSubAgents: true, // Enable subagents by default for parallel processing
@@ -203,16 +224,16 @@ export function registerTECTestCommands(program: Command) {
         logInfo('⚡ Quick error check...');
 
         const gitInfo = getGitInfo();
-            const detector = new ErrorDetector({
-              model: options.model,
-              apiKey: options.apiKey,
-              maxTurns: 10, // Fewer turns for quick check
-              repositoryOwner: gitInfo?.owner,
-              repositoryName: gitInfo?.repo,
-              focusAreas: options.focus.length > 0 ? options.focus : undefined,
-              useSubAgents: true, // Enable subagents for parallel processing
-              maxConcurrentSubAgents: 3 // Fewer subagents for quick check
-            });
+        const detector = new ErrorDetector({
+          model: options.model,
+          apiKey: options.apiKey,
+          maxTurns: 10, // Fewer turns for quick check
+          repositoryOwner: gitInfo?.owner,
+          repositoryName: gitInfo?.repo,
+          focusAreas: options.focus.length > 0 ? options.focus : undefined,
+          useSubAgents: true, // Enable subagents for parallel processing
+          maxConcurrentSubAgents: 3 // Fewer subagents for quick check
+        });
 
         // Quick check: no custom prompt needed, systemPrompt already has instructions
         // Focus on critical/high severity errors is handled by errorTypes option
