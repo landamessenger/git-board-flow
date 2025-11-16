@@ -101,13 +101,13 @@ export class AgentInitializer {
         if (!token) {
           logWarn('⚠️ PERSONAL_ACCESS_TOKEN not set, cannot load repository files');
         } else {
-          // Get default branch if not specified
-          let branch = options.repositoryBranch;
-          if (!branch) {
-            branch = await this.getDefaultBranch(options.repositoryOwner, options.repositoryName, token);
+          // Branch is required - fail if not provided
+          if (!options.repositoryBranch) {
+            throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
           }
           
-          logInfo(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName}...`);
+          const branch = options.repositoryBranch;
+          logInfo(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
           
           const fileRepository = new FileRepository();
           const files = await fileRepository.getRepositoryContent(
@@ -136,26 +136,6 @@ export class AgentInitializer {
     }
 
     return repositoryFiles;
-  }
-
-  /**
-   * Get default branch from repository
-   */
-  private static async getDefaultBranch(owner: string, repo: string, token: string): Promise<string> {
-    try {
-      const { getOctokit } = await import('@actions/github');
-      const octokit = getOctokit(token);
-      const { data } = await octokit.rest.repos.get({
-        owner,
-        repo
-      });
-      const branch = data.default_branch || 'master';
-      logInfo(`🌿 Using default branch: ${branch}`);
-      return branch;
-    } catch (error) {
-      logWarn(`⚠️ Could not fetch default branch, using 'master' as fallback: ${error}`);
-      return 'master';
-    }
   }
 
   /**
