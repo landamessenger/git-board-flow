@@ -20,7 +20,7 @@ jobs:
           debug: ${{ vars.DEBUG }}
           project-ids: 2
           ai-ignore-files: build/*
-          single-action: check_progress
+          single-action: check_progress_action
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           token: ${{ secrets.PAT }}
