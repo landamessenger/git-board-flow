@@ -84,19 +84,19 @@ export function registerTECTestCommands(program: Command) {
         }
 
         // Create error detector
-            const detectorOptions: ErrorDetectionOptions = {
-              model: options.model,
-              apiKey: options.apiKey,
-              maxTurns: parseInt(options.maxTurns),
-              repositoryOwner: owner,
-              repositoryName: repo,
-              focusAreas: options.focus.length > 0 ? options.focus : undefined,
-              errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
-              useSubAgents: true, // Enable subagents by default for parallel processing
-              maxConcurrentSubAgents: 5,
-              targetFile: options.targetFile,
-              includeDependencies: options.includeDependencies || false
-            };
+        const detectorOptions: ErrorDetectionOptions = {
+          model: options.model,
+          apiKey: options.apiKey,
+          maxTurns: parseInt(options.maxTurns),
+          repositoryOwner: owner,
+          repositoryName: repo,
+          focusAreas: options.focus.length > 0 ? options.focus : undefined,
+          errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
+          useSubAgents: true, // Enable subagents by default for parallel processing
+          maxConcurrentSubAgents: 5,
+          targetFile: options.targetFile,
+          includeDependencies: options.includeDependencies || false
+        };
 
         const detector = new ErrorDetector(detectorOptions);
 
@@ -106,69 +106,68 @@ export function registerTECTestCommands(program: Command) {
         const result = await detector.detectErrors(options.prompt || undefined);
 
         // Output results
+        const { errors, summary, agentResult } = result;
+        
         if (options.output === 'json') {
           console.log(JSON.stringify(result, null, 2));
-        } else {
-          // Text output
-          console.log('\n' + '='.repeat(80));
-          console.log('📊 ERROR DETECTION SUMMARY');
-          console.log('='.repeat(80));
-          console.log(`\nTotal errors found: ${result.summary.total}`);
-          console.log(`\nBy Severity:`);
-          console.log(`  🔴 Critical: ${result.summary.bySeverity.critical}`);
-          console.log(`  🟠 High: ${result.summary.bySeverity.high}`);
-          console.log(`  🟡 Medium: ${result.summary.bySeverity.medium}`);
-          console.log(`  🟢 Low: ${result.summary.bySeverity.low}`);
-          
-          if (Object.keys(result.summary.byType).length > 0) {
-            console.log(`\nBy Type:`);
-            for (const [type, count] of Object.entries(result.summary.byType)) {
-              console.log(`  ${type}: ${count}`);
-            }
-          }
+          return;
+        }
 
-          if (result.errors.length > 0) {
-            console.log(`\n${'='.repeat(80)}`);
-            console.log('📋 DETECTED ERRORS');
-            console.log('='.repeat(80));
+        // Text output (default)
+        const severityEmojis = { critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' } as const;
+        const severityOrder: Array<keyof typeof severityEmojis> = ['critical', 'high', 'medium', 'low'];
 
-            // Group by severity
-            const bySeverity = {
-              critical: result.errors.filter(e => e.severity === 'critical'),
-              high: result.errors.filter(e => e.severity === 'high'),
-              medium: result.errors.filter(e => e.severity === 'medium'),
-              low: result.errors.filter(e => e.severity === 'low')
-            };
+        // Summary section
+        console.log('\n' + '='.repeat(80));
+        console.log('📊 ERROR DETECTION SUMMARY');
+        console.log('='.repeat(80));
+        console.log(`\nTotal errors found: ${summary.total}`);
+        console.log(`\nBy Severity:`);
+        severityOrder.forEach(severity => {
+          console.log(`  ${severityEmojis[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}: ${summary.bySeverity[severity]}`);
+        });
+        
+        if (Object.keys(summary.byType).length > 0) {
+          console.log(`\nBy Type:`);
+          Object.entries(summary.byType).forEach(([type, count]) => {
+            console.log(`  ${type}: ${count}`);
+          });
+        }
 
-            for (const severity of ['critical', 'high', 'medium', 'low'] as const) {
-              const errors = bySeverity[severity];
-              if (errors.length > 0) {
-                const emoji = severity === 'critical' ? '🔴' : severity === 'high' ? '🟠' : severity === 'medium' ? '🟡' : '🟢';
-                console.log(`\n${emoji} ${severity.toUpperCase()} (${errors.length})`);
-                console.log('-'.repeat(80));
-                
-                for (const error of errors) {
-                  console.log(`\nFile: ${error.file}${error.line ? `:${error.line}` : ''}`);
-                  console.log(`Type: ${error.type}`);
-                  console.log(`Description: ${error.description}`);
-                  if (error.suggestion) {
-                    console.log(`Suggestion: ${error.suggestion}`);
-                  }
-                }
-              }
-            }
-          } else {
-            console.log('\n✅ No errors detected!');
-          }
-
+        // Errors section
+        if (errors.length > 0) {
           console.log(`\n${'='.repeat(80)}`);
-          console.log(`📈 Agent Stats:`);
-          console.log(`  Turns: ${result.agentResult.turns.length}`);
-          console.log(`  Tool Calls: ${result.agentResult.toolCalls.length}`);
-          if (result.agentResult.metrics) {
-            console.log(`  Tokens: ${result.agentResult.metrics.totalTokens.input + result.agentResult.metrics.totalTokens.output}`);
-            console.log(`  Duration: ${result.agentResult.metrics.totalDuration}ms`);
-          }
+          console.log('📋 DETECTED ERRORS');
+          console.log('='.repeat(80));
+
+          severityOrder.forEach(severity => {
+            const severityErrors = errors.filter(e => e.severity === severity);
+            if (severityErrors.length > 0) {
+              console.log(`\n${severityEmojis[severity]} ${severity.toUpperCase()} (${severityErrors.length})`);
+              console.log('-'.repeat(80));
+              severityErrors.forEach(error => {
+                console.log(`\nFile: ${error.file}${error.line ? `:${error.line}` : ''}`);
+                console.log(`Type: ${error.type}`);
+                console.log(`Description: ${error.description}`);
+                if (error.suggestion) {
+                  console.log(`Suggestion: ${error.suggestion}`);
+                }
+              });
+            }
+          });
+        } else {
+          console.log('\n✅ No errors detected!');
+        }
+
+        // Agent stats section
+        console.log(`\n${'='.repeat(80)}`);
+        console.log(`📈 Agent Stats:`);
+        console.log(`  Turns: ${agentResult.turns.length}`);
+        console.log(`  Tool Calls: ${agentResult.toolCalls.length}`);
+        if (agentResult.metrics) {
+          const { totalTokens, totalDuration } = agentResult.metrics;
+          console.log(`  Tokens: ${totalTokens.input + totalTokens.output}`);
+          console.log(`  Duration: ${totalDuration}ms`);
         }
 
         logInfo('✅ Error detection completed');
