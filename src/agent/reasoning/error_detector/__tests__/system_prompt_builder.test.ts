@@ -15,9 +15,9 @@ describe('SystemPromptBuilder', () => {
       const prompt = SystemPromptBuilder.build(options);
 
       expect(prompt).toContain('expert code reviewer');
-      expect(prompt).toContain('error detector');
+      expect(prompt).toContain('bug detector');
       expect(prompt).toContain('Analyze the entire codebase');
-      expect(prompt).toContain('all types of errors');
+      expect(prompt).toContain('all types of issues');
     });
 
     it('should include focus areas when provided', () => {
