@@ -11,12 +11,14 @@ import { ReadFileTool } from '../../tools/builtin_tools/read_file_tool';
 import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
 import { ProposeChangeTool } from '../../tools/builtin_tools/propose_change_tool';
 import { ManageTodosTool } from '../../tools/builtin_tools/manage_todos_tool';
-import { logInfo } from '../../../utils/logger';
+import { ReportErrorsTool } from '../../tools/builtin_tools/report_errors_tool';
+import { logInfo, logWarn } from '../../../utils/logger';
 import { FilePartitioner } from './file_partitioner';
 import { ErrorParser } from './error_parser';
 import { SummaryGenerator } from './summary_generator';
 import { SystemPromptBuilder } from './system_prompt_builder';
 import { AgentInitializer } from './agent_initializer';
+import { FileRelationshipAnalyzer } from './file_relationship_analyzer';
 
 export class SubagentHandler {
   private static readonly EXCLUDE_PATTERNS = [
@@ -43,7 +45,24 @@ export class SubagentHandler {
     options: ErrorDetectionOptions,
     userPrompt: string
   ): Promise<ErrorDetectionResult> {
-    const allFiles = Array.from(repositoryFiles.keys());
+    let allFiles = Array.from(repositoryFiles.keys());
+    
+    // If targetFile is specified, analyze it and its consumers
+    if (options.targetFile) {
+      const relationshipAnalyzer = new FileRelationshipAnalyzer();
+      const relationships = relationshipAnalyzer.analyzeFileRelationships(
+        options.targetFile,
+        repositoryFiles,
+        options.includeDependencies || false
+      );
+      
+      if (relationships) {
+        allFiles = relationships.allRelatedFiles;
+        logInfo(`🎯 Focused analysis: ${relationships.allRelatedFiles.length} files (target + ${relationships.consumers.length} consumers${options.includeDependencies ? ` + ${relationships.dependencies.length} dependencies` : ''})`);
+      } else {
+        logWarn(`⚠️ Could not analyze relationships for ${options.targetFile}, falling back to full analysis`);
+      }
+    }
     
     // Optimal number of files per subagent (comfortable for AI processing)
     const OPTIMAL_FILES_PER_AGENT = 15;
@@ -69,6 +88,32 @@ export class SubagentHandler {
     
     // Create tasks for each subagent
     const systemPrompt = SystemPromptBuilder.build(options);
+    
+    // If targetFile is specified, get relationship info for context
+    let relationshipContext = '';
+    if (options.targetFile) {
+      const relationshipAnalyzer = new FileRelationshipAnalyzer();
+      const relationships = relationshipAnalyzer.analyzeFileRelationships(
+        options.targetFile,
+        repositoryFiles,
+        options.includeDependencies || false
+      );
+      
+      if (relationships) {
+        relationshipContext = `\n\n**FOCUSED ANALYSIS MODE**\n` +
+          `Target file: ${relationships.targetFile}\n` +
+          `This file is consumed by ${relationships.consumers.length} other file(s).\n` +
+          `**IMPORTANT: You must detect ALL types of errors in ALL files (target + consumers), not just relationship issues.**\n` +
+          `Detect bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - everything you would detect in full analysis mode.\n` +
+          `Additionally, also check:\n` +
+          `- Interface/API mismatches between the target file and its consumers\n` +
+          `- Breaking changes in APIs, exports, or interfaces\n` +
+          `- How consumers use the target file (check for misuse patterns)\n` +
+          `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+          `**But do NOT limit yourself to these - detect ALL types of errors in ALL files.**\n`;
+      }
+    }
+    
     const tasks: Task[] = fileGroups.map((files, index) => {
       const totalFiles = files.length;
       // Show first N files in prompt, rest available through tools
@@ -86,8 +131,8 @@ export class SubagentHandler {
       return {
         name: `error-detector-${index + 1}`,
         prompt: userPrompt 
-          ? `${userPrompt}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`
-          : `You have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for errors using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`,
+          ? `${userPrompt}${relationshipContext}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`
+          : `${relationshipContext}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for errors using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`,
         systemPrompt,
         tools
       };
@@ -182,7 +227,14 @@ export class SubagentHandler {
       }
     });
 
-    return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+    // Report errors tool for structured error reporting
+    const reportErrorsTool = new ReportErrorsTool({
+      onErrorsReported: (errors) => {
+        // Errors will be captured via tool calls in the parser
+      }
+    });
+
+    return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool, reportErrorsTool];
   }
 
   /**

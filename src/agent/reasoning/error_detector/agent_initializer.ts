@@ -10,6 +10,8 @@ import { ReadFileTool } from '../../tools/builtin_tools/read_file_tool';
 import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
 import { ProposeChangeTool } from '../../tools/builtin_tools/propose_change_tool';
 import { ManageTodosTool } from '../../tools/builtin_tools/manage_todos_tool';
+import { ReportErrorsTool } from '../../tools/builtin_tools/report_errors_tool';
+import { DetectedError } from './types';
 import { FileRepository } from '../../../data/repository/file_repository';
 import { logInfo, logWarn, logDebugInfo } from '../../../utils/logger';
 import { SystemPromptBuilder } from './system_prompt_builder';
@@ -17,6 +19,7 @@ import { SystemPromptBuilder } from './system_prompt_builder';
 export interface AgentInitializerResult {
   agent: Agent;
   repositoryFiles: Map<string, string>;
+  reportedErrors: DetectedError[]; // Errors reported via report_errors tool
 }
 
 export class AgentInitializer {
@@ -59,7 +62,12 @@ export class AgentInitializer {
   static async initialize(options: ErrorDetectionOptions): Promise<AgentInitializerResult> {
     const repositoryFiles = await this.loadRepositoryFiles(options);
     
-    const tools = await this.createTools(repositoryFiles);
+    // Store for errors reported via report_errors tool
+    const reportedErrors: DetectedError[] = [];
+    
+    const tools = await this.createTools(repositoryFiles, (errors) => {
+      reportedErrors.push(...errors);
+    });
     const systemPrompt = SystemPromptBuilder.build(options);
     
     const agentOptions: AgentOptions = {
@@ -75,7 +83,8 @@ export class AgentInitializer {
 
     return {
       agent,
-      repositoryFiles
+      repositoryFiles,
+      reportedErrors
     };
   }
 
@@ -152,7 +161,7 @@ export class AgentInitializer {
   /**
    * Create tools for the agent
    */
-  static async createTools(repositoryFiles: Map<string, string>) {
+  static async createTools(repositoryFiles: Map<string, string>, onErrorsReported?: (errors: DetectedError[]) => void) {
     const readFileTool = new ReadFileTool({
       getFileContent: (filePath: string) => {
         return repositoryFiles.get(filePath);
@@ -192,7 +201,17 @@ export class AgentInitializer {
 
     // Initialize TODO manager for tracking findings
     const manageTodosTool = await this.createManageTodosTool();
-    return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+    
+    // Report errors tool for structured error reporting
+    const reportErrorsTool = new ReportErrorsTool({
+      onErrorsReported: (errors) => {
+        if (onErrorsReported) {
+          onErrorsReported(errors);
+        }
+      }
+    });
+    
+    return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool, reportErrorsTool];
   }
 
   /**

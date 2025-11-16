@@ -61777,7 +61777,8 @@ class AiRepository {
                 return undefined;
             }
         };
-        this.askJson = async (ai, prompt, schema, schemaName = "ai_response", streaming, onChunk) => {
+        this.askJson = async (ai, prompt, schema, schemaName = "ai_response", streaming, onChunk, strict = true // Default to strict, but can be overridden
+        ) => {
             const model = ai.getOpenRouterModel();
             const apiKey = ai.getOpenRouterApiKey();
             const providerRouting = ai.getProviderRouting();
@@ -61800,7 +61801,7 @@ class AiRepository {
                         json_schema: {
                             name: schemaName,
                             schema: responseSchema,
-                            strict: false
+                            strict: strict // Use configurable strict mode
                         }
                     }
                 };

@@ -28,7 +28,9 @@ export class ErrorDetector {
       focusAreas: options.focusAreas || [],
       errorTypes: options.errorTypes || [],
       useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
-      maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
+      maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5,
+      targetFile: options.targetFile,
+      includeDependencies: options.includeDependencies || false
     };
   }
 
@@ -50,6 +52,10 @@ export class ErrorDetector {
     if (this.options.useSubAgents) {
       logInfo(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
     }
+    if (this.options.targetFile) {
+      logInfo(`   - Target File: ${this.options.targetFile}`);
+      logInfo(`   - Include Dependencies: ${this.options.includeDependencies}`);
+    }
 
     // Initialize agent if not already initialized
     if (!this.agent) {
@@ -61,7 +67,12 @@ export class ErrorDetector {
     }
 
     let result: AgentResult;
-    if (this.options.useSubAgents && this.repositoryFiles.size > 20) {
+    
+    // Use subagents if enabled AND (files > 20 OR targetFile is specified)
+    const shouldUseSubAgents = this.options.useSubAgents && 
+      (this.repositoryFiles.size > 20 || this.options.targetFile !== undefined);
+    
+    if (shouldUseSubAgents) {
       logInfo('🚀 Executing error detection with subagents...');
       const subagentResult = await SubagentHandler.detectErrorsWithSubAgents(
         this.agent,

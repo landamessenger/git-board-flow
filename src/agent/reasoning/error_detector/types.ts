@@ -15,6 +15,8 @@ export interface ErrorDetectionOptions {
   errorTypes?: string[]; // Types of errors to look for (e.g., ['type-errors', 'logic-errors', 'security-issues'])
   useSubAgents?: boolean; // Use subagents to parallelize file reading (default: false)
   maxConcurrentSubAgents?: number; // Maximum number of subagents to run in parallel (default: 5)
+  targetFile?: string; // Specific file to analyze along with its consumers (files that import/use it)
+  includeDependencies?: boolean; // If true, also analyze files that the targetFile depends on (default: false)
 }
 
 export interface DetectedError {

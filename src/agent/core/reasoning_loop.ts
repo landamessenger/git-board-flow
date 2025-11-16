@@ -203,7 +203,7 @@ export class ReasoningLoop {
           // 9. No tool calls = final response
           // Log the response to see what the agent is saying
           if (parsedResponse.text) {
-            logInfo(`   📝 Final response: ${parsedResponse.text.substring(0, 300)}${parsedResponse.text.length > 300 ? '...' : ''}`);
+            logInfo(`   📝 Final response: ${parsedResponse.text}`);
           }
           logInfo(`✅ Final response received (no more tool calls)`);
           
@@ -287,6 +287,8 @@ export class ReasoningLoop {
       };
 
       // Call with streaming
+      // Use strict: false for Agent SDK because input is generic (varies by tool)
+      // Individual tool schemas (like report_errors) are still strict and validated
       const response = await Promise.race([
         this.aiRepository.askJson(
           this.ai,
@@ -294,7 +296,8 @@ export class ReasoningLoop {
           AGENT_RESPONSE_SCHEMA,
           'agent_response',
           true,
-          onChunk
+          onChunk,
+          false  // strict: false for Agent SDK (input is generic)
         ),
         this.createTimeoutPromise(this.options.timeouts?.apiCall)
       ]);
@@ -313,12 +316,17 @@ export class ReasoningLoop {
     }
 
     // Non-streaming call with timeout
+    // Use strict: false for Agent SDK because input is generic (varies by tool)
+    // Individual tool schemas (like report_errors) are still strict and validated
     const response = await Promise.race([
       this.aiRepository.askJson(
         this.ai,
         prompt,
         AGENT_RESPONSE_SCHEMA,
-        'agent_response'
+        'agent_response',
+        false,  // streaming: false
+        undefined,  // onChunk: undefined
+        false  // strict: false for Agent SDK (input is generic)
       ),
       this.createTimeoutPromise(this.options.timeouts?.apiCall)
     ]);

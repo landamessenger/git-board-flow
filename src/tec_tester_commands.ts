@@ -60,6 +60,8 @@ export function registerTECTestCommands(program: Command) {
     .option('--error-types <types...>', 'Types of errors to look for', [])
     .option('--owner <owner>', 'GitHub repository owner (auto-detected if not provided)')
     .option('--repo <repo>', 'GitHub repository name (auto-detected if not provided)')
+    .option('--target-file <file>', 'Specific file to analyze along with its consumers (files that import/use it)')
+    .option('--include-dependencies', 'Also analyze files that the target file depends on', false)
     .option('--output <format>', 'Output format (text|json)', 'text')
     .action(async (options) => {
       if (!options.apiKey) {
@@ -91,7 +93,9 @@ export function registerTECTestCommands(program: Command) {
               focusAreas: options.focus.length > 0 ? options.focus : undefined,
               errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
               useSubAgents: true, // Enable subagents by default for parallel processing
-              maxConcurrentSubAgents: 5
+              maxConcurrentSubAgents: 5,
+              targetFile: options.targetFile,
+              includeDependencies: options.includeDependencies || false
             };
 
         const detector = new ErrorDetector(detectorOptions);

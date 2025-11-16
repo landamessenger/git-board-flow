@@ -75,7 +75,8 @@ export class AiRepository {
         schema?: any, 
         schemaName: string = "ai_response",
         streaming?: boolean,
-        onChunk?: (chunk: string) => void
+        onChunk?: (chunk: string) => void,
+        strict: boolean = true  // Default to strict, but can be overridden
     ): Promise<any | undefined> => {
         const model = ai.getOpenRouterModel();
         const apiKey = ai.getOpenRouterApiKey();
@@ -103,7 +104,7 @@ export class AiRepository {
                     json_schema: {
                         name: schemaName,
                         schema: responseSchema,
-                        strict: false
+                        strict: strict  // Use configurable strict mode
                     }
                 }
             };

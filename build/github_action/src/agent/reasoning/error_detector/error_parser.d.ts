@@ -7,26 +7,15 @@ import { DetectedError } from './types';
 export declare class ErrorParser {
     /**
      * Parse errors from agent result
+     * Only uses structured format from report_errors tool - no text parsing
      */
     static parseErrors(result: AgentResult): DetectedError[];
     /**
-     * Extract errors from text response
+     * Deduplicate errors based on file, line, and type
      */
-    private static extractErrorsFromText;
+    private static deduplicateErrors;
     /**
-     * Extract errors from change description
+     * Clean and normalize error data from report_errors tool
      */
-    private static extractErrorsFromChangeDescription;
-    /**
-     * Check if TODO content is error-related
-     */
-    private static isErrorRelatedTodo;
-    /**
-     * Extract error from TODO content
-     */
-    private static extractErrorFromTodo;
-    /**
-     * Check if content indicates a proposed change result
-     */
-    private static isProposedChangeResult;
+    private static cleanError;
 }

@@ -27,7 +27,7 @@ export const AGENT_RESPONSE_SCHEMA = {
           input: {
             type: "object",
             description: "Input parameters for the tool (must match the tool's input schema)",
-            additionalProperties: false
+            additionalProperties: false  // Required by strict mode, but each tool validates its own schema
           }
         },
         required: ["id", "name", "input"],

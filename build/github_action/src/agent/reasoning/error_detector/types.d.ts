@@ -13,6 +13,8 @@ export interface ErrorDetectionOptions {
     errorTypes?: string[];
     useSubAgents?: boolean;
     maxConcurrentSubAgents?: number;
+    targetFile?: string;
+    includeDependencies?: boolean;
 }
 export interface DetectedError {
     file: string;

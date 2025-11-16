@@ -65536,7 +65536,7 @@ class ReasoningLoop {
                     // 9. No tool calls = final response
                     // Log the response to see what the agent is saying
                     if (parsedResponse.text) {
-                        (0, logger_1.logInfo)(`   📝 Final response: ${parsedResponse.text.substring(0, 300)}${parsedResponse.text.length > 300 ? '...' : ''}`);
+                        (0, logger_1.logInfo)(`   📝 Final response: ${parsedResponse.text}`);
                     }
                     (0, logger_1.logInfo)(`✅ Final response received (no more tool calls)`);
                     this.messageManager.addAssistantMessage(parsedResponse.text);
@@ -65605,8 +65605,11 @@ class ReasoningLoop {
                 });
             };
             // Call with streaming
+            // Use strict: false for Agent SDK because input is generic (varies by tool)
+            // Individual tool schemas (like report_errors) are still strict and validated
             const response = await Promise.race([
-                this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', true, onChunk),
+                this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', true, onChunk, false // strict: false for Agent SDK (input is generic)
+                ),
                 this.createTimeoutPromise(this.options.timeouts?.apiCall)
             ]);
             if (!response) {
@@ -65620,8 +65623,13 @@ class ReasoningLoop {
             return response;
         }
         // Non-streaming call with timeout
+        // Use strict: false for Agent SDK because input is generic (varies by tool)
+        // Individual tool schemas (like report_errors) are still strict and validated
         const response = await Promise.race([
-            this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response'),
+            this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', false, // streaming: false
+            undefined, // onChunk: undefined
+            false // strict: false for Agent SDK (input is generic)
+            ),
             this.createTimeoutPromise(this.options.timeouts?.apiCall)
         ]);
         if (!response) {
@@ -67084,6 +67092,7 @@ const read_file_tool_1 = __nccwpck_require__(9010);
 const search_files_tool_1 = __nccwpck_require__(4293);
 const propose_change_tool_1 = __nccwpck_require__(4962);
 const manage_todos_tool_1 = __nccwpck_require__(7645);
+const report_errors_tool_1 = __nccwpck_require__(8742);
 const file_repository_1 = __nccwpck_require__(1503);
 const logger_1 = __nccwpck_require__(8836);
 const system_prompt_builder_1 = __nccwpck_require__(6058);
@@ -67093,7 +67102,11 @@ class AgentInitializer {
      */
     static async initialize(options) {
         const repositoryFiles = await this.loadRepositoryFiles(options);
-        const tools = await this.createTools(repositoryFiles);
+        // Store for errors reported via report_errors tool
+        const reportedErrors = [];
+        const tools = await this.createTools(repositoryFiles, (errors) => {
+            reportedErrors.push(...errors);
+        });
         const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
         const agentOptions = {
             model: options.model,
@@ -67106,7 +67119,8 @@ class AgentInitializer {
         const agent = new agent_1.Agent(agentOptions);
         return {
             agent,
-            repositoryFiles
+            repositoryFiles,
+            reportedErrors
         };
     }
     /**
@@ -67169,7 +67183,7 @@ class AgentInitializer {
     /**
      * Create tools for the agent
      */
-    static async createTools(repositoryFiles) {
+    static async createTools(repositoryFiles, onErrorsReported) {
         const readFileTool = new read_file_tool_1.ReadFileTool({
             getFileContent: (filePath) => {
                 return repositoryFiles.get(filePath);
@@ -67206,7 +67220,15 @@ class AgentInitializer {
         });
         // Initialize TODO manager for tracking findings
         const manageTodosTool = await this.createManageTodosTool();
-        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+        // Report errors tool for structured error reporting
+        const reportErrorsTool = new report_errors_tool_1.ReportErrorsTool({
+            onErrorsReported: (errors) => {
+                if (onErrorsReported) {
+                    onErrorsReported(errors);
+                }
+            }
+        });
+        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool, reportErrorsTool];
     }
     /**
      * Create ManageTodosTool
@@ -67343,7 +67365,9 @@ class ErrorDetector {
             focusAreas: options.focusAreas || [],
             errorTypes: options.errorTypes || [],
             useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
-            maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
+            maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5,
+            targetFile: options.targetFile,
+            includeDependencies: options.includeDependencies || false
         };
     }
     /**
@@ -67364,6 +67388,10 @@ class ErrorDetector {
         if (this.options.useSubAgents) {
             (0, logger_1.logInfo)(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
         }
+        if (this.options.targetFile) {
+            (0, logger_1.logInfo)(`   - Target File: ${this.options.targetFile}`);
+            (0, logger_1.logInfo)(`   - Include Dependencies: ${this.options.includeDependencies}`);
+        }
         // Initialize agent if not already initialized
         if (!this.agent) {
             (0, logger_1.logInfo)('🤖 Initializing agent...');
@@ -67373,7 +67401,10 @@ class ErrorDetector {
             (0, logger_1.logInfo)('✅ Agent initialized');
         }
         let result;
-        if (this.options.useSubAgents && this.repositoryFiles.size > 20) {
+        // Use subagents if enabled AND (files > 20 OR targetFile is specified)
+        const shouldUseSubAgents = this.options.useSubAgents &&
+            (this.repositoryFiles.size > 20 || this.options.targetFile !== undefined);
+        if (shouldUseSubAgents) {
             (0, logger_1.logInfo)('🚀 Executing error detection with subagents...');
             const subagentResult = await subagent_handler_1.SubagentHandler.detectErrorsWithSubAgents(this.agent, this.repositoryFiles, this.options, userPrompt);
             result = subagentResult.agentResult;
@@ -67430,194 +67461,160 @@ const logger_1 = __nccwpck_require__(8836);
 class ErrorParser {
     /**
      * Parse errors from agent result
+     * Only uses structured format from report_errors tool - no text parsing
      */
     static parseErrors(result) {
         const errors = [];
-        (0, logger_1.logDebugInfo)(`📝 Parsing ${result.messages.length} messages from agent`);
         (0, logger_1.logDebugInfo)(`📝 Parsing ${result.toolCalls.length} tool calls from agent`);
-        (0, logger_1.logDebugInfo)(`📝 Parsing ${result.turns.length} turns from agent`);
-        // Parse errors from agent messages
-        for (const message of result.messages) {
-            if (message.role === 'assistant') {
-                (0, logger_1.logDebugInfo)(`   Analyzing assistant message (${typeof message.content === 'string' ? message.content.length : 'object'} chars)`);
-            }
-            if (message.role === 'assistant') {
-                const content = typeof message.content === 'string'
-                    ? message.content
-                    : JSON.stringify(message.content);
-                // Look for error patterns in the response
-                const errorMatches = this.extractErrorsFromText(content);
-                errors.push(...errorMatches);
-            }
-        }
-        // Parse errors from tool calls (manage_todos might have created error TODOs)
-        (0, logger_1.logDebugInfo)(`🔍 Analyzing ${result.toolCalls.length} tool calls for error indicators`);
+        // Only parse errors from report_errors tool calls (structured format)
         for (const toolCall of result.toolCalls) {
-            if (toolCall.name === 'manage_todos' && toolCall.input.action === 'create') {
-                (0, logger_1.logDebugInfo)(`   Found TODO creation: ${toolCall.input.content?.substring(0, 100) || 'N/A'}`);
-                // TODOs created might represent errors found
-                const todoContent = toolCall.input.content || toolCall.input.description || toolCall.input.text || '';
-                if (this.isErrorRelatedTodo(todoContent)) {
-                    const error = this.extractErrorFromTodo(todoContent, toolCall.input);
-                    if (error) {
-                        errors.push(error);
-                    }
+            if (toolCall.name === 'report_errors' && toolCall.input.errors) {
+                (0, logger_1.logDebugInfo)(`   Found report_errors call with ${Array.isArray(toolCall.input.errors) ? toolCall.input.errors.length : 0} error(s)`);
+                const reportedErrors = toolCall.input.errors;
+                if (Array.isArray(reportedErrors)) {
+                    // Clean and normalize each error (handles any edge cases from AI)
+                    const cleanedErrors = reportedErrors.map(err => this.cleanError(err)).filter(err => err !== null);
+                    errors.push(...cleanedErrors);
                 }
             }
         }
-        // Also check tool results for proposed changes (these might indicate errors)
-        for (const turn of result.turns) {
-            if (turn.toolResults) {
-                for (const toolResult of turn.toolResults) {
-                    if (toolResult.content && typeof toolResult.content === 'string') {
-                        const content = toolResult.content;
-                        // Check if it's a propose_change result (indicates an error was found)
-                        if (this.isProposedChangeResult(content)) {
-                            // Try to extract error info from the change description
-                            const changeErrors = this.extractErrorsFromChangeDescription(content);
-                            errors.push(...changeErrors);
-                        }
-                    }
-                }
-            }
-        }
-        return errors;
+        // Deduplicate errors based on file + line + type
+        return this.deduplicateErrors(errors);
     }
     /**
-     * Extract errors from text response
+     * Deduplicate errors based on file, line, and type
      */
-    static extractErrorsFromText(text) {
-        const errors = [];
-        // Pattern to match error descriptions
-        const errorPatterns = [
-            /File:\s*(.+?)\n.*?Line:\s*(\d+)?.*?Type:\s*(.+?)\n.*?Severity:\s*(critical|high|medium|low).*?Description:\s*(.+?)(?:\n.*?Suggestion:\s*(.+?))?(?=\n\n|$)/gis,
-            /- (.+?)\s+\((.+?):(\d+)?\)\s+\[(critical|high|medium|low)\]:\s*(.+?)(?:\n\s*Fix:\s*(.+?))?(?=\n|$)/gis
-        ];
-        for (const pattern of errorPatterns) {
-            let match;
-            while ((match = pattern.exec(text)) !== null) {
-                errors.push({
-                    file: match[1] || match[2] || 'unknown',
-                    line: match[2] || match[3] ? parseInt(match[2] || match[3]) : undefined,
-                    type: match[3] || match[4] || 'unknown',
-                    severity: (match[4] || match[5] || 'medium'),
-                    description: match[5] || match[6] || 'Error detected',
-                    suggestion: match[6] || match[7]
-                });
+    static deduplicateErrors(errors) {
+        const seen = new Set();
+        const unique = [];
+        for (const error of errors) {
+            // Create a unique key: file + line + type
+            const key = `${error.file}:${error.line || 'no-line'}:${error.type}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push(error);
+            }
+            else {
+                (0, logger_1.logDebugInfo)(`   Skipping duplicate error: ${key}`);
             }
         }
-        return errors;
+        return unique;
     }
     /**
-     * Extract errors from change description
+     * Clean and normalize error data from report_errors tool
      */
-    static extractErrorsFromChangeDescription(text) {
-        const errors = [];
-        // Try to extract file path and error info
-        const fileMatch = text.match(/file[:\s]+([^\s\n]+)/i);
-        const severityMatch = text.match(/(critical|high|medium|low)/i);
-        if (fileMatch) {
-            errors.push({
-                file: fileMatch[1],
-                type: 'code-issue',
-                severity: (severityMatch?.[1]?.toLowerCase() || 'medium'),
-                description: text.substring(0, 200) // First 200 chars as description
-            });
+    static cleanError(error) {
+        if (!error || typeof error !== 'object') {
+            return null;
         }
-        return errors;
-    }
-    /**
-     * Check if TODO content is error-related
-     */
-    static isErrorRelatedTodo(todoContent) {
-        const lowerContent = todoContent.toLowerCase();
-        return lowerContent.includes('error') ||
-            lowerContent.includes('bug') ||
-            lowerContent.includes('issue') ||
-            lowerContent.includes('problem') ||
-            lowerContent.includes('fix') ||
-            lowerContent.includes('corregir');
-    }
-    /**
-     * Extract error from TODO content
-     */
-    static extractErrorFromTodo(todoContent, toolInput) {
-        // First, check if file is explicitly provided in tool input
-        let filePath = toolInput?.file || toolInput?.file_path || toolInput?.related_files?.[0];
-        // Helper function to clean file path
-        const cleanFilePath = (path) => {
-            return path.replace(/[:\s,;]+$/, '').trim(); // Remove trailing punctuation and whitespace
-        };
-        // If not found, try to extract from TODO content using multiple patterns
-        if (!filePath) {
-            // Pattern 1: "in src/path/to/file.ts:" or "in file.ts:"
-            const inPattern = todoContent.match(/\bin\s+([^\s:]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte|jsx|tsx))[:\s,]/i);
-            if (inPattern) {
-                filePath = cleanFilePath(inPattern[1]);
-            }
-        }
-        if (!filePath) {
-            // Pattern 2: Direct file path patterns (src/..., ./..., or absolute paths)
-            const directPathPattern = todoContent.match(/\b(src\/|\.\/|\.\.\/|[\w\-]+\/)[^\s:,\n]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte)[:\s,]/i);
-            if (directPathPattern) {
-                filePath = cleanFilePath(directPathPattern[0]);
-            }
-        }
-        if (!filePath) {
-            // Pattern 3: "file: path" or "file path" or "at path"
-            const fileKeywordPattern = todoContent.match(/(?:file|archivo|at|en)\s*[:\s]+([^\s\n,]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte))/i);
-            if (fileKeywordPattern) {
-                filePath = cleanFilePath(fileKeywordPattern[1]);
-            }
-        }
-        if (!filePath) {
-            // Pattern 4: Look for any path-like string that contains slashes and ends with common extensions
-            const anyPathPattern = todoContent.match(/([^\s:,\n]+\/[^\s:,\n]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte))[:\s,]/i);
-            if (anyPathPattern) {
-                filePath = cleanFilePath(anyPathPattern[1]);
-            }
-        }
-        // Extract severity
-        const severityMatch = todoContent.match(/\b(critical|high|medium|low|crítico|alto|medio|bajo)\b/i);
-        // Extract type if available
-        let errorType = 'code-issue';
-        const typeMatch = todoContent.match(/\b(type|tipo)[:\s]+([^\s\n,]+)/i);
-        if (typeMatch) {
-            errorType = typeMatch[2];
+        // Clean file path - remove markdown, newlines, and extra whitespace
+        let file = error.file;
+        if (typeof file === 'string') {
+            file = file
+                .replace(/\*\*/g, '') // Remove markdown bold
+                .replace(/\n/g, ' ') // Replace newlines with spaces
+                .replace(/\\n/g, ' ') // Replace escaped newlines
+                .trim()
+                .split('\n')[0] // Take only first line if multiple
+                .split('\\n')[0]; // Take only first part if escaped
+            // Remove common prefixes/suffixes
+            file = file.replace(/^File:\s*/i, '').replace(/^-\s*/, '').trim();
         }
         else {
-            // Try to infer type from description
-            const lowerContent = todoContent.toLowerCase();
-            if (lowerContent.includes('type error') || lowerContent.includes('type-error')) {
-                errorType = 'type-error';
-            }
-            else if (lowerContent.includes('logic error') || lowerContent.includes('logic-error')) {
-                errorType = 'logic-error';
-            }
-            else if (lowerContent.includes('security') || lowerContent.includes('security issue')) {
-                errorType = 'security-issue';
-            }
-            else if (lowerContent.includes('performance') || lowerContent.includes('performance issue')) {
-                errorType = 'performance-issue';
-            }
-            else if (lowerContent.includes('runtime error') || lowerContent.includes('runtime-error')) {
-                errorType = 'runtime-error';
+            return null; // File is required
+        }
+        if (!file || file.length === 0) {
+            return null;
+        }
+        // Clean type - remove markdown and newlines
+        let type = error.type;
+        if (typeof type === 'string') {
+            type = type
+                .replace(/\*\*/g, '')
+                .replace(/\n/g, ' ')
+                .replace(/\\n/g, ' ')
+                .trim()
+                .split('\n')[0]
+                .split('\\n')[0]
+                .split(':')[0] // Remove anything after colon
+                .trim();
+        }
+        else {
+            type = 'code-issue'; // Default
+        }
+        // Clean description - remove markdown but preserve content
+        let description = error.description;
+        if (typeof description === 'string') {
+            description = description
+                .replace(/\*\*/g, '') // Remove markdown bold
+                .replace(/\*/g, '') // Remove markdown italic
+                .replace(/\\n/g, '\n') // Convert escaped newlines to real newlines
+                .replace(/\n{3,}/g, '\n\n') // Limit consecutive newlines
+                .trim();
+            // Remove common markdown patterns
+            description = description
+                .replace(/^-\s*/, '')
+                .replace(/^\d+\.\s*/, '')
+                .trim();
+            // If description contains multiple errors (separated by patterns), take only the first relevant part
+            const firstErrorMatch = description.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
+            if (firstErrorMatch) {
+                description = firstErrorMatch[1].trim();
             }
         }
+        else {
+            description = 'Error detected';
+        }
+        // Clean suggestion - similar to description
+        let suggestion = error.suggestion;
+        if (suggestion && typeof suggestion === 'string') {
+            suggestion = suggestion
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .replace(/\\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim()
+                .replace(/^-\s*/, '')
+                .replace(/^\d+\.\s*/, '')
+                .trim();
+            // Take only first suggestion if multiple
+            const firstSuggestionMatch = suggestion.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
+            if (firstSuggestionMatch) {
+                suggestion = firstSuggestionMatch[1].trim();
+            }
+        }
+        // Parse line number
+        let line = undefined;
+        if (error.line !== undefined && error.line !== null) {
+            if (typeof error.line === 'number') {
+                line = error.line;
+            }
+            else if (typeof error.line === 'string') {
+                const lineMatch = error.line.match(/(\d+)/);
+                if (lineMatch) {
+                    line = parseInt(lineMatch[1], 10);
+                }
+            }
+        }
+        // Validate severity
+        let severity = error.severity;
+        if (typeof severity === 'string') {
+            severity = severity.toLowerCase().trim();
+            if (!['critical', 'high', 'medium', 'low'].includes(severity)) {
+                severity = 'medium'; // Default
+            }
+        }
+        else {
+            severity = 'medium';
+        }
         return {
-            file: filePath || 'unknown',
-            type: errorType,
-            severity: (severityMatch?.[1]?.toLowerCase() || 'medium'),
-            description: todoContent
+            file,
+            line,
+            type,
+            severity: severity,
+            description,
+            suggestion
         };
-    }
-    /**
-     * Check if content indicates a proposed change result
-     */
-    static isProposedChangeResult(content) {
-        return content.includes('proposed change') ||
-            content.includes('suggested fix') ||
-            content.includes('Change applied');
     }
 }
 exports.ErrorParser = ErrorParser;
@@ -67679,6 +67676,83 @@ exports.FilePartitioner = FilePartitioner;
 
 /***/ }),
 
+/***/ 7248:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * File Relationship Analyzer
+ * Analyzes file relationships and finds consumers/dependencies
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FileRelationshipAnalyzer = void 0;
+const file_import_analyzer_1 = __nccwpck_require__(5310);
+const logger_1 = __nccwpck_require__(8836);
+class FileRelationshipAnalyzer {
+    constructor() {
+        this.fileImportAnalyzer = new file_import_analyzer_1.FileImportAnalyzer();
+    }
+    /**
+     * Analyze relationships for a target file
+     */
+    analyzeFileRelationships(targetFile, repositoryFiles, includeDependencies = false) {
+        // Check if target file exists
+        if (!repositoryFiles.has(targetFile)) {
+            (0, logger_1.logWarn)(`⚠️ Target file not found: ${targetFile}`);
+            // Try to find similar file paths
+            const similarFiles = Array.from(repositoryFiles.keys()).filter(path => path.includes(targetFile) || targetFile.includes(path));
+            if (similarFiles.length > 0) {
+                (0, logger_1.logWarn)(`   Did you mean one of these? ${similarFiles.slice(0, 5).join(', ')}`);
+            }
+            return null;
+        }
+        (0, logger_1.logInfo)(`🔗 Analyzing relationships for: ${targetFile}`);
+        // Build relationship map
+        const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
+        const consumesMap = relationshipMaps.consumes;
+        const consumedByMap = relationshipMaps.consumedBy;
+        // Get consumers (files that import/use the target file)
+        const consumers = consumedByMap.get(targetFile) || [];
+        // Get dependencies (files that the target file imports/uses)
+        const dependencies = consumesMap.get(targetFile) || [];
+        // Build list of all related files to analyze
+        const allRelatedFiles = [targetFile]; // Always include target file
+        // Add consumers
+        consumers.forEach(consumer => {
+            if (!allRelatedFiles.includes(consumer)) {
+                allRelatedFiles.push(consumer);
+            }
+        });
+        // Optionally add dependencies
+        if (includeDependencies) {
+            dependencies.forEach(dep => {
+                if (!allRelatedFiles.includes(dep)) {
+                    allRelatedFiles.push(dep);
+                }
+            });
+        }
+        (0, logger_1.logInfo)(`   📊 Found ${consumers.length} consumer(s) and ${dependencies.length} dependency/dependencies`);
+        (0, logger_1.logInfo)(`   📁 Total files to analyze: ${allRelatedFiles.length}`);
+        if (consumers.length > 0) {
+            (0, logger_1.logInfo)(`   📥 Consumers: ${consumers.slice(0, 5).join(', ')}${consumers.length > 5 ? ` ... and ${consumers.length - 5} more` : ''}`);
+        }
+        if (includeDependencies && dependencies.length > 0) {
+            (0, logger_1.logInfo)(`   📤 Dependencies: ${dependencies.slice(0, 5).join(', ')}${dependencies.length > 5 ? ` ... and ${dependencies.length - 5} more` : ''}`);
+        }
+        return {
+            targetFile,
+            consumers,
+            dependencies,
+            allRelatedFiles
+        };
+    }
+}
+exports.FileRelationshipAnalyzer = FileRelationshipAnalyzer;
+
+
+/***/ }),
+
 /***/ 1578:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -67689,7 +67763,7 @@ exports.FilePartitioner = FilePartitioner;
  * Exports all public types and classes
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SubagentHandler = exports.AgentInitializer = exports.SystemPromptBuilder = exports.FilePartitioner = exports.SummaryGenerator = exports.ErrorParser = exports.ErrorDetector = void 0;
+exports.FileRelationshipAnalyzer = exports.SubagentHandler = exports.AgentInitializer = exports.SystemPromptBuilder = exports.FilePartitioner = exports.SummaryGenerator = exports.ErrorParser = exports.ErrorDetector = void 0;
 var error_detector_1 = __nccwpck_require__(1111);
 Object.defineProperty(exports, "ErrorDetector", ({ enumerable: true, get: function () { return error_detector_1.ErrorDetector; } }));
 // Internal exports for testing
@@ -67705,6 +67779,8 @@ var agent_initializer_1 = __nccwpck_require__(1137);
 Object.defineProperty(exports, "AgentInitializer", ({ enumerable: true, get: function () { return agent_initializer_1.AgentInitializer; } }));
 var subagent_handler_1 = __nccwpck_require__(4163);
 Object.defineProperty(exports, "SubagentHandler", ({ enumerable: true, get: function () { return subagent_handler_1.SubagentHandler; } }));
+var file_relationship_analyzer_1 = __nccwpck_require__(7248);
+Object.defineProperty(exports, "FileRelationshipAnalyzer", ({ enumerable: true, get: function () { return file_relationship_analyzer_1.FileRelationshipAnalyzer; } }));
 
 
 /***/ }),
@@ -67757,17 +67833,31 @@ const read_file_tool_1 = __nccwpck_require__(9010);
 const search_files_tool_1 = __nccwpck_require__(4293);
 const propose_change_tool_1 = __nccwpck_require__(4962);
 const manage_todos_tool_1 = __nccwpck_require__(7645);
+const report_errors_tool_1 = __nccwpck_require__(8742);
 const logger_1 = __nccwpck_require__(8836);
 const file_partitioner_1 = __nccwpck_require__(8047);
 const error_parser_1 = __nccwpck_require__(3224);
 const summary_generator_1 = __nccwpck_require__(4345);
 const system_prompt_builder_1 = __nccwpck_require__(6058);
+const file_relationship_analyzer_1 = __nccwpck_require__(7248);
 class SubagentHandler {
     /**
      * Detect errors using subagents for parallel processing
      */
     static async detectErrorsWithSubAgents(agent, repositoryFiles, options, userPrompt) {
-        const allFiles = Array.from(repositoryFiles.keys());
+        let allFiles = Array.from(repositoryFiles.keys());
+        // If targetFile is specified, analyze it and its consumers
+        if (options.targetFile) {
+            const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
+            const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
+            if (relationships) {
+                allFiles = relationships.allRelatedFiles;
+                (0, logger_1.logInfo)(`🎯 Focused analysis: ${relationships.allRelatedFiles.length} files (target + ${relationships.consumers.length} consumers${options.includeDependencies ? ` + ${relationships.dependencies.length} dependencies` : ''})`);
+            }
+            else {
+                (0, logger_1.logWarn)(`⚠️ Could not analyze relationships for ${options.targetFile}, falling back to full analysis`);
+            }
+        }
         // Optimal number of files per subagent (comfortable for AI processing)
         const OPTIMAL_FILES_PER_AGENT = 15;
         const MAX_FILES_IN_PROMPT = 20; // Maximum files to list in prompt
@@ -67786,6 +67876,25 @@ class SubagentHandler {
         const tools = await this.createSubagentTools(repositoryFiles);
         // Create tasks for each subagent
         const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
+        // If targetFile is specified, get relationship info for context
+        let relationshipContext = '';
+        if (options.targetFile) {
+            const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
+            const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
+            if (relationships) {
+                relationshipContext = `\n\n**FOCUSED ANALYSIS MODE**\n` +
+                    `Target file: ${relationships.targetFile}\n` +
+                    `This file is consumed by ${relationships.consumers.length} other file(s).\n` +
+                    `**IMPORTANT: You must detect ALL types of errors in ALL files (target + consumers), not just relationship issues.**\n` +
+                    `Detect bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - everything you would detect in full analysis mode.\n` +
+                    `Additionally, also check:\n` +
+                    `- Interface/API mismatches between the target file and its consumers\n` +
+                    `- Breaking changes in APIs, exports, or interfaces\n` +
+                    `- How consumers use the target file (check for misuse patterns)\n` +
+                    `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+                    `**But do NOT limit yourself to these - detect ALL types of errors in ALL files.**\n`;
+            }
+        }
         const tasks = fileGroups.map((files, index) => {
             const totalFiles = files.length;
             // Show first N files in prompt, rest available through tools
@@ -67801,8 +67910,8 @@ class SubagentHandler {
             return {
                 name: `error-detector-${index + 1}`,
                 prompt: userPrompt
-                    ? `${userPrompt}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`
-                    : `You have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for errors using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`,
+                    ? `${userPrompt}${relationshipContext}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`
+                    : `${relationshipContext}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for errors using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`,
                 systemPrompt,
                 tools
             };
@@ -67883,7 +67992,13 @@ class SubagentHandler {
                 }));
             }
         });
-        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+        // Report errors tool for structured error reporting
+        const reportErrorsTool = new report_errors_tool_1.ReportErrorsTool({
+            onErrorsReported: (errors) => {
+                // Errors will be captured via tool calls in the parser
+            }
+        });
+        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool, reportErrorsTool];
     }
     /**
      * Search files in repository
@@ -68060,9 +68175,23 @@ class SystemPromptBuilder {
             ? `Focus on these areas: ${options.focusAreas.join(', ')}`
             : 'Analyze the entire codebase';
         const errorTypes = options.errorTypes?.length
-            ? `Look for these types of errors: ${options.errorTypes.join(', ')}`
-            : 'Look for all types of errors (type errors, logic errors, security issues, performance problems, etc.)';
-        return `You are an expert code reviewer and error detector. Your task is to analyze the codebase and detect potential errors.
+            ? `Look for these types of issues: ${options.errorTypes.join(', ')}`
+            : 'Look for all types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.';
+        // Special instructions for target file analysis
+        const targetFileInstructions = options.targetFile
+            ? `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
+                `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
+                `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
+                `You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - just like in full analysis mode.\n` +
+                `Additionally, also check:\n` +
+                `- Interface/API mismatches: how the target file is defined vs how consumers use it\n` +
+                `- Breaking changes: modifications that would break consumers\n` +
+                `- How consumers use the target file - check for misuse patterns, incorrect usage\n` +
+                `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+                `- Dependency issues: ensure the target file's dependencies are correct and secure\n` +
+                `**But remember: detect ALL types of errors in ALL files, not just relationship issues.**\n`
+            : '';
+        return `You are an expert code reviewer, security auditor, and bug detector. Your task is to analyze files and detect bugs, vulnerabilities, security issues, logic errors, and any potential problems - regardless of programming language or file type.${targetFileInstructions}
 
 ${focusAreas}
 ${errorTypes}
@@ -68075,73 +68204,119 @@ ${errorTypes}
    - Read every single file assigned to you, one by one
    - Use read_file directly on each file path
    - Do not skip any files - you must read the EXACT number mentioned
-   - Analyze each file thoroughly for errors
+   - Analyze each file thoroughly for bugs, vulnerabilities, and errors
 2. **If you need to find files, use search_files tool**
-   - Query examples: "src/agent", "src/utils", "src/data", "test", "core", "repository"
-   - Do NOT use wildcards like "*.ts" - use directory names or keywords
+   - Query examples: directory names, keywords, or file patterns
    - **IMPORTANT: Use max_results: 1000+ to get ALL results**
    - Example: search_files with query "src/agent" and max_results: 1000
 3. **After search_files, use read_file on ALL files from the results**
    - When search_files returns a list, read EVERY file from the results
-   - Prioritize reading .ts files (source files) over .d.ts files (type definitions)
    - Read files systematically, one by one
    - Do NOT skip any files
+   - Analyze each file regardless of its extension or language
 4. Continue until you have read ALL files assigned to you (the exact number mentioned in your prompt)
 5. Only after reading ALL assigned files, you can provide your analysis
 
-**CRITICAL: You MUST read the EXACT number of files assigned to you (as mentioned in your prompt). Read ALL files, analyze ALL files, report errors from ALL files.**
+**CRITICAL: You MUST read the EXACT number of files assigned to you (as mentioned in your prompt). Read ALL files, analyze ALL files, report bugs/vulnerabilities/errors from ALL files.**
 
-**IMPORTANT ABOUT FILE PATHS:**
-- The repository contains source files (.ts) and compiled files (.d.ts)
-- Prioritize reading .ts source files over .d.ts type definition files
-- Files in "build/" directories are compiled - look for files in "src/" directories
-- If search_files returns files from "build/", search again with more specific queries to find source files
+**IMPORTANT ABOUT FILE TYPES - ANALYZE ANYTHING:**
+- **Analyze ALL file types**: source code, configuration files, scripts, documentation, data files, etc.
+- **Do NOT limit yourself to any specific language**: analyze Python, JavaScript, TypeScript, Go, Rust, Java, C++, C#, PHP, Ruby, Swift, Kotlin, Scala, Clojure, Haskell, shell scripts (bash, sh, zsh), PowerShell, SQL, etc.
+- **Analyze configuration files**: YAML, JSON, TOML, INI, XML, properties files, environment files (.env), Dockerfiles, Kubernetes manifests, etc.
+- **Each file type has its own potential issues**:
+  - **Source code**: bugs, logic errors, security vulnerabilities, type errors, null pointer exceptions, buffer overflows, memory leaks
+  - **Configuration files**: misconfigurations, security issues, exposed secrets, invalid values, missing required fields
+  - **Scripts**: command injection risks, permission issues, path traversal, shell injection
+  - **Docker/K8s configs**: security misconfigurations, exposed ports, privilege escalation risks
+  - **CI/CD configs**: insecure pipeline configurations, exposed credentials
+  - **Documentation**: outdated information, incorrect examples, security best practices violations
+- **Focus on finding REAL problems** that could cause issues in production: bugs that will crash, vulnerabilities that can be exploited, misconfigurations that expose systems
 
 **Your workflow:**
-1. Start by exploring the codebase structure using search_files
-2. Read relevant files using read_file to understand the code
-3. Analyze the code for potential errors:
-   - Type errors (TypeScript/JavaScript)
-   - Logic errors (incorrect conditions, wrong calculations)
-   - Security issues (SQL injection, XSS, insecure dependencies)
-   - Performance problems (inefficient algorithms, memory leaks)
-   - Best practices violations
-   - Potential runtime errors (null/undefined access, array bounds)
-   - Race conditions
-   - Resource leaks
-4. For each error found, create a TODO using manage_todos with:
-   - Clear description of the error including file path
-   - Severity level in the description (critical, high, medium, low)
-   - Type of error
-   - Suggested fix
-5. Use propose_change to suggest fixes for critical and high severity errors
-6. **Continue exploring and analyzing until you have examined ALL files assigned to you**
+1. Start by reading ALL assigned files using read_file
+2. For EACH file, analyze it thoroughly for:
+   - **Bugs**: Logic errors, incorrect conditions, wrong calculations, off-by-one errors, null pointer exceptions
+   - **Security Vulnerabilities**: 
+     - Injection attacks (SQL, command, LDAP, XPath, etc.)
+     - Cross-site scripting (XSS)
+     - Cross-site request forgery (CSRF)
+     - Insecure authentication/authorization
+     - Sensitive data exposure (API keys, passwords, tokens in code)
+     - Insecure deserialization
+     - Using components with known vulnerabilities
+     - Insufficient logging and monitoring
+     - Server-side request forgery (SSRF)
+   - **Configuration Issues**: 
+     - Misconfigured security settings
+     - Exposed secrets or credentials
+     - Incorrect permissions
+     - Missing validation
+   - **Code Quality Issues**:
+     - Dead code
+     - Duplicated code
+     - Overly complex functions
+     - Missing error handling
+     - Resource leaks (file handles, database connections, etc.)
+   - **Performance Issues**:
+     - Inefficient algorithms
+     - Memory leaks
+     - Unnecessary computations
+     - Blocking operations
+   - **Type Safety Issues** (for typed languages):
+     - Type mismatches
+     - Missing type definitions
+     - Unsafe type casts
+   - **Runtime Errors**:
+     - Null/undefined access
+     - Array/string bounds violations
+     - Division by zero
+     - Unhandled exceptions
+   - **Concurrency Issues**:
+     - Race conditions
+     - Deadlocks
+     - Thread safety violations
+3. **IMPORTANT - REPORTING ERRORS**: After analyzing all files, you MUST use the report_errors tool to report all errors, bugs, vulnerabilities, and issues you found in a structured format.
+   - Use report_errors with an array of all detected issues
+   - **CRITICAL**: The tool input MUST be valid JSON. Each error object must have:
+     - file: Plain string path (e.g., "docker/main.py") - NO markdown, NO "File:" prefix, NO newlines
+     - line: Number (optional) - MUST be a number, not a string
+     - type: Plain string (e.g., "bug", "security-issue") - NO markdown, NO formatting
+     - severity: One of "critical", "high", "medium", "low" - lowercase, exact match
+     - description: Plain text description - NO markdown formatting (NO **, NO *, NO #)
+     - suggestion: Plain text (optional) - NO markdown formatting
+   - **DO NOT** include markdown formatting in any field. Use plain strings only.
+   - This is the PRIMARY way to report errors - do NOT rely only on text responses
+4. Use propose_change to suggest fixes for critical and high severity issues (optional, for important fixes)
+5. **Continue analyzing until you have examined ALL files assigned to you**
    - Read every single file in your assigned list
    - Do not stop until you've read ALL files
-   - Analyze each file thoroughly for errors
+   - Analyze each file thoroughly regardless of language or type
    - Look for patterns that might indicate systemic issues
-7. In your final response, summarize all errors found in a structured format:
-   - File: path/to/file.ts
-   - Line: line number (if applicable)
-   - Type: error type
-   - Severity: critical/high/medium/low
-   - Description: detailed explanation
-   - Suggestion: how to fix it
+6. **FINAL STEP - REQUIRED**: Before finishing, you MUST call report_errors with ALL errors you found during your analysis
+   - Collect all errors from all files you analyzed
+   - Call report_errors with a complete list of all issues
+   - Only after calling report_errors should you provide your final text summary
 
-**Error Severity Levels:**
-- **critical**: Will cause system failure or data loss
-- **high**: Will cause significant issues or security vulnerabilities
-- **medium**: May cause issues in certain conditions
-- **low**: Minor issues or code quality improvements
+**Issue Severity Levels:**
+- **critical**: Will cause system failure, data loss, or critical security breach (e.g., SQL injection, exposed credentials, remote code execution)
+- **high**: Will cause significant issues, security vulnerabilities, or data corruption (e.g., XSS, CSRF, authentication bypass, memory leaks)
+- **medium**: May cause issues in certain conditions or moderate security concerns (e.g., missing input validation, weak encryption, potential race conditions)
+- **low**: Minor issues, code quality improvements, or low-risk security concerns (e.g., code duplication, minor performance issues, deprecated functions)
 
 **Output Format:**
-For each error, provide:
-- File: path/to/file.ts
+For each bug, vulnerability, or issue found, provide:
+- File: path/to/file (any extension)
 - Line: line number (if applicable)
-- Type: error type
+- Type: bug/vulnerability/security-issue/performance/logic-error/etc.
 - Severity: critical/high/medium/low
-- Description: detailed explanation
+- Description: detailed explanation of the problem
 - Suggestion: how to fix it
+
+**Remember:**
+- Analyze files in ANY language: Python, JavaScript, TypeScript, Go, Rust, Java, C++, C#, PHP, Ruby, Swift, Kotlin, shell scripts, etc.
+- Analyze configuration files: YAML, JSON, TOML, INI, XML, etc.
+- Look for REAL problems that could cause issues in production
+- Don't just look for syntax errors - look for logic errors, security holes, and bugs
 
 **CRITICAL INSTRUCTIONS - READ CAREFULLY:**
 - **YOU MUST READ THE EXACT NUMBER OF FILES ASSIGNED TO YOU (as mentioned in your prompt)**
@@ -68554,6 +68729,195 @@ exports.ReadFileTool = ReadFileTool;
 
 /***/ }),
 
+/***/ 8742:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Report Errors Tool
+ * Tool for reporting detected errors in structured format
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReportErrorsTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ReportErrorsTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'report_errors';
+    }
+    getDescription() {
+        return 'Report detected errors, bugs, vulnerabilities, or issues in a structured format. Use this tool to report all errors you found during your analysis. Each error should include file path, line number (if applicable), type, severity, description, and optional suggestion for fixing it.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                errors: {
+                    type: 'array',
+                    description: 'Array of detected errors, bugs, vulnerabilities, or issues. Each error must be a plain JSON object with clean string values (NO markdown, NO formatting, NO newlines in file/type fields).',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            file: {
+                                type: 'string',
+                                description: 'File path where the error was found. MUST be a plain string path like "src/utils/logger.ts" or "docker/main.py". NO markdown formatting, NO "File:" prefix, NO newlines, NO bold/italic markers. Just the file path.'
+                            },
+                            line: {
+                                type: 'number',
+                                description: 'Line number where the error occurs (optional). MUST be a number, not a string. Only include if the error is specific to a line.'
+                            },
+                            type: {
+                                type: 'string',
+                                description: 'Type of error. MUST be a single plain string value like "bug", "security-issue", "logic-error", "performance-issue", "code-issue", "type-error", "runtime-error", "configuration-error", "code-quality". NO markdown, NO formatting, NO newlines, NO colons or prefixes. Just the type name.'
+                            },
+                            severity: {
+                                type: 'string',
+                                enum: ['critical', 'high', 'medium', 'low'],
+                                description: 'Severity level. MUST be exactly one of: "critical", "high", "medium", "low" (lowercase, no quotes in the value itself).'
+                            },
+                            description: {
+                                type: 'string',
+                                description: 'Detailed description of the error. Plain text description. Can contain newlines for readability, but NO markdown formatting (NO **, NO *, NO #, NO - prefixes). Just plain descriptive text explaining the issue.'
+                            },
+                            suggestion: {
+                                type: 'string',
+                                description: 'Optional suggestion for how to fix the issue. Plain text suggestion. Can contain newlines, but NO markdown formatting. Just plain text explaining how to fix it.'
+                            }
+                        },
+                        required: ['file', 'type', 'severity', 'description'],
+                        additionalProperties: false
+                    }
+                }
+            },
+            required: ['errors'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        const errors = input.errors;
+        if (!Array.isArray(errors)) {
+            throw new Error('errors must be an array');
+        }
+        if (errors.length === 0) {
+            logInfo('   ✅ No errors reported');
+            this.options.onErrorsReported([]);
+            return 'No errors to report. All files analyzed successfully.';
+        }
+        logInfo(`   📋 Reporting ${errors.length} error(s) in structured format`);
+        // Clean and validate each error
+        const cleanedErrors = [];
+        for (let i = 0; i < errors.length; i++) {
+            const error = errors[i];
+            // Validate required fields exist
+            if (!error || typeof error !== 'object') {
+                throw new Error(`Error at index ${i}: must be an object`);
+            }
+            if (!error.file || !error.type || !error.severity || !error.description) {
+                throw new Error(`Error at index ${i}: must have file, type, severity, and description fields`);
+            }
+            // Clean file path - remove markdown, prefixes, newlines
+            let file = String(error.file)
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .replace(/^File:\s*/i, '')
+                .replace(/^-\s*/, '')
+                .replace(/\n/g, ' ')
+                .replace(/\\n/g, ' ')
+                .trim()
+                .split('\n')[0]
+                .split('\\n')[0];
+            if (!file || file.length === 0) {
+                throw new Error(`Error at index ${i}: file path is required and cannot be empty`);
+            }
+            // Clean type - remove markdown, prefixes, newlines
+            let type = String(error.type)
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .replace(/^Type:\s*/i, '')
+                .replace(/^-\s*/, '')
+                .replace(/\n/g, ' ')
+                .replace(/\\n/g, ' ')
+                .trim()
+                .split('\n')[0]
+                .split('\\n')[0]
+                .split(':')[0]
+                .trim();
+            if (!type || type.length === 0) {
+                throw new Error(`Error at index ${i}: type is required and cannot be empty`);
+            }
+            // Validate and normalize severity
+            let severity = String(error.severity).toLowerCase().trim();
+            if (!['critical', 'high', 'medium', 'low'].includes(severity)) {
+                throw new Error(`Error at index ${i}: Invalid severity "${error.severity}". Must be one of: critical, high, medium, low`);
+            }
+            // Clean description - remove markdown but preserve content
+            let description = String(error.description)
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .replace(/^-\s*/, '')
+                .replace(/^\d+\.\s*/, '')
+                .replace(/\\n/g, '\n')
+                .trim();
+            // If description contains multiple errors concatenated, take only first
+            const firstErrorMatch = description.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
+            if (firstErrorMatch) {
+                description = firstErrorMatch[1].trim();
+            }
+            if (!description || description.length === 0) {
+                throw new Error(`Error at index ${i}: description is required and cannot be empty`);
+            }
+            // Clean suggestion if provided
+            let suggestion = undefined;
+            if (error.suggestion) {
+                suggestion = String(error.suggestion)
+                    .replace(/\*\*/g, '')
+                    .replace(/\*/g, '')
+                    .replace(/^-\s*/, '')
+                    .replace(/^\d+\.\s*/, '')
+                    .replace(/\\n/g, '\n')
+                    .trim();
+                const firstSuggestionMatch = suggestion.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
+                if (firstSuggestionMatch) {
+                    suggestion = firstSuggestionMatch[1].trim();
+                }
+            }
+            // Parse line number
+            let line = undefined;
+            if (error.line !== undefined && error.line !== null) {
+                if (typeof error.line === 'number') {
+                    line = error.line;
+                }
+                else if (typeof error.line === 'string') {
+                    const lineMatch = error.line.match(/(\d+)/);
+                    if (lineMatch) {
+                        line = parseInt(lineMatch[1], 10);
+                    }
+                }
+            }
+            cleanedErrors.push({
+                file,
+                line,
+                type,
+                severity: severity,
+                description,
+                suggestion
+            });
+        }
+        // Notify callback with cleaned errors
+        this.options.onErrorsReported(cleanedErrors);
+        return `Successfully reported ${cleanedErrors.length} error(s). Errors have been recorded for analysis.`;
+    }
+}
+exports.ReportErrorsTool = ReportErrorsTool;
+
+
+/***/ }),
+
 /***/ 4293:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -68836,7 +69200,7 @@ exports.AGENT_RESPONSE_SCHEMA = {
                     input: {
                         type: "object",
                         description: "Input parameters for the tool (must match the tool's input schema)",
-                        additionalProperties: false
+                        additionalProperties: false // Required by strict mode, but each tool validates its own schema
                     }
                 },
                 required: ["id", "name", "input"],
@@ -71736,7 +72100,8 @@ class AiRepository {
                 return undefined;
             }
         };
-        this.askJson = async (ai, prompt, schema, schemaName = "ai_response", streaming, onChunk) => {
+        this.askJson = async (ai, prompt, schema, schemaName = "ai_response", streaming, onChunk, strict = true // Default to strict, but can be overridden
+        ) => {
             const model = ai.getOpenRouterModel();
             const apiKey = ai.getOpenRouterApiKey();
             const providerRouting = ai.getProviderRouting();
@@ -71759,7 +72124,7 @@ class AiRepository {
                         json_schema: {
                             name: schemaName,
                             schema: responseSchema,
-                            strict: false
+                            strict: strict // Use configurable strict mode
                         }
                     }
                 };
@@ -75683,6 +76048,8 @@ function registerTECTestCommands(program) {
         .option('--error-types <types...>', 'Types of errors to look for', [])
         .option('--owner <owner>', 'GitHub repository owner (auto-detected if not provided)')
         .option('--repo <repo>', 'GitHub repository name (auto-detected if not provided)')
+        .option('--target-file <file>', 'Specific file to analyze along with its consumers (files that import/use it)')
+        .option('--include-dependencies', 'Also analyze files that the target file depends on', false)
         .option('--output <format>', 'Output format (text|json)', 'text')
         .action(async (options) => {
         if (!options.apiKey) {
@@ -75711,7 +76078,9 @@ function registerTECTestCommands(program) {
                 focusAreas: options.focus.length > 0 ? options.focus : undefined,
                 errorTypes: options.errorTypes.length > 0 ? options.errorTypes : undefined,
                 useSubAgents: true, // Enable subagents by default for parallel processing
-                maxConcurrentSubAgents: 5
+                maxConcurrentSubAgents: 5,
+                targetFile: options.targetFile,
+                includeDependencies: options.includeDependencies || false
             };
             const detector = new index_1.ErrorDetector(detectorOptions);
             // Detect errors

@@ -8,9 +8,12 @@ import { ReadFileTool } from '../../tools/builtin_tools/read_file_tool';
 import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
 import { ProposeChangeTool } from '../../tools/builtin_tools/propose_change_tool';
 import { ManageTodosTool } from '../../tools/builtin_tools/manage_todos_tool';
+import { ReportErrorsTool } from '../../tools/builtin_tools/report_errors_tool';
+import { DetectedError } from './types';
 export interface AgentInitializerResult {
     agent: Agent;
     repositoryFiles: Map<string, string>;
+    reportedErrors: DetectedError[];
 }
 export declare class AgentInitializer {
     private static readonly EXCLUDE_PATTERNS;
@@ -30,7 +33,7 @@ export declare class AgentInitializer {
     /**
      * Create tools for the agent
      */
-    static createTools(repositoryFiles: Map<string, string>): Promise<(ReadFileTool | SearchFilesTool | ProposeChangeTool | ManageTodosTool)[]>;
+    static createTools(repositoryFiles: Map<string, string>, onErrorsReported?: (errors: DetectedError[]) => void): Promise<(ReadFileTool | SearchFilesTool | ProposeChangeTool | ManageTodosTool | ReportErrorsTool)[]>;
     /**
      * Create ManageTodosTool
      */
