@@ -11,6 +11,8 @@ export class SingleAction {
         ACTIONS.CREATE_TAG,
         ACTIONS.CREATE_RELEASE,
         ACTIONS.THINK,
+        ACTIONS.INITIAL_SETUP,
+        ACTIONS.CHECK_PROGRESS,
     ];
     /**
      * Actions that throw an error if the last step failed
@@ -30,6 +32,7 @@ export class SingleAction {
         ACTIONS.AI_CACHE,
         ACTIONS.AI_CACHE_LOCAL,
         ACTIONS.THINK,
+        ACTIONS.INITIAL_SETUP,
     ];
 
     isIssue: boolean = false;
@@ -70,6 +73,14 @@ export class SingleAction {
 
     get isThinkAction(): boolean {
         return this.currentSingleAction === ACTIONS.THINK;
+    }
+
+    get isInitialSetupAction(): boolean {
+        return this.currentSingleAction === ACTIONS.INITIAL_SETUP;
+    }
+
+    get isCheckProgressAction(): boolean {
+        return this.currentSingleAction === ACTIONS.CHECK_PROGRESS;
     }
 
     get enabledSingleAction(): boolean {

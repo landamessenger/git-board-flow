@@ -8566,7 +8566,7 @@ class GoTrueClient {
      * organization's SSO Identity Provider UUID directly instead.
      */
     async signInWithSSO(params) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e;
         try {
             let codeChallenge = null;
             let codeChallengeMethod = null;
@@ -8581,6 +8581,10 @@ class GoTrueClient {
                 headers: this.headers,
                 xform: fetch_1._ssoResponse,
             });
+            // Automatically redirect in browser unless skipBrowserRedirect is true
+            if (((_d = result.data) === null || _d === void 0 ? void 0 : _d.url) && (0, helpers_1.isBrowser)() && !((_e = params.options) === null || _e === void 0 ? void 0 : _e.skipBrowserRedirect)) {
+                window.location.assign(result.data.url);
+            }
             return this._returnResult(result);
         }
         catch (error) {
@@ -9179,7 +9183,7 @@ class GoTrueClient {
         });
     }
     onAuthStateChange(callback) {
-        const id = (0, helpers_1.uuid)();
+        const id = (0, helpers_1.generateCallbackId)();
         const subscription = {
             id,
             callback,
@@ -11005,7 +11009,7 @@ function hasSession(data) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Deferred = exports.removeItemAsync = exports.getItemAsync = exports.setItemAsync = exports.looksLikeFetchResponse = exports.resolveFetch = exports.supportsLocalStorage = exports.isBrowser = void 0;
 exports.expiresAt = expiresAt;
-exports.uuid = uuid;
+exports.generateCallbackId = generateCallbackId;
 exports.parseParametersFromURL = parseParametersFromURL;
 exports.decodeJWT = decodeJWT;
 exports.sleep = sleep;
@@ -11027,11 +11031,21 @@ function expiresAt(expiresIn) {
     const timeNow = Math.round(Date.now() / 1000);
     return timeNow + expiresIn;
 }
-function uuid() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = (Math.random() * 16) | 0, v = c == 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-    });
+/**
+ * Generates a unique identifier for internal callback subscriptions.
+ *
+ * This function uses JavaScript Symbols to create guaranteed-unique identifiers
+ * for auth state change callbacks. Symbols are ideal for this use case because:
+ * - They are guaranteed unique by the JavaScript runtime
+ * - They work in all environments (browser, SSR, Node.js)
+ * - They avoid issues with Next.js 16 deterministic rendering requirements
+ * - They are perfect for internal, non-serializable identifiers
+ *
+ * Note: This function is only used for internal subscription management,
+ * not for security-critical operations like session tokens.
+ */
+function generateCallbackId() {
+    return Symbol('auth-callback');
 }
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 exports.isBrowser = isBrowser;
@@ -11689,7 +11703,7 @@ exports.version = void 0;
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-exports.version = '2.80.0';
+exports.version = '2.81.1';
 //# sourceMappingURL=version.js.map
 
 /***/ }),
@@ -12390,12 +12404,13 @@ exports.DEFAULT_CREATION_OPTIONS = {
         userVerification: 'preferred',
         residentKey: 'discouraged',
     },
-    attestation: 'none',
+    attestation: 'direct',
 };
 exports.DEFAULT_REQUEST_OPTIONS = {
     /** set to preferred because older yubikeys don't have PIN/Biometric */
     userVerification: 'preferred',
     hints: ['security-key'],
+    attestation: 'direct',
 };
 function deepMerge(...sources) {
     const isObject = (val) => val !== null && typeof val === 'object' && !Array.isArray(val);
@@ -12608,7 +12623,7 @@ class WebAuthnApi {
      * @see {@link https://w3c.github.io/webauthn/#sctn-authentication W3C WebAuthn Spec - Authentication Ceremony}
      * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredentialRequestOptions MDN - PublicKeyCredentialRequestOptions}
      */
-    async _authenticate({ factorId, webauthn: { rpId = typeof window !== 'undefined' ? window.location.hostname : undefined, rpOrigins = typeof window !== 'undefined' ? [window.location.origin] : undefined, signal, }, }, overrides) {
+    async _authenticate({ factorId, webauthn: { rpId = typeof window !== 'undefined' ? window.location.hostname : undefined, rpOrigins = typeof window !== 'undefined' ? [window.location.origin] : undefined, signal, } = {}, }, overrides) {
         if (!rpId) {
             return {
                 data: null,
@@ -12669,7 +12684,7 @@ class WebAuthnApi {
      * @see {@link https://w3c.github.io/webauthn/#sctn-registering-a-new-credential W3C WebAuthn Spec - Registration Ceremony}
      * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredentialCreationOptions MDN - PublicKeyCredentialCreationOptions}
      */
-    async _register({ friendlyName, rpId = typeof window !== 'undefined' ? window.location.hostname : undefined, rpOrigins = typeof window !== 'undefined' ? [window.location.origin] : undefined, signal, }, overrides) {
+    async _register({ friendlyName, webauthn: { rpId = typeof window !== 'undefined' ? window.location.hostname : undefined, rpOrigins = typeof window !== 'undefined' ? [window.location.origin] : undefined, signal, } = {}, }, overrides) {
         if (!rpId) {
             return {
                 data: null,
@@ -12770,8 +12785,10 @@ class FunctionsClient {
     invoke(functionName_1) {
         return tslib_1.__awaiter(this, arguments, void 0, function* (functionName, options = {}) {
             var _a;
+            let timeoutId;
+            let timeoutController;
             try {
-                const { headers, method, body: functionArgs, signal } = options;
+                const { headers, method, body: functionArgs, signal, timeout } = options;
                 let _headers = {};
                 let { region } = options;
                 if (!region) {
@@ -12813,6 +12830,21 @@ class FunctionsClient {
                     // if the Content-Type was supplied, simply set the body
                     body = functionArgs;
                 }
+                // Handle timeout by creating an AbortController
+                let effectiveSignal = signal;
+                if (timeout) {
+                    timeoutController = new AbortController();
+                    timeoutId = setTimeout(() => timeoutController.abort(), timeout);
+                    // If user provided their own signal, we need to respect both
+                    if (signal) {
+                        effectiveSignal = timeoutController.signal;
+                        // If the user's signal is aborted, abort our timeout controller too
+                        signal.addEventListener('abort', () => timeoutController.abort());
+                    }
+                    else {
+                        effectiveSignal = timeoutController.signal;
+                    }
+                }
                 const response = yield this.fetch(url.toString(), {
                     method: method || 'POST',
                     // headers priority is (high to low):
@@ -12821,11 +12853,8 @@ class FunctionsClient {
                     // 3. default Content-Type header
                     headers: Object.assign(Object.assign(Object.assign({}, _headers), this.headers), headers),
                     body,
-                    signal,
+                    signal: effectiveSignal,
                 }).catch((fetchError) => {
-                    if (fetchError.name === 'AbortError') {
-                        throw fetchError;
-                    }
                     throw new types_1.FunctionsFetchError(fetchError);
                 });
                 const isRelayError = response.headers.get('x-relay-error');
@@ -12857,9 +12886,6 @@ class FunctionsClient {
                 return { data, error: null, response };
             }
             catch (error) {
-                if (error instanceof Error && error.name === 'AbortError') {
-                    return { data: null, error: new types_1.FunctionsFetchError(error) };
-                }
                 return {
                     data: null,
                     error,
@@ -12867,6 +12893,12 @@ class FunctionsClient {
                         ? error.context
                         : undefined,
                 };
+            }
+            finally {
+                // Clear the timeout if it was set
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
             }
         });
     }
@@ -14921,6 +14953,7 @@ class RealtimeClient {
         this.heartbeatCallback = noop;
         this.ref = 0;
         this.reconnectTimer = null;
+        this.vsn = constants_1.DEFAULT_VSN;
         this.logger = noop;
         this.conn = null;
         this.sendBuffer = [];
@@ -14969,7 +15002,12 @@ class RealtimeClient {
             return;
         }
         this._setConnectionState('connecting');
-        this._setAuthSafely('connect');
+        // Trigger auth if needed and not already in progress
+        // This ensures auth is called for standalone RealtimeClient usage
+        // while avoiding race conditions with SupabaseClient's immediate setAuth call
+        if (this.accessToken && !this._authPromise) {
+            this._setAuthSafely('connect');
+        }
         // Establish WebSocket connection
         if (this.transport) {
             // Use custom transport if provided
@@ -15006,7 +15044,7 @@ class RealtimeClient {
      * @returns string The URL of the websocket.
      */
     endpointURL() {
-        return this._appendParams(this.endPoint, Object.assign({}, this.params, { vsn: constants_1.VSN }));
+        return this._appendParams(this.endPoint, Object.assign({}, this.params, { vsn: this.vsn }));
     }
     /**
      * Disconnects the socket.
@@ -15028,12 +15066,14 @@ class RealtimeClient {
                 clearTimeout(fallbackTimer);
                 this._setConnectionState('disconnected');
             };
-            // Close the WebSocket connection
-            if (code) {
-                this.conn.close(code, reason !== null && reason !== void 0 ? reason : '');
-            }
-            else {
-                this.conn.close();
+            // Close the WebSocket connection if close method exists
+            if (typeof this.conn.close === 'function') {
+                if (code) {
+                    this.conn.close(code, reason !== null && reason !== void 0 ? reason : '');
+                }
+                else {
+                    this.conn.close();
+                }
             }
             this._teardownConnection();
         }
@@ -15332,6 +15372,15 @@ class RealtimeClient {
      */
     _teardownConnection() {
         if (this.conn) {
+            if (this.conn.readyState === constants_1.SOCKET_STATES.open ||
+                this.conn.readyState === constants_1.SOCKET_STATES.connecting) {
+                try {
+                    this.conn.close();
+                }
+                catch (e) {
+                    this.log('error', 'Error closing connection', e);
+                }
+            }
             this.conn.onopen = null;
             this.conn.onerror = null;
             this.conn.onmessage = null;
@@ -15345,7 +15394,19 @@ class RealtimeClient {
     _onConnOpen() {
         this._setConnectionState('connected');
         this.log('transport', `connected to ${this.endpointURL()}`);
-        this.flushSendBuffer();
+        // Wait for any pending auth operations before flushing send buffer
+        // This ensures channel join messages include the correct access token
+        const authPromise = this._authPromise ||
+            (this.accessToken && !this.accessTokenValue ? this.setAuth() : Promise.resolve());
+        authPromise
+            .then(() => {
+            this.flushSendBuffer();
+        })
+            .catch((e) => {
+            this.log('error', 'error waiting for auth on connect', e);
+            // Proceed anyway to avoid hanging connections
+            this.flushSendBuffer();
+        });
         this._clearTimer('reconnect');
         if (!this.worker) {
             this._startHeartbeat();
@@ -15531,7 +15592,7 @@ class RealtimeClient {
      * @internal
      */
     _initializeOptions(options) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
         // Set defaults
         this.transport = (_a = options === null || options === void 0 ? void 0 : options.transport) !== null && _a !== void 0 ? _a : null;
         this.timeout = (_b = options === null || options === void 0 ? void 0 : options.timeout) !== null && _b !== void 0 ? _b : constants_1.DEFAULT_TIMEOUT;
@@ -15540,6 +15601,7 @@ class RealtimeClient {
         this.worker = (_d = options === null || options === void 0 ? void 0 : options.worker) !== null && _d !== void 0 ? _d : false;
         this.accessToken = (_e = options === null || options === void 0 ? void 0 : options.accessToken) !== null && _e !== void 0 ? _e : null;
         this.heartbeatCallback = (_f = options === null || options === void 0 ? void 0 : options.heartbeatCallback) !== null && _f !== void 0 ? _f : noop;
+        this.vsn = (_g = options === null || options === void 0 ? void 0 : options.vsn) !== null && _g !== void 0 ? _g : constants_1.DEFAULT_VSN;
         // Handle special cases
         if (options === null || options === void 0 ? void 0 : options.params)
             this.params = options.params;
@@ -15551,14 +15613,27 @@ class RealtimeClient {
         }
         // Set up functions with defaults
         this.reconnectAfterMs =
-            (_g = options === null || options === void 0 ? void 0 : options.reconnectAfterMs) !== null && _g !== void 0 ? _g : ((tries) => {
+            (_h = options === null || options === void 0 ? void 0 : options.reconnectAfterMs) !== null && _h !== void 0 ? _h : ((tries) => {
                 return RECONNECT_INTERVALS[tries - 1] || DEFAULT_RECONNECT_FALLBACK;
             });
-        this.encode =
-            (_h = options === null || options === void 0 ? void 0 : options.encode) !== null && _h !== void 0 ? _h : ((payload, callback) => {
-                return callback(JSON.stringify(payload));
-            });
-        this.decode = (_j = options === null || options === void 0 ? void 0 : options.decode) !== null && _j !== void 0 ? _j : this.serializer.decode.bind(this.serializer);
+        switch (this.vsn) {
+            case constants_1.VSN_1_0_0:
+                this.encode =
+                    (_j = options === null || options === void 0 ? void 0 : options.encode) !== null && _j !== void 0 ? _j : ((payload, callback) => {
+                        return callback(JSON.stringify(payload));
+                    });
+                this.decode =
+                    (_k = options === null || options === void 0 ? void 0 : options.decode) !== null && _k !== void 0 ? _k : ((payload, callback) => {
+                        return callback(JSON.parse(payload));
+                    });
+                break;
+            case constants_1.VSN_2_0_0:
+                this.encode = (_l = options === null || options === void 0 ? void 0 : options.encode) !== null && _l !== void 0 ? _l : this.serializer.encode.bind(this.serializer);
+                this.decode = (_m = options === null || options === void 0 ? void 0 : options.decode) !== null && _m !== void 0 ? _m : this.serializer.decode.bind(this.serializer);
+                break;
+            default:
+                throw new Error(`Unsupported serializer version: ${this.vsn}`);
+        }
         // Handle worker setup
         if (this.worker) {
             if (typeof window !== 'undefined' && !window.Worker) {
@@ -15840,10 +15915,12 @@ exports.WebSocketFactory = websocket_factory_1.default;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CONNECTION_STATE = exports.TRANSPORTS = exports.CHANNEL_EVENTS = exports.CHANNEL_STATES = exports.SOCKET_STATES = exports.MAX_PUSH_BUFFER_SIZE = exports.WS_CLOSE_NORMAL = exports.DEFAULT_TIMEOUT = exports.VERSION = exports.VSN = exports.DEFAULT_VERSION = void 0;
+exports.CONNECTION_STATE = exports.TRANSPORTS = exports.CHANNEL_EVENTS = exports.CHANNEL_STATES = exports.SOCKET_STATES = exports.MAX_PUSH_BUFFER_SIZE = exports.WS_CLOSE_NORMAL = exports.DEFAULT_TIMEOUT = exports.VERSION = exports.DEFAULT_VSN = exports.VSN_2_0_0 = exports.VSN_1_0_0 = exports.DEFAULT_VERSION = void 0;
 const version_1 = __nccwpck_require__(318);
 exports.DEFAULT_VERSION = `realtime-js/${version_1.version}`;
-exports.VSN = '1.0.0';
+exports.VSN_1_0_0 = '1.0.0';
+exports.VSN_2_0_0 = '2.0.0';
+exports.DEFAULT_VSN = exports.VSN_1_0_0;
 exports.VERSION = version_1.version;
 exports.DEFAULT_TIMEOUT = 10000;
 exports.WS_CLOSE_NORMAL = 1000;
@@ -15997,30 +16074,193 @@ exports["default"] = Push;
 /***/ }),
 
 /***/ 5360:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
+Object.defineProperty(exports, "__esModule", ({ value: true }));
 // This file draws heavily from https://github.com/phoenixframework/phoenix/commit/cf098e9cf7a44ee6479d31d911a97d3c7430c6fe
 // License: https://github.com/phoenixframework/phoenix/blob/master/LICENSE.md
-Object.defineProperty(exports, "__esModule", ({ value: true }));
+const constants_1 = __nccwpck_require__(88);
 class Serializer {
     constructor() {
         this.HEADER_LENGTH = 1;
+        this.META_LENGTH = 4;
+        this.USER_BROADCAST_PUSH_META_LENGTH = 5;
+        this.KINDS = { push: 0, reply: 1, broadcast: 2, userBroadcastPush: 3, userBroadcast: 4 };
+        this.BINARY_ENCODING = 0;
+        this.JSON_ENCODING = 1;
+        this.BROADCAST = 'broadcast';
+    }
+    encode(msg, callback) {
+        if (this._isArrayBuffer(msg.payload)) {
+            return callback(this._binaryEncodePush(msg));
+        }
+        if (msg.event === this.BROADCAST &&
+            !(msg.payload instanceof ArrayBuffer) &&
+            typeof msg.payload.event === 'string') {
+            return callback(this._binaryEncodeUserBroadcastPush(msg));
+        }
+        let payload = [msg.join_ref, msg.ref, msg.topic, msg.event, msg.payload];
+        return callback(JSON.stringify(payload));
+    }
+    _binaryEncodePush(message) {
+        const { join_ref, ref, event, topic, payload } = message;
+        const metaLength = this.META_LENGTH + join_ref.length + ref.length + topic.length + event.length;
+        const header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
+        let view = new DataView(header);
+        let offset = 0;
+        view.setUint8(offset++, this.KINDS.push); // kind
+        view.setUint8(offset++, join_ref.length);
+        view.setUint8(offset++, ref.length);
+        view.setUint8(offset++, topic.length);
+        view.setUint8(offset++, event.length);
+        Array.from(join_ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(event, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        var combined = new Uint8Array(header.byteLength + payload.byteLength);
+        combined.set(new Uint8Array(header), 0);
+        combined.set(new Uint8Array(payload), header.byteLength);
+        return combined.buffer;
+    }
+    _binaryEncodeUserBroadcastPush(message) {
+        var _a;
+        if (this._isArrayBuffer((_a = message.payload) === null || _a === void 0 ? void 0 : _a.payload)) {
+            return this._encodeBinaryUserBroadcastPush(message);
+        }
+        else {
+            return this._encodeJsonUserBroadcastPush(message);
+        }
+    }
+    _encodeBinaryUserBroadcastPush(message) {
+        var _a, _b;
+        const { join_ref, ref, topic } = message;
+        const userEvent = message.payload.event;
+        const userPayload = (_b = (_a = message.payload) === null || _a === void 0 ? void 0 : _a.payload) !== null && _b !== void 0 ? _b : new ArrayBuffer(0);
+        const metaLength = this.USER_BROADCAST_PUSH_META_LENGTH +
+            join_ref.length +
+            ref.length +
+            topic.length +
+            userEvent.length;
+        const header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
+        let view = new DataView(header);
+        let offset = 0;
+        view.setUint8(offset++, this.KINDS.userBroadcastPush); // kind
+        view.setUint8(offset++, join_ref.length);
+        view.setUint8(offset++, ref.length);
+        view.setUint8(offset++, topic.length);
+        view.setUint8(offset++, userEvent.length);
+        view.setUint8(offset++, this.BINARY_ENCODING);
+        Array.from(join_ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(userEvent, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        var combined = new Uint8Array(header.byteLength + userPayload.byteLength);
+        combined.set(new Uint8Array(header), 0);
+        combined.set(new Uint8Array(userPayload), header.byteLength);
+        return combined.buffer;
+    }
+    _encodeJsonUserBroadcastPush(message) {
+        var _a, _b;
+        const { join_ref, ref, topic } = message;
+        const userEvent = message.payload.event;
+        const userPayload = (_b = (_a = message.payload) === null || _a === void 0 ? void 0 : _a.payload) !== null && _b !== void 0 ? _b : {};
+        const encoder = new TextEncoder(); // Encodes to UTF-8
+        const encodedUserPayload = encoder.encode(JSON.stringify(userPayload)).buffer;
+        const metaLength = this.USER_BROADCAST_PUSH_META_LENGTH +
+            join_ref.length +
+            ref.length +
+            topic.length +
+            userEvent.length;
+        const header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
+        let view = new DataView(header);
+        let offset = 0;
+        view.setUint8(offset++, this.KINDS.userBroadcastPush); // kind
+        view.setUint8(offset++, join_ref.length);
+        view.setUint8(offset++, ref.length);
+        view.setUint8(offset++, topic.length);
+        view.setUint8(offset++, userEvent.length);
+        view.setUint8(offset++, this.JSON_ENCODING);
+        Array.from(join_ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        Array.from(userEvent, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        var combined = new Uint8Array(header.byteLength + encodedUserPayload.byteLength);
+        combined.set(new Uint8Array(header), 0);
+        combined.set(new Uint8Array(encodedUserPayload), header.byteLength);
+        return combined.buffer;
     }
     decode(rawPayload, callback) {
-        if (rawPayload.constructor === ArrayBuffer) {
-            return callback(this._binaryDecode(rawPayload));
+        if (this._isArrayBuffer(rawPayload)) {
+            let result = this._binaryDecode(rawPayload);
+            return callback(result);
         }
         if (typeof rawPayload === 'string') {
-            return callback(JSON.parse(rawPayload));
+            const jsonPayload = JSON.parse(rawPayload);
+            const [join_ref, ref, topic, event, payload] = jsonPayload;
+            return callback({ join_ref, ref, topic, event, payload });
         }
         return callback({});
     }
     _binaryDecode(buffer) {
         const view = new DataView(buffer);
+        const kind = view.getUint8(0);
         const decoder = new TextDecoder();
-        return this._decodeBroadcast(buffer, view, decoder);
+        switch (kind) {
+            case this.KINDS.push:
+                return this._decodePush(buffer, view, decoder);
+            case this.KINDS.reply:
+                return this._decodeReply(buffer, view, decoder);
+            case this.KINDS.broadcast:
+                return this._decodeBroadcast(buffer, view, decoder);
+            case this.KINDS.userBroadcast:
+                return this._decodeUserBroadcast(buffer, view, decoder);
+        }
+    }
+    _decodePush(buffer, view, decoder) {
+        const joinRefSize = view.getUint8(1);
+        const topicSize = view.getUint8(2);
+        const eventSize = view.getUint8(3);
+        let offset = this.HEADER_LENGTH + this.META_LENGTH - 1; // pushes have no ref
+        const joinRef = decoder.decode(buffer.slice(offset, offset + joinRefSize));
+        offset = offset + joinRefSize;
+        const topic = decoder.decode(buffer.slice(offset, offset + topicSize));
+        offset = offset + topicSize;
+        const event = decoder.decode(buffer.slice(offset, offset + eventSize));
+        offset = offset + eventSize;
+        const data = JSON.parse(decoder.decode(buffer.slice(offset, buffer.byteLength)));
+        return {
+            join_ref: joinRef,
+            ref: null,
+            topic: topic,
+            event: event,
+            payload: data,
+        };
+    }
+    _decodeReply(buffer, view, decoder) {
+        const joinRefSize = view.getUint8(1);
+        const refSize = view.getUint8(2);
+        const topicSize = view.getUint8(3);
+        const eventSize = view.getUint8(4);
+        let offset = this.HEADER_LENGTH + this.META_LENGTH;
+        const joinRef = decoder.decode(buffer.slice(offset, offset + joinRefSize));
+        offset = offset + joinRefSize;
+        const ref = decoder.decode(buffer.slice(offset, offset + refSize));
+        offset = offset + refSize;
+        const topic = decoder.decode(buffer.slice(offset, offset + topicSize));
+        offset = offset + topicSize;
+        const event = decoder.decode(buffer.slice(offset, offset + eventSize));
+        offset = offset + eventSize;
+        const data = JSON.parse(decoder.decode(buffer.slice(offset, buffer.byteLength)));
+        const payload = { status: event, response: data };
+        return {
+            join_ref: joinRef,
+            ref: ref,
+            topic: topic,
+            event: constants_1.CHANNEL_EVENTS.reply,
+            payload: payload,
+        };
     }
     _decodeBroadcast(buffer, view, decoder) {
         const topicSize = view.getUint8(1);
@@ -16031,7 +16271,36 @@ class Serializer {
         const event = decoder.decode(buffer.slice(offset, offset + eventSize));
         offset = offset + eventSize;
         const data = JSON.parse(decoder.decode(buffer.slice(offset, buffer.byteLength)));
-        return { ref: null, topic: topic, event: event, payload: data };
+        return { join_ref: null, ref: null, topic: topic, event: event, payload: data };
+    }
+    _decodeUserBroadcast(buffer, view, decoder) {
+        const topicSize = view.getUint8(1);
+        const userEventSize = view.getUint8(2);
+        const metadataSize = view.getUint8(3);
+        const payloadEncoding = view.getUint8(4);
+        let offset = this.HEADER_LENGTH + 4;
+        const topic = decoder.decode(buffer.slice(offset, offset + topicSize));
+        offset = offset + topicSize;
+        const userEvent = decoder.decode(buffer.slice(offset, offset + userEventSize));
+        offset = offset + userEventSize;
+        const metadata = decoder.decode(buffer.slice(offset, offset + metadataSize));
+        offset = offset + metadataSize;
+        const payload = buffer.slice(offset, buffer.byteLength);
+        const parsedPayload = payloadEncoding === this.JSON_ENCODING ? JSON.parse(decoder.decode(payload)) : payload;
+        const data = {
+            type: this.BROADCAST,
+            event: userEvent,
+            payload: parsedPayload,
+        };
+        // Metadata is optional and always JSON encoded
+        if (metadataSize > 0) {
+            data['meta'] = JSON.parse(metadata);
+        }
+        return { join_ref: null, ref: null, topic: topic, event: this.BROADCAST, payload: data };
+    }
+    _isArrayBuffer(buffer) {
+        var _a;
+        return buffer instanceof ArrayBuffer || ((_a = buffer === null || buffer === void 0 ? void 0 : buffer.constructor) === null || _a === void 0 ? void 0 : _a.name) === 'ArrayBuffer';
     }
 }
 exports["default"] = Serializer;
@@ -16347,7 +16616,7 @@ exports.version = void 0;
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-exports.version = '2.80.0';
+exports.version = '2.81.1';
 //# sourceMappingURL=version.js.map
 
 /***/ }),
@@ -18318,7 +18587,7 @@ exports.version = void 0;
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-exports.version = '2.80.0';
+exports.version = '2.81.1';
 //# sourceMappingURL=version.js.map
 
 /***/ }),
@@ -19493,6 +19762,12 @@ class SupabaseClient {
         }
         this.fetch = (0, fetch_1.fetchWithAuth)(supabaseKey, this._getAccessToken.bind(this), settings.global.fetch);
         this.realtime = this._initRealtimeClient(Object.assign({ headers: this.headers, accessToken: this._getAccessToken.bind(this) }, settings.realtime));
+        if (this.accessToken) {
+            // Start auth immediately to avoid race condition with channel subscriptions
+            this.accessToken()
+                .then((token) => this.realtime.setAuth(token))
+                .catch((e) => console.warn('Failed to set initial Realtime auth token:', e));
+        }
         this.rest = new postgrest_js_1.PostgrestClient(new URL('rest/v1', baseUrl).href, {
             headers: this.headers,
             schema: settings.db.schema,
@@ -19907,7 +20182,7 @@ exports.version = void 0;
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-exports.version = '2.80.0';
+exports.version = '2.81.1';
 //# sourceMappingURL=version.js.map
 
 /***/ }),
@@ -55151,7 +55426,7 @@ const single_action_use_case_1 = __nccwpck_require__(6479);
 const logger_1 = __nccwpck_require__(8836);
 const constants_1 = __nccwpck_require__(8593);
 const chalk_1 = __importDefault(__nccwpck_require__(7037));
-const boxen_1 = __importDefault(__nccwpck_require__(6192));
+const boxen_1 = __importDefault(__nccwpck_require__(4167));
 const queue_utils_1 = __nccwpck_require__(9800);
 async function mainRun(execution) {
     const results = [];
@@ -55726,6 +56001,5807 @@ runGitHubAction();
 
 /***/ }),
 
+/***/ 1963:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Agent - Main class for Agent SDK
+ * Similar to Anthropic's Agent SDK
+ * Integrated with all advanced features
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.Agent = void 0;
+const message_manager_1 = __nccwpck_require__(5759);
+const reasoning_loop_1 = __nccwpck_require__(7982);
+const tool_registry_1 = __nccwpck_require__(4138);
+const tool_executor_1 = __nccwpck_require__(4315);
+const session_manager_1 = __nccwpck_require__(7408);
+const mcp_manager_1 = __nccwpck_require__(4688);
+const subagent_manager_1 = __nccwpck_require__(2078);
+const logger_1 = __nccwpck_require__(8836);
+class Agent {
+    constructor(options) {
+        this.options = options;
+        this.reasoningLoop = null;
+        // Validate options
+        if (!options.model) {
+            throw new Error('Model is required');
+        }
+        if (!options.apiKey) {
+            throw new Error('API key is required');
+        }
+        // Initialize components
+        this.messageManager = new message_manager_1.MessageManager();
+        this.toolRegistry = new tool_registry_1.ToolRegistry();
+        this.toolExecutor = new tool_executor_1.ToolExecutor(this.toolRegistry);
+        this.sessionManager = new session_manager_1.SessionManager();
+        // Generate or use provided session ID
+        this.sessionId = options.sessionId || this.sessionManager.generateSessionId();
+        // Note: Session loading should be done explicitly via loadSession() method
+        // after construction, as it's async
+        // Register tools if provided
+        if (options.tools && options.tools.length > 0) {
+            this.toolRegistry.registerAll(options.tools);
+            (0, logger_1.logInfo)(`🔧 Registered ${options.tools.length} tool(s)`);
+        }
+        // Add system prompt if provided
+        if (options.systemPrompt) {
+            this.messageManager.addSystemMessage(options.systemPrompt);
+        }
+        // Initialize MCP if enabled
+        if (options.enableMCP !== false) {
+            this.mcpManager = new mcp_manager_1.MCPManager(this.toolRegistry);
+            // MCP initialization is async, so we'll do it lazily or via initializeMCP()
+        }
+    }
+    /**
+     * Execute query - main entry point
+     * Similar to Agent SDK's query() method
+     */
+    async query(prompt) {
+        (0, logger_1.logInfo)(`🚀 Agent query started`);
+        // Add user message
+        this.messageManager.addUserMessage(prompt);
+        // Create reasoning loop
+        this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
+        // Execute
+        const result = await this.reasoningLoop.execute();
+        // Save session if enabled
+        if (this.options.persistSession) {
+            await this.saveSession(result);
+        }
+        (0, logger_1.logInfo)(`✅ Agent query completed (${result.turns.length} turn(s), ${result.toolCalls.length} tool call(s))`);
+        return result;
+    }
+    /**
+     * Continue conversation with additional prompt
+     */
+    async continue(prompt) {
+        (0, logger_1.logInfo)(`🔄 Agent continuing conversation`);
+        // Add user message
+        this.messageManager.addUserMessage(prompt);
+        // Create reasoning loop
+        this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
+        // Execute
+        const result = await this.reasoningLoop.execute();
+        // Save session if enabled
+        if (this.options.persistSession) {
+            await this.saveSession(result);
+        }
+        (0, logger_1.logInfo)(`✅ Agent continued (${result.turns.length} turn(s))`);
+        return result;
+    }
+    /**
+     * Load session
+     */
+    async loadSession(sessionId) {
+        const id = sessionId || this.sessionId;
+        const session = await this.sessionManager.loadSession(id);
+        if (session) {
+            // Reset current messages
+            this.messageManager.reset();
+            // Restore messages
+            for (const msg of session.messages) {
+                if (msg.role === 'system') {
+                    this.messageManager.addSystemMessage(typeof msg.content === 'string' ? msg.content : '');
+                }
+                else if (msg.role === 'user') {
+                    this.messageManager.addUserMessage(msg.content);
+                }
+                else if (msg.role === 'assistant') {
+                    this.messageManager.addAssistantMessage(msg.content);
+                }
+            }
+            this.sessionId = id;
+            (0, logger_1.logInfo)(`📂 Session loaded: ${id} (${session.messages.length} messages)`);
+        }
+    }
+    /**
+     * Save session
+     */
+    async saveSession(result) {
+        try {
+            await this.sessionManager.saveSession(this.sessionId, this.messageManager.getMessages(), result);
+        }
+        catch (error) {
+            (0, logger_1.logInfo)(`⚠️ Failed to save session: ${error}`);
+        }
+    }
+    /**
+     * Get session ID
+     */
+    getSessionId() {
+        return this.sessionId;
+    }
+    /**
+     * List all sessions
+     */
+    async listSessions() {
+        return await this.sessionManager.listSessions();
+    }
+    /**
+     * Delete session
+     */
+    async deleteSession(sessionId) {
+        const id = sessionId || this.sessionId;
+        await this.sessionManager.deleteSession(id);
+    }
+    /**
+     * Get message history
+     */
+    getMessages() {
+        return this.messageManager.getMessages();
+    }
+    /**
+     * Get message count
+     */
+    getMessageCount() {
+        return this.messageManager.getMessageCount();
+    }
+    /**
+     * Reset agent (clear history)
+     */
+    reset() {
+        this.messageManager.reset();
+        if (this.options.systemPrompt) {
+            this.messageManager.addSystemMessage(this.options.systemPrompt);
+        }
+        (0, logger_1.logInfo)(`🔄 Agent reset`);
+    }
+    /**
+     * Register a tool
+     */
+    registerTool(tool) {
+        this.toolRegistry.register(tool);
+        (0, logger_1.logInfo)(`🔧 Tool registered: ${tool.getName()}`);
+    }
+    /**
+     * Register multiple tools
+     */
+    registerTools(tools) {
+        this.toolRegistry.registerAll(tools);
+        (0, logger_1.logInfo)(`🔧 Registered ${tools.length} tool(s)`);
+    }
+    /**
+     * Get available tools
+     */
+    getAvailableTools() {
+        return this.toolRegistry.getToolNames();
+    }
+    /**
+     * Get system prompt
+     */
+    getSystemPrompt() {
+        return this.messageManager.getSystemMessage();
+    }
+    /**
+     * Update system prompt
+     */
+    setSystemPrompt(prompt) {
+        this.messageManager.addSystemMessage(prompt);
+    }
+    /**
+     * Initialize MCP connections
+     */
+    async initializeMCP(configPath) {
+        if (!this.mcpManager) {
+            this.mcpManager = new mcp_manager_1.MCPManager(this.toolRegistry);
+        }
+        await this.mcpManager.initialize(configPath);
+    }
+    /**
+     * Connect to an MCP server
+     */
+    async connectMCPServer(config) {
+        if (!this.mcpManager) {
+            this.mcpManager = new mcp_manager_1.MCPManager(this.toolRegistry);
+        }
+        await this.mcpManager.connectServer(config);
+    }
+    /**
+     * Get MCP manager
+     */
+    getMCPManager() {
+        return this.mcpManager;
+    }
+    /**
+     * Check if MCP server is connected
+     */
+    isMCPConnected(serverName) {
+        return this.mcpManager?.isConnected(serverName) || false;
+    }
+    /**
+     * Get connected MCP servers
+     */
+    getConnectedMCPServers() {
+        return this.mcpManager?.getConnectedServers() || [];
+    }
+    /**
+     * Create a subagent
+     */
+    createSubAgent(options) {
+        if (!this.subAgentManager) {
+            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
+        }
+        return this.subAgentManager.createSubAgent(options);
+    }
+    /**
+     * Execute multiple tasks in parallel using subagents
+     */
+    async executeParallel(tasks) {
+        if (!this.subAgentManager) {
+            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
+        }
+        return await this.subAgentManager.executeParallel(tasks);
+    }
+    /**
+     * Coordinate agents with dependencies
+     */
+    async coordinateAgents(tasks) {
+        if (!this.subAgentManager) {
+            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
+        }
+        return await this.subAgentManager.coordinateAgents(tasks);
+    }
+    /**
+     * Get subagent manager
+     */
+    getSubAgentManager() {
+        return this.subAgentManager;
+    }
+    /**
+     * Get subagent by name
+     */
+    getSubAgent(name) {
+        return this.subAgentManager?.getSubAgent(name);
+    }
+    /**
+     * Get all subagents
+     */
+    getAllSubAgents() {
+        return this.subAgentManager?.getAllSubAgents() || [];
+    }
+}
+exports.Agent = Agent;
+
+
+/***/ }),
+
+/***/ 341:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Budget Manager
+ * Tracks and enforces budget limits
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BudgetManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class BudgetManager {
+    constructor(config) {
+        this.currentCost = 0;
+        this.currentTokens = 0;
+        this.config = {
+            maxCost: config?.maxCost,
+            maxTokens: config?.maxTokens,
+            warnAtPercent: config?.warnAtPercent ?? 80
+        };
+    }
+    /**
+     * Check if budget is exceeded
+     */
+    isExceeded(metrics) {
+        // Check token limit
+        if (this.config.maxTokens) {
+            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
+            if (totalTokens > this.config.maxTokens) {
+                return true;
+            }
+        }
+        // Check cost limit
+        if (this.config.maxCost && metrics.totalCost) {
+            if (metrics.totalCost > this.config.maxCost) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /**
+     * Check if budget warning should be shown
+     */
+    shouldWarn(metrics) {
+        if (!this.config.warnAtPercent) {
+            return false;
+        }
+        // Check token warning
+        if (this.config.maxTokens) {
+            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
+            const percent = (totalTokens / this.config.maxTokens) * 100;
+            if (percent >= this.config.warnAtPercent) {
+                return true;
+            }
+        }
+        // Check cost warning
+        if (this.config.maxCost && metrics.totalCost) {
+            const percent = (metrics.totalCost / this.config.maxCost) * 100;
+            if (percent >= this.config.warnAtPercent) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /**
+     * Get budget status
+     */
+    getStatus(metrics) {
+        const status = {
+            exceeded: this.isExceeded(metrics),
+            warning: this.shouldWarn(metrics)
+        };
+        // Token usage
+        if (this.config.maxTokens) {
+            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
+            status.tokenUsage = {
+                used: totalTokens,
+                limit: this.config.maxTokens,
+                percent: Math.round((totalTokens / this.config.maxTokens) * 100)
+            };
+        }
+        // Cost usage
+        if (this.config.maxCost && metrics.totalCost) {
+            status.costUsage = {
+                used: metrics.totalCost,
+                limit: this.config.maxCost,
+                percent: Math.round((metrics.totalCost / this.config.maxCost) * 100)
+            };
+        }
+        return status;
+    }
+    /**
+     * Log budget status
+     */
+    logStatus(metrics) {
+        const status = this.getStatus(metrics);
+        if (status.exceeded) {
+            (0, logger_1.logWarn)('⚠️ Budget exceeded!');
+        }
+        else if (status.warning) {
+            (0, logger_1.logWarn)('⚠️ Budget warning: Approaching limit');
+        }
+        if (status.tokenUsage) {
+            (0, logger_1.logDebugInfo)(`💰 Tokens: ${status.tokenUsage.used}/${status.tokenUsage.limit} (${status.tokenUsage.percent}%)`);
+        }
+        if (status.costUsage) {
+            (0, logger_1.logDebugInfo)(`💰 Cost: $${status.costUsage.used.toFixed(4)}/$${status.costUsage.limit.toFixed(4)} (${status.costUsage.percent}%)`);
+        }
+    }
+    /**
+     * Update budget config
+     */
+    updateConfig(config) {
+        this.config = { ...this.config, ...config };
+    }
+}
+exports.BudgetManager = BudgetManager;
+
+
+/***/ }),
+
+/***/ 6955:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Context Manager
+ * Manages conversation context and compression for long conversations
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ContextManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class ContextManager {
+    constructor(maxContextLength = 100000, compressionEnabled = true) {
+        this.maxContextLength = maxContextLength;
+        this.compressionEnabled = compressionEnabled;
+    }
+    /**
+     * Estimate tokens in messages (rough approximation: 1 token ≈ 4 characters)
+     */
+    estimateTokens(messages) {
+        let totalChars = 0;
+        for (const msg of messages) {
+            if (typeof msg.content === 'string') {
+                totalChars += msg.content.length;
+            }
+            else if (Array.isArray(msg.content)) {
+                for (const block of msg.content) {
+                    if (block.type === 'text' && 'text' in block) {
+                        totalChars += block.text.length;
+                    }
+                    else if (block.type === 'tool_use' && 'input' in block) {
+                        totalChars += JSON.stringify(block.input).length;
+                    }
+                    else if (block.type === 'tool_result' && 'content' in block) {
+                        const content = block.content;
+                        totalChars += typeof content === 'string' ? content.length : JSON.stringify(content).length;
+                    }
+                }
+            }
+        }
+        return Math.ceil(totalChars / 4);
+    }
+    /**
+     * Check if context needs compression
+     */
+    needsCompression(messages) {
+        if (!this.compressionEnabled) {
+            return false;
+        }
+        const tokens = this.estimateTokens(messages);
+        return tokens > this.maxContextLength * 0.8; // Compress at 80% of max
+    }
+    /**
+     * Compress context by summarizing old messages
+     */
+    compressContext(messages) {
+        if (!this.needsCompression(messages)) {
+            return messages;
+        }
+        (0, logger_1.logDebugInfo)(`📦 Compressing context (${messages.length} messages, ~${this.estimateTokens(messages)} tokens)`);
+        // Keep system message
+        const systemMessage = messages.find(m => m.role === 'system');
+        const otherMessages = messages.filter(m => m.role !== 'system');
+        // Keep recent messages (last 10)
+        const recentMessages = otherMessages.slice(-10);
+        // Summarize older messages
+        const oldMessages = otherMessages.slice(0, -10);
+        const summary = {
+            role: 'user',
+            content: `[Previous conversation summary: ${oldMessages.length} messages were exchanged. Key points: The conversation involved multiple tool calls and responses.]`
+        };
+        const compressed = systemMessage
+            ? [systemMessage, summary, ...recentMessages]
+            : [summary, ...recentMessages];
+        (0, logger_1.logDebugInfo)(`✅ Compressed to ${compressed.length} messages (~${this.estimateTokens(compressed)} tokens)`);
+        return compressed;
+    }
+    /**
+     * Get context statistics
+     */
+    getStats(messages) {
+        const tokens = this.estimateTokens(messages);
+        const compressed = this.needsCompression(messages);
+        return {
+            messageCount: messages.length,
+            estimatedTokens: tokens,
+            compressed
+        };
+    }
+    /**
+     * Update max context length
+     */
+    setMaxContextLength(length) {
+        this.maxContextLength = length;
+    }
+    /**
+     * Enable/disable compression
+     */
+    setCompressionEnabled(enabled) {
+        this.compressionEnabled = enabled;
+    }
+}
+exports.ContextManager = ContextManager;
+
+
+/***/ }),
+
+/***/ 3675:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Context Sharing
+ * Manages sharing context between agents
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ContextSharing = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class ContextSharing {
+    /**
+     * Extract relevant messages from an agent
+     */
+    static extractRelevantMessages(messages, maxMessages = 10) {
+        // Keep system messages and recent messages
+        const systemMessages = messages.filter(m => m.role === 'system');
+        const recentMessages = messages
+            .filter(m => m.role !== 'system')
+            .slice(-maxMessages);
+        return [...systemMessages, ...recentMessages];
+    }
+    /**
+     * Share context between agents
+     */
+    static shareContext(fromMessages, toMessageManager, options = {}) {
+        const { includeSystem = true, maxMessages = 10, filterByRole = ['user', 'assistant', 'system'] } = options;
+        let relevantMessages = fromMessages;
+        // Filter by role
+        if (filterByRole.length > 0) {
+            relevantMessages = relevantMessages.filter(m => filterByRole.includes(m.role));
+        }
+        // Exclude system if not needed
+        if (!includeSystem) {
+            relevantMessages = relevantMessages.filter(m => m.role !== 'system');
+        }
+        // Limit messages
+        relevantMessages = relevantMessages.slice(-maxMessages);
+        // Add to target message manager
+        for (const msg of relevantMessages) {
+            if (msg.role === 'system' && includeSystem) {
+                toMessageManager.addSystemMessage(typeof msg.content === 'string' ? msg.content : '');
+            }
+            else if (msg.role === 'user') {
+                toMessageManager.addUserMessage(msg.content);
+            }
+            else if (msg.role === 'assistant') {
+                toMessageManager.addAssistantMessage(msg.content);
+            }
+        }
+        (0, logger_1.logDebugInfo)(`📤 Shared ${relevantMessages.length} messages between agents`);
+    }
+    /**
+     * Merge contexts from multiple agents
+     */
+    static mergeContexts(contexts, options = {}) {
+        const { deduplicate = true, maxMessages = 20 } = options;
+        // Flatten all messages
+        let allMessages = [];
+        for (const context of contexts) {
+            allMessages.push(...context);
+        }
+        // Deduplicate if needed
+        if (deduplicate) {
+            const seen = new Set();
+            allMessages = allMessages.filter(msg => {
+                const key = `${msg.role}:${JSON.stringify(msg.content)}`;
+                if (seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+        }
+        // Sort by timestamp if available, otherwise keep order
+        // (Messages don't have timestamps in our current implementation,
+        // so we'll keep the order from contexts)
+        // Limit messages
+        return allMessages.slice(-maxMessages);
+    }
+    /**
+     * Create a summary of context for sharing
+     */
+    static createContextSummary(messages) {
+        const userMessages = messages.filter(m => m.role === 'user').length;
+        const assistantMessages = messages.filter(m => m.role === 'assistant').length;
+        const toolCalls = messages.filter(m => m.role === 'assistant' &&
+            typeof m.content !== 'string' &&
+            Array.isArray(m.content) &&
+            m.content.some((block) => block.type === 'tool_use')).length;
+        return `Context summary: ${userMessages} user messages, ${assistantMessages} assistant messages, ${toolCalls} tool calls`;
+    }
+}
+exports.ContextSharing = ContextSharing;
+
+
+/***/ }),
+
+/***/ 5759:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Message Manager for Agent SDK
+ * Manages conversation history in Anthropic Messages API format
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MessageManager = void 0;
+class MessageManager {
+    constructor() {
+        this.messages = [];
+    }
+    /**
+     * Add system message (only one allowed, at the beginning)
+     */
+    addSystemMessage(content) {
+        // Remove existing system message if any
+        this.messages = this.messages.filter(m => m.role !== 'system');
+        // Add at the beginning
+        this.messages.unshift({
+            role: 'system',
+            content
+        });
+    }
+    /**
+     * Add user message
+     */
+    addUserMessage(content) {
+        this.messages.push({
+            role: 'user',
+            content
+        });
+    }
+    /**
+     * Add assistant message
+     */
+    addAssistantMessage(content) {
+        // Convert string to ContentBlock if needed
+        const contentBlocks = typeof content === 'string'
+            ? [{ type: 'text', text: content }]
+            : content;
+        this.messages.push({
+            role: 'assistant',
+            content: contentBlocks
+        });
+    }
+    /**
+     * Add tool results as user message
+     */
+    addToolResults(results) {
+        const content = results.map(r => ({
+            type: 'tool_result',
+            tool_use_id: r.toolCallId,
+            content: r.content,
+            is_error: r.isError
+        }));
+        this.messages.push({
+            role: 'user',
+            content
+        });
+    }
+    /**
+     * Get all messages
+     */
+    getMessages() {
+        return [...this.messages];
+    }
+    /**
+     * Get messages count
+     */
+    getMessageCount() {
+        return this.messages.length;
+    }
+    /**
+     * Get last message
+     */
+    getLastMessage() {
+        return this.messages[this.messages.length - 1];
+    }
+    /**
+     * Reset message history
+     */
+    reset() {
+        this.messages = [];
+    }
+    /**
+     * Check if has system message
+     */
+    hasSystemMessage() {
+        return this.messages.some(m => m.role === 'system');
+    }
+    /**
+     * Get system message if exists
+     */
+    getSystemMessage() {
+        const systemMsg = this.messages.find(m => m.role === 'system');
+        return systemMsg && typeof systemMsg.content === 'string'
+            ? systemMsg.content
+            : undefined;
+    }
+}
+exports.MessageManager = MessageManager;
+
+
+/***/ }),
+
+/***/ 7984:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Metrics Tracker
+ * Tracks tokens, costs, latency, and other metrics
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MetricsTracker = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class MetricsTracker {
+    constructor(costConfig) {
+        this.apiCallTimes = [];
+        this.metrics = {
+            totalTokens: { input: 0, output: 0 },
+            apiCalls: 0,
+            toolCalls: 0,
+            averageLatency: 0,
+            totalDuration: 0,
+            errors: 0
+        };
+        this.startTime = Date.now();
+        this.costConfig = costConfig;
+    }
+    /**
+     * Record API call with tokens and latency
+     */
+    recordAPICall(inputTokens, outputTokens, latency) {
+        this.metrics.apiCalls++;
+        this.metrics.totalTokens.input += inputTokens;
+        this.metrics.totalTokens.output += outputTokens;
+        this.apiCallTimes.push(latency);
+        // Calculate average latency
+        const sum = this.apiCallTimes.reduce((a, b) => a + b, 0);
+        this.metrics.averageLatency = Math.round(sum / this.apiCallTimes.length);
+        // Calculate cost if config provided
+        if (this.costConfig) {
+            const inputCost = (inputTokens / 1000) * this.costConfig.inputCostPer1kTokens;
+            const outputCost = (outputTokens / 1000) * this.costConfig.outputCostPer1kTokens;
+            this.metrics.totalCost = (this.metrics.totalCost || 0) + inputCost + outputCost;
+        }
+        (0, logger_1.logDebugInfo)(`📊 API Call: ${inputTokens} in, ${outputTokens} out tokens, ${latency}ms latency`);
+    }
+    /**
+     * Record tool call
+     */
+    recordToolCall() {
+        this.metrics.toolCalls++;
+    }
+    /**
+     * Record error
+     */
+    recordError() {
+        this.metrics.errors++;
+    }
+    /**
+     * Get current metrics
+     */
+    getMetrics() {
+        this.metrics.totalDuration = Date.now() - this.startTime;
+        return { ...this.metrics };
+    }
+    /**
+     * Reset metrics
+     */
+    reset() {
+        this.metrics = {
+            totalTokens: { input: 0, output: 0 },
+            apiCalls: 0,
+            toolCalls: 0,
+            averageLatency: 0,
+            totalDuration: 0,
+            errors: 0
+        };
+        this.startTime = Date.now();
+        this.apiCallTimes = [];
+    }
+    /**
+     * Set cost configuration
+     */
+    setCostConfig(config) {
+        this.costConfig = config;
+    }
+}
+exports.MetricsTracker = MetricsTracker;
+
+
+/***/ }),
+
+/***/ 7982:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Reasoning Loop for Agent SDK
+ * Manages the conversation loop with tool calling
+ * Integrated with all advanced features: streaming, permissions, context, metrics, budget, timeouts, retry
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReasoningLoop = void 0;
+const response_parser_1 = __nccwpck_require__(8952);
+const prompt_builder_1 = __nccwpck_require__(3277);
+const error_handler_1 = __nccwpck_require__(9907);
+const ai_repository_1 = __nccwpck_require__(8307);
+const ai_1 = __nccwpck_require__(4470);
+const response_schema_1 = __nccwpck_require__(6515);
+const logger_1 = __nccwpck_require__(8836);
+const tool_permissions_1 = __nccwpck_require__(2859);
+const context_manager_1 = __nccwpck_require__(6955);
+const metrics_tracker_1 = __nccwpck_require__(7984);
+const budget_manager_1 = __nccwpck_require__(341);
+const retry_manager_1 = __nccwpck_require__(9306);
+class ReasoningLoop {
+    constructor(messageManager, toolExecutor, options) {
+        this.messageManager = messageManager;
+        this.toolExecutor = toolExecutor;
+        this.options = options;
+        this.aiRepository = new ai_repository_1.AiRepository();
+        this.ai = new ai_1.Ai(options.apiKey, options.model, false, // aiPullRequestDescription
+        false, // aiMembersOnly
+        [], // aiIgnoreFiles
+        false, // aiIncludeReasoning
+        {} // providerRouting
+        );
+        // Initialize managers
+        this.permissionsManager = new tool_permissions_1.ToolPermissionsManager(options.toolPermissions);
+        this.contextManager = new context_manager_1.ContextManager(options.maxContextLength || 100000, options.contextCompressionEnabled !== false);
+        this.metricsTracker = new metrics_tracker_1.MetricsTracker();
+        this.budgetManager = new budget_manager_1.BudgetManager(options.budget);
+        this.retryManager = new retry_manager_1.RetryManager(options.retry);
+        this.sessionStartTime = Date.now();
+        // Set up session timeout
+        if (options.timeouts?.totalSession) {
+            this.timeoutId = setTimeout(() => {
+                (0, logger_1.logWarn)('⏱️ Session timeout reached');
+            }, options.timeouts.totalSession);
+        }
+    }
+    /**
+     * Execute the reasoning loop
+     */
+    async execute() {
+        const turns = [];
+        const allToolCalls = [];
+        let turn = 0;
+        const maxTurns = this.options.maxTurns || 30;
+        (0, logger_1.logInfo)(`🔄 Starting reasoning loop (max turns: ${maxTurns})`);
+        try {
+            while (turn < maxTurns) {
+                // Check timeout
+                if (this.options.timeouts?.totalSession) {
+                    const elapsed = Date.now() - this.sessionStartTime;
+                    if (elapsed > this.options.timeouts.totalSession) {
+                        (0, logger_1.logWarn)('⏱️ Session timeout exceeded');
+                        return this.createResult(turns, allToolCalls, undefined, true);
+                    }
+                }
+                turn++;
+                (0, logger_1.logInfo)(`🔄 Turn ${turn}/${maxTurns}`);
+                try {
+                    // 1. Compress context if needed
+                    const messages = this.messageManager.getMessages();
+                    if (this.contextManager.needsCompression(messages)) {
+                        const compressed = this.contextManager.compressContext(messages);
+                        // Note: MessageManager doesn't support direct replacement, so we'd need to reset and rebuild
+                        // For now, we'll just log the stats
+                        const stats = this.contextManager.getStats(messages);
+                        (0, logger_1.logDebugInfo)(`📊 Context: ${stats.messageCount} messages, ~${stats.estimatedTokens} tokens`);
+                    }
+                    // 2. Call API with retry, timeout, and streaming
+                    const apiStartTime = Date.now();
+                    const response = await this.callAPIWithRetry();
+                    const apiLatency = Date.now() - apiStartTime;
+                    // Estimate tokens (rough approximation)
+                    const inputTokens = Math.ceil(this.estimateInputTokens() / 4);
+                    const outputTokens = Math.ceil((response?.response?.length || 0) / 4);
+                    // Record metrics
+                    if (this.options.trackMetrics !== false) {
+                        this.metricsTracker.recordAPICall(inputTokens, outputTokens, apiLatency);
+                    }
+                    // 3. Parse response
+                    const parsedResponse = this.parseResponse(response);
+                    // 4. Filter tool calls by permissions
+                    let toolCalls = parsedResponse.toolCalls || [];
+                    const originalCount = toolCalls.length;
+                    toolCalls = toolCalls.filter(tc => this.permissionsManager.isAllowed(tc.name));
+                    if (originalCount > toolCalls.length) {
+                        (0, logger_1.logWarn)(`🚫 Filtered ${originalCount - toolCalls.length} tool call(s) due to permissions`);
+                    }
+                    // 5. Create turn result
+                    const turnResult = {
+                        turnNumber: turn,
+                        assistantMessage: parsedResponse.text,
+                        toolCalls: toolCalls,
+                        reasoning: parsedResponse.reasoning,
+                        timestamp: Date.now()
+                    };
+                    // 6. Execute tools if any
+                    if (toolCalls.length > 0) {
+                        (0, logger_1.logInfo)(`🔧 Executing ${toolCalls.length} tool call(s)`);
+                        for (const toolCall of toolCalls) {
+                            (0, logger_1.logInfo)(`   🔨 Tool: ${toolCall.name}`);
+                            (0, logger_1.logInfo)(`      Input: ${JSON.stringify(toolCall.input).substring(0, 150)}${JSON.stringify(toolCall.input).length > 150 ? '...' : ''}`);
+                        }
+                        // Record tool calls in metrics
+                        for (const _ of toolCalls) {
+                            this.metricsTracker.recordToolCall();
+                        }
+                        const toolResults = await this.executeToolsWithTimeout(toolCalls);
+                        turnResult.toolResults = toolResults;
+                        allToolCalls.push(...toolCalls);
+                        // Log tool execution details
+                        for (let i = 0; i < toolCalls.length; i++) {
+                            const toolCall = toolCalls[i];
+                            const toolResult = toolResults[i];
+                            (0, logger_1.logInfo)(`   ✅ Tool result (${toolCall.name}):`);
+                            if (toolResult.isError) {
+                                (0, logger_1.logError)(`      ❌ Error: ${toolResult.errorMessage || 'Unknown error'}`);
+                                this.metricsTracker.recordError();
+                            }
+                            else {
+                                const resultPreview = typeof toolResult.content === 'string'
+                                    ? toolResult.content.substring(0, 500)
+                                    : JSON.stringify(toolResult.content).substring(0, 500);
+                                (0, logger_1.logInfo)(`      ${resultPreview}${(typeof toolResult.content === 'string' && toolResult.content.length > 500) || (typeof toolResult.content !== 'string' && JSON.stringify(toolResult.content).length > 500) ? '...' : ''}`);
+                            }
+                        }
+                        // Call callbacks
+                        for (const toolCall of toolCalls) {
+                            this.options.onToolCall?.(toolCall);
+                        }
+                        for (const result of toolResults) {
+                            this.options.onToolResult?.(result);
+                        }
+                        // 7. Add assistant message and tool results to history
+                        this.messageManager.addAssistantMessage(parsedResponse.text);
+                        this.messageManager.addToolResults(toolResults);
+                        turns.push(turnResult);
+                        this.options.onTurnComplete?.(turnResult);
+                        // Check budget
+                        const metrics = this.metricsTracker.getMetrics();
+                        if (this.budgetManager.isExceeded(metrics)) {
+                            (0, logger_1.logWarn)('💰 Budget exceeded! Stopping execution.');
+                            return this.createResult(turns, allToolCalls, parsedResponse.text, false, true);
+                        }
+                        this.budgetManager.logStatus(metrics);
+                        // 8. Continue loop
+                        continue;
+                    }
+                    // 9. No tool calls = final response
+                    // Log the response to see what the agent is saying
+                    if (parsedResponse.text) {
+                        (0, logger_1.logInfo)(`   📝 Final response: ${parsedResponse.text}`);
+                    }
+                    (0, logger_1.logInfo)(`✅ Final response received (no more tool calls)`);
+                    this.messageManager.addAssistantMessage(parsedResponse.text);
+                    turns.push(turnResult);
+                    this.options.onTurnComplete?.(turnResult);
+                    // Get final metrics
+                    const finalMetrics = this.metricsTracker.getMetrics();
+                    if (this.options.onMetrics) {
+                        this.options.onMetrics(finalMetrics);
+                    }
+                    return this.createResult(turns, allToolCalls, parsedResponse.text);
+                }
+                catch (error) {
+                    const handledError = error_handler_1.ErrorHandler.handle(error);
+                    (0, logger_1.logError)(`❌ Error in turn ${turn}: ${handledError.message}`);
+                    this.metricsTracker.recordError();
+                    this.options.onError?.(handledError);
+                    return this.createResult(turns, allToolCalls, undefined, false, false, handledError);
+                }
+            }
+            // Max turns reached
+            (0, logger_1.logInfo)(`⚠️ Max turns (${maxTurns}) reached`);
+            return this.createResult(turns, allToolCalls, undefined, true);
+        }
+        finally {
+            // Cleanup
+            if (this.timeoutId) {
+                clearTimeout(this.timeoutId);
+            }
+        }
+    }
+    /**
+     * Call API with retry logic
+     */
+    async callAPIWithRetry() {
+        return this.retryManager.execute(async () => {
+            return await this.callAPI();
+        }, (error, attempt) => {
+            // Custom error handler for API errors
+            if (error instanceof error_handler_1.APIError) {
+                return true; // Retry API errors
+            }
+            return false;
+        });
+    }
+    /**
+     * Call OpenRouter API via AiRepository
+     */
+    async callAPI() {
+        const messages = this.messageManager.getMessages();
+        const toolDefinitions = this.toolExecutor.getToolDefinitions();
+        // Filter tools by permissions
+        const allowedToolNames = this.permissionsManager.filterAllowed(toolDefinitions.map(t => t.name));
+        const filteredTools = toolDefinitions.filter(t => allowedToolNames.includes(t.name));
+        // Build prompt
+        const prompt = prompt_builder_1.PromptBuilder.buildPrompt(messages, filteredTools);
+        (0, logger_1.logDebugInfo)(`📤 Calling API with ${messages.length} message(s) and ${filteredTools.length} tool(s)`);
+        // Handle streaming
+        if (this.options.streaming && this.options.onStreamChunk) {
+            let streamedContent = '';
+            const onChunk = (chunk) => {
+                streamedContent += chunk;
+                this.options.onStreamChunk({
+                    type: 'text',
+                    content: chunk
+                });
+            };
+            // Call with streaming
+            // Use strict: false for Agent SDK because input is generic (varies by tool)
+            // Individual tool schemas (like report_errors) are still strict and validated
+            const response = await Promise.race([
+                this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', true, onChunk, false // strict: false for Agent SDK (input is generic)
+                ),
+                this.createTimeoutPromise(this.options.timeouts?.apiCall)
+            ]);
+            if (!response) {
+                throw new error_handler_1.APIError('No response from API');
+            }
+            // Send done chunk
+            this.options.onStreamChunk({
+                type: 'done',
+                content: ''
+            });
+            return response;
+        }
+        // Non-streaming call with timeout
+        // Use strict: false for Agent SDK because input is generic (varies by tool)
+        // Individual tool schemas (like report_errors) are still strict and validated
+        const response = await Promise.race([
+            this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', false, // streaming: false
+            undefined, // onChunk: undefined
+            false // strict: false for Agent SDK (input is generic)
+            ),
+            this.createTimeoutPromise(this.options.timeouts?.apiCall)
+        ]);
+        if (!response) {
+            throw new error_handler_1.APIError('No response from API');
+        }
+        return response;
+    }
+    /**
+     * Execute tools with timeout
+     */
+    async executeToolsWithTimeout(toolCalls) {
+        const timeout = this.options.timeouts?.toolExecution;
+        if (timeout) {
+            return Promise.race([
+                this.toolExecutor.executeAll(toolCalls),
+                this.createTimeoutPromise(timeout).then(() => {
+                    throw new Error('Tool execution timeout');
+                })
+            ]);
+        }
+        return this.toolExecutor.executeAll(toolCalls);
+    }
+    /**
+     * Create timeout promise
+     */
+    createTimeoutPromise(timeout) {
+        return new Promise((_, reject) => {
+            if (!timeout) {
+                // No timeout, never reject
+                return;
+            }
+            setTimeout(() => {
+                reject(new Error(`Operation timed out after ${timeout}ms`));
+            }, timeout);
+        });
+    }
+    /**
+     * Estimate input tokens (rough approximation)
+     */
+    estimateInputTokens() {
+        const messages = this.messageManager.getMessages();
+        return this.contextManager.estimateTokens(messages);
+    }
+    /**
+     * Parse API response
+     */
+    parseResponse(response) {
+        try {
+            const parsed = response_parser_1.ResponseParser.parse(response);
+            if (!response_parser_1.ResponseParser.validate(parsed)) {
+                throw new Error('Invalid parsed response format');
+            }
+            return parsed;
+        }
+        catch (error) {
+            throw new error_handler_1.APIError(`Failed to parse response: ${error instanceof Error ? error.message : String(error)}`, undefined, response);
+        }
+    }
+    /**
+     * Create result object
+     */
+    createResult(turns, toolCalls, finalResponse, truncated = false, budgetExceeded = false, error) {
+        const metrics = this.options.trackMetrics !== false
+            ? this.metricsTracker.getMetrics()
+            : undefined;
+        return {
+            finalResponse: finalResponse || (turns.length > 0
+                ? turns[turns.length - 1].assistantMessage
+                : 'No response'),
+            turns: turns,
+            toolCalls: toolCalls,
+            messages: this.messageManager.getMessages(),
+            totalTokens: metrics ? {
+                input: metrics.totalTokens.input,
+                output: metrics.totalTokens.output
+            } : undefined,
+            metrics: metrics,
+            error: error,
+            truncated: truncated,
+            budgetExceeded: budgetExceeded,
+            timeoutExceeded: truncated && !error
+        };
+    }
+}
+exports.ReasoningLoop = ReasoningLoop;
+
+
+/***/ }),
+
+/***/ 9306:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Retry Manager
+ * Handles retries with exponential backoff and circuit breaker
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RetryManager = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class RetryManager {
+    constructor(config) {
+        this.circuitBreakerState = 'closed';
+        this.circuitBreakerFailures = 0;
+        this.circuitBreakerLastFailure = 0;
+        this.circuitBreakerThreshold = 5;
+        this.circuitBreakerTimeout = 60000; // 1 minute
+        this.config = {
+            maxRetries: config?.maxRetries ?? 3,
+            initialDelay: config?.initialDelay ?? 1000,
+            maxDelay: config?.maxDelay ?? 30000,
+            backoffMultiplier: config?.backoffMultiplier ?? 2,
+            retryableErrors: config?.retryableErrors ?? [429, 500, 502, 503, 504]
+        };
+    }
+    /**
+     * Execute function with retry logic
+     */
+    async execute(fn, errorHandler) {
+        // Check circuit breaker
+        if (this.circuitBreakerState === 'open') {
+            const timeSinceLastFailure = Date.now() - this.circuitBreakerLastFailure;
+            if (timeSinceLastFailure > this.circuitBreakerTimeout) {
+                this.circuitBreakerState = 'half-open';
+                (0, logger_1.logDebugInfo)('🔌 Circuit breaker: half-open (testing)');
+            }
+            else {
+                throw new Error('Circuit breaker is open');
+            }
+        }
+        let lastError;
+        let delay = this.config.initialDelay;
+        for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
+            try {
+                const result = await fn();
+                // Success - reset circuit breaker
+                if (this.circuitBreakerState === 'half-open') {
+                    this.circuitBreakerState = 'closed';
+                    this.circuitBreakerFailures = 0;
+                    (0, logger_1.logDebugInfo)('🔌 Circuit breaker: closed (reset)');
+                }
+                return result;
+            }
+            catch (error) {
+                lastError = error;
+                // Check if error is retryable
+                const isRetryable = this.isRetryableError(error);
+                // Custom error handler can override retry decision
+                if (errorHandler) {
+                    const shouldRetry = errorHandler(error, attempt);
+                    if (!shouldRetry) {
+                        break;
+                    }
+                }
+                else if (!isRetryable) {
+                    break;
+                }
+                // Don't retry on last attempt
+                if (attempt >= this.config.maxRetries) {
+                    break;
+                }
+                // Record failure for circuit breaker
+                this.circuitBreakerFailures++;
+                this.circuitBreakerLastFailure = Date.now();
+                if (this.circuitBreakerFailures >= this.circuitBreakerThreshold) {
+                    this.circuitBreakerState = 'open';
+                    (0, logger_1.logError)('🔌 Circuit breaker: open (too many failures)');
+                    throw new Error('Circuit breaker is open due to too many failures');
+                }
+                (0, logger_1.logDebugInfo)(`🔄 Retry attempt ${attempt + 1}/${this.config.maxRetries} after ${delay}ms`);
+                // Wait before retry
+                await this.sleep(delay);
+                // Exponential backoff
+                delay = Math.min(delay * this.config.backoffMultiplier, this.config.maxDelay);
+            }
+        }
+        throw lastError;
+    }
+    /**
+     * Check if error is retryable
+     */
+    isRetryableError(error) {
+        // Check HTTP status code
+        if (error.status && this.config.retryableErrors.includes(error.status)) {
+            return true;
+        }
+        // Check error message for network errors
+        const message = error.message?.toLowerCase() || '';
+        if (message.includes('network') || message.includes('timeout') || message.includes('econnreset')) {
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Sleep utility
+     */
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    /**
+     * Reset circuit breaker
+     */
+    resetCircuitBreaker() {
+        this.circuitBreakerState = 'closed';
+        this.circuitBreakerFailures = 0;
+        this.circuitBreakerLastFailure = 0;
+    }
+}
+exports.RetryManager = RetryManager;
+
+
+/***/ }),
+
+/***/ 7408:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Session Manager
+ * Manages agent sessions with persistence
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SessionManager = void 0;
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+const logger_1 = __nccwpck_require__(8836);
+class SessionManager {
+    constructor(sessionsDir = '.agent-sessions') {
+        this.sessionsDir = sessionsDir;
+        this.ensureSessionsDir();
+    }
+    /**
+     * Ensure sessions directory exists
+     */
+    ensureSessionsDir() {
+        if (!fs.existsSync(this.sessionsDir)) {
+            fs.mkdirSync(this.sessionsDir, { recursive: true });
+        }
+    }
+    /**
+     * Get session file path
+     */
+    getSessionPath(sessionId) {
+        return path.join(this.sessionsDir, `${sessionId}.json`);
+    }
+    /**
+     * Save session
+     */
+    async saveSession(sessionId, messages, result) {
+        try {
+            const metadata = {
+                sessionId,
+                createdAt: this.getSessionCreatedAt(sessionId) || Date.now(),
+                lastUpdated: Date.now(),
+                messageCount: messages.length,
+                turnCount: result?.turns.length || 0,
+                toolCallCount: result?.toolCalls.length || 0,
+                metrics: result?.metrics
+            };
+            const sessionData = {
+                metadata,
+                messages
+            };
+            const filePath = this.getSessionPath(sessionId);
+            fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2));
+            (0, logger_1.logInfo)(`💾 Session saved: ${sessionId}`);
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to save session ${sessionId}: ${error}`);
+            throw error;
+        }
+    }
+    /**
+     * Load session
+     */
+    async loadSession(sessionId) {
+        try {
+            const filePath = this.getSessionPath(sessionId);
+            if (!fs.existsSync(filePath)) {
+                return null;
+            }
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const sessionData = JSON.parse(content);
+            (0, logger_1.logInfo)(`📂 Session loaded: ${sessionId}`);
+            return sessionData;
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to load session ${sessionId}: ${error}`);
+            return null;
+        }
+    }
+    /**
+     * Delete session
+     */
+    async deleteSession(sessionId) {
+        try {
+            const filePath = this.getSessionPath(sessionId);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                (0, logger_1.logInfo)(`🗑️ Session deleted: ${sessionId}`);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to delete session ${sessionId}: ${error}`);
+            throw error;
+        }
+    }
+    /**
+     * List all sessions
+     */
+    async listSessions() {
+        try {
+            const files = fs.readdirSync(this.sessionsDir);
+            const sessions = [];
+            for (const file of files) {
+                if (file.endsWith('.json')) {
+                    const sessionId = file.replace('.json', '');
+                    const session = await this.loadSession(sessionId);
+                    if (session) {
+                        sessions.push(session.metadata);
+                    }
+                }
+            }
+            return sessions.sort((a, b) => b.lastUpdated - a.lastUpdated);
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to list sessions: ${error}`);
+            return [];
+        }
+    }
+    /**
+     * Get session creation time
+     */
+    getSessionCreatedAt(sessionId) {
+        try {
+            const session = this.loadSession(sessionId);
+            return session ? session.metadata?.createdAt || null : null;
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
+     * Generate new session ID
+     */
+    generateSessionId() {
+        return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+}
+exports.SessionManager = SessionManager;
+
+
+/***/ }),
+
+/***/ 2078:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * SubAgent Manager
+ * Manages subagents and their coordination
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SubAgentManager = void 0;
+const agent_1 = __nccwpck_require__(1963);
+const context_sharing_1 = __nccwpck_require__(3675);
+const logger_1 = __nccwpck_require__(8836);
+class SubAgentManager {
+    constructor(parentAgent) {
+        this.subAgents = new Map();
+        this.sharedContext = [];
+        this.parentAgent = parentAgent;
+    }
+    /**
+     * Create a subagent
+     */
+    createSubAgent(options) {
+        if (this.subAgents.has(options.name)) {
+            (0, logger_1.logInfo)(`SubAgent ${options.name} already exists, returning existing`);
+            return this.subAgents.get(options.name);
+        }
+        (0, logger_1.logInfo)(`🤖 Creating subagent: ${options.name}`);
+        // Get parent options (access private property)
+        // In TypeScript, private properties are accessible at runtime
+        const parentOptions = this.parentAgent.options;
+        if (!parentOptions) {
+            // Fallback: create minimal options from agent's public methods
+            // This shouldn't happen in practice, but helps with testing
+            const fallbackOptions = {
+                model: 'unknown',
+                apiKey: 'unknown',
+                enableMCP: false
+            };
+            return this.createSubAgentWithOptions(options, fallbackOptions);
+        }
+        return this.createSubAgentWithOptions(options, parentOptions);
+    }
+    /**
+     * Internal method to create subagent with options
+     */
+    createSubAgentWithOptions(options, parentOptions) {
+        // Build subagent options
+        const subAgentOptions = {
+            ...parentOptions,
+            systemPrompt: options.systemPrompt || parentOptions.systemPrompt,
+            maxTurns: options.maxTurns || parentOptions.maxTurns || 10,
+            maxTokens: options.maxTokens || parentOptions.maxTokens,
+            temperature: options.temperature || parentOptions.temperature,
+            tools: [],
+            enableMCP: false // Subagents don't initialize MCP by default
+        };
+        // Inherit tools if requested
+        if (options.inheritTools !== false) {
+            const parentTools = this.parentAgent.getAvailableTools();
+            // Note: We can't directly get tool instances, so we'll need to pass them
+            // For now, we'll rely on tools being passed explicitly
+        }
+        // Add explicit tools
+        if (options.tools && options.tools.length > 0) {
+            subAgentOptions.tools = options.tools;
+        }
+        // Create subagent
+        const subAgent = new agent_1.Agent(subAgentOptions);
+        // Share context if requested
+        if (options.inheritContext !== false) {
+            const parentMessages = this.parentAgent.getMessages();
+            context_sharing_1.ContextSharing.shareContext(parentMessages, subAgent['messageManager'], {
+                includeSystem: true,
+                maxMessages: 5 // Share recent context
+            });
+        }
+        this.subAgents.set(options.name, subAgent);
+        return subAgent;
+    }
+    /**
+     * Execute multiple agents in parallel
+     */
+    async executeParallel(tasks) {
+        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} tasks in parallel`);
+        // Create or get subagents for each task
+        const agents = [];
+        for (const task of tasks) {
+            let agent = this.subAgents.get(task.name);
+            if (!agent) {
+                // Create subagent for this task
+                agent = this.createSubAgent({
+                    name: task.name,
+                    systemPrompt: task.systemPrompt,
+                    tools: task.tools,
+                    inheritContext: true
+                });
+            }
+            agents.push({ agent, task });
+        }
+        // Execute all agents in parallel
+        const promises = agents.map(async ({ agent, task }) => {
+            try {
+                (0, logger_1.logDebugInfo)(`▶️ Executing task: ${task.name}`);
+                const result = await agent.query(task.prompt);
+                (0, logger_1.logDebugInfo)(`✅ Completed task: ${task.name}`);
+                return { task: task.name, result };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`❌ Task ${task.name} failed: ${error}`);
+                throw error;
+            }
+        });
+        const results = await Promise.all(promises);
+        (0, logger_1.logInfo)(`✅ All ${results.length} tasks completed`);
+        return results;
+    }
+    /**
+     * Coordinate agents - execute with dependency management
+     */
+    async coordinateAgents(tasks) {
+        (0, logger_1.logInfo)(`🎯 Coordinating ${tasks.length} tasks with dependencies`);
+        const results = [];
+        const completed = new Set();
+        // Build dependency graph
+        const taskMap = new Map();
+        for (const task of tasks) {
+            taskMap.set(task.name, task);
+        }
+        // Execute tasks respecting dependencies
+        while (completed.size < tasks.length) {
+            const readyTasks = tasks.filter(task => {
+                if (completed.has(task.name))
+                    return false;
+                if (!task.dependsOn || task.dependsOn.length === 0)
+                    return true;
+                return task.dependsOn.every(dep => completed.has(dep));
+            });
+            if (readyTasks.length === 0) {
+                throw new Error('Circular dependency or missing dependency detected');
+            }
+            // Execute ready tasks in parallel
+            const promises = readyTasks.map(async (task) => {
+                let agent = this.subAgents.get(task.name);
+                if (!agent) {
+                    agent = this.createSubAgent({
+                        name: task.name,
+                        systemPrompt: task.systemPrompt,
+                        tools: task.tools,
+                        inheritContext: true
+                    });
+                }
+                try {
+                    const result = await agent.query(task.prompt);
+                    completed.add(task.name);
+                    return { task: task.name, result };
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`Task ${task.name} failed: ${error}`);
+                    throw error;
+                }
+            });
+            const batchResults = await Promise.all(promises);
+            results.push(...batchResults);
+        }
+        (0, logger_1.logInfo)(`✅ All coordinated tasks completed`);
+        return results;
+    }
+    /**
+     * Share context between subagents
+     */
+    shareContext(fromAgentName, toAgentName) {
+        const fromAgent = this.subAgents.get(fromAgentName);
+        const toAgent = this.subAgents.get(toAgentName);
+        if (!fromAgent || !toAgent) {
+            throw new Error(`Agent not found: ${fromAgentName} or ${toAgentName}`);
+        }
+        const fromMessages = fromAgent.getMessages();
+        context_sharing_1.ContextSharing.shareContext(fromMessages, toAgent['messageManager'], {
+            includeSystem: false,
+            maxMessages: 5
+        });
+        (0, logger_1.logDebugInfo)(`📤 Shared context from ${fromAgentName} to ${toAgentName}`);
+    }
+    /**
+     * Get subagent by name
+     */
+    getSubAgent(name) {
+        return this.subAgents.get(name);
+    }
+    /**
+     * Get all subagents
+     */
+    getAllSubAgents() {
+        return Array.from(this.subAgents.values());
+    }
+    /**
+     * Get subagent names
+     */
+    getSubAgentNames() {
+        return Array.from(this.subAgents.keys());
+    }
+    /**
+     * Remove subagent
+     */
+    removeSubAgent(name) {
+        this.subAgents.delete(name);
+        (0, logger_1.logInfo)(`🗑️ Removed subagent: ${name}`);
+    }
+    /**
+     * Clear all subagents
+     */
+    clear() {
+        this.subAgents.clear();
+        (0, logger_1.logInfo)(`🗑️ Cleared all subagents`);
+    }
+}
+exports.SubAgentManager = SubAgentManager;
+
+
+/***/ }),
+
+/***/ 2859:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Tool Permissions Manager
+ * Controls which tools the agent can use
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolPermissionsManager = void 0;
+class ToolPermissionsManager {
+    constructor(permissions) {
+        this.permissions = permissions || { strategy: 'all' };
+    }
+    /**
+     * Check if a tool is allowed
+     */
+    isAllowed(toolName) {
+        const { strategy, allowed = [], blocked = [] } = this.permissions;
+        switch (strategy) {
+            case 'all':
+                return !blocked.includes(toolName);
+            case 'allowlist':
+                return allowed.includes(toolName);
+            case 'blocklist':
+                return !blocked.includes(toolName);
+            default:
+                return true;
+        }
+    }
+    /**
+     * Get all allowed tool names from a list
+     */
+    filterAllowed(toolNames) {
+        return toolNames.filter(name => this.isAllowed(name));
+    }
+    /**
+     * Update permissions
+     */
+    updatePermissions(permissions) {
+        this.permissions = permissions;
+    }
+    /**
+     * Get current permissions
+     */
+    getPermissions() {
+        return { ...this.permissions };
+    }
+}
+exports.ToolPermissionsManager = ToolPermissionsManager;
+
+
+/***/ }),
+
+/***/ 4244:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * MCP Client
+ * Client for Model Context Protocol
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MCPClient = void 0;
+const mcp_transport_1 = __nccwpck_require__(788);
+const logger_1 = __nccwpck_require__(8836);
+class MCPClient {
+    constructor() {
+        this.transports = new Map();
+        this.tools = new Map();
+        this.resources = new Map();
+        this.prompts = new Map();
+    }
+    /**
+     * Connect to an MCP server
+     */
+    async connect(config) {
+        (0, logger_1.logInfo)(`🔌 Connecting to MCP server: ${config.name}`);
+        let transport;
+        const transportType = config.transport || (config.url ? 'http' : 'stdio');
+        switch (transportType) {
+            case 'stdio':
+                if (!config.command) {
+                    throw new Error('Command required for stdio transport');
+                }
+                transport = new mcp_transport_1.StdioTransport(config.command, config.args || [], config.env || {});
+                if ('connect' in transport && typeof transport.connect === 'function') {
+                    await transport.connect();
+                }
+                break;
+            case 'http':
+                if (!config.url) {
+                    throw new Error('URL required for HTTP transport');
+                }
+                transport = new mcp_transport_1.HTTPTransport(config.url, config.headers);
+                if ('connect' in transport && typeof transport.connect === 'function') {
+                    await transport.connect();
+                }
+                break;
+            case 'sse':
+                if (!config.url) {
+                    throw new Error('URL required for SSE transport');
+                }
+                transport = new mcp_transport_1.SSETransport(config.url, config.headers);
+                if ('connect' in transport && typeof transport.connect === 'function') {
+                    await transport.connect();
+                }
+                break;
+            default:
+                throw new Error(`Unsupported transport: ${transportType}`);
+        }
+        this.transports.set(config.name, transport);
+        // Initialize MCP connection
+        await this.initialize(config.name);
+        (0, logger_1.logInfo)(`✅ Connected to MCP server: ${config.name}`);
+    }
+    /**
+     * Initialize MCP connection
+     */
+    async initialize(serverName) {
+        const transport = this.transports.get(serverName);
+        if (!transport) {
+            throw new Error(`Transport not found for server: ${serverName}`);
+        }
+        // Send initialize request
+        const initMessage = await this.sendRequest(serverName, 'initialize', {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: {
+                name: 'git-board-flow-agent',
+                version: '1.0.0'
+            }
+        });
+        if (initMessage.error) {
+            throw new Error(`MCP initialization failed: ${initMessage.error.message}`);
+        }
+        const result = initMessage.result;
+        (0, logger_1.logDebugInfo)(`MCP initialized: ${result.serverInfo.name} v${result.serverInfo.version}`);
+        // Load tools, resources, and prompts
+        await this.loadTools(serverName);
+        await this.loadResources(serverName);
+        await this.loadPrompts(serverName);
+    }
+    /**
+     * Load tools from MCP server
+     */
+    async loadTools(serverName) {
+        try {
+            const response = await this.sendRequest(serverName, 'tools/list', {});
+            if (response.error) {
+                (0, logger_1.logDebugInfo)(`MCP server ${serverName} does not support tools`);
+                return;
+            }
+            const tools = response.result?.tools || [];
+            for (const tool of tools) {
+                const toolKey = `${serverName}:${tool.name}`;
+                this.tools.set(toolKey, tool);
+                (0, logger_1.logDebugInfo)(`📦 MCP tool registered: ${toolKey}`);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logDebugInfo)(`Failed to load tools from ${serverName}: ${error}`);
+        }
+    }
+    /**
+     * Load resources from MCP server
+     */
+    async loadResources(serverName) {
+        try {
+            const response = await this.sendRequest(serverName, 'resources/list', {});
+            if (response.error) {
+                (0, logger_1.logDebugInfo)(`MCP server ${serverName} does not support resources`);
+                return;
+            }
+            const resources = response.result?.resources || [];
+            for (const resource of resources) {
+                const resourceKey = `${serverName}:${resource.uri}`;
+                this.resources.set(resourceKey, resource);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logDebugInfo)(`Failed to load resources from ${serverName}: ${error}`);
+        }
+    }
+    /**
+     * Load prompts from MCP server
+     */
+    async loadPrompts(serverName) {
+        try {
+            const response = await this.sendRequest(serverName, 'prompts/list', {});
+            if (response.error) {
+                (0, logger_1.logDebugInfo)(`MCP server ${serverName} does not support prompts`);
+                return;
+            }
+            const prompts = response.result?.prompts || [];
+            for (const prompt of prompts) {
+                const promptKey = `${serverName}:${prompt.name}`;
+                this.prompts.set(promptKey, prompt);
+            }
+        }
+        catch (error) {
+            (0, logger_1.logDebugInfo)(`Failed to load prompts from ${serverName}: ${error}`);
+        }
+    }
+    /**
+     * Send request to MCP server
+     */
+    async sendRequest(serverName, method, params) {
+        const transport = this.transports.get(serverName);
+        if (!transport) {
+            throw new Error(`MCP server not connected: ${serverName}`);
+        }
+        // Check if transport has sendRequest method
+        if ('sendRequest' in transport && typeof transport.sendRequest === 'function') {
+            return await transport.sendRequest(method, params);
+        }
+        else {
+            throw new Error(`Unsupported transport type for ${serverName}`);
+        }
+    }
+    /**
+     * Call an MCP tool
+     */
+    async callTool(serverName, toolName, input) {
+        (0, logger_1.logDebugInfo)(`🔧 Calling MCP tool: ${serverName}:${toolName}`);
+        const response = await this.sendRequest(serverName, 'tools/call', {
+            name: toolName,
+            arguments: input
+        });
+        if (response.error) {
+            throw new Error(`MCP tool error: ${response.error.message}`);
+        }
+        const result = response.result?.content || response.result;
+        return result;
+    }
+    /**
+     * Get all available tools
+     */
+    getTools() {
+        return Array.from(this.tools.values());
+    }
+    /**
+     * Get tool by name
+     */
+    getTool(serverName, toolName) {
+        // Try with server prefix first
+        const withPrefix = this.tools.get(`${serverName}:${toolName}`);
+        if (withPrefix)
+            return withPrefix;
+        // Try without prefix (tool might be stored with just name)
+        for (const [key, tool] of this.tools) {
+            if (key.endsWith(`:${toolName}`) || key === toolName) {
+                return tool;
+            }
+        }
+        return undefined;
+    }
+    /**
+     * Get all available resources
+     */
+    getResources() {
+        return Array.from(this.resources.values());
+    }
+    /**
+     * Get all available prompts
+     */
+    getPrompts() {
+        return Array.from(this.prompts.values());
+    }
+    /**
+     * Check if server is connected
+     */
+    isConnected(serverName) {
+        const transport = this.transports.get(serverName);
+        return transport ? transport.isConnected() : false;
+    }
+    /**
+     * Disconnect from MCP server
+     */
+    async disconnect(serverName) {
+        const transport = this.transports.get(serverName);
+        if (transport) {
+            try {
+                await transport.close();
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error closing transport for ${serverName}: ${error}`);
+            }
+            this.transports.delete(serverName);
+            // Remove tools from this server
+            for (const [key] of this.tools) {
+                if (key.startsWith(`${serverName}:`)) {
+                    this.tools.delete(key);
+                }
+            }
+            (0, logger_1.logInfo)(`🔌 Disconnected from MCP server: ${serverName}`);
+        }
+    }
+    /**
+     * Disconnect from all servers
+     */
+    async disconnectAll() {
+        const serverNames = Array.from(this.transports.keys());
+        for (const name of serverNames) {
+            await this.disconnect(name);
+        }
+    }
+}
+exports.MCPClient = MCPClient;
+
+
+/***/ }),
+
+/***/ 4688:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * MCP Manager
+ * Manages MCP connections and tool registration
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MCPManager = void 0;
+const mcp_client_1 = __nccwpck_require__(4244);
+const mcp_tool_1 = __nccwpck_require__(3425);
+const logger_1 = __nccwpck_require__(8836);
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+class MCPManager {
+    constructor(toolRegistry) {
+        this.connectedServers = new Set();
+        this.client = new mcp_client_1.MCPClient();
+        this.toolRegistry = toolRegistry;
+    }
+    /**
+     * Load MCP configuration from file
+     */
+    async loadConfig(configPath = '.mcp.json') {
+        const fullPath = path.resolve(configPath);
+        if (!fs.existsSync(fullPath)) {
+            (0, logger_1.logInfo)(`📝 MCP config not found at ${fullPath}, skipping MCP initialization`);
+            return { mcpServers: {} };
+        }
+        try {
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            const config = JSON.parse(content);
+            return config;
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to load MCP config: ${error}`);
+            return { mcpServers: {} };
+        }
+    }
+    /**
+     * Initialize MCP connections from config
+     */
+    async initialize(configPath) {
+        const config = await this.loadConfig(configPath);
+        for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+            try {
+                await this.connectServer({ ...serverConfig, name });
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Failed to connect to MCP server ${name}: ${error}`);
+            }
+        }
+    }
+    /**
+     * Connect to an MCP server
+     */
+    async connectServer(config) {
+        if (this.connectedServers.has(config.name)) {
+            (0, logger_1.logInfo)(`MCP server ${config.name} already connected`);
+            return;
+        }
+        try {
+            await this.client.connect(config);
+            this.connectedServers.add(config.name);
+            // Register MCP tools
+            const tools = this.client.getTools();
+            for (const tool of tools) {
+                // Get the tool name (remove server prefix if present)
+                const toolName = tool.name.includes(':')
+                    ? tool.name.split(':').slice(1).join(':')
+                    : tool.name;
+                // Get the actual tool from client
+                const mcpTool = this.client.getTool(config.name, toolName);
+                if (mcpTool) {
+                    const wrapper = new mcp_tool_1.MCPToolWrapper(this.client, config.name, mcpTool);
+                    this.toolRegistry.register(wrapper);
+                    (0, logger_1.logInfo)(`🔧 Registered MCP tool: ${wrapper.getName()}`);
+                }
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Failed to connect to MCP server ${config.name}: ${error}`);
+            throw error;
+        }
+    }
+    /**
+     * Disconnect from an MCP server
+     */
+    async disconnectServer(serverName) {
+        if (!this.connectedServers.has(serverName)) {
+            return;
+        }
+        await this.client.disconnect(serverName);
+        this.connectedServers.delete(serverName);
+        // Remove tools from this server
+        const toolNames = this.toolRegistry.getToolNames();
+        for (const toolName of toolNames) {
+            if (toolName.startsWith(`${serverName}:`)) {
+                // Note: ToolRegistry doesn't have unregister, would need to add it
+                // For now, tools remain registered but disconnected
+            }
+        }
+    }
+    /**
+     * Get MCP client
+     */
+    getClient() {
+        return this.client;
+    }
+    /**
+     * Check if server is connected
+     */
+    isConnected(serverName) {
+        return this.connectedServers.has(serverName) &&
+            this.client.isConnected(serverName);
+    }
+    /**
+     * Get connected servers
+     */
+    getConnectedServers() {
+        return Array.from(this.connectedServers);
+    }
+    /**
+     * Disconnect from all servers
+     */
+    async disconnectAll() {
+        await this.client.disconnectAll();
+        this.connectedServers.clear();
+    }
+}
+exports.MCPManager = MCPManager;
+
+
+/***/ }),
+
+/***/ 3425:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * MCP Tool
+ * Wrapper for MCP tools to integrate with BaseTool interface
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MCPToolWrapper = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class MCPToolWrapper extends base_tool_1.BaseTool {
+    constructor(mcpClient, serverName, mcpTool) {
+        super();
+        this.mcpClient = mcpClient;
+        this.serverName = serverName;
+        this.mcpTool = mcpTool;
+    }
+    getName() {
+        return `${this.serverName}:${this.mcpTool.name}`;
+    }
+    getDescription() {
+        return this.mcpTool.description;
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: this.mcpTool.inputSchema.properties,
+            required: this.mcpTool.inputSchema.required || [],
+            additionalProperties: this.mcpTool.inputSchema.additionalProperties !== false
+        };
+    }
+    async execute(input) {
+        return await this.mcpClient.callTool(this.serverName, this.mcpTool.name, input);
+    }
+}
+exports.MCPToolWrapper = MCPToolWrapper;
+
+
+/***/ }),
+
+/***/ 788:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * MCP Transport
+ * Handles communication with MCP servers via different transports
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SSETransport = exports.HTTPTransport = exports.StdioTransport = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const child_process_1 = __nccwpck_require__(2081);
+/**
+ * STDIO Transport - for local processes
+ */
+class StdioTransport {
+    constructor(command, args = [], env = {}) {
+        this.command = command;
+        this.args = args;
+        this.env = env;
+        this.messageQueue = [];
+        this.messageHandlers = new Map();
+        this.connected = false;
+    }
+    async connect() {
+        return new Promise((resolve, reject) => {
+            try {
+                this.process = (0, child_process_1.spawn)(this.command, this.args, {
+                    env: { ...process.env, ...this.env },
+                    stdio: ['pipe', 'pipe', 'pipe']
+                });
+                let buffer = '';
+                this.process.stdout?.on('data', (data) => {
+                    buffer += data.toString();
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            try {
+                                const message = JSON.parse(line);
+                                this.handleMessage(message);
+                            }
+                            catch (error) {
+                                (0, logger_1.logError)(`Failed to parse MCP message: ${error}`);
+                            }
+                        }
+                    }
+                });
+                this.process.stderr?.on('data', (data) => {
+                    (0, logger_1.logDebugInfo)(`MCP stderr: ${data.toString()}`);
+                });
+                this.process.on('exit', (code) => {
+                    this.connected = false;
+                    (0, logger_1.logDebugInfo)(`MCP process exited with code ${code}`);
+                });
+                this.process.on('error', (error) => {
+                    this.connected = false;
+                    reject(error);
+                });
+                this.connected = true;
+                resolve();
+            }
+            catch (error) {
+                reject(error);
+            }
+        });
+    }
+    async send(message) {
+        if (!this.process || !this.process.stdin) {
+            throw new Error('MCP process not connected');
+        }
+        const json = JSON.stringify(message) + '\n';
+        return new Promise((resolve, reject) => {
+            this.process.stdin.write(json, (error) => {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    resolve();
+                }
+            });
+        });
+    }
+    async receive() {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('MCP receive timeout'));
+            }, 30000);
+            const handler = (message) => {
+                clearTimeout(timeout);
+                this.messageHandlers.delete(message.id);
+                resolve(message);
+            };
+            // Store handler temporarily (will be called by handleMessage)
+            const tempId = Date.now();
+            this.messageHandlers.set(tempId, handler);
+        });
+    }
+    handleMessage(message) {
+        if (message.id !== undefined) {
+            const handler = this.messageHandlers.get(message.id);
+            if (handler) {
+                handler(message);
+                return;
+            }
+        }
+        // Handle notifications (no id)
+        if (message.method) {
+            (0, logger_1.logDebugInfo)(`MCP notification: ${message.method}`);
+        }
+    }
+    async sendRequest(method, params) {
+        const id = Date.now() + Math.random();
+        const message = {
+            jsonrpc: '2.0',
+            id,
+            method,
+            params
+        };
+        return new Promise((resolve, reject) => {
+            const handler = (response) => {
+                if (response.error) {
+                    reject(new Error(`MCP error: ${response.error.message}`));
+                }
+                else {
+                    resolve(response);
+                }
+            };
+            this.messageHandlers.set(id, handler);
+            this.send(message).catch(reject);
+        });
+    }
+    async close() {
+        if (this.process) {
+            const proc = this.process;
+            this.process = undefined;
+            this.connected = false;
+            // Close stdin to signal the process to exit
+            if (proc.stdin && !proc.stdin.destroyed) {
+                try {
+                    proc.stdin.end();
+                }
+                catch (error) {
+                    // Ignore errors closing stdin
+                }
+            }
+            // Give the process a moment to exit gracefully
+            await new Promise(resolve => setTimeout(resolve, 100));
+            // If still running, kill it
+            if (!proc.killed && proc.exitCode === null) {
+                try {
+                    proc.kill('SIGTERM');
+                    // Wait a bit more for graceful shutdown
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Force kill if still running
+                    if (!proc.killed && proc.exitCode === null) {
+                        proc.kill('SIGKILL');
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+                catch (error) {
+                    // Process might already be dead
+                }
+            }
+        }
+        else {
+            this.connected = false;
+        }
+    }
+    isConnected() {
+        return this.connected && this.process !== undefined;
+    }
+}
+exports.StdioTransport = StdioTransport;
+/**
+ * HTTP Transport - for remote MCP servers
+ */
+class HTTPTransport {
+    constructor(url, headers = {}) {
+        this.url = url;
+        this.headers = headers;
+        this.connected = false;
+    }
+    async connect() {
+        // HTTP doesn't need explicit connection
+        this.connected = true;
+    }
+    async send(message) {
+        // HTTP transport sends and receives in one call
+        // This is handled by sendRequest
+    }
+    async receive() {
+        throw new Error('HTTP transport uses sendRequest instead');
+    }
+    async sendRequest(method, params) {
+        const message = {
+            jsonrpc: '2.0',
+            id: Date.now() + Math.random(),
+            method,
+            params
+        };
+        try {
+            const response = await fetch(this.url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.headers
+                },
+                body: JSON.stringify(message)
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error: ${response.status}`);
+            }
+            const result = await response.json();
+            return result;
+        }
+        catch (error) {
+            throw new Error(`MCP HTTP request failed: ${error}`);
+        }
+    }
+    async close() {
+        this.connected = false;
+    }
+    isConnected() {
+        return this.connected;
+    }
+}
+exports.HTTPTransport = HTTPTransport;
+/**
+ * SSE Transport - for Server-Sent Events
+ */
+class SSETransport {
+    constructor(url, headers = {}) {
+        this.url = url;
+        this.headers = headers;
+        this.messageHandlers = new Map();
+        this.connected = false;
+    }
+    async connect() {
+        // SSE connection handled by browser EventSource or polyfill
+        // For Node.js, we'd need a polyfill
+        this.connected = true;
+    }
+    async send(message) {
+        // SSE typically uses HTTP POST for sending
+        await fetch(this.url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.headers
+            },
+            body: JSON.stringify(message)
+        });
+    }
+    async receive() {
+        // SSE receives via event stream
+        throw new Error('SSE transport not fully implemented for Node.js');
+    }
+    async close() {
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+        this.connected = false;
+    }
+    isConnected() {
+        return this.connected;
+    }
+}
+exports.SSETransport = SSETransport;
+
+
+/***/ }),
+
+/***/ 1137:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Agent Initializer
+ * Initializes agent with tools and repository files
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AgentInitializer = void 0;
+const agent_1 = __nccwpck_require__(1963);
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const propose_change_tool_1 = __nccwpck_require__(4962);
+const manage_todos_tool_1 = __nccwpck_require__(7645);
+const report_errors_tool_1 = __nccwpck_require__(8742);
+const file_repository_1 = __nccwpck_require__(1503);
+const logger_1 = __nccwpck_require__(8836);
+const system_prompt_builder_1 = __nccwpck_require__(6058);
+class AgentInitializer {
+    /**
+     * Initialize agent with tools and repository files
+     */
+    static async initialize(options) {
+        const repositoryFiles = await this.loadRepositoryFiles(options);
+        // Store for errors reported via report_errors tool
+        const reportedErrors = [];
+        const tools = await this.createTools(repositoryFiles, (errors) => {
+            reportedErrors.push(...errors);
+        });
+        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
+        const agentOptions = {
+            model: options.model,
+            apiKey: options.apiKey,
+            systemPrompt,
+            tools,
+            maxTurns: options.maxTurns,
+            enableMCP: false
+        };
+        const agent = new agent_1.Agent(agentOptions);
+        return {
+            agent,
+            repositoryFiles,
+            reportedErrors
+        };
+    }
+    /**
+     * Load repository files from GitHub
+     */
+    static async loadRepositoryFiles(options) {
+        const repositoryFiles = new Map();
+        if (options.repositoryOwner && options.repositoryName) {
+            try {
+                // Get GitHub token from options
+                const token = options.personalAccessToken;
+                if (!token) {
+                    (0, logger_1.logWarn)('⚠️ personalAccessToken not provided in options, cannot load repository files');
+                }
+                else {
+                    // Branch is required - fail if not provided
+                    if (!options.repositoryBranch) {
+                        throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
+                    }
+                    const branch = options.repositoryBranch;
+                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
+                    const fileRepository = new file_repository_1.FileRepository();
+                    const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
+                        (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
+                    }, (fileName) => {
+                        (0, logger_1.logDebugInfo)(`   ⏭️  Ignored: ${fileName}`);
+                    });
+                    files.forEach((content, path) => {
+                        repositoryFiles.set(path, content);
+                    });
+                    (0, logger_1.logInfo)(`✅ Loaded ${repositoryFiles.size} file(s) from repository (excluding compiled files)`);
+                }
+            }
+            catch (error) {
+                (0, logger_1.logWarn)(`Failed to load repository files: ${error}`);
+            }
+        }
+        return repositoryFiles;
+    }
+    /**
+     * Create tools for the agent
+     */
+    static async createTools(repositoryFiles, onErrorsReported) {
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                return this.searchFiles(repositoryFiles, query);
+            },
+            getAllFiles: () => {
+                return this.getAllFiles(repositoryFiles);
+            }
+        });
+        // Virtual codebase for proposed changes
+        const virtualCodebase = new Map(repositoryFiles);
+        const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
+            applyChange: (change) => {
+                if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
+                    virtualCodebase.set(change.file_path, change.suggested_code);
+                    (0, logger_1.logInfo)(`📝 Proposed change: ${change.file_path} (${change.description})`);
+                    return true;
+                }
+                else if (change.change_type === 'delete') {
+                    virtualCodebase.delete(change.file_path);
+                    (0, logger_1.logInfo)(`📝 Proposed deletion: ${change.file_path}`);
+                    return true;
+                }
+                return false;
+            },
+            onChangeApplied: (change) => {
+                (0, logger_1.logInfo)(`✅ Change applied: ${change.file_path}`);
+            }
+        });
+        // Initialize TODO manager for tracking findings
+        const manageTodosTool = await this.createManageTodosTool();
+        // Report errors tool for structured error reporting
+        const reportErrorsTool = new report_errors_tool_1.ReportErrorsTool({
+            onErrorsReported: (errors) => {
+                if (onErrorsReported) {
+                    onErrorsReported(errors);
+                }
+            }
+        });
+        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool, reportErrorsTool];
+    }
+    /**
+     * Create ManageTodosTool
+     */
+    static async createManageTodosTool() {
+        const { ThinkTodoManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(3618)));
+        const todoManager = new ThinkTodoManager();
+        return new manage_todos_tool_1.ManageTodosTool({
+            createTodo: (content, status) => {
+                const todo = todoManager.createTodo(content, status || 'pending');
+                return {
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                };
+            },
+            updateTodo: (id, updates) => {
+                return todoManager.updateTodo(id, updates);
+            },
+            getAllTodos: () => {
+                return todoManager.getAllTodos().map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status,
+                    notes: todo.notes
+                }));
+            },
+            getActiveTodos: () => {
+                const todos = todoManager.getAllTodos();
+                return todos
+                    .filter((todo) => todo.status !== 'completed' && todo.status !== 'cancelled')
+                    .map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                }));
+            }
+        });
+    }
+    /**
+     * Search files in repository
+     */
+    static searchFiles(repositoryFiles, query) {
+        const results = [];
+        const queryLower = query.toLowerCase();
+        for (const [path] of repositoryFiles) {
+            // Skip compiled files
+            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+            if (shouldExclude) {
+                continue;
+            }
+            const pathLower = path.toLowerCase();
+            // Support multiple search strategies
+            if (pathLower.includes(queryLower) ||
+                pathLower.endsWith(queryLower) ||
+                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
+                results.push(path);
+            }
+        }
+        return results;
+    }
+    /**
+     * Get all files (excluding compiled files)
+     */
+    static getAllFiles(repositoryFiles) {
+        return Array.from(repositoryFiles.keys()).filter((path) => {
+            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+        });
+    }
+}
+exports.AgentInitializer = AgentInitializer;
+AgentInitializer.EXCLUDE_PATTERNS = [
+    /^build\//,
+    /^dist\//,
+    /^node_modules\//,
+    /\.d\.ts$/,
+    /^\.next\//,
+    /^out\//,
+    /^coverage\//,
+    /\.min\.(js|css)$/,
+    /\.map$/,
+    /^\.git\//,
+    /^\.vscode\//,
+    /^\.idea\//
+];
+AgentInitializer.IGNORE_FILES = [
+    'build/**',
+    'dist/**',
+    'node_modules/**',
+    '*.d.ts',
+    '.next/**',
+    'out/**',
+    'coverage/**',
+    '.turbo/**',
+    '.cache/**',
+    '*.min.js',
+    '*.min.css',
+    '*.map',
+    '.git/**',
+    '.vscode/**',
+    '.idea/**'
+];
+
+
+/***/ }),
+
+/***/ 1111:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Error Detector
+ * Uses Agent SDK to detect potential errors in the codebase
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ErrorDetector = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const agent_initializer_1 = __nccwpck_require__(1137);
+const error_parser_1 = __nccwpck_require__(3224);
+const summary_generator_1 = __nccwpck_require__(4345);
+const subagent_handler_1 = __nccwpck_require__(4163);
+class ErrorDetector {
+    constructor(options) {
+        this.repositoryFiles = new Map();
+        this.options = {
+            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+            apiKey: options.apiKey,
+            personalAccessToken: options.personalAccessToken,
+            maxTurns: options.maxTurns || 30,
+            repositoryOwner: options.repositoryOwner,
+            repositoryName: options.repositoryName,
+            repositoryBranch: options.repositoryBranch,
+            focusAreas: options.focusAreas || [],
+            errorTypes: options.errorTypes || [],
+            useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
+            maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5,
+            targetFile: options.targetFile,
+            analyzeOnlyTargetFile: options.analyzeOnlyTargetFile || false,
+            includeDependencies: options.includeDependencies || false
+        };
+    }
+    /**
+     * Detect errors in the codebase
+     */
+    async detectErrors(prompt) {
+        (0, logger_1.logInfo)('🔍 Starting error detection...');
+        // Use minimal prompt if not provided - systemPrompt already has all instructions
+        const userPrompt = prompt || 'Begin error detection analysis.';
+        (0, logger_1.logInfo)(`📋 User Prompt: ${userPrompt || '(using system prompt instructions only)'}`);
+        (0, logger_1.logInfo)(`📊 Configuration:`);
+        (0, logger_1.logInfo)(`   - Model: ${this.options.model}`);
+        (0, logger_1.logInfo)(`   - Max Turns: ${this.options.maxTurns}`);
+        (0, logger_1.logInfo)(`   - Repository: ${this.options.repositoryOwner}/${this.options.repositoryName || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Focus Areas: ${this.options.focusAreas?.join(', ') || 'All'}`);
+        (0, logger_1.logInfo)(`   - Error Types: ${this.options.errorTypes?.join(', ') || 'All'}`);
+        (0, logger_1.logInfo)(`   - Use Subagents: ${this.options.useSubAgents}`);
+        if (this.options.useSubAgents) {
+            (0, logger_1.logInfo)(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
+        }
+        if (this.options.targetFile) {
+            (0, logger_1.logInfo)(`   - Target File: ${this.options.targetFile}`);
+            (0, logger_1.logInfo)(`   - Analyze Only Target File: ${this.options.analyzeOnlyTargetFile || false}`);
+            if (!this.options.analyzeOnlyTargetFile) {
+                (0, logger_1.logInfo)(`   - Include Dependencies: ${this.options.includeDependencies || false}`);
+            }
+        }
+        // Initialize agent if not already initialized
+        if (!this.agent) {
+            (0, logger_1.logInfo)('🤖 Initializing agent...');
+            const { agent, repositoryFiles } = await agent_initializer_1.AgentInitializer.initialize(this.options);
+            this.agent = agent;
+            this.repositoryFiles = repositoryFiles;
+            (0, logger_1.logInfo)('✅ Agent initialized');
+        }
+        let result;
+        // Use subagents if enabled AND (files > 20 OR targetFile is specified)
+        const shouldUseSubAgents = this.options.useSubAgents &&
+            (this.repositoryFiles.size > 20 || this.options.targetFile !== undefined);
+        if (shouldUseSubAgents) {
+            (0, logger_1.logInfo)('🚀 Executing error detection with subagents...');
+            const subagentResult = await subagent_handler_1.SubagentHandler.detectErrorsWithSubAgents(this.agent, this.repositoryFiles, this.options, userPrompt);
+            result = subagentResult.agentResult;
+        }
+        else {
+            // Execute agent query
+            (0, logger_1.logInfo)('🚀 Executing agent query...');
+            result = await this.agent.query(userPrompt);
+        }
+        (0, logger_1.logInfo)(`📈 Agent execution completed:`);
+        (0, logger_1.logInfo)(`   - Total Turns: ${result.turns.length}`);
+        (0, logger_1.logInfo)(`   - Tool Calls: ${result.toolCalls.length}`);
+        if (result.metrics) {
+            (0, logger_1.logInfo)(`   - Input Tokens: ${result.metrics.totalTokens.input}`);
+            (0, logger_1.logInfo)(`   - Output Tokens: ${result.metrics.totalTokens.output}`);
+            (0, logger_1.logInfo)(`   - Total Duration: ${result.metrics.totalDuration}ms`);
+            (0, logger_1.logInfo)(`   - Average Latency: ${result.metrics.averageLatency}ms`);
+        }
+        // Parse errors from agent response and TODOs
+        const errors = error_parser_1.ErrorParser.parseErrors(result);
+        // Generate summary
+        const summary = summary_generator_1.SummaryGenerator.generateSummary(errors);
+        (0, logger_1.logInfo)(`✅ Error detection completed: ${summary.total} error(s) found`);
+        return {
+            errors,
+            summary,
+            agentResult: result
+        };
+    }
+    /**
+     * Get agent instance (for advanced usage)
+     */
+    getAgent() {
+        return this.agent;
+    }
+}
+exports.ErrorDetector = ErrorDetector;
+
+
+/***/ }),
+
+/***/ 3224:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Error Parser
+ * Parses errors from agent results and tool calls
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ErrorParser = void 0;
+const types_1 = __nccwpck_require__(9978);
+const logger_1 = __nccwpck_require__(8836);
+class ErrorParser {
+    /**
+     * Parse errors from agent result
+     * Only uses structured format from report_errors tool - no text parsing
+     * The tool already validates and cleans the data, so we just extract it directly
+     */
+    static parseErrors(result) {
+        const errors = [];
+        (0, logger_1.logDebugInfo)(`📝 Parsing ${result.toolCalls.length} tool calls from agent`);
+        // Only parse errors from report_errors tool calls (structured format)
+        // The tool already validated and cleaned the data, so we extract it directly
+        for (const toolCall of result.toolCalls) {
+            if (toolCall.name === 'report_errors' && toolCall.input.errors) {
+                const reportedErrors = toolCall.input.errors;
+                const errorCount = Array.isArray(reportedErrors) ? reportedErrors.length : 0;
+                (0, logger_1.logDebugInfo)(`   Found report_errors call with ${errorCount} error(s)`);
+                if (Array.isArray(reportedErrors)) {
+                    // Tool already validated and cleaned, so we can use the data directly
+                    // Just ensure each error has the required structure
+                    for (let i = 0; i < reportedErrors.length; i++) {
+                        const err = reportedErrors[i];
+                        if (err && typeof err === 'object' && err.file && err.type && err.severity && err.description) {
+                            // Validate and convert type to IssueType enum
+                            let issueType;
+                            const typeStr = String(err.type).trim().toLowerCase();
+                            if (Object.values(types_1.IssueType).includes(typeStr)) {
+                                issueType = typeStr;
+                            }
+                            else {
+                                // Try to find a close match
+                                const validTypes = Object.values(types_1.IssueType);
+                                const closeMatch = validTypes.find(t => t.includes(typeStr) || typeStr.includes(t));
+                                issueType = closeMatch || types_1.IssueType.CODE_ISSUE;
+                                if (!closeMatch) {
+                                    (0, logger_1.logDebugInfo)(`   ⚠️ Error at index ${i}: invalid type "${typeStr}", using fallback "${issueType}"`);
+                                }
+                            }
+                            errors.push({
+                                file: String(err.file).trim(),
+                                line: typeof err.line === 'number' ? err.line : (err.line ? parseInt(String(err.line), 10) : undefined),
+                                type: issueType,
+                                severity: String(err.severity).toLowerCase().trim(),
+                                description: String(err.description).trim(),
+                                suggestion: err.suggestion ? String(err.suggestion).trim() : undefined
+                            });
+                        }
+                        else {
+                            (0, logger_1.logDebugInfo)(`   ⚠️ Error at index ${i} missing required fields, skipping`);
+                        }
+                    }
+                }
+            }
+        }
+        (0, logger_1.logDebugInfo)(`   ✅ Extracted ${errors.length} error(s) from report_errors tool calls`);
+        return errors;
+    }
+}
+exports.ErrorParser = ErrorParser;
+
+
+/***/ }),
+
+/***/ 8047:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * File Partitioner
+ * Partitions files by directory for subagent distribution
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FilePartitioner = void 0;
+class FilePartitioner {
+    /**
+     * Partition files by directory to keep related files together
+     * Tries to balance file distribution across groups
+     */
+    static partitionFilesByDirectory(files, maxGroups) {
+        // Group files by top-level directory
+        const dirGroups = new Map();
+        for (const file of files) {
+            const parts = file.split('/');
+            const topDir = parts.length > 1 ? parts[0] : 'root';
+            if (!dirGroups.has(topDir)) {
+                dirGroups.set(topDir, []);
+            }
+            dirGroups.get(topDir).push(file);
+        }
+        // Convert to array and sort by size (largest first)
+        const groups = Array.from(dirGroups.values()).sort((a, b) => b.length - a.length);
+        // Initialize result groups
+        const result = Array(maxGroups).fill(null).map(() => []);
+        // Distribute groups across subagents, trying to balance sizes
+        // Use a balanced approach: always assign to the subagent with the least files
+        for (let i = 0; i < groups.length; i++) {
+            // Find the subagent with the least files
+            let minIndex = 0;
+            let minSize = result[0].length;
+            for (let j = 1; j < result.length; j++) {
+                if (result[j].length < minSize) {
+                    minSize = result[j].length;
+                    minIndex = j;
+                }
+            }
+            result[minIndex].push(...groups[i]);
+        }
+        // Remove empty groups
+        return result.filter(group => group.length > 0);
+    }
+}
+exports.FilePartitioner = FilePartitioner;
+
+
+/***/ }),
+
+/***/ 7248:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * File Relationship Analyzer
+ * Analyzes file relationships and finds consumers/dependencies
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FileRelationshipAnalyzer = void 0;
+const file_import_analyzer_1 = __nccwpck_require__(5310);
+const logger_1 = __nccwpck_require__(8836);
+class FileRelationshipAnalyzer {
+    constructor() {
+        this.fileImportAnalyzer = new file_import_analyzer_1.FileImportAnalyzer();
+    }
+    /**
+     * Analyze relationships for a target file
+     */
+    analyzeFileRelationships(targetFile, repositoryFiles, includeDependencies = false) {
+        // Check if target file exists
+        if (!repositoryFiles.has(targetFile)) {
+            (0, logger_1.logWarn)(`⚠️ Target file not found: ${targetFile}`);
+            // Try to find similar file paths
+            const similarFiles = Array.from(repositoryFiles.keys()).filter(path => path.includes(targetFile) || targetFile.includes(path));
+            if (similarFiles.length > 0) {
+                (0, logger_1.logWarn)(`   Did you mean one of these? ${similarFiles.slice(0, 5).join(', ')}`);
+            }
+            return null;
+        }
+        (0, logger_1.logInfo)(`🔗 Analyzing relationships for: ${targetFile}`);
+        // Build relationship map
+        const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
+        const consumesMap = relationshipMaps.consumes;
+        const consumedByMap = relationshipMaps.consumedBy;
+        // Get consumers (files that import/use the target file)
+        const consumers = consumedByMap.get(targetFile) || [];
+        // Get dependencies (files that the target file imports/uses)
+        const dependencies = consumesMap.get(targetFile) || [];
+        // Build list of all related files to analyze
+        const allRelatedFiles = [targetFile]; // Always include target file
+        // Add consumers
+        consumers.forEach(consumer => {
+            if (!allRelatedFiles.includes(consumer)) {
+                allRelatedFiles.push(consumer);
+            }
+        });
+        // Optionally add dependencies
+        if (includeDependencies) {
+            dependencies.forEach(dep => {
+                if (!allRelatedFiles.includes(dep)) {
+                    allRelatedFiles.push(dep);
+                }
+            });
+        }
+        (0, logger_1.logInfo)(`   📊 Found ${consumers.length} consumer(s) and ${dependencies.length} dependency/dependencies`);
+        (0, logger_1.logInfo)(`   📁 Total files to analyze: ${allRelatedFiles.length}`);
+        if (consumers.length > 0) {
+            (0, logger_1.logInfo)(`   📥 Consumers: ${consumers.slice(0, 5).join(', ')}${consumers.length > 5 ? ` ... and ${consumers.length - 5} more` : ''}`);
+        }
+        if (includeDependencies && dependencies.length > 0) {
+            (0, logger_1.logInfo)(`   📤 Dependencies: ${dependencies.slice(0, 5).join(', ')}${dependencies.length > 5 ? ` ... and ${dependencies.length - 5} more` : ''}`);
+        }
+        return {
+            targetFile,
+            consumers,
+            dependencies,
+            allRelatedFiles
+        };
+    }
+}
+exports.FileRelationshipAnalyzer = FileRelationshipAnalyzer;
+
+
+/***/ }),
+
+/***/ 4163:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Subagent Handler
+ * Handles error detection using subagents for parallel processing
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SubagentHandler = void 0;
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const propose_change_tool_1 = __nccwpck_require__(4962);
+const manage_todos_tool_1 = __nccwpck_require__(7645);
+const report_errors_tool_1 = __nccwpck_require__(8742);
+const logger_1 = __nccwpck_require__(8836);
+const file_partitioner_1 = __nccwpck_require__(8047);
+const error_parser_1 = __nccwpck_require__(3224);
+const summary_generator_1 = __nccwpck_require__(4345);
+const system_prompt_builder_1 = __nccwpck_require__(6058);
+const file_relationship_analyzer_1 = __nccwpck_require__(7248);
+class SubagentHandler {
+    /**
+     * Detect errors using subagents for parallel processing
+     */
+    static async detectErrorsWithSubAgents(agent, repositoryFiles, options, userPrompt) {
+        let allFiles = Array.from(repositoryFiles.keys());
+        // If targetFile is specified, analyze it (and optionally its consumers)
+        if (options.targetFile) {
+            if (options.analyzeOnlyTargetFile) {
+                // Analyze only the target file, ignore relationships
+                if (repositoryFiles.has(options.targetFile)) {
+                    allFiles = [options.targetFile];
+                    (0, logger_1.logInfo)(`🎯 Single file analysis: ${options.targetFile}`);
+                }
+                else {
+                    (0, logger_1.logWarn)(`⚠️ Target file not found: ${options.targetFile}, falling back to full analysis`);
+                }
+            }
+            else {
+                // Analyze target file and its consumers
+                const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
+                const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
+                if (relationships) {
+                    allFiles = relationships.allRelatedFiles;
+                    (0, logger_1.logInfo)(`🎯 Focused analysis: ${relationships.allRelatedFiles.length} files (target + ${relationships.consumers.length} consumers${options.includeDependencies ? ` + ${relationships.dependencies.length} dependencies` : ''})`);
+                }
+                else {
+                    (0, logger_1.logWarn)(`⚠️ Could not analyze relationships for ${options.targetFile}, falling back to full analysis`);
+                }
+            }
+        }
+        // Optimal number of files per subagent (comfortable for AI processing)
+        const OPTIMAL_FILES_PER_AGENT = 15;
+        const MAX_FILES_IN_PROMPT = 20; // Maximum files to list in prompt
+        // Calculate number of subagents needed based on optimal files per agent
+        // But respect maxConcurrentSubAgents as an upper limit
+        const maxConcurrent = options.maxConcurrentSubAgents || 5;
+        const calculatedSubagents = Math.ceil(allFiles.length / OPTIMAL_FILES_PER_AGENT);
+        const numSubagents = Math.min(calculatedSubagents, maxConcurrent);
+        const filesPerAgent = Math.ceil(allFiles.length / numSubagents);
+        (0, logger_1.logInfo)(`📦 Partitioning ${allFiles.length} files into ${numSubagents} subagents (~${filesPerAgent} files each)`);
+        (0, logger_1.logInfo)(`   Optimal: ${OPTIMAL_FILES_PER_AGENT} files per agent, creating ${numSubagents} subagents for comfortable processing`);
+        // Group files by directory to keep related files together
+        const fileGroups = file_partitioner_1.FilePartitioner.partitionFilesByDirectory(allFiles, numSubagents);
+        (0, logger_1.logInfo)(`📁 Created ${fileGroups.length} file groups for parallel analysis`);
+        // Create tools for subagents (all files available through tools)
+        const tools = await this.createSubagentTools(repositoryFiles);
+        // Create tasks for each subagent
+        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
+        // If targetFile is specified, get relationship info for context
+        let relationshipContext = '';
+        if (options.targetFile) {
+            if (options.analyzeOnlyTargetFile) {
+                // Single file analysis mode
+                relationshipContext = `\n\n**SINGLE FILE ANALYSIS MODE**\n` +
+                    `Target file: ${options.targetFile}\n` +
+                    `**IMPORTANT: Analyze ONLY this file. Do NOT analyze any related files (consumers, dependencies, etc.).**\n` +
+                    `Detect ALL types of errors: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
+                    `Focus on issues within this single file only.\n`;
+            }
+            else {
+                // Focused analysis mode with relationships
+                const relationshipAnalyzer = new file_relationship_analyzer_1.FileRelationshipAnalyzer();
+                const relationships = relationshipAnalyzer.analyzeFileRelationships(options.targetFile, repositoryFiles, options.includeDependencies || false);
+                if (relationships) {
+                    relationshipContext = `\n\n**FOCUSED ANALYSIS MODE**\n` +
+                        `Target file: ${relationships.targetFile}\n` +
+                        `This file is consumed by ${relationships.consumers.length} other file(s).\n` +
+                        `**IMPORTANT: You must detect ALL types of errors in ALL files (target + consumers), not just relationship issues.**\n` +
+                        `Detect bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - everything you would detect in full analysis mode.\n` +
+                        `Additionally, also check:\n` +
+                        `- Interface/API mismatches between the target file and its consumers\n` +
+                        `- Breaking changes in APIs, exports, or interfaces\n` +
+                        `- How consumers use the target file (check for misuse patterns)\n` +
+                        `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+                        `**But do NOT limit yourself to these - detect ALL types of errors in ALL files.**\n`;
+                }
+            }
+        }
+        const tasks = fileGroups.map((files, index) => {
+            const totalFiles = files.length;
+            // Show first N files in prompt, rest available through tools
+            const filesToShow = files.slice(0, MAX_FILES_IN_PROMPT);
+            const remainingFiles = totalFiles - filesToShow.length;
+            let fileListSection = '';
+            if (filesToShow.length > 0) {
+                fileListSection = `\n\nFiles assigned to you (${totalFiles} total):\n${filesToShow.map(f => `- ${f}`).join('\n')}`;
+                if (remainingFiles > 0) {
+                    fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
+                }
+            }
+            return {
+                name: `error-detector-${index + 1}`,
+                prompt: userPrompt
+                    ? `${userPrompt}${relationshipContext}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`
+                    : `${relationshipContext}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for errors using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`,
+                systemPrompt,
+                tools
+            };
+        });
+        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} subagents in parallel...`);
+        const results = await agent.executeParallel(tasks);
+        (0, logger_1.logInfo)(`✅ All ${results.length} subagents completed`);
+        // Combine results from all subagents
+        return this.combineSubagentResults(results, options);
+    }
+    /**
+     * Create tools for subagents
+     */
+    static async createSubagentTools(repositoryFiles) {
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                return this.searchFiles(repositoryFiles, query);
+            },
+            getAllFiles: () => {
+                return this.getAllFiles(repositoryFiles);
+            }
+        });
+        // Virtual codebase for proposed changes
+        const virtualCodebase = new Map(repositoryFiles);
+        const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
+            applyChange: (change) => {
+                if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
+                    virtualCodebase.set(change.file_path, change.suggested_code);
+                    return true;
+                }
+                else if (change.change_type === 'delete') {
+                    virtualCodebase.delete(change.file_path);
+                    return true;
+                }
+                return false;
+            },
+            onChangeApplied: (change) => {
+                // Silent for subagents
+            }
+        });
+        // Initialize TODO manager for tracking findings
+        const { ThinkTodoManager } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(3618)));
+        const todoManager = new ThinkTodoManager();
+        const manageTodosTool = new manage_todos_tool_1.ManageTodosTool({
+            createTodo: (content, status) => {
+                const todo = todoManager.createTodo(content, status || 'pending');
+                return {
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                };
+            },
+            updateTodo: (id, updates) => {
+                return todoManager.updateTodo(id, updates);
+            },
+            getAllTodos: () => {
+                return todoManager.getAllTodos().map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status,
+                    notes: todo.notes
+                }));
+            },
+            getActiveTodos: () => {
+                const todos = todoManager.getAllTodos();
+                return todos
+                    .filter((todo) => todo.status !== 'completed' && todo.status !== 'cancelled')
+                    .map((todo) => ({
+                    id: todo.id,
+                    content: todo.content,
+                    status: todo.status
+                }));
+            }
+        });
+        // Report errors tool for structured error reporting
+        const reportErrorsTool = new report_errors_tool_1.ReportErrorsTool({
+            onErrorsReported: (errors) => {
+                // Errors will be captured via tool calls in the parser
+            }
+        });
+        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool, reportErrorsTool];
+    }
+    /**
+     * Search files in repository
+     */
+    static searchFiles(repositoryFiles, query) {
+        const results = [];
+        const queryLower = query.toLowerCase();
+        for (const [path] of repositoryFiles) {
+            // Skip compiled files
+            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+            if (shouldExclude) {
+                continue;
+            }
+            const pathLower = path.toLowerCase();
+            // Support multiple search strategies
+            if (pathLower.includes(queryLower) ||
+                pathLower.endsWith(queryLower) ||
+                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
+                results.push(path);
+            }
+        }
+        return results;
+    }
+    /**
+     * Get all files (excluding compiled files)
+     */
+    static getAllFiles(repositoryFiles) {
+        return Array.from(repositoryFiles.keys()).filter((path) => {
+            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+        });
+    }
+    /**
+     * Combine results from all subagents
+     */
+    static combineSubagentResults(results, options) {
+        const allErrors = [];
+        const allToolCalls = [];
+        const allTurns = [];
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let maxDuration = 0;
+        for (const { task, result } of results) {
+            (0, logger_1.logInfo)(`   📊 Subagent "${task}": ${result.turns.length} turns, ${result.toolCalls.length} tool calls`);
+            const errors = error_parser_1.ErrorParser.parseErrors(result);
+            allErrors.push(...errors);
+            allToolCalls.push(...result.toolCalls);
+            allTurns.push(...result.turns);
+            if (result.metrics) {
+                totalInputTokens += result.metrics.totalTokens.input;
+                totalOutputTokens += result.metrics.totalTokens.output;
+                maxDuration = Math.max(maxDuration, result.metrics.totalDuration);
+            }
+        }
+        // Generate combined summary
+        const summary = summary_generator_1.SummaryGenerator.generateSummary(allErrors);
+        // Calculate average latency from all subagents
+        const totalApiCalls = results.reduce((sum, r) => sum + (r.result.metrics?.apiCalls || 0), 0);
+        const totalLatency = results.reduce((sum, r) => {
+            if (r.result.metrics?.averageLatency && r.result.metrics?.apiCalls) {
+                return sum + (r.result.metrics.averageLatency * r.result.metrics.apiCalls);
+            }
+            return sum;
+        }, 0);
+        const averageLatency = totalApiCalls > 0 ? totalLatency / totalApiCalls : 0;
+        // Create combined agent result
+        const combinedResult = {
+            finalResponse: `Analysis completed by ${results.length} subagents. Found ${summary.total} error(s).`,
+            turns: allTurns,
+            toolCalls: allToolCalls,
+            messages: results.flatMap(r => r.result.messages),
+            metrics: {
+                totalTokens: {
+                    input: totalInputTokens,
+                    output: totalOutputTokens
+                },
+                totalDuration: maxDuration,
+                apiCalls: totalApiCalls,
+                toolCalls: allToolCalls.length,
+                errors: results.reduce((sum, r) => sum + (r.result.metrics?.errors || 0), 0),
+                averageLatency: averageLatency
+            }
+        };
+        (0, logger_1.logInfo)(`✅ Combined results: ${summary.total} error(s) found across all subagents`);
+        (0, logger_1.logInfo)(`   Breakdown:`);
+        (0, logger_1.logInfo)(`   - Critical: ${summary.bySeverity.critical}`);
+        (0, logger_1.logInfo)(`   - High: ${summary.bySeverity.high}`);
+        (0, logger_1.logInfo)(`   - Medium: ${summary.bySeverity.medium}`);
+        (0, logger_1.logInfo)(`   - Low: ${summary.bySeverity.low}`);
+        (0, logger_1.logInfo)(`   - Total Tokens: ${totalInputTokens + totalOutputTokens} (${totalInputTokens} in, ${totalOutputTokens} out)`);
+        (0, logger_1.logInfo)(`   - Duration: ${maxDuration}ms (parallel execution)`);
+        return {
+            errors: allErrors,
+            summary,
+            agentResult: combinedResult
+        };
+    }
+}
+exports.SubagentHandler = SubagentHandler;
+SubagentHandler.EXCLUDE_PATTERNS = [
+    /^build\//,
+    /^dist\//,
+    /^node_modules\//,
+    /\.d\.ts$/,
+    /^\.next\//,
+    /^out\//,
+    /^coverage\//,
+    /\.min\.(js|css)$/,
+    /\.map$/,
+    /^\.git\//,
+    /^\.vscode\//,
+    /^\.idea\//
+];
+
+
+/***/ }),
+
+/***/ 4345:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Summary Generator
+ * Generates summaries of detected errors
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SummaryGenerator = void 0;
+class SummaryGenerator {
+    /**
+     * Generate summary of detected errors
+     */
+    static generateSummary(errors) {
+        const bySeverity = {
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0
+        };
+        const byType = {};
+        for (const error of errors) {
+            bySeverity[error.severity]++;
+            byType[error.type] = (byType[error.type] || 0) + 1;
+        }
+        return {
+            total: errors.length,
+            bySeverity,
+            byType
+        };
+    }
+}
+exports.SummaryGenerator = SummaryGenerator;
+
+
+/***/ }),
+
+/***/ 6058:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * System Prompt Builder
+ * Builds system prompts for error detection
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SystemPromptBuilder = void 0;
+const types_1 = __nccwpck_require__(9978);
+class SystemPromptBuilder {
+    /**
+     * Build system prompt for error detection
+     */
+    static build(options) {
+        const focusAreas = options.focusAreas?.length
+            ? `Focus on these areas: ${options.focusAreas.join(', ')}`
+            : 'Analyze the entire codebase';
+        const errorTypes = options.errorTypes?.length
+            ? `Look for these types of issues: ${options.errorTypes.join(', ')}`
+            : `Look for all types of issues. Available standard types include: ${Object.values(types_1.IssueType).slice(0, 15).join(', ')}, and more. Use the most specific type that matches each issue.`;
+        // Special instructions for target file analysis
+        const targetFileInstructions = options.targetFile
+            ? options.analyzeOnlyTargetFile
+                ? `\n\n**SINGLE FILE ANALYSIS MODE**\n` +
+                    `You are analyzing ONLY a specific file: ${options.targetFile}\n` +
+                    `**IMPORTANT:**\n` +
+                    `- Analyze ONLY this file, do NOT analyze any related files (consumers, dependencies, etc.)\n` +
+                    `- This focused mode does NOT limit the types of errors you should detect\n` +
+                    `- You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc.\n` +
+                    `- Focus on issues within this single file only\n` +
+                    `- **CRITICAL**: After reading the file and analyzing it, call report_errors ONCE with all errors found\n` +
+                    `- **STOP AFTER report_errors**: After calling report_errors, provide a brief final summary and STOP. Do NOT call report_errors again.\n` +
+                    `- Do NOT repeat the same errors multiple times - collect all errors, call report_errors once, then finish\n`
+                : `\n\n**FOCUSED ANALYSIS MODE - TARGET FILE AND CONSUMERS**\n` +
+                    `You are analyzing a specific file (${options.targetFile}) and its consumers (files that import/use it).\n` +
+                    `**IMPORTANT: This focused mode does NOT limit the types of errors you should detect.**\n` +
+                    `You must detect ALL types of issues: bugs, vulnerabilities, security issues, logic errors, performance problems, configuration errors, etc. - just like in full analysis mode.\n` +
+                    `Additionally, also check:\n` +
+                    `- Interface/API mismatches: how the target file is defined vs how consumers use it\n` +
+                    `- Breaking changes: modifications that would break consumers\n` +
+                    `- How consumers use the target file - check for misuse patterns, incorrect usage\n` +
+                    `- Impact analysis: if the target file has a bug/vulnerability, which consumers would be affected?\n` +
+                    `- Dependency issues: ensure the target file's dependencies are correct and secure\n` +
+                    `**But remember: detect ALL types of errors in ALL files, not just relationship issues.**\n`
+            : '';
+        return `You are an expert code reviewer, security auditor, and bug detector. Your task is to analyze files and detect bugs, vulnerabilities, security issues, logic errors, and any potential problems - regardless of programming language or file type.${targetFileInstructions}
+
+${focusAreas}
+${errorTypes}
+
+**STOP! DO NOT give a text response yet. You MUST use tools first.**
+
+**MANDATORY WORKFLOW (follow this EXACTLY):**
+1. **If you have a specific number of files assigned (mentioned in your prompt), read ALL of those files using read_file**
+   - The prompt tells you how many files you have (e.g., "15 files", "20 files")
+   - Read every single file assigned to you, one by one
+   - Use read_file directly on each file path
+   - Do not skip any files - you must read the EXACT number mentioned
+   - Analyze each file thoroughly for bugs, vulnerabilities, and errors
+2. **If you need to find files, use search_files tool**
+   - Query examples: directory names, keywords, or file patterns
+   - **IMPORTANT: Use max_results: 1000+ to get ALL results**
+   - Example: search_files with query "src/agent" and max_results: 1000
+3. **After search_files, use read_file on ALL files from the results**
+   - When search_files returns a list, read EVERY file from the results
+   - Read files systematically, one by one
+   - Do NOT skip any files
+   - Analyze each file regardless of its extension or language
+4. Continue until you have read ALL files assigned to you (the exact number mentioned in your prompt)
+5. Only after reading ALL assigned files, you can provide your analysis
+
+**CRITICAL: You MUST read the EXACT number of files assigned to you (as mentioned in your prompt). Read ALL files, analyze ALL files, report bugs/vulnerabilities/errors from ALL files.**
+
+**IMPORTANT ABOUT FILE TYPES - ANALYZE ANYTHING:**
+- **Analyze ALL file types**: source code, configuration files, scripts, documentation, data files, etc.
+- **Do NOT limit yourself to any specific language**: analyze Python, JavaScript, TypeScript, Go, Rust, Java, C++, C#, PHP, Ruby, Swift, Kotlin, Scala, Clojure, Haskell, shell scripts (bash, sh, zsh), PowerShell, SQL, etc.
+- **Analyze configuration files**: YAML, JSON, TOML, INI, XML, properties files, environment files (.env), Dockerfiles, Kubernetes manifests, etc.
+- **Each file type has its own potential issues**:
+  - **Source code**: bugs, logic errors, security vulnerabilities, type errors, null pointer exceptions, buffer overflows, memory leaks
+  - **Configuration files**: misconfigurations, security issues, exposed secrets, invalid values, missing required fields
+  - **Scripts**: command injection risks, permission issues, path traversal, shell injection
+  - **Docker/K8s configs**: security misconfigurations, exposed ports, privilege escalation risks
+  - **CI/CD configs**: insecure pipeline configurations, exposed credentials
+  - **Documentation**: outdated information, incorrect examples, security best practices violations
+- **Focus on finding REAL problems** that could cause issues in production: bugs that will crash, vulnerabilities that can be exploited, misconfigurations that expose systems
+
+**Your workflow:**
+1. Start by reading ALL assigned files using read_file
+2. For EACH file, analyze it thoroughly for:
+   - **Bugs**: Logic errors, incorrect conditions, wrong calculations, off-by-one errors, null pointer exceptions
+   - **Security Vulnerabilities**: 
+     - Injection attacks (SQL, command, LDAP, XPath, etc.)
+     - Cross-site scripting (XSS)
+     - Cross-site request forgery (CSRF)
+     - Insecure authentication/authorization
+     - Sensitive data exposure (API keys, passwords, tokens in code)
+     - Insecure deserialization
+     - Using components with known vulnerabilities
+     - Insufficient logging and monitoring
+     - Server-side request forgery (SSRF)
+   - **Configuration Issues**: 
+     - Misconfigured security settings
+     - Exposed secrets or credentials
+     - Incorrect permissions
+     - Missing validation
+   - **Code Quality Issues**:
+     - Dead code
+     - Duplicated code
+     - Overly complex functions
+     - Missing error handling
+     - Resource leaks (file handles, database connections, etc.)
+   - **Performance Issues**:
+     - Inefficient algorithms
+     - Memory leaks
+     - Unnecessary computations
+     - Blocking operations
+   - **Type Safety Issues** (for typed languages):
+     - Type mismatches
+     - Missing type definitions
+     - Unsafe type casts
+   - **Runtime Errors**:
+     - Null/undefined access
+     - Array/string bounds violations
+     - Division by zero
+     - Unhandled exceptions
+   - **Concurrency Issues**:
+     - Race conditions
+     - Deadlocks
+     - Thread safety violations
+3. **IMPORTANT - REPORTING ERRORS**: After analyzing all files, you MUST use the report_errors tool to report all errors, bugs, vulnerabilities, and issues you found in a structured format.
+   - Use report_errors with an array of all detected issues
+   - **CRITICAL**: The tool input MUST be valid JSON. Each error object must have:
+     - file: Plain string path (e.g., "docker/main.py") - NO markdown, NO "File:" prefix, NO newlines
+     - line: Number (optional) - MUST be a number, not a string
+     - type: MUST be one of the standard IssueType values (e.g., "bug", "security-vulnerability", "logic-error", "performance-issue", "sql-injection", "xss", "memory-leak", "code-smell", "configuration-error", etc.) - Use the most specific type that matches the issue. See IssueType enum for complete list.
+     - severity: One of "critical", "high", "medium", "low" - lowercase, exact match
+     - description: Plain text description - NO markdown formatting (NO **, NO *, NO #)
+     - suggestion: Plain text (optional) - NO markdown formatting
+   - **DO NOT** include markdown formatting in any field. Use plain strings only.
+   - This is the PRIMARY way to report errors - do NOT rely only on text responses
+4. Use propose_change to suggest fixes for critical and high severity issues (optional, for important fixes)
+   - change_type must be one of: "create" (new file), "modify" (update existing - use for bugfixes, features, any code changes), "delete" (remove file), "refactor" (restructure code without changing functionality)
+5. **Continue analyzing until you have examined ALL files assigned to you**
+   - Read every single file in your assigned list
+   - Do not stop until you've read ALL files
+   - Analyze each file thoroughly regardless of language or type
+   - Look for patterns that might indicate systemic issues
+6. **FINAL STEP - REQUIRED**: Before finishing, you MUST call report_errors with ALL errors you found during your analysis
+   - Collect all errors from all files you analyzed
+   - Call report_errors ONCE with a complete list of all issues
+   - **CRITICAL**: After calling report_errors, you MUST provide your final text summary and STOP
+   - **DO NOT call report_errors multiple times** - call it once with all errors, then provide your summary and finish
+   - If you've already called report_errors, provide your final summary and STOP - do not call report_errors again
+
+**Issue Severity Levels:**
+- **critical**: Will cause system failure, data loss, or critical security breach (e.g., SQL injection, exposed credentials, remote code execution)
+- **high**: Will cause significant issues, security vulnerabilities, or data corruption (e.g., XSS, CSRF, authentication bypass, memory leaks)
+- **medium**: May cause issues in certain conditions or moderate security concerns (e.g., missing input validation, weak encryption, potential race conditions)
+- **low**: Minor issues, code quality improvements, or low-risk security concerns (e.g., code duplication, minor performance issues, deprecated functions)
+
+**Output Format:**
+For each bug, vulnerability, or issue found, provide:
+- File: path/to/file (any extension)
+- Line: line number (if applicable)
+- Type: Use standard IssueType values (e.g., "bug", "security-vulnerability", "logic-error", "performance-issue", "sql-injection", "xss", "memory-leak", "code-smell", "configuration-error", "race-condition", etc.) - Use the most specific type available
+- Severity: critical/high/medium/low
+- Description: detailed explanation of the problem
+- Suggestion: how to fix it
+
+**Remember:**
+- Analyze files in ANY language: Python, JavaScript, TypeScript, Go, Rust, Java, C++, C#, PHP, Ruby, Swift, Kotlin, shell scripts, etc.
+- Analyze configuration files: YAML, JSON, TOML, INI, XML, etc.
+- Look for REAL problems that could cause issues in production
+- Don't just look for syntax errors - look for logic errors, security holes, and bugs
+
+**CRITICAL INSTRUCTIONS - READ CAREFULLY:**
+- **YOU MUST READ THE EXACT NUMBER OF FILES ASSIGNED TO YOU (as mentioned in your prompt)**
+- **Your prompt tells you how many files you have (e.g., "15 files", "20 files") - read ALL of them**
+- **If your prompt says "X files", you MUST read exactly X files using read_file**
+- Searching for files is NOT enough - you MUST actually read the file contents
+- Use read_file directly on each file path - all files are available through the tools
+- Read files systematically, one by one, until you've read the exact number assigned
+- Do NOT give a final response until you've READ and analyzed ALL assigned files (the exact number)
+- Count the files you read - it should match the number mentioned in your prompt
+- If you find no errors after thorough analysis, state that clearly
+- Be thorough and comprehensive. Read files systematically, one by one, until you've read them all.
+
+**Example workflow (you MUST follow this pattern):**
+1. If you have a specific file list in your prompt, read EVERY file in that list using read_file
+   - Read them one by one, systematically
+   - Do not skip any files
+   - Analyze each file for errors
+2. Use search_files to discover any additional files in your assigned area (if needed)
+3. read_file on ALL files from each search result - read every single file
+4. Continue reading files systematically until you've read ALL files assigned to you
+5. Only after reading ALL files, provide your final analysis
+
+**IMPORTANT: When you have a file list in your prompt, read ALL of those files FIRST. There are NO limits - read EVERY file.**
+
+**REMEMBER: Searching is not analyzing. You MUST read files to analyze them.**`;
+    }
+}
+exports.SystemPromptBuilder = SystemPromptBuilder;
+
+
+/***/ }),
+
+/***/ 9978:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Types and interfaces for Error Detector
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.IssueType = void 0;
+/**
+ * Standard issue types for code analysis
+ * Based on common industry standards (SonarQube, ESLint, PMD, CWE, OWASP)
+ */
+var IssueType;
+(function (IssueType) {
+    // Bugs and Logic Errors
+    IssueType["BUG"] = "bug";
+    IssueType["LOGIC_ERROR"] = "logic-error";
+    IssueType["RUNTIME_ERROR"] = "runtime-error";
+    IssueType["NULL_POINTER"] = "null-pointer";
+    IssueType["ARRAY_BOUNDS"] = "array-bounds";
+    IssueType["DIVISION_BY_ZERO"] = "division-by-zero";
+    IssueType["TYPE_ERROR"] = "type-error";
+    IssueType["TYPE_MISMATCH"] = "type-mismatch";
+    // Security Issues
+    IssueType["SECURITY_VULNERABILITY"] = "security-vulnerability";
+    IssueType["SQL_INJECTION"] = "sql-injection";
+    IssueType["COMMAND_INJECTION"] = "command-injection";
+    IssueType["XSS"] = "xss";
+    IssueType["CSRF"] = "csrf";
+    IssueType["AUTHENTICATION_BYPASS"] = "authentication-bypass";
+    IssueType["AUTHORIZATION_BYPASS"] = "authorization-bypass";
+    IssueType["SENSITIVE_DATA_EXPOSURE"] = "sensitive-data-exposure";
+    IssueType["INSECURE_DESERIALIZATION"] = "insecure-deserialization";
+    IssueType["SSRF"] = "ssrf";
+    IssueType["BUFFER_OVERFLOW"] = "buffer-overflow";
+    IssueType["INSECURE_CRYPTO"] = "insecure-crypto";
+    IssueType["WEAK_RANDOM"] = "weak-random";
+    IssueType["HARDCODED_SECRET"] = "hardcoded-secret";
+    IssueType["INSECURE_DEPENDENCY"] = "insecure-dependency";
+    // Performance Issues
+    IssueType["PERFORMANCE_ISSUE"] = "performance-issue";
+    IssueType["MEMORY_LEAK"] = "memory-leak";
+    IssueType["RESOURCE_LEAK"] = "resource-leak";
+    IssueType["INEFFICIENT_ALGORITHM"] = "inefficient-algorithm";
+    IssueType["UNNECESSARY_COMPUTATION"] = "unnecessary-computation";
+    IssueType["BLOCKING_OPERATION"] = "blocking-operation";
+    // Code Quality Issues
+    IssueType["CODE_SMELL"] = "code-smell";
+    IssueType["DEAD_CODE"] = "dead-code";
+    IssueType["DUPLICATE_CODE"] = "duplicate-code";
+    IssueType["HIGH_COMPLEXITY"] = "high-complexity";
+    IssueType["CYCLOMATIC_COMPLEXITY"] = "cyclomatic-complexity";
+    IssueType["LONG_METHOD"] = "long-method";
+    IssueType["LONG_PARAMETER_LIST"] = "long-parameter-list";
+    IssueType["GOD_CLASS"] = "god-class";
+    IssueType["MAGIC_NUMBER"] = "magic-number";
+    IssueType["MISSING_ERROR_HANDLING"] = "missing-error-handling";
+    IssueType["EMPTY_CATCH_BLOCK"] = "empty-catch-block";
+    // Configuration Issues
+    IssueType["CONFIGURATION_ERROR"] = "configuration-error";
+    IssueType["MISCONFIGURATION"] = "misconfiguration";
+    IssueType["MISSING_CONFIGURATION"] = "missing-configuration";
+    IssueType["INVALID_CONFIGURATION"] = "invalid-configuration";
+    IssueType["EXPOSED_CREDENTIALS"] = "exposed-credentials";
+    IssueType["INSECURE_PERMISSIONS"] = "insecure-permissions";
+    // Concurrency Issues
+    IssueType["RACE_CONDITION"] = "race-condition";
+    IssueType["DEADLOCK"] = "deadlock";
+    IssueType["THREAD_SAFETY"] = "thread-safety";
+    IssueType["UNSAFE_CONCURRENCY"] = "unsafe-concurrency";
+    // Deprecated and Maintenance
+    IssueType["DEPRECATED_API"] = "deprecated-api";
+    IssueType["UNUSED_CODE"] = "unused-code";
+    IssueType["UNUSED_IMPORT"] = "unused-import";
+    IssueType["UNUSED_VARIABLE"] = "unused-variable";
+    IssueType["UNUSED_PARAMETER"] = "unused-parameter";
+    // Best Practices
+    IssueType["BEST_PRACTICE_VIOLATION"] = "best-practice-violation";
+    IssueType["CODING_STANDARD_VIOLATION"] = "coding-standard-violation";
+    IssueType["NAMING_CONVENTION"] = "naming-convention";
+    IssueType["CODE_STYLE"] = "code-style";
+    // Generic fallback
+    IssueType["CODE_ISSUE"] = "code-issue";
+})(IssueType || (exports.IssueType = IssueType = {}));
+
+
+/***/ }),
+
+/***/ 6827:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Agent Initializer
+ * Initializes agent with tools and repository files for progress detection
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AgentInitializer = void 0;
+const agent_1 = __nccwpck_require__(1963);
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const report_progress_tool_1 = __nccwpck_require__(1422);
+const file_repository_1 = __nccwpck_require__(1503);
+const logger_1 = __nccwpck_require__(8836);
+const system_prompt_builder_1 = __nccwpck_require__(5021);
+class AgentInitializer {
+    /**
+     * Initialize agent with tools and repository files
+     */
+    static async initialize(options) {
+        const repositoryFiles = await this.loadRepositoryFiles(options);
+        // Store for progress reported via report_progress tool
+        let reportedProgress = undefined;
+        const tools = await this.createTools(repositoryFiles, (progress, summary) => {
+            reportedProgress = { progress, summary };
+        });
+        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
+        const agentOptions = {
+            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+            apiKey: options.apiKey,
+            systemPrompt,
+            tools,
+            maxTurns: options.maxTurns || 20,
+            enableMCP: false
+        };
+        const agent = new agent_1.Agent(agentOptions);
+        return {
+            agent,
+            repositoryFiles,
+            reportedProgress
+        };
+    }
+    /**
+     * Load repository files from GitHub
+     * Only loads changed files if available, otherwise loads all files from the branch
+     */
+    static async loadRepositoryFiles(options) {
+        const repositoryFiles = new Map();
+        if (options.repositoryOwner && options.repositoryName) {
+            try {
+                const token = options.personalAccessToken;
+                if (!token) {
+                    (0, logger_1.logWarn)('⚠️ personalAccessToken not provided in options, cannot load repository files');
+                }
+                else {
+                    (0, logger_1.logDebugInfo)(`🔑 Using token: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
+                    if (!options.repositoryBranch) {
+                        throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
+                    }
+                    const branch = options.repositoryBranch;
+                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
+                    const fileRepository = new file_repository_1.FileRepository();
+                    // If we have changed files, only load those
+                    if (options.changedFiles && options.changedFiles.length > 0) {
+                        (0, logger_1.logInfo)(`📄 Loading ${options.changedFiles.length} changed file(s)...`);
+                        for (const changedFile of options.changedFiles) {
+                            // Skip removed files
+                            if (changedFile.status === 'removed') {
+                                // logDebugInfo(`   ⏭️  Skipping removed file: ${changedFile.filename}`);
+                                continue;
+                            }
+                            try {
+                                // logDebugInfo(`📥 Loading: ${changedFile.filename}...`);
+                                const content = await fileRepository.getFileContent(options.repositoryOwner, options.repositoryName, changedFile.filename, token, branch);
+                                if (content) {
+                                    repositoryFiles.set(changedFile.filename, content);
+                                    // logDebugInfo(`   ✅ Loaded: ${changedFile.filename} (${content.length} bytes) from ${branch}`);
+                                }
+                                else {
+                                    (0, logger_1.logWarn)(`   ⚠️  Could not load: ${changedFile.filename} (empty content returned) from ${branch}`);
+                                }
+                            }
+                            catch (error) {
+                                const errorMessage = error?.message || String(error);
+                                const errorStatus = error?.status || 'unknown';
+                                (0, logger_1.logWarn)(`   ⚠️  Error loading ${changedFile.filename}: ${errorMessage} (status: ${errorStatus})`);
+                                // Continue loading other files even if one fails
+                            }
+                        }
+                    }
+                    else {
+                        // Load all files from the branch
+                        const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
+                            (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
+                        }, (fileName) => {
+                            (0, logger_1.logDebugInfo)(`   ⏭️  Ignored: ${fileName}`);
+                        });
+                        files.forEach((content, path) => {
+                            repositoryFiles.set(path, content);
+                        });
+                    }
+                    (0, logger_1.logInfo)(`✅ Loaded ${repositoryFiles.size} file(s) from repository`);
+                }
+            }
+            catch (error) {
+                (0, logger_1.logWarn)(`Failed to load repository files: ${error}`);
+            }
+        }
+        return repositoryFiles;
+    }
+    /**
+     * Create tools for the agent
+     */
+    static async createTools(repositoryFiles, onProgressReported) {
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                return this.searchFiles(repositoryFiles, query);
+            },
+            getAllFiles: () => {
+                return this.getAllFiles(repositoryFiles);
+            }
+        });
+        // Report progress tool for structured progress reporting
+        const reportProgressTool = new report_progress_tool_1.ReportProgressTool({
+            onProgressReported: (progress, summary) => {
+                if (onProgressReported) {
+                    onProgressReported(progress, summary);
+                }
+            }
+        });
+        return [readFileTool, searchFilesTool, reportProgressTool];
+    }
+    /**
+     * Search files in repository
+     */
+    static searchFiles(repositoryFiles, query) {
+        const results = [];
+        const queryLower = query.toLowerCase();
+        for (const [path] of repositoryFiles) {
+            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+            if (shouldExclude) {
+                continue;
+            }
+            const pathLower = path.toLowerCase();
+            if (pathLower.includes(queryLower) ||
+                pathLower.endsWith(queryLower) ||
+                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
+                results.push(path);
+            }
+        }
+        return results;
+    }
+    /**
+     * Get all files (excluding compiled files)
+     */
+    static getAllFiles(repositoryFiles) {
+        return Array.from(repositoryFiles.keys()).filter((path) => {
+            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+        });
+    }
+}
+exports.AgentInitializer = AgentInitializer;
+AgentInitializer.EXCLUDE_PATTERNS = [
+    /^build\//,
+    /^dist\//,
+    /^node_modules\//,
+    /\.d\.ts$/,
+    /^\.next\//,
+    /^out\//,
+    /^coverage\//,
+    /\.min\.(js|css)$/,
+    /\.map$/,
+    /^\.git\//,
+    /^\.vscode\//,
+    /^\.idea\//
+];
+AgentInitializer.IGNORE_FILES = [
+    'build/**',
+    'dist/**',
+    'node_modules/**',
+    '*.d.ts',
+    '.next/**',
+    'out/**',
+    'coverage/**',
+    '.turbo/**',
+    '.cache/**',
+    '*.min.js',
+    '*.min.css',
+    '*.map',
+    '.git/**',
+    '.vscode/**',
+    '.idea/**'
+];
+
+
+/***/ }),
+
+/***/ 4538:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * File Partitioner
+ * Partitions files by directory for subagent distribution
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.FilePartitioner = void 0;
+class FilePartitioner {
+    /**
+     * Partition files by directory to keep related files together
+     * Tries to balance file distribution across groups
+     */
+    static partitionFilesByDirectory(files, maxGroups) {
+        // Group files by top-level directory
+        const dirGroups = new Map();
+        for (const file of files) {
+            const parts = file.split('/');
+            const topDir = parts.length > 1 ? parts[0] : 'root';
+            if (!dirGroups.has(topDir)) {
+                dirGroups.set(topDir, []);
+            }
+            dirGroups.get(topDir).push(file);
+        }
+        // Convert to array and sort by size (largest first)
+        const groups = Array.from(dirGroups.values()).sort((a, b) => b.length - a.length);
+        // Initialize result groups
+        const result = Array(maxGroups).fill(null).map(() => []);
+        // Distribute groups across subagents, trying to balance sizes
+        // Use a balanced approach: always assign to the subagent with the least files
+        for (let i = 0; i < groups.length; i++) {
+            // Find the subagent with the least files
+            let minIndex = 0;
+            let minSize = result[0].length;
+            for (let j = 1; j < result.length; j++) {
+                if (result[j].length < minSize) {
+                    minSize = result[j].length;
+                    minIndex = j;
+                }
+            }
+            result[minIndex].push(...groups[i]);
+        }
+        // Remove empty groups
+        return result.filter(group => group.length > 0);
+    }
+}
+exports.FilePartitioner = FilePartitioner;
+
+
+/***/ }),
+
+/***/ 7887:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Progress Detector
+ * Uses Agent SDK to detect progress of a task based on code changes
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProgressDetector = void 0;
+const logger_1 = __nccwpck_require__(8836);
+const agent_initializer_1 = __nccwpck_require__(6827);
+const progress_parser_1 = __nccwpck_require__(9025);
+const subagent_handler_1 = __nccwpck_require__(9480);
+class ProgressDetector {
+    constructor(options) {
+        this.repositoryFiles = new Map();
+        this.options = {
+            model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+            apiKey: options.apiKey,
+            personalAccessToken: options.personalAccessToken,
+            maxTurns: options.maxTurns || 20,
+            repositoryOwner: options.repositoryOwner,
+            repositoryName: options.repositoryName,
+            repositoryBranch: options.repositoryBranch,
+            developmentBranch: options.developmentBranch || 'develop',
+            issueNumber: options.issueNumber,
+            issueDescription: options.issueDescription,
+            changedFiles: options.changedFiles || [],
+            useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
+            maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
+        };
+    }
+    /**
+     * Detect progress of the task
+     */
+    async detectProgress(prompt) {
+        (0, logger_1.logInfo)('📊 Starting progress detection...');
+        const userPrompt = prompt || `Analyze the progress of issue #${this.options.issueNumber || 'the task'} based on the changes made.`;
+        (0, logger_1.logInfo)(`📋 User Prompt: ${userPrompt}`);
+        (0, logger_1.logInfo)(`📊 Configuration:`);
+        (0, logger_1.logInfo)(`   - Model: ${this.options.model}`);
+        (0, logger_1.logInfo)(`   - Max Turns: ${this.options.maxTurns}`);
+        (0, logger_1.logInfo)(`   - Repository: ${this.options.repositoryOwner}/${this.options.repositoryName || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Branch: ${this.options.repositoryBranch || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Issue: #${this.options.issueNumber || 'N/A'}`);
+        (0, logger_1.logInfo)(`   - Changed Files: ${this.options.changedFiles?.length || 0}`);
+        (0, logger_1.logInfo)(`   - Use Subagents: ${this.options.useSubAgents}`);
+        if (this.options.useSubAgents) {
+            (0, logger_1.logInfo)(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
+        }
+        // Initialize agent if not already initialized
+        if (!this.agent) {
+            (0, logger_1.logInfo)('🤖 Initializing agent...');
+            const { agent, repositoryFiles, reportedProgress } = await agent_initializer_1.AgentInitializer.initialize(this.options);
+            this.agent = agent;
+            this.repositoryFiles = repositoryFiles;
+            (0, logger_1.logInfo)('✅ Agent initialized');
+            // If progress was already reported during initialization (shouldn't happen, but handle it)
+            if (reportedProgress) {
+                (0, logger_1.logInfo)(`📊 Progress already reported during initialization: ${reportedProgress.progress}%`);
+            }
+        }
+        let result;
+        // Use subagents if enabled AND files > 20
+        const shouldUseSubAgents = this.options.useSubAgents &&
+            this.repositoryFiles.size > 20;
+        if (shouldUseSubAgents) {
+            (0, logger_1.logInfo)('🚀 Executing progress detection with subagents...');
+            const subagentResult = await subagent_handler_1.SubagentHandler.detectProgressWithSubAgents(this.agent, this.repositoryFiles, this.options, userPrompt);
+            result = subagentResult.agentResult;
+            // Return result from subagents (already combined)
+            (0, logger_1.logInfo)(`✅ Progress detection completed: ${subagentResult.progress}%`);
+            return subagentResult;
+        }
+        else {
+            // Execute agent query
+            (0, logger_1.logInfo)('🚀 Executing agent query...');
+            result = await this.agent.query(userPrompt);
+        }
+        (0, logger_1.logInfo)(`📈 Agent execution completed:`);
+        (0, logger_1.logInfo)(`   - Total Turns: ${result.turns.length}`);
+        (0, logger_1.logInfo)(`   - Tool Calls: ${result.toolCalls.length}`);
+        if (result.metrics) {
+            (0, logger_1.logInfo)(`   - Input Tokens: ${result.metrics.totalTokens.input}`);
+            (0, logger_1.logInfo)(`   - Output Tokens: ${result.metrics.totalTokens.output}`);
+            (0, logger_1.logInfo)(`   - Total Duration: ${result.metrics.totalDuration}ms`);
+            (0, logger_1.logInfo)(`   - Average Latency: ${result.metrics.averageLatency}ms`);
+        }
+        // Parse progress from agent response
+        const { progress, summary } = progress_parser_1.ProgressParser.parseProgress(result);
+        (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
+        return {
+            progress,
+            summary,
+            agentResult: result
+        };
+    }
+    /**
+     * Get agent instance (for advanced usage)
+     */
+    getAgent() {
+        return this.agent;
+    }
+}
+exports.ProgressDetector = ProgressDetector;
+
+
+/***/ }),
+
+/***/ 9025:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Progress Parser
+ * Parses progress percentage from agent results
+ * Only uses structured format from report_progress tool - no text parsing
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProgressParser = void 0;
+const logger_1 = __nccwpck_require__(8836);
+class ProgressParser {
+    /**
+     * Parse progress from agent result
+     * Only uses structured format from report_progress tool - no text parsing
+     * The tool already validates and cleans the data, so we just extract it directly
+     */
+    static parseProgress(result) {
+        const defaultProgress = 0;
+        const defaultSummary = 'Unable to determine progress from agent response.';
+        (0, logger_1.logDebugInfo)(`📝 Parsing progress from agent response (${result.toolCalls.length} tool calls)`);
+        // Only parse progress from report_progress tool calls (structured format)
+        // The tool already validated and cleaned the data, so we extract it directly
+        for (const toolCall of result.toolCalls) {
+            if (toolCall.name === 'report_progress' && toolCall.input.progress !== undefined) {
+                const progress = typeof toolCall.input.progress === 'number'
+                    ? toolCall.input.progress
+                    : parseFloat(String(toolCall.input.progress));
+                const summary = toolCall.input.summary
+                    ? String(toolCall.input.summary).trim()
+                    : defaultSummary;
+                // Validate progress range
+                if (!isNaN(progress) && progress >= 0 && progress <= 100) {
+                    const roundedProgress = Math.round(progress);
+                    (0, logger_1.logDebugInfo)(`   ✅ Found report_progress call with progress: ${roundedProgress}%`);
+                    (0, logger_1.logDebugInfo)(`   📝 Summary: ${summary.substring(0, 100)}...`);
+                    return {
+                        progress: roundedProgress,
+                        summary: summary || defaultSummary
+                    };
+                }
+                else {
+                    (0, logger_1.logWarn)(`   ⚠️ Invalid progress value: ${progress}, must be between 0 and 100`);
+                }
+            }
+        }
+        (0, logger_1.logWarn)('⚠️ No report_progress tool call found in agent result');
+        (0, logger_1.logDebugInfo)(`   📊 Final progress: ${defaultProgress}%`);
+        (0, logger_1.logDebugInfo)(`   📝 Summary: ${defaultSummary}`);
+        return { progress: defaultProgress, summary: defaultSummary };
+    }
+}
+exports.ProgressParser = ProgressParser;
+
+
+/***/ }),
+
+/***/ 9480:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Subagent Handler
+ * Handles progress detection using subagents for parallel processing
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SubagentHandler = void 0;
+const read_file_tool_1 = __nccwpck_require__(9010);
+const search_files_tool_1 = __nccwpck_require__(4293);
+const report_progress_tool_1 = __nccwpck_require__(1422);
+const logger_1 = __nccwpck_require__(8836);
+const file_partitioner_1 = __nccwpck_require__(4538);
+const progress_parser_1 = __nccwpck_require__(9025);
+const system_prompt_builder_1 = __nccwpck_require__(5021);
+class SubagentHandler {
+    /**
+     * Detect progress using subagents for parallel processing
+     */
+    static async detectProgressWithSubAgents(agent, repositoryFiles, options, userPrompt) {
+        const allFiles = Array.from(repositoryFiles.keys());
+        // Optimal number of files per subagent (comfortable for AI processing)
+        const OPTIMAL_FILES_PER_AGENT = 15;
+        const MAX_FILES_IN_PROMPT = 20; // Maximum files to list in prompt
+        // Calculate number of subagents needed based on optimal files per agent
+        // But respect maxConcurrentSubAgents as an upper limit
+        const maxConcurrent = options.maxConcurrentSubAgents || 5;
+        const calculatedSubagents = Math.ceil(allFiles.length / OPTIMAL_FILES_PER_AGENT);
+        const numSubagents = Math.min(calculatedSubagents, maxConcurrent);
+        const filesPerAgent = Math.ceil(allFiles.length / numSubagents);
+        (0, logger_1.logInfo)(`📦 Partitioning ${allFiles.length} files into ${numSubagents} subagents (~${filesPerAgent} files each)`);
+        (0, logger_1.logInfo)(`   Optimal: ${OPTIMAL_FILES_PER_AGENT} files per agent, creating ${numSubagents} subagents for comfortable processing`);
+        // Group files by directory to keep related files together
+        const fileGroups = file_partitioner_1.FilePartitioner.partitionFilesByDirectory(allFiles, numSubagents);
+        (0, logger_1.logInfo)(`📁 Created ${fileGroups.length} file groups for parallel analysis`);
+        // Create tools for subagents (all files available through tools)
+        const tools = await this.createSubagentTools(repositoryFiles);
+        // Create tasks for each subagent
+        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
+        const tasks = fileGroups.map((files, index) => {
+            const totalFiles = files.length;
+            // Show first N files in prompt, rest available through tools
+            const filesToShow = files.slice(0, MAX_FILES_IN_PROMPT);
+            const remainingFiles = totalFiles - filesToShow.length;
+            let fileListSection = '';
+            if (filesToShow.length > 0) {
+                fileListSection = `\n\nFiles assigned to you (${totalFiles} total):\n${filesToShow.map(f => `- ${f}`).join('\n')}`;
+                if (remainingFiles > 0) {
+                    fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
+                }
+            }
+            return {
+                name: `progress-detector-${index + 1}`,
+                prompt: userPrompt
+                    ? `${userPrompt}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for progress assessment. After analyzing all files, use report_progress to report the progress percentage for YOUR assigned files.**`
+                    : `You have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for progress assessment using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for progress assessment. After analyzing all files, use report_progress to report the progress percentage for YOUR assigned files.**`,
+                systemPrompt,
+                tools
+            };
+        });
+        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} subagents in parallel...`);
+        const results = await agent.executeParallel(tasks);
+        (0, logger_1.logInfo)(`✅ All ${results.length} subagents completed`);
+        // Combine results from all subagents
+        return this.combineSubagentResults(results, options);
+    }
+    /**
+     * Create tools for subagents
+     */
+    static async createSubagentTools(repositoryFiles) {
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                return this.searchFiles(repositoryFiles, query);
+            },
+            getAllFiles: () => {
+                return this.getAllFiles(repositoryFiles);
+            }
+        });
+        // ReportProgressTool for subagents - progress will be extracted from results via ProgressParser
+        const reportProgressTool = new report_progress_tool_1.ReportProgressTool({
+            onProgressReported: () => {
+                // Progress will be extracted from tool calls in the result, not via callback
+            }
+        });
+        return [readFileTool, searchFilesTool, reportProgressTool];
+    }
+    /**
+     * Search files in repository
+     */
+    static searchFiles(repositoryFiles, query) {
+        const results = [];
+        const queryLower = query.toLowerCase();
+        for (const [path] of repositoryFiles) {
+            // Skip compiled files
+            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+            if (shouldExclude) {
+                continue;
+            }
+            const pathLower = path.toLowerCase();
+            // Support multiple search strategies
+            if (pathLower.includes(queryLower) ||
+                pathLower.endsWith(queryLower) ||
+                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
+                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
+                results.push(path);
+            }
+        }
+        return results;
+    }
+    /**
+     * Get all files (excluding compiled files)
+     */
+    static getAllFiles(repositoryFiles) {
+        return Array.from(repositoryFiles.keys()).filter((path) => {
+            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
+        });
+    }
+    /**
+     * Combine results from all subagents
+     * Calculates average progress and combines summaries
+     */
+    static combineSubagentResults(results, options) {
+        const allProgressReports = [];
+        const allToolCalls = [];
+        const allTurns = [];
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let maxDuration = 0;
+        for (const { task, result } of results) {
+            (0, logger_1.logInfo)(`   📊 Subagent "${task}": ${result.turns.length} turns, ${result.toolCalls.length} tool calls`);
+            // Parse progress from each subagent
+            const { progress, summary } = progress_parser_1.ProgressParser.parseProgress(result);
+            allProgressReports.push({ progress, summary });
+            allToolCalls.push(...result.toolCalls);
+            allTurns.push(...result.turns);
+            if (result.metrics) {
+                totalInputTokens += result.metrics.totalTokens.input;
+                totalOutputTokens += result.metrics.totalTokens.output;
+                maxDuration = Math.max(maxDuration, result.metrics.totalDuration);
+            }
+        }
+        // Calculate average progress (weighted by number of files analyzed if needed)
+        // For now, simple average - could be improved with weighting
+        const averageProgress = allProgressReports.length > 0
+            ? Math.round(allProgressReports.reduce((sum, r) => sum + r.progress, 0) / allProgressReports.length)
+            : 0;
+        // Combine summaries
+        const combinedSummary = allProgressReports.length > 0
+            ? allProgressReports.map((r, i) => `Subagent ${i + 1}: ${r.progress}% - ${r.summary}`).join('\n')
+            : 'Unable to determine progress from subagent responses.';
+        // Calculate average latency from all subagents
+        const totalApiCalls = results.reduce((sum, r) => sum + (r.result.metrics?.apiCalls || 0), 0);
+        const totalLatency = results.reduce((sum, r) => {
+            if (r.result.metrics?.averageLatency && r.result.metrics?.apiCalls) {
+                return sum + (r.result.metrics.averageLatency * r.result.metrics.apiCalls);
+            }
+            return sum;
+        }, 0);
+        const averageLatency = totalApiCalls > 0 ? totalLatency / totalApiCalls : 0;
+        // Create combined agent result
+        const combinedResult = {
+            finalResponse: `Progress analysis completed by ${results.length} subagents. Average progress: ${averageProgress}%.`,
+            turns: allTurns,
+            toolCalls: allToolCalls,
+            messages: results.flatMap(r => r.result.messages),
+            metrics: {
+                totalTokens: {
+                    input: totalInputTokens,
+                    output: totalOutputTokens
+                },
+                totalDuration: maxDuration,
+                apiCalls: totalApiCalls,
+                toolCalls: allToolCalls.length,
+                errors: results.reduce((sum, r) => sum + (r.result.metrics?.errors || 0), 0),
+                averageLatency: averageLatency
+            }
+        };
+        (0, logger_1.logInfo)(`✅ Combined results: Average progress ${averageProgress}% across ${results.length} subagents`);
+        (0, logger_1.logInfo)(`   Individual progress reports:`);
+        allProgressReports.forEach((r, i) => {
+            (0, logger_1.logInfo)(`   - Subagent ${i + 1}: ${r.progress}%`);
+        });
+        (0, logger_1.logInfo)(`   - Total Tokens: ${totalInputTokens + totalOutputTokens} (${totalInputTokens} in, ${totalOutputTokens} out)`);
+        (0, logger_1.logInfo)(`   - Duration: ${maxDuration}ms (parallel execution)`);
+        return {
+            progress: averageProgress,
+            summary: combinedSummary,
+            agentResult: combinedResult
+        };
+    }
+}
+exports.SubagentHandler = SubagentHandler;
+SubagentHandler.EXCLUDE_PATTERNS = [
+    /^build\//,
+    /^dist\//,
+    /^node_modules\//,
+    /\.d\.ts$/,
+    /^\.next\//,
+    /^out\//,
+    /^coverage\//,
+    /\.min\.(js|css)$/,
+    /\.map$/,
+    /^\.git\//,
+    /^\.vscode\//,
+    /^\.idea\//
+];
+
+
+/***/ }),
+
+/***/ 5021:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * System Prompt Builder
+ * Builds system prompts for progress detection
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SystemPromptBuilder = void 0;
+class SystemPromptBuilder {
+    /**
+     * Build system prompt for progress detection
+     */
+    static build(options) {
+        const issueInfo = options.issueNumber
+            ? `Issue #${options.issueNumber}`
+            : 'the task';
+        const issueDescription = options.issueDescription
+            ? `\n\n**Task Description:**\n${options.issueDescription}`
+            : '';
+        const changedFilesInfo = options.changedFiles && options.changedFiles.length > 0
+            ? `\n\n**Changed Files (${options.changedFiles.length}):**\n${options.changedFiles.map(f => `- ${f.filename} (${f.status})${f.additions && f.deletions ? ` [+${f.additions}/-${f.deletions}]` : ''}`).join('\n')}`
+            : '\n\n**No files have been changed yet.**';
+        return `You are an expert code reviewer and task progress assessor. Your task is to analyze the progress of ${issueInfo} based on the changes made in the codebase compared to the development branch.
+
+${issueDescription}
+
+**Context:**
+- You are analyzing changes made in a feature branch compared to the development branch
+- Your goal is to determine what percentage of the task has been completed
+- Consider both the quantity and quality of changes
+- Look at what was requested vs what has been implemented
+
+${changedFilesInfo}
+
+**Your Task:**
+1. Read and analyze the changed files to understand what has been implemented
+2. Compare the implementation against the task description
+3. Determine what percentage of the task is complete (0-100%)
+4. Consider:
+   - Are the core requirements implemented?
+   - Are edge cases handled?
+   - Is the code complete and functional?
+   - Are there any obvious missing pieces?
+   - Is the implementation aligned with the task description?
+
+**IMPORTANT INSTRUCTIONS:**
+1. **Read ALL changed files** using the read_file tool
+   - Read every file that has been modified, added, or changed
+   - Analyze the actual code, not just file names
+   - Understand what functionality has been implemented
+2. **Compare with task requirements**
+   - Check if the task description requirements are met
+   - Identify what's been done vs what's still needed
+3. **Provide progress assessment**
+   - After analyzing all files, provide a progress percentage (0-100)
+   - Include a brief summary explaining your assessment
+   - Be realistic: 0% means nothing done, 100% means task is complete
+   - Consider partial completion (e.g., if core feature is done but tests are missing, that might be 70-80%)
+
+**CRITICAL - REPORTING PROGRESS:**
+After analyzing all files, you MUST use the report_progress tool to report your progress assessment.
+- Call report_progress ONCE with:
+  - progress: A number between 0-100 (the percentage of task completion)
+  - summary: A brief explanation of why you assigned this percentage
+- **DO NOT provide progress in text format** - you MUST use the report_progress tool
+- After calling report_progress, provide a brief final summary text response and STOP
+- **DO NOT call report_progress multiple times** - call it once with your final assessment, then provide your summary and finish
+
+**Example:**
+After analyzing, call:
+report_progress({
+  progress: 75,
+  summary: "The core functionality has been implemented in the main files. The feature works as described, but unit tests are missing and error handling could be improved. The main requirements are met, but some polish is still needed."
+})
+
+**Remember:**
+- Be thorough: read all changed files before making your assessment
+- Be realistic: don't overestimate or underestimate progress
+- Consider both code quality and completeness
+- If no files have changed, progress is 0%
+- If the task description is unclear or missing, make your best assessment based on the code changes
+
+**CRITICAL INSTRUCTIONS:**
+1. **You MUST read ALL changed files before making your assessment**
+2. **You MUST use the report_progress tool to report progress** - do NOT provide progress in text format
+3. **Call report_progress ONCE** with your final assessment after analyzing all files
+4. **After calling report_progress, provide a brief final summary and STOP**`;
+    }
+}
+exports.SystemPromptBuilder = SystemPromptBuilder;
+
+
+/***/ }),
+
+/***/ 9121:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Base class for all tools
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BaseTool = void 0;
+class BaseTool {
+    /**
+     * Get tool definition
+     */
+    getDefinition() {
+        return {
+            name: this.getName(),
+            description: this.getDescription(),
+            inputSchema: this.getInputSchema()
+        };
+    }
+    /**
+     * Validate input against schema
+     */
+    validateInput(input) {
+        const schema = this.getInputSchema();
+        // Check required fields
+        for (const required of schema.required) {
+            if (!(required in input)) {
+                return {
+                    valid: false,
+                    error: `Missing required field: ${required}`
+                };
+            }
+        }
+        // Check additional properties
+        if (schema.additionalProperties === false) {
+            const allowedKeys = new Set([
+                ...Object.keys(schema.properties),
+                ...schema.required
+            ]);
+            for (const key of Object.keys(input)) {
+                if (!allowedKeys.has(key)) {
+                    return {
+                        valid: false,
+                        error: `Unexpected field: ${key}`
+                    };
+                }
+            }
+        }
+        return { valid: true };
+    }
+    /**
+     * Execute with validation
+     */
+    async executeWithValidation(input) {
+        const validation = this.validateInput(input);
+        if (!validation.valid) {
+            return {
+                success: false,
+                result: null,
+                error: validation.error
+            };
+        }
+        try {
+            const result = await this.execute(input);
+            return {
+                success: true,
+                result
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                result: null,
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+}
+exports.BaseTool = BaseTool;
+
+
+/***/ }),
+
+/***/ 7645:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Manage TODOs Tool
+ * Manages TODO list for task tracking
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ManageTodosTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ManageTodosTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'manage_todos';
+    }
+    getDescription() {
+        return 'Manage the TODO list. Create new TODOs, update their status (pending, in_progress, completed, cancelled), or add notes. Use this to track high-level tasks that may require multiple steps to complete.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                action: {
+                    type: 'string',
+                    enum: ['create', 'update', 'list'],
+                    description: 'Action to perform: create a new TODO, update an existing TODO, or list all TODOs'
+                },
+                content: {
+                    type: 'string',
+                    description: 'Content/description of the TODO (required for create action). This is the text that describes what needs to be done.'
+                },
+                todo_id: {
+                    type: 'string',
+                    description: 'ID of the TODO to update (required for update action). Get the ID from the list action.'
+                },
+                status: {
+                    type: 'string',
+                    enum: ['pending', 'in_progress', 'completed', 'cancelled'],
+                    description: 'Status to set (for create or update). For create, use "pending" or "in_progress".'
+                },
+                notes: {
+                    type: 'string',
+                    description: 'Additional notes about the TODO (for update action only)'
+                }
+            },
+            required: ['action'],
+            additionalProperties: true
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        const action = input.action;
+        logInfo(`   📋 Managing TODOs - Action: ${action}`);
+        if (!['create', 'update', 'list'].includes(action)) {
+            throw new Error('action must be one of: create, update, list');
+        }
+        if (action === 'create') {
+            // Accept 'content', 'description', or 'text' for flexibility
+            const content = (input.content || input.description || input.text || input.task);
+            const status = input.status || 'pending';
+            if (!content || typeof content !== 'string') {
+                throw new Error('content is required for create action. Provide the task description in the "content" field.');
+            }
+            if (!['pending', 'in_progress'].includes(status)) {
+                throw new Error('status for create must be "pending" or "in_progress"');
+            }
+            const todo = this.options.createTodo(content, status);
+            return `TODO created: [${todo.id}] ${todo.content} (${todo.status})`;
+        }
+        if (action === 'update') {
+            const todoId = input.todo_id;
+            const status = input.status;
+            const notes = input.notes;
+            if (!todoId || typeof todoId !== 'string') {
+                throw new Error('todo_id is required for update action');
+            }
+            const updates = {};
+            if (status) {
+                if (!['pending', 'in_progress', 'completed', 'cancelled'].includes(status)) {
+                    throw new Error('status must be one of: pending, in_progress, completed, cancelled');
+                }
+                updates.status = status;
+            }
+            if (notes) {
+                updates.notes = notes;
+            }
+            const success = this.options.updateTodo(todoId, {
+                status: updates.status,
+                notes: updates.notes
+            });
+            if (success) {
+                return `TODO updated: [${todoId}]`;
+            }
+            else {
+                return `Error: TODO [${todoId}] not found`;
+            }
+        }
+        if (action === 'list') {
+            const allTodos = this.options.getAllTodos();
+            const activeTodos = this.options.getActiveTodos();
+            if (allTodos.length === 0) {
+                return 'No TODOs found.';
+            }
+            const todoList = allTodos.map(todo => {
+                const statusEmoji = todo.status === 'completed' ? '✅' :
+                    todo.status === 'in_progress' ? '🔄' :
+                        todo.status === 'cancelled' ? '❌' : '⏳';
+                let line = `${statusEmoji} [${todo.id}] ${todo.status.toUpperCase()}: ${todo.content}`;
+                if (todo.notes) {
+                    line += `\n   📝 Notes: ${todo.notes}`;
+                }
+                return line;
+            }).join('\n\n');
+            return `TODO List (${allTodos.length} total, ${activeTodos.length} active):\n\n${todoList}`;
+        }
+        throw new Error('Invalid action');
+    }
+}
+exports.ManageTodosTool = ManageTodosTool;
+
+
+/***/ }),
+
+/***/ 4962:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Propose Change Tool
+ * Proposes changes to files in the virtual codebase
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ProposeChangeTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ProposeChangeTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'propose_change';
+    }
+    getDescription() {
+        return 'Propose a change to a file in the virtual codebase. Changes are applied in memory and can be built upon in subsequent steps.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                file_path: {
+                    type: 'string',
+                    description: 'Path to the file to modify'
+                },
+                change_type: {
+                    type: 'string',
+                    enum: ['create', 'modify', 'delete', 'refactor'],
+                    description: 'Type of change to make: create (new file), modify (update existing code - use for bugfixes, features, updates), delete (remove file), refactor (restructure code without changing functionality)'
+                },
+                description: {
+                    type: 'string',
+                    description: 'Brief description of the change'
+                },
+                suggested_code: {
+                    type: 'string',
+                    description: 'The code to add or modify. For modifications, include the full modified section.'
+                },
+                reasoning: {
+                    type: 'string',
+                    description: 'Explanation of why this change is needed'
+                }
+            },
+            required: ['file_path', 'change_type', 'description', 'suggested_code', 'reasoning'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        const filePath = input.file_path;
+        logInfo(`   ✏️ Proposing change: ${filePath} (${input.change_type})`);
+        logInfo(`      Description: ${input.description?.substring(0, 100) || 'N/A'}${input.description && input.description.length > 100 ? '...' : ''}`);
+        const changeType = input.change_type;
+        const description = input.description;
+        const suggestedCode = input.suggested_code;
+        const reasoning = input.reasoning;
+        // Validate
+        if (!filePath || typeof filePath !== 'string') {
+            throw new Error('file_path is required and must be a string');
+        }
+        const validChangeTypes = ['create', 'modify', 'delete', 'refactor'];
+        if (!validChangeTypes.includes(changeType)) {
+            throw new Error(`change_type must be one of: ${validChangeTypes.join(', ')}`);
+        }
+        if (!description || typeof description !== 'string') {
+            throw new Error('description is required and must be a string');
+        }
+        if (!suggestedCode || typeof suggestedCode !== 'string') {
+            throw new Error('suggested_code is required and must be a string');
+        }
+        if (!reasoning || typeof reasoning !== 'string') {
+            throw new Error('reasoning is required and must be a string');
+        }
+        // Apply change
+        const success = this.options.applyChange({
+            file_path: filePath,
+            change_type: changeType,
+            description,
+            suggested_code: suggestedCode,
+            reasoning
+        });
+        if (success) {
+            this.options.onChangeApplied?.({
+                file_path: filePath,
+                change_type: changeType,
+                description
+            });
+            return `Change applied successfully to ${filePath}:\n${description}`;
+        }
+        else {
+            return `Failed to apply change to ${filePath}. The file may not exist or the change type may be invalid.`;
+        }
+    }
+}
+exports.ProposeChangeTool = ProposeChangeTool;
+
+
+/***/ }),
+
+/***/ 9010:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Read File Tool
+ * Reads file contents from repository or virtual codebase
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReadFileTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ReadFileTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'read_file';
+    }
+    getDescription() {
+        return 'Read the contents of a file from the repository. Use this to examine code, configuration files, or any file in the codebase.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                file_path: {
+                    type: 'string',
+                    description: 'Path to the file to read (relative to repository root)'
+                }
+            },
+            required: ['file_path'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        const filePath = input.file_path;
+        logInfo(`   📖 Reading file: ${filePath}`);
+        if (!filePath || typeof filePath !== 'string') {
+            throw new Error('file_path is required and must be a string');
+        }
+        // Try to get from virtual codebase first
+        let content = this.options.getFileContent(filePath);
+        // If not found, try repository files
+        if (!content && this.options.repositoryFiles) {
+            content = this.options.repositoryFiles.get(filePath);
+        }
+        if (!content) {
+            return `Error: File "${filePath}" not found in the repository.`;
+        }
+        // Format response
+        const lines = content.split('\n').length;
+        return `File: ${filePath}\nLines: ${lines}\n\n\`\`\`\n${content}\n\`\`\``;
+    }
+}
+exports.ReadFileTool = ReadFileTool;
+
+
+/***/ }),
+
+/***/ 8742:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Report Errors Tool
+ * Tool for reporting detected errors in structured format
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReportErrorsTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+const types_1 = __nccwpck_require__(9978);
+class ReportErrorsTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'report_errors';
+    }
+    getDescription() {
+        return 'Report detected errors, bugs, vulnerabilities, or issues in a structured format. Use this tool to report all errors you found during your analysis. Each error should include file path, line number (if applicable), type, severity, description, and optional suggestion for fixing it.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                errors: {
+                    type: 'array',
+                    description: 'Array of detected errors, bugs, vulnerabilities, or issues. Each error must be a plain JSON object with clean string values (NO markdown, NO formatting, NO newlines in file/type fields).',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            file: {
+                                type: 'string',
+                                description: 'File path where the error was found. MUST be a plain string path like "src/utils/logger.ts" or "docker/main.py". NO markdown formatting, NO "File:" prefix, NO newlines, NO bold/italic markers. Just the file path.'
+                            },
+                            line: {
+                                type: 'number',
+                                description: 'Line number where the error occurs (optional). MUST be a number, not a string. Only include if the error is specific to a line.'
+                            },
+                            type: {
+                                type: 'string',
+                                enum: Object.values(types_1.IssueType),
+                                description: `Type of error. MUST be one of the standard issue types: ${Object.values(types_1.IssueType).slice(0, 10).join(', ')}, ... (see IssueType enum for complete list). NO markdown, NO formatting, NO newlines, NO colons or prefixes. Just the type name.`
+                            },
+                            severity: {
+                                type: 'string',
+                                enum: ['critical', 'high', 'medium', 'low'],
+                                description: 'Severity level. MUST be exactly one of: "critical", "high", "medium", "low" (lowercase, no quotes in the value itself).'
+                            },
+                            description: {
+                                type: 'string',
+                                description: 'Detailed description of the error. Plain text description. Can contain newlines for readability, but NO markdown formatting (NO **, NO *, NO #, NO - prefixes). Just plain descriptive text explaining the issue.'
+                            },
+                            suggestion: {
+                                type: 'string',
+                                description: 'Optional suggestion for how to fix the issue. Plain text suggestion. Can contain newlines, but NO markdown formatting. Just plain text explaining how to fix it.'
+                            }
+                        },
+                        required: ['file', 'type', 'severity', 'description'],
+                        additionalProperties: false
+                    }
+                }
+            },
+            required: ['errors'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        const errors = input.errors;
+        if (!Array.isArray(errors)) {
+            throw new Error('errors must be an array');
+        }
+        if (errors.length === 0) {
+            logInfo('   ✅ No errors reported');
+            this.options.onErrorsReported([]);
+            return 'No errors to report. All files analyzed successfully.';
+        }
+        logInfo(`   📋 Reporting ${errors.length} error(s) in structured format`);
+        // Clean and validate each error
+        const cleanedErrors = [];
+        for (let i = 0; i < errors.length; i++) {
+            const error = errors[i];
+            // Validate required fields exist
+            if (!error || typeof error !== 'object') {
+                throw new Error(`Error at index ${i}: must be an object`);
+            }
+            if (!error.file || !error.type || !error.severity || !error.description) {
+                throw new Error(`Error at index ${i}: must have file, type, severity, and description fields`);
+            }
+            // Clean file path - remove markdown, prefixes, newlines
+            let file = String(error.file)
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .replace(/^File:\s*/i, '')
+                .replace(/^-\s*/, '')
+                .replace(/\n/g, ' ')
+                .replace(/\\n/g, ' ')
+                .trim()
+                .split('\n')[0]
+                .split('\\n')[0];
+            if (!file || file.length === 0) {
+                throw new Error(`Error at index ${i}: file path is required and cannot be empty`);
+            }
+            // Clean and validate type - must be a valid IssueType
+            let type = String(error.type)
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .replace(/^Type:\s*/i, '')
+                .replace(/^-\s*/, '')
+                .replace(/\n/g, ' ')
+                .replace(/\\n/g, ' ')
+                .trim()
+                .split('\n')[0]
+                .split('\\n')[0]
+                .split(':')[0]
+                .trim()
+                .toLowerCase();
+            if (!type || type.length === 0) {
+                throw new Error(`Error at index ${i}: type is required and cannot be empty`);
+            }
+            // Validate that type is a valid IssueType enum value
+            if (!Object.values(types_1.IssueType).includes(type)) {
+                // Try to find a close match or use CODE_ISSUE as fallback
+                const validTypes = Object.values(types_1.IssueType);
+                const closeMatch = validTypes.find(t => t.includes(type) || type.includes(t));
+                if (closeMatch) {
+                    type = closeMatch;
+                }
+                else {
+                    // Use generic fallback
+                    type = types_1.IssueType.CODE_ISSUE;
+                }
+            }
+            // Validate and normalize severity
+            let severity = String(error.severity).toLowerCase().trim();
+            if (!['critical', 'high', 'medium', 'low'].includes(severity)) {
+                throw new Error(`Error at index ${i}: Invalid severity "${error.severity}". Must be one of: critical, high, medium, low`);
+            }
+            // Clean description - remove markdown but preserve content
+            let description = String(error.description)
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .replace(/^-\s*/, '')
+                .replace(/^\d+\.\s*/, '')
+                .replace(/\\n/g, '\n')
+                .trim();
+            // If description contains multiple errors concatenated, take only first
+            const firstErrorMatch = description.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
+            if (firstErrorMatch) {
+                description = firstErrorMatch[1].trim();
+            }
+            if (!description || description.length === 0) {
+                throw new Error(`Error at index ${i}: description is required and cannot be empty`);
+            }
+            // Clean suggestion if provided
+            let suggestion = undefined;
+            if (error.suggestion) {
+                suggestion = String(error.suggestion)
+                    .replace(/\*\*/g, '')
+                    .replace(/\*/g, '')
+                    .replace(/^-\s*/, '')
+                    .replace(/^\d+\.\s*/, '')
+                    .replace(/\\n/g, '\n')
+                    .trim();
+                const firstSuggestionMatch = suggestion.match(/^([^]*?)(?:\n\s*[-*]\s*File:|$)/);
+                if (firstSuggestionMatch) {
+                    suggestion = firstSuggestionMatch[1].trim();
+                }
+            }
+            // Parse line number
+            let line = undefined;
+            if (error.line !== undefined && error.line !== null) {
+                if (typeof error.line === 'number') {
+                    line = error.line;
+                }
+                else if (typeof error.line === 'string') {
+                    const lineMatch = error.line.match(/(\d+)/);
+                    if (lineMatch) {
+                        line = parseInt(lineMatch[1], 10);
+                    }
+                }
+            }
+            cleanedErrors.push({
+                file,
+                line,
+                type: type,
+                severity: severity,
+                description,
+                suggestion
+            });
+        }
+        // Notify callback with cleaned errors
+        this.options.onErrorsReported(cleanedErrors);
+        return `Successfully reported ${cleanedErrors.length} error(s). Errors have been recorded for analysis.`;
+    }
+}
+exports.ReportErrorsTool = ReportErrorsTool;
+
+
+/***/ }),
+
+/***/ 1422:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Report Progress Tool
+ * Tool for reporting task progress in structured format
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReportProgressTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class ReportProgressTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'report_progress';
+    }
+    getDescription() {
+        return 'Report the progress percentage of a task based on code changes analysis. Use this tool to report the completion percentage (0-100) and a brief summary of your assessment. This is the PRIMARY way to report progress - you MUST use this tool after analyzing the changes.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                progress: {
+                    type: 'number',
+                    description: 'Progress percentage as a number between 0 and 100 (inclusive). 0 means nothing done, 100 means task is complete. MUST be a number, not a string.',
+                    minimum: 0,
+                    maximum: 100
+                },
+                summary: {
+                    type: 'string',
+                    description: 'Brief summary explaining why you assigned this progress percentage. Plain text description. Can contain newlines for readability, but NO markdown formatting (NO **, NO *, NO #). Just plain descriptive text explaining the assessment.'
+                }
+            },
+            required: ['progress', 'summary'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        // Validate progress
+        if (input.progress === undefined || input.progress === null) {
+            throw new Error('progress is required');
+        }
+        let progress;
+        if (typeof input.progress === 'number') {
+            progress = input.progress;
+        }
+        else if (typeof input.progress === 'string') {
+            // Try to extract number from string
+            const match = input.progress.match(/(\d+(?:\.\d+)?)/);
+            if (match) {
+                progress = parseFloat(match[1]);
+            }
+            else {
+                throw new Error(`Invalid progress value: "${input.progress}". Must be a number between 0 and 100.`);
+            }
+        }
+        else {
+            throw new Error(`Invalid progress type: ${typeof input.progress}. Must be a number between 0 and 100.`);
+        }
+        // Validate progress range
+        if (isNaN(progress) || progress < 0 || progress > 100) {
+            throw new Error(`Progress must be a number between 0 and 100, got: ${progress}`);
+        }
+        // Round to integer
+        progress = Math.round(progress);
+        // Validate summary
+        if (!input.summary || typeof input.summary !== 'string') {
+            throw new Error('summary is required and must be a string');
+        }
+        // Clean summary - remove markdown but preserve content
+        let summary = String(input.summary)
+            .replace(/\*\*/g, '')
+            .replace(/\*/g, '')
+            .replace(/^#+\s*/gm, '')
+            .replace(/^-\s*/gm, '')
+            .replace(/^\d+\.\s*/gm, '')
+            .replace(/\\n/g, '\n')
+            .trim();
+        if (!summary || summary.length === 0) {
+            throw new Error('summary is required and cannot be empty');
+        }
+        logInfo(`   📊 Progress reported: ${progress}%`);
+        logInfo(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
+        // Notify callback
+        this.options.onProgressReported(progress, summary);
+        return `Successfully reported progress: ${progress}%. Progress has been recorded.`;
+    }
+}
+exports.ReportProgressTool = ReportProgressTool;
+
+
+/***/ }),
+
+/***/ 4293:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Search Files Tool
+ * Searches for files by name or content
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SearchFilesTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+class SearchFilesTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'search_files';
+    }
+    getDescription() {
+        return 'Search for files in the repository by name, path, or content keywords. Returns a list of matching file paths.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                query: {
+                    type: 'string',
+                    description: 'Search query. Can be a file name, path pattern, or content keyword.'
+                },
+                max_results: {
+                    type: 'number',
+                    description: 'Maximum number of results to return (default: 1000, use higher values like 5000-10000 for comprehensive searches. No hard limit - use a very high number to get all results)'
+                }
+            },
+            required: ['query'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo } = __nccwpck_require__(8836);
+        const query = input.query;
+        logInfo(`   🔍 Searching files with query: "${query}"`);
+        const maxResults = input.max_results || 1000; // Default to 1000 for comprehensive searches
+        if (!query || typeof query !== 'string') {
+            throw new Error('query is required and must be a string');
+        }
+        if (maxResults < 1) {
+            throw new Error('max_results must be at least 1');
+        }
+        // Perform search
+        const results = this.options.searchFiles(query);
+        // Limit results only if maxResults is reasonable (to prevent memory issues)
+        // For very large values (>= 10000), return all results
+        const limitedResults = maxResults >= 10000 ? results : results.slice(0, maxResults);
+        if (limitedResults.length === 0) {
+            return `No files found matching query: "${query}"`;
+        }
+        // Format response
+        const resultList = limitedResults.map((file, index) => `${index + 1}. ${file}`).join('\n');
+        return `Found ${limitedResults.length} file(s) matching "${query}":\n\n${resultList}`;
+    }
+}
+exports.SearchFilesTool = SearchFilesTool;
+
+
+/***/ }),
+
+/***/ 4315:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Tool Executor for Agent SDK
+ * Executes tool calls and returns results
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolExecutor = void 0;
+class ToolExecutor {
+    constructor(registry) {
+        this.registry = registry;
+    }
+    /**
+     * Execute a single tool call
+     */
+    async execute(toolCall) {
+        const tool = this.registry.get(toolCall.name);
+        if (!tool) {
+            return {
+                toolCallId: toolCall.id,
+                content: `Error: Tool "${toolCall.name}" not found`,
+                isError: true,
+                errorMessage: `Tool "${toolCall.name}" is not registered`
+            };
+        }
+        try {
+            const executionResult = await tool.executeWithValidation(toolCall.input);
+            if (!executionResult.success) {
+                // Provide helpful error message with tool schema info
+                const toolDef = tool.getDefinition();
+                const requiredFields = toolDef.inputSchema.required || [];
+                const errorMsg = executionResult.error || 'Tool execution failed';
+                const helpfulError = `${errorMsg}. Required fields: ${requiredFields.join(', ')}. Available fields: ${Object.keys(toolDef.inputSchema.properties).join(', ')}.`;
+                return {
+                    toolCallId: toolCall.id,
+                    content: helpfulError,
+                    isError: true,
+                    errorMessage: errorMsg
+                };
+            }
+            // Convert result to string if needed
+            const content = typeof executionResult.result === 'string'
+                ? executionResult.result
+                : JSON.stringify(executionResult.result, null, 2);
+            return {
+                toolCallId: toolCall.id,
+                content
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return {
+                toolCallId: toolCall.id,
+                content: `Error executing tool: ${errorMessage}`,
+                isError: true,
+                errorMessage
+            };
+        }
+    }
+    /**
+     * Execute multiple tool calls in parallel
+     */
+    async executeAll(toolCalls) {
+        const promises = toolCalls.map(toolCall => this.execute(toolCall));
+        return Promise.all(promises);
+    }
+    /**
+     * Execute multiple tool calls sequentially
+     */
+    async executeAllSequential(toolCalls) {
+        const results = [];
+        for (const toolCall of toolCalls) {
+            const result = await this.execute(toolCall);
+            results.push(result);
+        }
+        return results;
+    }
+    /**
+     * Check if tool is available
+     */
+    isToolAvailable(name) {
+        return this.registry.has(name);
+    }
+    /**
+     * Get available tool names
+     */
+    getAvailableTools() {
+        return this.registry.getToolNames();
+    }
+    /**
+     * Get all tool definitions
+     */
+    getToolDefinitions() {
+        return this.registry.getAllDefinitions();
+    }
+}
+exports.ToolExecutor = ToolExecutor;
+
+
+/***/ }),
+
+/***/ 4138:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Tool Registry for managing available tools
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolRegistry = void 0;
+class ToolRegistry {
+    constructor() {
+        this.tools = new Map();
+    }
+    /**
+     * Register a tool
+     */
+    register(tool) {
+        const name = tool.getName();
+        if (this.tools.has(name)) {
+            throw new Error(`Tool with name "${name}" is already registered`);
+        }
+        this.tools.set(name, tool);
+    }
+    /**
+     * Register multiple tools
+     */
+    registerAll(tools) {
+        for (const tool of tools) {
+            this.register(tool);
+        }
+    }
+    /**
+     * Get tool by name
+     */
+    get(name) {
+        return this.tools.get(name);
+    }
+    /**
+     * Check if tool exists
+     */
+    has(name) {
+        return this.tools.has(name);
+    }
+    /**
+     * Get all tool definitions
+     */
+    getAllDefinitions() {
+        return Array.from(this.tools.values()).map(tool => tool.getDefinition());
+    }
+    /**
+     * Get all registered tool names
+     */
+    getToolNames() {
+        return Array.from(this.tools.keys());
+    }
+    /**
+     * Clear all tools
+     */
+    clear() {
+        this.tools.clear();
+    }
+    /**
+     * Get tool count
+     */
+    getCount() {
+        return this.tools.size;
+    }
+}
+exports.ToolRegistry = ToolRegistry;
+
+
+/***/ }),
+
+/***/ 6515:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * JSON Schema for Agent responses
+ * Used with OpenRouter JSON mode
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AGENT_RESPONSE_SCHEMA = void 0;
+exports.AGENT_RESPONSE_SCHEMA = {
+    type: "object",
+    properties: {
+        response: {
+            type: "string",
+            description: "Your text response to the user. Explain what you're doing or thinking."
+        },
+        tool_calls: {
+            type: "array",
+            description: "List of tools to call. Empty array [] if no tools are needed.",
+            items: {
+                type: "object",
+                properties: {
+                    id: {
+                        type: "string",
+                        description: "Unique identifier for this tool call (e.g., 'call_1', 'call_2')"
+                    },
+                    name: {
+                        type: "string",
+                        description: "Name of the tool to call (must match one of the available tools)"
+                    },
+                    input: {
+                        type: "object",
+                        description: "Input parameters for the tool (must match the tool's input schema)",
+                        additionalProperties: false // Required by strict mode, but each tool validates its own schema
+                    }
+                },
+                required: ["id", "name", "input"],
+                additionalProperties: false
+            }
+        }
+    },
+    required: ["response", "tool_calls"],
+    additionalProperties: false
+};
+
+
+/***/ }),
+
+/***/ 9907:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Error handler for Agent SDK
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ErrorHandler = exports.ValidationError = exports.APIError = exports.ToolExecutionError = exports.AgentError = void 0;
+class AgentError extends Error {
+    constructor(message, code, context) {
+        super(message);
+        this.code = code;
+        this.context = context;
+        this.name = 'AgentError';
+    }
+}
+exports.AgentError = AgentError;
+class ToolExecutionError extends AgentError {
+    constructor(message, toolName, toolInput) {
+        super(message, 'TOOL_EXECUTION_ERROR', { toolName, toolInput });
+        this.toolName = toolName;
+        this.toolInput = toolInput;
+        this.name = 'ToolExecutionError';
+    }
+}
+exports.ToolExecutionError = ToolExecutionError;
+class APIError extends AgentError {
+    constructor(message, statusCode, response) {
+        super(message, 'API_ERROR', { statusCode, response });
+        this.statusCode = statusCode;
+        this.response = response;
+        this.name = 'APIError';
+    }
+}
+exports.APIError = APIError;
+class ValidationError extends AgentError {
+    constructor(message, field) {
+        super(message, 'VALIDATION_ERROR', { field });
+        this.field = field;
+        this.name = 'ValidationError';
+    }
+}
+exports.ValidationError = ValidationError;
+class ErrorHandler {
+    /**
+     * Handle and format errors
+     */
+    static handle(error) {
+        if (error instanceof AgentError) {
+            return error;
+        }
+        if (error instanceof Error) {
+            return new AgentError(error.message, 'UNKNOWN_ERROR', { originalError: error });
+        }
+        return new AgentError(String(error), 'UNKNOWN_ERROR');
+    }
+    /**
+     * Check if error is retryable
+     */
+    static isRetryable(error) {
+        if (error instanceof APIError) {
+            // Retry on 5xx errors or rate limits
+            return error.statusCode === undefined
+                || (error.statusCode >= 500 && error.statusCode < 600)
+                || error.statusCode === 429;
+        }
+        return false;
+    }
+}
+exports.ErrorHandler = ErrorHandler;
+
+
+/***/ }),
+
+/***/ 3277:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Prompt builder for Agent SDK
+ * Builds prompts that include tool definitions and conversation history
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PromptBuilder = void 0;
+class PromptBuilder {
+    /**
+     * Build a complete prompt from messages and tools
+     * This converts the message history into a format suitable for OpenRouter
+     */
+    static buildPrompt(messages, tools) {
+        const parts = [];
+        // Add system message if present
+        const systemMessage = messages.find(m => m.role === 'system');
+        if (systemMessage && typeof systemMessage.content === 'string') {
+            parts.push(`## System Instructions\n\n${systemMessage.content}\n\n`);
+        }
+        // Add tools information if available (simplified)
+        if (tools && tools.length > 0) {
+            parts.push(this.buildToolsSection(tools));
+        }
+        // Add conversation history (only last 5 messages to avoid token limit)
+        const recentMessages = messages.filter(m => m.role !== 'system').slice(-5);
+        if (recentMessages.length > 0) {
+            parts.push('## Conversation History\n\n');
+            for (const message of recentMessages) {
+                parts.push(this.formatMessage(message));
+            }
+        }
+        // Add current instruction (simplified)
+        parts.push('\n## Your Response\n\n');
+        parts.push('Respond with JSON: {"response": "your text", "tool_calls": []}');
+        parts.push('\n\nProvide your response now:');
+        return parts.join('\n');
+    }
+    /**
+     * Build tools section for prompt (simplified to save tokens)
+     */
+    static buildToolsSection(tools) {
+        const parts = ['## Available Tools\n\n'];
+        for (const tool of tools) {
+            parts.push(`**${tool.name}**: ${tool.description}\n`);
+            // Simplified schema - just show required fields
+            const required = tool.inputSchema.required || [];
+            if (required.length > 0) {
+                parts.push(`  Required: ${required.join(', ')}\n`);
+            }
+        }
+        parts.push('\n**Instructions**: Use tools via `tool_calls` array. Format: `{"id": "call_1", "name": "tool_name", "input": {...}}`\n');
+        parts.push('\n**CRITICAL**: When calling tools, ensure the "input" object contains ALL required fields shown above. Missing required fields will cause errors.\n\n');
+        return parts.join('\n');
+    }
+    /**
+     * Format a message for the prompt
+     */
+    static formatMessage(message) {
+        const role = message.role.toUpperCase();
+        if (typeof message.content === 'string') {
+            return `**${role}**: ${message.content}\n\n`;
+        }
+        // Handle content blocks
+        const blocks = [];
+        for (const block of message.content) {
+            if (block.type === 'text') {
+                blocks.push(block.text);
+            }
+            else if (block.type === 'tool_use') {
+                const inputStr = JSON.stringify(block.input);
+                blocks.push(`[Called tool: ${block.name}(${inputStr})]`);
+            }
+            else if (block.type === 'tool_result') {
+                const result = typeof block.content === 'string'
+                    ? block.content
+                    : JSON.stringify(block.content, null, 2);
+                const status = block.is_error ? 'ERROR' : 'SUCCESS';
+                blocks.push(`[Tool Result (${status}) for ${block.tool_use_id}]:\n${result}`);
+            }
+        }
+        return `**${role}**: ${blocks.join('\n\n')}\n\n`;
+    }
+    /**
+     * Get response schema for JSON mode
+     */
+    static getResponseSchema() {
+        return {
+            type: 'object',
+            properties: {
+                reasoning: {
+                    type: 'string',
+                    description: 'Your reasoning process for this step (optional)'
+                },
+                response: {
+                    type: 'string',
+                    description: 'Your text response to the user'
+                },
+                tool_calls: {
+                    type: 'array',
+                    description: 'List of tools to call (empty array if no tools needed)',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: {
+                                type: 'string',
+                                description: 'Unique identifier for this tool call'
+                            },
+                            name: {
+                                type: 'string',
+                                description: 'Name of the tool to call'
+                            },
+                            input: {
+                                type: 'object',
+                                description: 'Input parameters for the tool'
+                            }
+                        },
+                        required: ['id', 'name', 'input'],
+                        additionalProperties: false
+                    }
+                }
+            },
+            required: ['response', 'tool_calls'],
+            additionalProperties: false
+        };
+    }
+}
+exports.PromptBuilder = PromptBuilder;
+
+
+/***/ }),
+
+/***/ 8952:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Response parser for OpenRouter JSON responses
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ResponseParser = void 0;
+class ResponseParser {
+    /**
+     * Parse JSON response from OpenRouter
+     * Expected format:
+     * {
+     *   "reasoning": "...",
+     *   "response": "...",
+     *   "tool_calls": [
+     *     {
+     *       "id": "call_1",
+     *       "name": "read_file",
+     *       "input": { "file_path": "..." }
+     *     }
+     *   ]
+     * }
+     */
+    static parse(jsonResponse) {
+        if (!jsonResponse || typeof jsonResponse !== 'object') {
+            throw new Error('Invalid response format: expected object');
+        }
+        const response = {
+            text: jsonResponse.response || jsonResponse.text || '',
+            reasoning: jsonResponse.reasoning
+        };
+        // Parse tool calls if present
+        if (jsonResponse.tool_calls && Array.isArray(jsonResponse.tool_calls)) {
+            response.toolCalls = jsonResponse.tool_calls.map((tc, index) => {
+                if (!tc.name) {
+                    throw new Error(`Tool call at index ${index} missing 'name' field`);
+                }
+                return {
+                    id: tc.id || this.generateToolCallId(index),
+                    name: tc.name,
+                    input: tc.input || tc.arguments || {}
+                };
+            });
+        }
+        else if (jsonResponse.tool_calls !== undefined && !Array.isArray(jsonResponse.tool_calls)) {
+            // If tool_calls exists but is not an array, treat as empty
+            response.toolCalls = [];
+        }
+        else {
+            // No tool_calls field, assume empty
+            response.toolCalls = [];
+        }
+        return response;
+    }
+    /**
+     * Generate a unique tool call ID
+     */
+    static generateToolCallId(index) {
+        return `call_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    /**
+     * Validate parsed response
+     */
+    static validate(parsed) {
+        if (!parsed.text && !parsed.toolCalls?.length) {
+            return false;
+        }
+        if (parsed.toolCalls) {
+            for (const toolCall of parsed.toolCalls) {
+                if (!toolCall.id || !toolCall.name) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+}
+exports.ResponseParser = ResponseParser;
+
+
+/***/ }),
+
 /***/ 4470:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -56286,7 +62362,7 @@ class Execution {
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
             }
             this.currentConfiguration.branchType = this.issueType;
-            (0, logger_1.logDebugInfo)(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
+            // logDebugInfo(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
         };
         this.debug = debug;
         this.singleAction = singleAction;
@@ -56989,6 +63065,12 @@ class SingleAction {
     get isThinkAction() {
         return this.currentSingleAction === constants_1.ACTIONS.THINK;
     }
+    get isInitialSetupAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.INITIAL_SETUP;
+    }
+    get isCheckProgressAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.CHECK_PROGRESS;
+    }
     get enabledSingleAction() {
         return this.currentSingleAction.length > 0;
     }
@@ -57012,6 +63094,8 @@ class SingleAction {
             constants_1.ACTIONS.CREATE_TAG,
             constants_1.ACTIONS.CREATE_RELEASE,
             constants_1.ACTIONS.THINK,
+            constants_1.ACTIONS.INITIAL_SETUP,
+            constants_1.ACTIONS.CHECK_PROGRESS,
         ];
         /**
          * Actions that throw an error if the last step failed
@@ -57030,6 +63114,7 @@ class SingleAction {
             constants_1.ACTIONS.AI_CACHE,
             constants_1.ACTIONS.AI_CACHE_LOCAL,
             constants_1.ACTIONS.THINK,
+            constants_1.ACTIONS.INITIAL_SETUP,
         ];
         this.isIssue = false;
         this.isPullRequest = false;
@@ -57175,7 +63260,8 @@ exports.THINK_RESPONSE_JSON_SCHEMA = {
                     key_findings: { type: "string" },
                     relevance: { type: "string", enum: ["high", "medium", "low"] }
                 },
-                required: ["path", "key_findings", "relevance"]
+                required: ["path", "key_findings", "relevance"],
+                additionalProperties: false
             },
             description: "Files that have been analyzed with their findings (when action is 'analyze_code')"
         },
@@ -57190,7 +63276,8 @@ exports.THINK_RESPONSE_JSON_SCHEMA = {
                     suggested_code: { type: "string" },
                     reasoning: { type: "string" }
                 },
-                required: ["file_path", "change_type", "description", "reasoning"]
+                required: ["file_path", "change_type", "description", "suggested_code", "reasoning"],
+                additionalProperties: false
             },
             description: "Proposed changes to the codebase (when action is 'propose_changes')"
         },
@@ -57204,7 +63291,7 @@ exports.THINK_RESPONSE_JSON_SCHEMA = {
         },
         todo_updates: {
             type: "object",
-            description: "Updates to the TODO list (when action is 'update_todos' or alongside other actions)",
+            description: "Updates to the TODO list (when action is 'update_todos' or alongside other actions). CRITICAL: 'create' can ONLY be used in iteration 1. After iteration 1, ONLY use 'update' to modify existing TODOs.",
             properties: {
                 create: {
                     type: "array",
@@ -57214,9 +63301,10 @@ exports.THINK_RESPONSE_JSON_SCHEMA = {
                             content: { type: "string" },
                             status: { type: "string", enum: ["pending", "in_progress"] }
                         },
-                        required: ["content"]
+                        required: ["content", "status"],
+                        additionalProperties: false
                     },
-                    description: "New TODO items to create"
+                    description: "🚫 CRITICAL: New TODO items can ONLY be created in iteration 1 (the initial message). After iteration 1, this field must be an empty array [] or omitted. If you try to create TODOs after iteration 1, they will be BLOCKED."
                 },
                 update: {
                     type: "array",
@@ -57227,14 +63315,17 @@ exports.THINK_RESPONSE_JSON_SCHEMA = {
                             status: { type: "string", enum: ["pending", "in_progress", "completed", "cancelled"] },
                             notes: { type: "string" }
                         },
-                        required: ["id"]
+                        required: ["id", "status", "notes"],
+                        additionalProperties: false
                     },
-                    description: "Updates to existing TODO items"
+                    description: "Updates to existing TODO items. Use EXACT TODO IDs (e.g., 'todo_1', 'todo_2') from the TODO list shown in the conversation."
                 }
-            }
+            },
+            required: ["create", "update"],
+            additionalProperties: false
         }
     },
-    required: ["reasoning", "action", "complete"],
+    required: ["reasoning", "action", "complete", "files_to_search", "files_to_read", "analyzed_files", "proposed_changes", "final_analysis", "todo_updates"],
     additionalProperties: false
 };
 
@@ -57330,12 +63421,12 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration');
                 return undefined;
             }
-            (0, logger_1.logDebugInfo)(`🔎 Model: ${model}`);
-            (0, logger_1.logDebugInfo)(`🔎 API Key: ***`);
-            (0, logger_1.logDebugInfo)(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
+            // logDebugInfo(`🔎 Model: ${model}`);
+            // logDebugInfo(`🔎 API Key: ***`);
+            // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             try {
-                (0, logger_1.logDebugInfo)(`Sending prompt to ${model}: ${prompt}`);
+                // logDebugInfo(`Sending prompt to ${model}: ${prompt}`);
                 const requestBody = {
                     model: model,
                     messages: [
@@ -57375,7 +63466,8 @@ class AiRepository {
                 return undefined;
             }
         };
-        this.askJson = async (ai, prompt, schema, schemaName = "ai_response") => {
+        this.askJson = async (ai, prompt, schema, schemaName = "ai_response", streaming, onChunk, strict = true // Default to strict, but can be overridden
+        ) => {
             const model = ai.getOpenRouterModel();
             const apiKey = ai.getOpenRouterApiKey();
             const providerRouting = ai.getProviderRouting();
@@ -57383,9 +63475,6 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration');
                 return undefined;
             }
-            // logDebugInfo(`🔎 Model: ${model}`);
-            // logDebugInfo(`🔎 API Key: ***`);
-            // logDebugInfo(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             // Use provided schema or default to AI_RESPONSE_JSON_SCHEMA
             const responseSchema = schema || ai_response_schema_1.AI_RESPONSE_JSON_SCHEMA;
@@ -57395,15 +63484,20 @@ class AiRepository {
                     messages: [
                         { role: 'user', content: prompt },
                     ],
+                    max_tokens: 4096,
                     response_format: {
                         type: "json_schema",
                         json_schema: {
                             name: schemaName,
                             schema: responseSchema,
-                            strict: true
+                            strict: strict // Use configurable strict mode
                         }
                     }
                 };
+                // Enable streaming if requested
+                if (streaming) {
+                    requestBody.stream = true;
+                }
                 // Add provider routing configuration if it exists and has properties
                 if (Object.keys(providerRouting).length > 0) {
                     requestBody.provider = providerRouting;
@@ -57424,14 +63518,16 @@ class AiRepository {
                     (0, logger_1.logError)(`Error from API: ${response.status} ${response.statusText}`);
                     return undefined;
                 }
+                // Handle streaming
+                if (streaming && response.body) {
+                    return await this.handleStreamingResponse(response, onChunk);
+                }
                 const data = await response.json();
                 if (!data.choices || data.choices.length === 0) {
                     (0, logger_1.logError)('No response content received from API');
                     return undefined;
                 }
-                // logDebugInfo(`Successfully received response from ${model}`);
                 const content = data.choices[0].message.content;
-                // logDebugInfo(`Response: ${content}`);
                 return JSON.parse(content);
             }
             catch (error) {
@@ -57439,7 +63535,11 @@ class AiRepository {
                 return undefined;
             }
         };
-        this.askThinkJson = async (ai, prompt) => {
+        /**
+         * Ask AI with conversation history (array of messages)
+         * Supports both single prompt (backward compatible) and message array
+         */
+        this.askThinkJson = async (ai, messagesOrPrompt) => {
             const model = ai.getOpenRouterModel();
             const apiKey = ai.getOpenRouterApiKey();
             const providerRouting = ai.getProviderRouting();
@@ -57447,16 +63547,15 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration');
                 return undefined;
             }
-            (0, logger_1.logDebugInfo)(`🔎 Model: ${model}`);
-            (0, logger_1.logDebugInfo)(`🔎 API Key: ***`);
-            (0, logger_1.logDebugInfo)(`🔎 Provider Routing: ${JSON.stringify(providerRouting, null, 2)}`);
             const url = `https://openrouter.ai/api/v1/chat/completions`;
             try {
+                // Convert single prompt to message array for backward compatibility
+                const messages = Array.isArray(messagesOrPrompt)
+                    ? messagesOrPrompt
+                    : [{ role: 'user', content: messagesOrPrompt }];
                 const requestBody = {
                     model: model,
-                    messages: [
-                        { role: 'user', content: prompt },
-                    ],
+                    messages: messages,
                     response_format: {
                         type: "json_schema",
                         json_schema: {
@@ -57491,9 +63590,7 @@ class AiRepository {
                     (0, logger_1.logError)('No response content received from API');
                     return undefined;
                 }
-                // logDebugInfo(`Successfully received response from ${model}`);
                 const content = data.choices[0].message.content;
-                // logDebugInfo(`Response: ${content}`);
                 return JSON.parse(content);
             }
             catch (error) {
@@ -57501,6 +63598,59 @@ class AiRepository {
                 return undefined;
             }
         };
+    }
+    /**
+     * Handle streaming response
+     */
+    async handleStreamingResponse(response, onChunk) {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        if (!reader) {
+            throw new Error('No response body reader available');
+        }
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') {
+                            continue;
+                        }
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta;
+                            if (delta?.content) {
+                                fullContent += delta.content;
+                                onChunk?.(delta.content);
+                            }
+                        }
+                        catch (e) {
+                            // Ignore parse errors for incomplete chunks
+                        }
+                    }
+                }
+            }
+            // Parse final JSON content
+            try {
+                return JSON.parse(fullContent);
+            }
+            catch (e) {
+                (0, logger_1.logError)('Failed to parse streaming response as JSON');
+                return { response: fullContent };
+            }
+        }
+        finally {
+            reader.releaseLock();
+        }
     }
 }
 exports.AiRepository = AiRepository;
@@ -58235,10 +64385,19 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FileRepository = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
-const crypto_1 = __nccwpck_require__(6113);
+const fs = __importStar(__nccwpck_require__(3292));
+const path = __importStar(__nccwpck_require__(1017));
+const os = __importStar(__nccwpck_require__(2037));
+const child_process_1 = __nccwpck_require__(2081);
+const util_1 = __nccwpck_require__(3837);
+const execAsync = (0, util_1.promisify)(child_process_1.exec);
 class FileRepository {
     constructor() {
         this.getFileContent = async (owner, repository, path, token, branch) => {
+            if (!token || token.length === 0) {
+                (0, logger_1.logError)(`Error getting file content: Token is empty or undefined for ${path}`);
+                return '';
+            }
             const octokit = github.getOctokit(token);
             try {
                 const { data } = await octokit.rest.repos.getContent({
@@ -58253,186 +64412,95 @@ class FileRepository {
                 return '';
             }
             catch (error) {
-                (0, logger_1.logError)(`Error getting file content: ${error}.`);
+                const errorMessage = error?.message || String(error);
+                const errorStatus = error?.status || 'unknown';
+                (0, logger_1.logError)(`Error getting file content for ${path}: ${errorMessage} (status: ${errorStatus}). Token length: ${token.length}`);
                 return '';
             }
         };
         this.getRepositoryContent = async (owner, repository, token, branch, ignoreFiles, progress, ignoredFiles) => {
-            const octokit = github.getOctokit(token);
             const fileContents = new Map();
+            let tempDir = null;
             try {
-                const getContentRecursively = async (path = '') => {
-                    const { data } = await octokit.rest.repos.getContent({
-                        owner,
-                        repo: repository,
-                        path,
-                        ref: branch
-                    });
-                    if (Array.isArray(data)) {
-                        const promises = [];
-                        for (const item of data) {
-                            if (item.type === 'file') {
-                                if (this.isMediaOrPdfFile(item.path) || this.shouldIgnoreFile(item.path, ignoreFiles)) {
-                                    ignoredFiles(item.path);
-                                    continue;
-                                }
-                                progress(item.path);
-                                const filePromise = (async () => {
-                                    const content = await this.getFileContent(owner, repository, item.path, token, branch);
-                                    fileContents.set(item.path, content);
-                                })();
-                                promises.push(filePromise);
+                // Create temporary directory
+                tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'git-clone-'));
+                const repoPath = path.join(tempDir, repository);
+                // Clone repository using git clone with authentication
+                // GitHub tokens are typically safe to use directly in URLs
+                const repoUrl = `https://${token}@github.com/${owner}/${repository}.git`;
+                // logInfo(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
+                // Use --single-branch to optimize clone and --depth 1 for shallow clone
+                // This significantly reduces clone time and size
+                await execAsync(`git clone --depth 1 --single-branch --branch ${branch} ${repoUrl} ${repoPath}`, {
+                    cwd: tempDir,
+                    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+                    maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
+                });
+                // logInfo(`✅ Repository cloned successfully`);
+                // Read files recursively from filesystem
+                const readFilesRecursively = async (dirPath, relativePath = '') => {
+                    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const fullPath = path.join(dirPath, entry.name);
+                        const relativeFilePath = relativePath ? path.join(relativePath, entry.name) : entry.name;
+                        // Normalize path using the same method as FileCacheManager
+                        // This ensures paths match when comparing with cached entries
+                        const normalizedPath = this.normalizePath(relativeFilePath);
+                        if (entry.isDirectory()) {
+                            // Skip .git directory
+                            if (entry.name === '.git') {
+                                continue;
                             }
-                            else if (item.type === 'dir') {
-                                promises.push(getContentRecursively(item.path));
+                            await readFilesRecursively(fullPath, normalizedPath);
+                        }
+                        else if (entry.isFile()) {
+                            // Check if file should be ignored
+                            if (this.isMediaOrPdfFile(normalizedPath) || this.shouldIgnoreFile(normalizedPath, ignoreFiles)) {
+                                ignoredFiles(normalizedPath);
+                                continue;
+                            }
+                            progress(normalizedPath);
+                            try {
+                                const content = await fs.readFile(fullPath, 'utf-8');
+                                fileContents.set(normalizedPath, content);
+                            }
+                            catch (error) {
+                                (0, logger_1.logError)(`Error reading file ${normalizedPath}: ${error}`);
                             }
                         }
-                        await Promise.all(promises);
                     }
                 };
-                await getContentRecursively();
+                await readFilesRecursively(repoPath);
                 return fileContents;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error getting repository content: ${error}.`);
-                return new Map();
+                (0, logger_1.logError)(`Error getting repository content: ${error}`);
+                return fileContents;
             }
-        };
-        this.extractCodeBlocks = (code) => {
-            const lines = code.split('\n');
-            const blocks = [];
-            let currentBlock;
-            let braceDepth = 0;
-            let indentLevel = 0;
-            const startBlock = (type, name, line, lineNumber) => {
-                currentBlock = {
-                    type,
-                    name,
-                    content: line + '\n',
-                    startLine: lineNumber,
-                    endLine: lineNumber,
-                };
-                braceDepth = (line.match(/{/g) || []).length - (line.match(/}/g) || []).length;
-                indentLevel = line.match(/^(\s*)/)?.[1].length ?? 0;
-            };
-            const endBlock = (lineNumber) => {
-                if (currentBlock) {
-                    currentBlock.endLine = lineNumber;
-                    blocks.push(currentBlock);
-                    currentBlock = undefined;
-                }
-            };
-            lines.forEach((line, idx) => {
-                const trimmed = line.trim();
-                const lineNumber = idx + 1;
-                // Detect class or function headers
-                const functionMatch = trimmed.match(/(?:function|def|fn|async|const|let)\s+(\w+)/);
-                const classMatch = trimmed.match(/class\s+(\w+)/);
-                if (!currentBlock && functionMatch) {
-                    startBlock('function', functionMatch[1], line, lineNumber);
-                }
-                else if (!currentBlock && classMatch) {
-                    startBlock('class', classMatch[1], line, lineNumber);
-                }
-                else if (currentBlock) {
-                    currentBlock.content += line + '\n';
-                    // Update brace depth
-                    braceDepth += (line.match(/{/g) || []).length;
-                    braceDepth -= (line.match(/}/g) || []).length;
-                    // Or detect dedentation (for Python-style)
-                    const currentIndent = line.match(/^(\s*)/)?.[1].length ?? 0;
-                    const dedented = currentIndent < indentLevel;
-                    if (braceDepth <= 0 && trimmed.endsWith('}') || dedented) {
-                        endBlock(lineNumber);
+            finally {
+                // Clean up temporary directory
+                if (tempDir) {
+                    try {
+                        await fs.rm(tempDir, { recursive: true, force: true });
+                        // logInfo(`🧹 Cleaned up temporary directory`);
                     }
-                }
-            });
-            // Catch any unfinished block
-            if (currentBlock) {
-                currentBlock.endLine = lines.length;
-                blocks.push(currentBlock);
-            }
-            return blocks;
-        };
-        this.shouldIgnoreLine = (line) => {
-            const trimmed = line.trim();
-            return (trimmed === '' ||
-                /^[}\]);]+;?$/.test(trimmed) ||
-                /^import\s.+from\s.+;?$/.test(trimmed) ||
-                /^(return|break|continue|pass);?$/.test(trimmed) ||
-                /^\/\/[-=]*$/.test(trimmed) || // comentarios de separación
-                /^\/\/\s*(TODO|FIXME)?\s*$/i.test(trimmed) ||
-                /^[\]],?;?$/.test(trimmed) ||
-                /^try\s*{$/.test(trimmed) ||
-                /^}\s*else\s*{$/.test(trimmed) ||
-                /^`;?$/.test(trimmed) ||
-                /^\/\*\*$/.test(trimmed) ||
-                /^\*\/$/.test(trimmed));
-        };
-        this.getFileTree = async (owner, repository, token, branch, ignoreFiles, progress, ignoredFiles) => {
-            const fileContents = await this.getRepositoryContent(owner, repository, token, branch, ignoreFiles, progress, ignoredFiles);
-            // Create root nodes for both trees
-            const rootWithContent = {
-                name: repository,
-                type: 'directory',
-                path: '',
-                children: []
-            };
-            const rootWithoutContent = {
-                name: repository,
-                type: 'directory',
-                path: '',
-                children: []
-            };
-            // Process each file path to build both trees
-            for (const [filePath, content] of fileContents.entries()) {
-                const parts = filePath.split('/');
-                let currentLevelWithContent = rootWithContent;
-                let currentLevelWithoutContent = rootWithoutContent;
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i];
-                    const isLastPart = i === parts.length - 1;
-                    const currentPath = parts.slice(0, i + 1).join('/');
-                    // Find or create the node in the content tree
-                    let nodeWithContent = currentLevelWithContent.children?.find(n => n.name === part);
-                    if (!nodeWithContent) {
-                        nodeWithContent = {
-                            name: part,
-                            type: isLastPart ? 'file' : 'directory',
-                            path: currentPath,
-                            children: isLastPart ? undefined : [],
-                            content: isLastPart ? content : undefined
-                        };
-                        if (!currentLevelWithContent.children) {
-                            currentLevelWithContent.children = [];
-                        }
-                        currentLevelWithContent.children.push(nodeWithContent);
-                    }
-                    // Find or create the node in the no-content tree
-                    let nodeWithoutContent = currentLevelWithoutContent.children?.find(n => n.name === part);
-                    if (!nodeWithoutContent) {
-                        nodeWithoutContent = {
-                            name: part,
-                            type: isLastPart ? 'file' : 'directory',
-                            path: currentPath,
-                            children: isLastPart ? undefined : []
-                        };
-                        if (!currentLevelWithoutContent.children) {
-                            currentLevelWithoutContent.children = [];
-                        }
-                        currentLevelWithoutContent.children.push(nodeWithoutContent);
-                    }
-                    if (!isLastPart) {
-                        currentLevelWithContent = nodeWithContent;
-                        currentLevelWithoutContent = nodeWithoutContent;
+                    catch (cleanupError) {
+                        (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
                     }
                 }
             }
-            return {
-                withContent: rootWithContent,
-                withoutContent: rootWithoutContent
-            };
         };
+    }
+    /**
+     * Normalize file path for consistent comparison
+     * This must match the normalization used in FileCacheManager
+     * Removes leading ./ and normalizes path separators
+     */
+    normalizePath(path) {
+        return path
+            .replace(/^\.\//, '') // Remove leading ./
+            .replace(/\\/g, '/') // Normalize separators
+            .trim();
     }
     isMediaOrPdfFile(path) {
         const mediaExtensions = [
@@ -58466,12 +64534,6 @@ class FileRepository {
             const regex = new RegExp(`^${regexPattern}$`);
             return regex.test(filename);
         });
-    }
-    shuffleArray(array) {
-        return [...array].sort(() => Math.random() - 0.5);
-    }
-    calculateShasum(content) {
-        return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
     }
 }
 exports.FileRepository = FileRepository;
@@ -59090,6 +65152,234 @@ class IssueRepository {
                 (0, logger_1.logDebugInfo)(`Continuing with issue processing despite issue type update failure`);
                 throw error;
             }
+        };
+        /**
+         * List all labels for a repository
+         */
+        this.listLabelsForRepo = async (owner, repository, token) => {
+            const octokit = github.getOctokit(token);
+            const { data: labels } = await octokit.rest.issues.listLabelsForRepo({
+                owner,
+                repo: repository,
+                per_page: 100,
+            });
+            return labels.map(label => ({
+                name: label.name,
+                color: label.color,
+                description: label.description,
+            }));
+        };
+        /**
+         * Create a label in a repository
+         */
+        this.createLabel = async (owner, repository, name, color, description, token) => {
+            const octokit = github.getOctokit(token);
+            await octokit.rest.issues.createLabel({
+                owner,
+                repo: repository,
+                name,
+                color,
+                description,
+            });
+        };
+        /**
+         * Ensure a label exists, creating it if it doesn't
+         */
+        this.ensureLabel = async (owner, repository, name, color, description, token) => {
+            try {
+                // Validate that name is not undefined or empty
+                if (!name || name.trim().length === 0) {
+                    (0, logger_1.logDebugInfo)(`Skipping label creation: name is undefined or empty`);
+                    return { created: false, existed: false };
+                }
+                const existingLabels = await this.listLabelsForRepo(owner, repository, token);
+                const existingLabelNames = new Set(existingLabels.map(label => label.name.toLowerCase()));
+                if (existingLabelNames.has(name.toLowerCase())) {
+                    return { created: false, existed: true };
+                }
+                try {
+                    await this.createLabel(owner, repository, name, color, description, token);
+                    return { created: true, existed: false };
+                }
+                catch (error) {
+                    if (error.status === 422 && error.message?.includes('already exists')) {
+                        return { created: false, existed: true };
+                    }
+                    throw error;
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error ensuring label "${name}": ${error}`);
+                throw error;
+            }
+        };
+        /**
+         * Ensure all required labels exist based on Labels configuration
+         */
+        this.ensureLabels = async (owner, repository, labels, token) => {
+            const errors = [];
+            let created = 0;
+            let existing = 0;
+            // Define all required labels with their colors
+            const requiredLabels = [
+                { name: labels.branchManagementLauncherLabel, color: '0E8A16', description: 'Label to trigger branch management actions' },
+                { name: labels.bug, color: 'D73A4A', description: 'Label to indicate a bug type' },
+                { name: labels.bugfix, color: 'D73A4A', description: 'Label to manage bugfix branches' },
+                { name: labels.hotfix, color: 'B60205', description: 'Label to manage hotfix branches' },
+                { name: labels.enhancement, color: 'A2EEEF', description: 'Label to indicate an enhancement type' },
+                { name: labels.feature, color: '0E8A16', description: 'Label to manage feature branches' },
+                { name: labels.release, color: '1D76DB', description: 'Label to manage release branches' },
+                { name: labels.question, color: 'CC317C', description: 'Label to detect issues marked as questions' },
+                { name: labels.help, color: 'CC317C', description: 'Label to detect help request issues' },
+                { name: labels.deploy, color: '7057FF', description: 'Label to detect deploy actions' },
+                { name: labels.deployed, color: '0E8A16', description: 'Label to detect the deployed status' },
+                { name: labels.docs, color: 'C5DEF5', description: 'Label to manage docs branches' },
+                { name: labels.documentation, color: 'C5DEF5', description: 'Label to manage documentation branches' },
+                { name: labels.chore, color: '5319E7', description: 'Label to manage chore branches' },
+                { name: labels.maintenance, color: '5319E7', description: 'Label to manage maintenance branches' },
+                { name: labels.priorityHigh, color: 'B60205', description: 'Label to indicate a priority high' },
+                { name: labels.priorityMedium, color: 'FBBD0C', description: 'Label to indicate a priority medium' },
+                { name: labels.priorityLow, color: '0E8A16', description: 'Label to indicate a priority low' },
+                { name: labels.priorityNone, color: 'B4B4B4', description: 'Label to indicate no priority' },
+                { name: labels.sizeXxl, color: '8E44AD', description: 'Label to indicate a task of size XXL' },
+                { name: labels.sizeXl, color: '9B59B6', description: 'Label to indicate a task of size XL' },
+                { name: labels.sizeL, color: '3498DB', description: 'Label to indicate a task of size L' },
+                { name: labels.sizeM, color: '1ABC9C', description: 'Label to indicate a task of size M' },
+                { name: labels.sizeS, color: 'F39C12', description: 'Label to indicate a task of size S' },
+                { name: labels.sizeXs, color: 'E67E22', description: 'Label to indicate a task of size XS' },
+            ].filter(label => label.name && label.name.trim().length > 0); // Filter out undefined or empty labels
+            for (const label of requiredLabels) {
+                try {
+                    const result = await this.ensureLabel(owner, repository, label.name, label.color, label.description, token);
+                    if (result.created) {
+                        created++;
+                    }
+                    else if (result.existed) {
+                        existing++;
+                    }
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`Error ensuring label "${label.name}": ${error}`);
+                    errors.push(`Error creando label "${label.name}": ${error.message || error}`);
+                }
+            }
+            return { created, existing, errors };
+        };
+        /**
+         * List all issue types for an organization
+         */
+        this.listIssueTypes = async (owner, token) => {
+            const octokit = github.getOctokit(token);
+            const { organization } = await octokit.graphql(`
+            query ($owner: String!) {
+                organization(login: $owner) {
+                    id
+                    issueTypes(first: 20) {
+                        nodes {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        `, { owner });
+            if (!organization) {
+                throw new Error(`No se pudo obtener la organización ${owner}`);
+            }
+            return organization.issueTypes.nodes;
+        };
+        /**
+         * Create an issue type for an organization
+         */
+        this.createIssueType = async (owner, name, description, color, token) => {
+            const octokit = github.getOctokit(token);
+            // Get organization ID
+            const { organization } = await octokit.graphql(`
+            query ($owner: String!) {
+                organization(login: $owner) {
+                    id
+                }
+            }
+        `, { owner });
+            if (!organization) {
+                throw new Error(`No se pudo obtener la organización ${owner}`);
+            }
+            const createResult = await octokit.graphql(`
+            mutation ($ownerId: ID!, $name: String!, $description: String!, $color: IssueTypeColor!, $isEnabled: Boolean!) {
+                createIssueType(input: {
+                    ownerId: $ownerId,
+                    name: $name,
+                    description: $description,
+                    color: $color,
+                    isEnabled: $isEnabled
+                }) {
+                    issueType {
+                        id
+                    }
+                }
+            }
+        `, {
+                ownerId: organization.id,
+                name,
+                description,
+                color: color.toUpperCase(),
+                isEnabled: true,
+            });
+            return createResult.createIssueType.issueType.id;
+        };
+        /**
+         * Ensure an issue type exists, creating it if it doesn't
+         */
+        this.ensureIssueType = async (owner, name, description, color, token) => {
+            try {
+                const existingTypes = await this.listIssueTypes(owner, token);
+                const existingTypesMap = new Map(existingTypes.map(type => [type.name.toLowerCase(), type]));
+                if (existingTypesMap.has(name.toLowerCase())) {
+                    return { created: false, existed: true };
+                }
+                await this.createIssueType(owner, name, description, color, token);
+                return { created: true, existed: false };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error ensuring issue type "${name}": ${error}`);
+                throw error;
+            }
+        };
+        /**
+         * Ensure all required issue types exist based on IssueTypes configuration
+         */
+        this.ensureIssueTypes = async (owner, issueTypes, token) => {
+            const errors = [];
+            let created = 0;
+            let existing = 0;
+            // Define all required issue types
+            const requiredIssueTypes = [
+                { name: issueTypes.task, description: issueTypes.taskDescription, color: issueTypes.taskColor },
+                { name: issueTypes.bug, description: issueTypes.bugDescription, color: issueTypes.bugColor },
+                { name: issueTypes.feature, description: issueTypes.featureDescription, color: issueTypes.featureColor },
+                { name: issueTypes.documentation, description: issueTypes.documentationDescription, color: issueTypes.documentationColor },
+                { name: issueTypes.maintenance, description: issueTypes.maintenanceDescription, color: issueTypes.maintenanceColor },
+                { name: issueTypes.hotfix, description: issueTypes.hotfixDescription, color: issueTypes.hotfixColor },
+                { name: issueTypes.release, description: issueTypes.releaseDescription, color: issueTypes.releaseColor },
+                { name: issueTypes.question, description: issueTypes.questionDescription, color: issueTypes.questionColor },
+                { name: issueTypes.help, description: issueTypes.helpDescription, color: issueTypes.helpColor },
+            ];
+            for (const issueType of requiredIssueTypes) {
+                try {
+                    const result = await this.ensureIssueType(owner, issueType.name, issueType.description, issueType.color, token);
+                    if (result.created) {
+                        created++;
+                    }
+                    else {
+                        existing++;
+                    }
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`Error ensuring issue type "${issueType.name}": ${error}`);
+                    errors.push(`Error creando tipo de Issue "${issueType.name}": ${error.message || error}`);
+                }
+            }
+            return { created, existing, errors };
         };
     }
 }
@@ -59882,6 +66172,13 @@ class SupabaseRepository {
                     description: fileInfo.description,
                     consumes: fileInfo.consumes,
                     consumed_by: fileInfo.consumed_by,
+                    error_counter_total: fileInfo.error_counter_total ?? 0,
+                    error_counter_critical: fileInfo.error_counter_critical ?? 0,
+                    error_counter_high: fileInfo.error_counter_high ?? 0,
+                    error_counter_medium: fileInfo.error_counter_medium ?? 0,
+                    error_counter_low: fileInfo.error_counter_low ?? 0,
+                    error_types: fileInfo.error_types ?? [],
+                    errors_payload: fileInfo.errors_payload ?? null,
                     last_updated: new Date().toISOString()
                 }, {
                     onConflict: 'owner,repository,branch,path'
@@ -60038,6 +66335,111 @@ class SupabaseRepository {
             catch (error) {
                 (0, logger_1.logError)(`Error getting distinct paths: ${JSON.stringify(error, null, 2)}`);
                 return [];
+            }
+        };
+        /**
+         * Get distinct branches for an owner/repository
+         */
+        this.getDistinctBranches = async (owner, repository) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.AI_FILE_CACHE_TABLE)
+                    .select('branch')
+                    .eq('owner', owner)
+                    .eq('repository', repository);
+                if (error) {
+                    (0, logger_1.logError)(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+                    return [];
+                }
+                if (!data) {
+                    return [];
+                }
+                // Get unique branches with proper typing
+                const branches = data.map(item => item.branch);
+                const uniqueBranches = [...new Set(branches)];
+                return uniqueBranches;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting distinct branches: ${JSON.stringify(error, null, 2)}`);
+                return [];
+            }
+        };
+        /**
+         * Get AI file cache entry by SHA (searches across all branches for the same owner/repository)
+         * Returns the first match found, which can be used to reuse descriptions
+         */
+        this.getAIFileCacheBySha = async (owner, repository, sha) => {
+            try {
+                const { data, error } = await this.supabase
+                    .from(this.AI_FILE_CACHE_TABLE)
+                    .select('*')
+                    .eq('owner', owner)
+                    .eq('repository', repository)
+                    .eq('sha', sha)
+                    .limit(1)
+                    .single();
+                if (error) {
+                    if (error.code === 'PGRST116') {
+                        // No rows returned
+                        return null;
+                    }
+                    (0, logger_1.logError)(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+                    return null;
+                }
+                return data;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting AI file cache by SHA: ${JSON.stringify(error, null, 2)}`);
+                return null;
+            }
+        };
+        /**
+         * Verify that a table exists in Supabase
+         */
+        this.verifyTableExists = async (tableName) => {
+            try {
+                const { error } = await this.supabase
+                    .from(tableName)
+                    .select('*')
+                    .limit(1);
+                if (error) {
+                    if (error.code === 'PGRST116') {
+                        // PGRST116 is "no rows returned", which means the table exists but is empty
+                        return { exists: true };
+                    }
+                    else if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                        // Table does not exist
+                        return { exists: false, error: `Table ${tableName} does not exist` };
+                    }
+                    else {
+                        return { exists: false, error: error.message || String(error) };
+                    }
+                }
+                return { exists: true };
+            }
+            catch (error) {
+                if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                    return { exists: false, error: `Table ${tableName} does not exist` };
+                }
+                return { exists: false, error: error.message || String(error) };
+            }
+        };
+        /**
+         * Verify that an RPC function exists in Supabase
+         */
+        this.verifyRpcFunctionExists = async (functionName, testParams) => {
+            try {
+                await this.supabase.rpc(functionName, testParams);
+                // If it doesn't throw, the function exists (even if it fails due to invalid params)
+                return { exists: true };
+            }
+            catch (error) {
+                // If the error is that the function doesn't exist (42883), return false
+                if (error.code === '42883' || (error.message?.includes('function') && error.message?.includes('does not exist'))) {
+                    return { exists: false, error: `Function ${functionName} does not exist` };
+                }
+                // Other errors (like invalid parameters) are expected and mean the function exists
+                return { exists: true };
             }
         };
         const customFetch = async (input, init) => {
@@ -60381,6 +66783,273 @@ exports.ConfigurationHandler = ConfigurationHandler;
 
 /***/ }),
 
+/***/ 7744:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckProgressUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(8836);
+const issue_repository_1 = __nccwpck_require__(57);
+const branch_repository_1 = __nccwpck_require__(7701);
+const progress_detector_1 = __nccwpck_require__(7887);
+class CheckProgressUseCase {
+    constructor() {
+        this.taskId = 'CheckProgressUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.branchRepository = new branch_repository_1.BranchRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        try {
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                (0, logger_1.logError)(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                    ],
+                }));
+                return results;
+            }
+            const ignoreFiles = param.ai.getAiIgnoreFiles();
+            (0, logger_1.logInfo)(`🔍 Ignore patterns: ${ignoreFiles.length > 0 ? ignoreFiles.join(', ') : 'none'}`);
+            // Get issue number
+            const issueNumber = param.issueNumber;
+            if (issueNumber === -1) {
+                (0, logger_1.logError)(`Issue number not found. Cannot check progress without an issue number.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Issue number not found. Cannot check progress without an issue number.`,
+                    ],
+                }));
+                return results;
+            }
+            (0, logger_1.logInfo)(`📋 Checking progress for issue #${issueNumber}`);
+            // Get issue description
+            const issueDescription = await this.issueRepository.getDescription(param.owner, param.repo, issueNumber, param.tokens.token);
+            if (!issueDescription) {
+                (0, logger_1.logError)(`Could not retrieve issue description for issue #${issueNumber}`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Could not retrieve issue description for issue #${issueNumber}`,
+                    ],
+                }));
+                return results;
+            }
+            // Get branch - use commit.branch if available, otherwise search for branch by issue number
+            let branch = param.commit.branch;
+            // If no branch in commit, search for branch matching issue number pattern
+            if (!branch) {
+                (0, logger_1.logInfo)(`📦 Searching for branch related to issue #${issueNumber}...`);
+                const branchTypes = [
+                    param.branches.featureTree,
+                    param.branches.bugfixTree,
+                    param.branches.docsTree,
+                    param.branches.choreTree,
+                    param.branches.hotfixTree,
+                    param.branches.releaseTree,
+                ];
+                const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
+                // Search for branch matching the pattern: ${type}/${issueNumber}-
+                for (const type of branchTypes) {
+                    const prefix = `${type}/${issueNumber}-`;
+                    const matchingBranch = branches.find(b => b.indexOf(prefix) > -1);
+                    if (matchingBranch) {
+                        branch = matchingBranch;
+                        (0, logger_1.logInfo)(`✅ Found branch: ${branch}`);
+                        break;
+                    }
+                }
+            }
+            if (!branch) {
+                (0, logger_1.logError)(`Could not find branch for issue #${issueNumber}. Please ensure a branch exists with pattern: feature/${issueNumber}-*, bugfix/${issueNumber}-*, docs/${issueNumber}-*, or chore/${issueNumber}-*`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Could not find branch for issue #${issueNumber}. Please ensure a branch exists with pattern: feature/${issueNumber}-*, bugfix/${issueNumber}-*, docs/${issueNumber}-*, or chore/${issueNumber}-*`,
+                    ],
+                }));
+                return results;
+            }
+            // Get development branch
+            const developmentBranch = param.branches.development || 'develop';
+            (0, logger_1.logInfo)(`📦 Comparing branch ${branch} with ${developmentBranch}`);
+            // Get changed files between branch and development branch
+            let changedFiles = [];
+            try {
+                const changes = await this.branchRepository.getChanges(param.owner, param.repo, branch, developmentBranch, param.tokens.token);
+                const allFiles = changes.files.map(file => ({
+                    filename: file.filename,
+                    status: file.status,
+                    additions: file.additions,
+                    deletions: file.deletions,
+                    patch: file.patch
+                }));
+                // Debug: show first few files being checked
+                if (allFiles.length > 0) {
+                    (0, logger_1.logDebugInfo)(`Checking ${allFiles.length} files against ${ignoreFiles.length} ignore patterns`);
+                    const sampleFiles = allFiles.slice(0, 5).map(f => f.filename);
+                    (0, logger_1.logDebugInfo)(`Sample files: ${sampleFiles.join(', ')}`);
+                }
+                changedFiles = allFiles.filter(file => {
+                    const shouldIgnore = this.shouldIgnoreFile(file.filename, ignoreFiles);
+                    if (shouldIgnore) {
+                        (0, logger_1.logDebugInfo)(`⏭️  Ignoring file: ${file.filename}`);
+                    }
+                    return !shouldIgnore;
+                });
+                const ignoredCount = allFiles.length - changedFiles.length;
+                if (ignoredCount > 0) {
+                    (0, logger_1.logInfo)(`📄 Found ${changedFiles.length} changed file(s) (${ignoredCount} ignored)`);
+                }
+                else {
+                    (0, logger_1.logInfo)(`📄 Found ${changedFiles.length} changed file(s)`);
+                }
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting changed files: ${JSON.stringify(error, null, 2)}`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Error getting changed files: ${JSON.stringify(error, null, 2)}`,
+                    ],
+                }));
+                return results;
+            }
+            // If no files changed, progress is 0%
+            if (changedFiles.length === 0) {
+                (0, logger_1.logInfo)(`📊 No files changed. Progress: 0%`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `No files have been changed yet. Progress: 0%`,
+                    ],
+                    payload: {
+                        progress: 0,
+                        summary: 'No files have been changed yet.',
+                        issueNumber,
+                        branch,
+                        changedFilesCount: 0
+                    }
+                }));
+                return results;
+            }
+            // Create ProgressDetector options
+            const token = param.tokens.token;
+            if (!token || token.length === 0) {
+                (0, logger_1.logError)(`GitHub token is missing or empty. Cannot load repository files.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `GitHub token is missing or empty. Cannot load repository files for progress analysis.`,
+                    ],
+                }));
+                return results;
+            }
+            (0, logger_1.logDebugInfo)(`🔑 Token available: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
+            const detectorOptions = {
+                model: param.ai.getOpenRouterModel(),
+                apiKey: param.ai.getOpenRouterApiKey(),
+                personalAccessToken: token,
+                maxTurns: 20,
+                repositoryOwner: param.owner,
+                repositoryName: param.repo,
+                repositoryBranch: branch,
+                developmentBranch: developmentBranch,
+                issueNumber: issueNumber,
+                issueDescription: issueDescription,
+                changedFiles: changedFiles,
+                useSubAgents: false,
+            };
+            // Detect progress
+            (0, logger_1.logInfo)(`🤖 Analyzing progress using AI...`);
+            const detector = new progress_detector_1.ProgressDetector(detectorOptions);
+            const progressResult = await detector.detectProgress(`Analyze the progress of issue #${issueNumber} based on the changes made in branch ${branch} compared to ${developmentBranch}.`);
+            (0, logger_1.logInfo)(`✅ Progress detection completed: ${progressResult.progress}%`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [
+                    `Progress for issue #${issueNumber}: ${progressResult.progress}%`,
+                    progressResult.summary
+                ],
+                payload: {
+                    progress: progressResult.progress,
+                    summary: progressResult.summary,
+                    issueNumber,
+                    branch,
+                    developmentBranch,
+                    changedFilesCount: changedFiles.length
+                }
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [
+                    `Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`,
+                ],
+            }));
+        }
+        return results;
+    }
+    /**
+     * Check if a file should be ignored based on ignore patterns
+     * This method matches the implementation in FileRepository.shouldIgnoreFile
+     */
+    shouldIgnoreFile(filename, ignorePatterns) {
+        // First check for .DS_Store
+        if (filename.endsWith('.DS_Store')) {
+            return true;
+        }
+        if (ignorePatterns.length === 0) {
+            return false;
+        }
+        return ignorePatterns.some(pattern => {
+            // Convert glob pattern to regex
+            const regexPattern = pattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
+                .replace(/\*/g, '.*') // Convert * to match anything
+                .replace(/\//g, '\\/'); // Escape forward slashes
+            // Allow pattern ending on /* to ignore also subdirectories and files inside
+            if (pattern.endsWith("/*")) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+            }
+            const regex = new RegExp(`^${regexPattern}$`);
+            return regex.test(filename);
+        });
+    }
+}
+exports.CheckProgressUseCase = CheckProgressUseCase;
+
+
+/***/ }),
+
 /***/ 2430:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -60647,6 +67316,184 @@ exports.DeployedActionUseCase = DeployedActionUseCase;
 
 /***/ }),
 
+/***/ 3943:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.InitialSetupUseCase = void 0;
+const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
+const supabase_repository_1 = __nccwpck_require__(9829);
+const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(8836);
+class InitialSetupUseCase {
+    constructor() {
+        this.taskId = 'InitialSetupUseCase';
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        const steps = [];
+        const errors = [];
+        try {
+            // 1. Verificar acceso a GitHub con Personal Access Token
+            (0, logger_1.logInfo)('🔐 Checking GitHub access...');
+            const githubAccessResult = await this.verifyGitHubAccess(param);
+            if (!githubAccessResult.success) {
+                errors.push(...githubAccessResult.errors);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: steps,
+                    errors: errors,
+                }));
+                return results;
+            }
+            steps.push(`✅ GitHub access verified: ${githubAccessResult.user}`);
+            // 2. Crear todos los labels necesarios
+            (0, logger_1.logInfo)('🏷️  Checking labels...');
+            const labelsResult = await this.ensureLabels(param);
+            if (!labelsResult.success) {
+                errors.push(...labelsResult.errors);
+                (0, logger_1.logError)(`Error checking labels: ${labelsResult.errors}`);
+            }
+            else {
+                steps.push(`✅ Labels checked: ${labelsResult.created} created, ${labelsResult.existing} already existed`);
+            }
+            // 3. Crear todos los tipos de Issue si no existen
+            (0, logger_1.logInfo)('📋 Checking issue types...');
+            const issueTypesResult = await this.ensureIssueTypes(param);
+            if (!issueTypesResult.success) {
+                errors.push(...issueTypesResult.errors);
+            }
+            else {
+                steps.push(`✅ Issue types checked: ${issueTypesResult.created} created, ${issueTypesResult.existing} already existed`);
+            }
+            // 4. Verificar acceso a Supabase y ejecutar migraciones si es necesario
+            if (param.supabaseConfig) {
+                (0, logger_1.logInfo)('🗄️  Checking Supabase access...');
+                const supabaseResult = await this.verifyAndSetupSupabase(param);
+                if (!supabaseResult.success) {
+                    errors.push(...supabaseResult.errors);
+                }
+                else {
+                    steps.push(`✅ Supabase checked and configured correctly`);
+                }
+            }
+            else {
+                steps.push('⚠️  Supabase not configured, skipping verification');
+            }
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: errors.length === 0,
+                executed: true,
+                steps: steps,
+                errors: errors.length > 0 ? errors : undefined,
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(error);
+            errors.push(`Error ejecutando setup inicial: ${error}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: steps,
+                errors: errors,
+            }));
+        }
+        return results;
+    }
+    async verifyGitHubAccess(param) {
+        const errors = [];
+        try {
+            const projectRepository = new project_repository_1.ProjectRepository();
+            const user = await projectRepository.getUserFromToken(param.tokens.token);
+            return { success: true, user, errors: [] };
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error verificando acceso a GitHub: ${error}`);
+            errors.push(`No se pudo verificar el acceso a GitHub: ${error}`);
+            return { success: false, errors };
+        }
+    }
+    async ensureLabels(param) {
+        try {
+            const issueRepository = new issue_repository_1.IssueRepository();
+            const result = await issueRepository.ensureLabels(param.owner, param.repo, param.labels, param.tokens.token);
+            return {
+                success: result.errors.length === 0,
+                created: result.created,
+                existing: result.existing,
+                errors: result.errors,
+            };
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error asegurando labels: ${error}`);
+            return { success: false, created: 0, existing: 0, errors: [`Error asegurando labels: ${error}`] };
+        }
+    }
+    async ensureIssueTypes(param) {
+        try {
+            const issueRepository = new issue_repository_1.IssueRepository();
+            const result = await issueRepository.ensureIssueTypes(param.owner, param.issueTypes, param.tokens.token);
+            return {
+                success: result.errors.length === 0,
+                created: result.created,
+                existing: result.existing,
+                errors: result.errors,
+            };
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error asegurando tipos de Issue: ${error}`);
+            return { success: false, created: 0, existing: 0, errors: [`Error asegurando tipos de Issue: ${error}`] };
+        }
+    }
+    async verifyAndSetupSupabase(param) {
+        const errors = [];
+        try {
+            if (!param.supabaseConfig) {
+                errors.push('Supabase no está configurado');
+                return { success: false, errors };
+            }
+            const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
+            // Verificar que la tabla ai_file_cache existe
+            const tableCheck = await supabaseRepository.verifyTableExists('ai_file_cache');
+            if (!tableCheck.exists) {
+                errors.push('La tabla ai_file_cache no existe. Por favor, ejecuta las migraciones de Supabase manualmente desde: supabase/migrations/');
+                return { success: false, errors };
+            }
+            // Verificar que las funciones RPC existan
+            const requiredFunctions = [
+                { name: 'duplicate_ai_file_cache_by_branch', params: { owner_param: 'test', repository_param: 'test', source_branch_param: 'test', target_branch_param: 'test' } },
+                { name: 'delete_ai_file_cache_by_branch', params: { owner_param: 'test', repository_param: 'test', branch_param: 'test' } },
+            ];
+            for (const func of requiredFunctions) {
+                const functionCheck = await supabaseRepository.verifyRpcFunctionExists(func.name, func.params);
+                if (!functionCheck.exists) {
+                    errors.push(`La función RPC "${func.name}" no existe. Por favor, ejecuta las migraciones de Supabase manualmente desde: supabase/migrations/`);
+                }
+            }
+            if (errors.length > 0) {
+                return { success: false, errors };
+            }
+            return { success: true, errors: [] };
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error verificando/configurando Supabase: ${error}`);
+            errors.push(`Error verificando/configurando Supabase: ${error}`);
+            return { success: false, errors };
+        }
+    }
+}
+exports.InitialSetupUseCase = InitialSetupUseCase;
+
+
+/***/ }),
+
 /***/ 9029:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -60739,15 +67586,24 @@ const file_import_analyzer_1 = __nccwpck_require__(5310);
 const file_cache_manager_1 = __nccwpck_require__(1855);
 const codebase_analyzer_1 = __nccwpck_require__(678);
 const constants_1 = __nccwpck_require__(8593);
+const branch_repository_1 = __nccwpck_require__(7701);
+const error_detector_1 = __nccwpck_require__(1111);
 class VectorActionUseCase {
     constructor() {
         this.taskId = 'VectorActionUseCase';
         this.fileRepository = new file_repository_1.FileRepository();
+        this.branchRepository = new branch_repository_1.BranchRepository();
         this.aiRepository = new ai_repository_1.AiRepository();
         this.fileImportAnalyzer = new file_import_analyzer_1.FileImportAnalyzer();
         this.fileCacheManager = new file_cache_manager_1.FileCacheManager();
-        this.checkAICacheInSupabase = async (param, branch, repositoryFiles) => {
+        this.prepareCacheOnBranch = async (param, branch, branchIndex = 1, totalBranches = 1) => {
             const results = [];
+            let filesProcessed = 0;
+            let filesReused = 0;
+            let filesSkipped = 0;
+            let filesGenerated = 0;
+            let filesRemoved = 0;
+            let success = false;
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
                     id: this.taskId,
@@ -60757,102 +67613,123 @@ class VectorActionUseCase {
                         `Supabase config not found.`,
                     ],
                 }));
-                return results;
+                return {
+                    results,
+                    filesProcessed: 0,
+                    filesReused: 0,
+                    filesSkipped: 0,
+                    filesGenerated: 0,
+                    filesRemoved: 0,
+                    success: false
+                };
+            }
+            // Check if AI configuration is available
+            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                (0, logger_1.logError)(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                    ],
+                }));
+                return {
+                    results,
+                    filesProcessed: 0,
+                    filesReused: 0,
+                    filesSkipped: 0,
+                    filesGenerated: 0,
+                    filesRemoved: 0,
+                    success: false
+                };
             }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
-            const remotePaths = await supabaseRepository.getDistinctPaths(param.owner, param.repo, branch);
-            // Get all local paths from repository files
-            const localPaths = new Set(Array.from(repositoryFiles.keys()));
-            // Find paths that exist in Supabase but not in the current branch
-            const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
-            if (pathsToRemove.length > 0 && remotePaths.length > 0) {
-                (0, logger_1.logInfo)(`📦 Found ${pathsToRemove.length} paths to remove from AI index as they no longer exist in the branch ${branch}.`);
-                for (const path of pathsToRemove) {
-                    try {
-                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, path);
-                        (0, logger_1.logInfo)(`📦 ✅ Removed AI cache for path: ${path}`);
-                    }
-                    catch (error) {
-                        (0, logger_1.logError)(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
-                    }
+            try {
+                const branchProgress = `[${branchIndex}/${totalBranches}]`;
+                const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), (fileName) => {
+                    // Silent - files are processed in background
+                }, (fileName) => {
+                    // Silent - ignored files
+                });
+                (0, logger_1.logSingleLine)(`📦 ${branchProgress} Branch ${branch}: Found ${repositoryFiles.size} files to process...`);
+                if (repositoryFiles.size === 0) {
+                    (0, logger_1.logSingleLine)(`📦 ${branchProgress} Branch ${branch}: No files found, skipping.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No files found in branch ${branch}, nothing to process.`,
+                        ],
+                    }));
+                    return {
+                        results,
+                        filesProcessed: 0,
+                        filesReused: 0,
+                        filesSkipped: 0,
+                        filesGenerated: 0,
+                        filesRemoved: 0,
+                        success: true
+                    };
                 }
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Removed ${pathsToRemove.length} paths from AI index as they no longer exist in \`${branch}\`.`,
-                    ],
-                }));
-            }
-            else {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                }));
-            }
-            return results;
-        };
-        this.uploadAICacheToSupabase = async (param, branch, repositoryFiles) => {
-            const results = [];
-            if (!param.supabaseConfig) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `Supabase config not found.`,
-                    ],
-                }));
-                return results;
-            }
-            const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
-            const startTime = Date.now();
-            const filePaths = Array.from(repositoryFiles.keys());
-            // Step 1: Build relationship map once for all files
-            (0, logger_1.logInfo)(`📦 Building relationship map from repository files...`);
-            const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
-            const consumesMap = relationshipMaps.consumes;
-            const consumedByMap = relationshipMaps.consumedBy;
-            (0, logger_1.logInfo)(`✅ Relationship map built for ${repositoryFiles.size} files`);
-            for (let i = 0; i < filePaths.length; i++) {
-                const filePath = filePaths[i];
-                const fileContent = repositoryFiles.get(filePath) || '';
-                const progress = ((i + 1) / filePaths.length) * 100;
-                const currentTime = Date.now();
-                const elapsedTime = (currentTime - startTime) / 1000; // in seconds
-                const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
-                const remainingTime = estimatedTotalTime - elapsedTime;
-                (0, logger_1.logSingleLine)(`🔘 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Checking [${filePath}]`);
-                // Normalize path for consistent comparison
-                const normalizedPath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
-                // Calculate SHA for comparison
-                const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
-                const remoteShasum = await supabaseRepository.getShasumByPath(param.owner, param.repo, branch, normalizedPath);
-                if (remoteShasum) {
+                const startTime = Date.now();
+                const filePaths = Array.from(repositoryFiles.keys());
+                // Step 1: Build relationship map once for all files
+                (0, logger_1.logSingleLine)(`📦 ${branchProgress} Branch ${branch}: Building relationship map for ${repositoryFiles.size} files...`);
+                const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
+                const consumesMap = relationshipMaps.consumes;
+                const consumedByMap = relationshipMaps.consumedBy;
+                // Process each file
+                for (let i = 0; i < filePaths.length; i++) {
+                    const filePath = filePaths[i];
+                    const fileContent = repositoryFiles.get(filePath) || '';
+                    const progress = ((i + 1) / filePaths.length) * 100;
+                    const currentTime = Date.now();
+                    const elapsedTime = (currentTime - startTime) / 1000; // in seconds
+                    const estimatedTotalTime = (elapsedTime / (i + 1)) * filePaths.length;
+                    const remainingTime = estimatedTotalTime - elapsedTime;
+                    (0, logger_1.logSingleLine)(`📦 ${branchProgress} Branch ${branch}: Processing files ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) | ETA: ${Math.ceil(remainingTime)}s | Current: ${filePath.split('/').pop() || filePath}`);
+                    // Paths from file_repository are already normalized, use directly
+                    const normalizedPath = filePath;
+                    // Calculate SHA for comparison
+                    const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
+                    // Check if file already exists in target branch with same SHA
+                    const remoteShasum = await supabaseRepository.getShasumByPath(param.owner, param.repo, branch, normalizedPath);
                     if (remoteShasum === currentSHA) {
-                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File indexed [${normalizedPath}]`);
+                        // File already exists with same SHA - skip
+                        filesSkipped++;
                         continue;
                     }
-                    else if (remoteShasum !== currentSHA) {
-                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File has changes and must be reindexed [${normalizedPath}]`);
-                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, normalizedPath);
+                    // Check if this SHA exists in any branch (to reuse description and errors)
+                    const existingCache = await supabaseRepository.getAIFileCacheBySha(param.owner, param.repo, currentSHA);
+                    // Extract imports for this file (from pre-built map)
+                    const consumes = consumesMap.get(filePath) || [];
+                    const consumedBy = consumedByMap.get(filePath) || [];
+                    let description;
+                    let errorCounterTotal = 0;
+                    let errorCounterCritical = 0;
+                    let errorCounterHigh = 0;
+                    let errorCounterMedium = 0;
+                    let errorCounterLow = 0;
+                    let errorTypes = [];
+                    let errorsPayload = undefined;
+                    if (existingCache) {
+                        // Reuse description and error information from existing cache
+                        description = existingCache.description;
+                        errorCounterTotal = existingCache.error_counter_total ?? 0;
+                        errorCounterCritical = existingCache.error_counter_critical ?? 0;
+                        errorCounterHigh = existingCache.error_counter_high ?? 0;
+                        errorCounterMedium = existingCache.error_counter_medium ?? 0;
+                        errorCounterLow = existingCache.error_counter_low ?? 0;
+                        errorTypes = existingCache.error_types ?? [];
+                        errorsPayload = existingCache.errors_payload;
+                        filesReused++;
                     }
-                }
-                else {
-                    // File not in cache - will be processed below
-                    (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | File not in cache, will index [${normalizedPath}]`);
-                }
-                // Generate AI cache for this file
-                if (fileContent) {
-                    try {
-                        (0, logger_1.logSingleLine)(`🟡 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | Generating AI cache [${filePath}]`);
-                        // Step 2: Extract imports for this file (from pre-built map)
-                        const consumes = consumesMap.get(filePath) || [];
-                        const consumedBy = consumedByMap.get(filePath) || [];
-                        // Step 3: Generate description using AI (with fallback)
-                        let description = this.codebaseAnalyzer.generateBasicDescription(filePath);
+                    else {
+                        // Generate new description using AI
+                        filesGenerated++;
+                        description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                         try {
                             // Create schema for single file description
                             const FILE_DESCRIPTION_SCHEMA = {
@@ -60882,39 +67759,128 @@ ${fileContent}
                         catch (error) {
                             (0, logger_1.logError)(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                         }
-                        // Step 4: Save to Supabase (normalize path before saving)
-                        const fileName = filePath.split('/').pop() || filePath;
-                        const normalizedFilePath = filePath.replace(/^\.\//, '').replace(/\\/g, '/').trim();
+                        // Detect errors for this file
+                        try {
+                            const errorInfo = await this.detectErrorsForFile(param, branch, normalizedPath, fileContent);
+                            if (errorInfo) {
+                                errorCounterTotal = errorInfo.error_counter_total;
+                                errorCounterCritical = errorInfo.error_counter_critical;
+                                errorCounterHigh = errorInfo.error_counter_high;
+                                errorCounterMedium = errorInfo.error_counter_medium;
+                                errorCounterLow = errorInfo.error_counter_low;
+                                errorTypes = errorInfo.error_types;
+                                errorsPayload = errorInfo.errors_payload;
+                            }
+                        }
+                        catch (error) {
+                            (0, logger_1.logError)(`Error detecting errors for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                            // Continue with default values (all zeros)
+                        }
+                    }
+                    // Remove existing cache if SHA changed
+                    if (remoteShasum && remoteShasum !== currentSHA) {
+                        await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, normalizedPath);
+                    }
+                    // Save to Supabase
+                    try {
+                        const fileName = normalizedPath.split('/').pop() || normalizedPath;
+                        // Use normalizedPath directly to ensure consistency with the query path
                         const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                         const normalizedConsumedBy = consumedBy.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                         await supabaseRepository.setAIFileCache(param.owner, param.repo, branch, {
                             file_name: fileName,
-                            path: normalizedFilePath,
+                            path: normalizedPath, // Use the same normalizedPath used for querying
                             sha: currentSHA,
                             description: description,
                             consumes: normalizedConsumes,
-                            consumed_by: normalizedConsumedBy
+                            consumed_by: normalizedConsumedBy,
+                            error_counter_total: errorCounterTotal,
+                            error_counter_critical: errorCounterCritical,
+                            error_counter_high: errorCounterHigh,
+                            error_counter_medium: errorCounterMedium,
+                            error_counter_low: errorCounterLow,
+                            error_types: errorTypes,
+                            errors_payload: errorsPayload
                         });
-                        (0, logger_1.logSingleLine)(`🟢 ${i + 1}/${filePaths.length} (${progress.toFixed(1)}%) - Estimated time remaining: ${Math.ceil(remainingTime)} seconds | AI cache saved [${filePath}]`);
+                        filesProcessed++;
                     }
                     catch (error) {
-                        (0, logger_1.logError)(`Error generating AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                        const errorData = JSON.stringify(error, null, 2);
+                        if (errorData.includes('Please try again in a few minutes.')) {
+                            (0, logger_1.logError)(`Error saving AI cache for ${filePath}: Exceeded rate limit, please try again in a few minutes.`);
+                        }
+                        else {
+                            (0, logger_1.logError)(`Error saving AI cache for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                        }
                     }
                 }
+                // Step 2: Check for files that exist in Supabase but no longer exist in the repository
+                // logSingleLine(`📦 Checking for files to remove from AI cache (deleted files)...`);
+                const remotePaths = await supabaseRepository.getDistinctPaths(param.owner, param.repo, branch);
+                // Paths from file_repository are already normalized, use directly
+                const localPaths = new Set();
+                for (const filePath of repositoryFiles.keys()) {
+                    localPaths.add(filePath);
+                }
+                // Find paths that exist in Supabase but not in the current branch
+                const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
+                let filesRemoved = 0;
+                if (pathsToRemove.length > 0) {
+                    (0, logger_1.logSingleLine)(`📦 ${branchProgress} Branch ${branch}: Removing ${pathsToRemove.length} deleted files from cache...`);
+                    for (const path of pathsToRemove) {
+                        try {
+                            await supabaseRepository.removeAIFileCacheByPath(param.owner, param.repo, branch, path);
+                            filesRemoved++;
+                        }
+                        catch (error) {
+                            (0, logger_1.logError)(`📦 ❌ Error removing AI cache for path ${path}: ${JSON.stringify(error, null, 2)}`);
+                        }
+                    }
+                    if (filesRemoved > 0) {
+                        results.push(new result_1.Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `Removed ${filesRemoved} paths from AI index as they no longer exist in \`${branch}\`.`,
+                            ],
+                        }));
+                    }
+                }
+                const totalDurationSeconds = (Date.now() - startTime) / 1000;
+                success = true;
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `Processed AI cache for \`${branch}\`. ${filesProcessed} processed, ${filesReused} reused from other branches, ${filesSkipped} skipped, ${filesGenerated} generated, ${filesRemoved} removed. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
+                    ],
+                }));
             }
-            const totalDurationSeconds = (Date.now() - startTime) / 1000;
-            (0, logger_1.logInfo)(`📦 🚀 All files stored in AI cache ${param.owner}/${param.repo}/${branch}. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`, true);
-            results.push(new result_1.Result({
-                id: this.taskId,
-                success: true,
-                executed: true,
-                steps: [
-                    `All files up to date in AI cache for \`${branch}\`. Total duration: ${Math.ceil(totalDurationSeconds)} seconds`,
-                ],
-            }));
-            return results;
+            catch (error) {
+                (0, logger_1.logError)(`📦 ❌ Error processing AI cache for branch ${branch}: ${JSON.stringify(error, null, 2)}`);
+                success = false;
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [
+                        `Error processing AI cache for branch ${branch}: ${JSON.stringify(error, null, 2)}`,
+                    ],
+                }));
+            }
+            return {
+                results,
+                filesProcessed,
+                filesReused,
+                filesSkipped,
+                filesGenerated,
+                filesRemoved,
+                success
+            };
         };
-        this.duplicateAICacheToBranch = async (param, sourceBranch, targetBranch) => {
+        this.removeOrphanedBranches = async (param, githubBranches) => {
             const results = [];
             if (!param.supabaseConfig) {
                 results.push(new result_1.Result({
@@ -60929,31 +67895,139 @@ ${fileContent}
             }
             const supabaseRepository = new supabase_repository_1.SupabaseRepository(param.supabaseConfig);
             try {
-                (0, logger_1.logInfo)(`📦 -> 📦 Clearing possible existing AI cache from ${targetBranch} for ${param.owner}/${param.repo}.`);
-                await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, targetBranch);
-                (0, logger_1.logInfo)(`📦 -> 📦 Duplicating AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`);
-                await supabaseRepository.duplicateAIFileCacheByBranch(param.owner, param.repo, sourceBranch, targetBranch);
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `Duplicated AI cache from ${sourceBranch} to ${targetBranch} for ${param.owner}/${param.repo}.`,
-                    ],
-                }));
+                (0, logger_1.logInfo)(`📦 Checking for orphaned branches in Supabase (branches that no longer exist in GitHub)...`);
+                // Get all branches from Supabase
+                const supabaseBranches = await supabaseRepository.getDistinctBranches(param.owner, param.repo);
+                if (supabaseBranches.length === 0) {
+                    (0, logger_1.logInfo)(`📦 No branches found in Supabase, nothing to clean.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No branches found in Supabase, nothing to clean.`,
+                        ],
+                    }));
+                    return results;
+                }
+                // Create a Set for faster lookup
+                const githubBranchesSet = new Set(githubBranches);
+                // Find branches that exist in Supabase but not in GitHub
+                const orphanedBranches = supabaseBranches.filter(branch => !githubBranchesSet.has(branch));
+                if (orphanedBranches.length === 0) {
+                    (0, logger_1.logInfo)(`📦 No orphaned branches found. All Supabase branches exist in GitHub.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No orphaned branches found. All Supabase branches exist in GitHub.`,
+                        ],
+                    }));
+                    return results;
+                }
+                (0, logger_1.logInfo)(`📦 Found ${orphanedBranches.length} orphaned branch(es) to remove: ${orphanedBranches.join(', ')}`);
+                let branchesRemoved = 0;
+                for (const branch of orphanedBranches) {
+                    try {
+                        await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, branch);
+                        branchesRemoved++;
+                        (0, logger_1.logInfo)(`📦 ✅ Removed AI cache for orphaned branch: ${branch}`);
+                    }
+                    catch (error) {
+                        (0, logger_1.logError)(`📦 ❌ Error removing AI cache for orphaned branch ${branch}: ${JSON.stringify(error, null, 2)}`);
+                    }
+                }
+                if (branchesRemoved > 0) {
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Removed ${branchesRemoved} orphaned branch(es) from AI cache: ${orphanedBranches.slice(0, branchesRemoved).join(', ')}`,
+                        ],
+                    }));
+                }
+                if (branchesRemoved < orphanedBranches.length) {
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: [
+                            `Failed to remove ${orphanedBranches.length - branchesRemoved} orphaned branch(es).`,
+                        ],
+                    }));
+                }
             }
             catch (error) {
-                (0, logger_1.logError)(`📦 -> 📦 ❌ Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`);
+                (0, logger_1.logError)(`📦 ❌ Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`);
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Error duplicating AI cache from ${sourceBranch} to ${targetBranch}: ${JSON.stringify(error, null, 2)}`,
+                        `Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`,
                     ],
                 }));
             }
             return results;
+        };
+        /**
+         * Detect errors for a specific file using ErrorDetector
+         * Analyzes only the target file, ignoring related files
+         */
+        this.detectErrorsForFile = async (param, branch, filePath, fileContent) => {
+            try {
+                // Check if AI configuration is available
+                if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+                    (0, logger_1.logDebugInfo)(`Skipping error detection for ${filePath}: Missing AI configuration`);
+                    return null;
+                }
+                // Create ErrorDetector options for single file analysis
+                const detectorOptions = {
+                    model: param.ai.getOpenRouterModel(),
+                    apiKey: param.ai.getOpenRouterApiKey(),
+                    personalAccessToken: param.tokens.token, // GitHub token for loading repository files
+                    maxTurns: 10, // Reduced for single file analysis to prevent loops
+                    repositoryOwner: param.owner,
+                    repositoryName: param.repo,
+                    repositoryBranch: branch,
+                    targetFile: filePath,
+                    analyzeOnlyTargetFile: true, // Only analyze this file, ignore related files
+                    useSubAgents: true // Single file doesn't need subagents
+                };
+                const detector = new error_detector_1.ErrorDetector(detectorOptions);
+                // Detect errors - use structured prompt similar to subagents to prevent loops
+                // The structured format helps the agent understand when to stop
+                const result = await detector.detectErrors(`You have been assigned 1 file to analyze: ${filePath}
+
+**CRITICAL INSTRUCTIONS:**
+1. Read the file using read_file: ${filePath}
+2. Analyze it thoroughly for errors, bugs, vulnerabilities, and code quality issues
+3. Call report_errors ONCE with ALL errors you found in this file
+4. After calling report_errors, provide a brief final summary text response and STOP
+5. **DO NOT call report_errors multiple times** - call it once with all errors, then provide your summary and finish
+6. **You have exactly 1 file to analyze** - after analyzing it and reporting errors, you are DONE`);
+                // Extract error information from result
+                const { errors, summary } = result;
+                // Get unique error types
+                const uniqueErrorTypes = Array.from(new Set(errors.map(e => e.type)));
+                // Create errors payload as JSON string
+                const errorsPayload = JSON.stringify(errors);
+                return {
+                    error_counter_total: summary.total,
+                    error_counter_critical: summary.bySeverity.critical,
+                    error_counter_high: summary.bySeverity.high,
+                    error_counter_medium: summary.bySeverity.medium,
+                    error_counter_low: summary.bySeverity.low,
+                    error_types: uniqueErrorTypes,
+                    errors_payload: errorsPayload
+                };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error in detectErrorsForFile for ${filePath}: ${JSON.stringify(error, null, 2)}`);
+                return null;
+            }
         };
         // Initialize CodebaseAnalyzer with dependencies
         this.codebaseAnalyzer = new codebase_analyzer_1.CodebaseAnalyzer(this.aiRepository, this.fileImportAnalyzer, this.fileCacheManager);
@@ -60986,24 +68060,46 @@ ${fileContent}
                 }));
                 return results;
             }
-            const branch = param.commit.branch || param.branches.main;
-            let duplicationBranch = undefined;
-            if (branch === param.branches.main && param.singleAction.isAiCacheLocalAction) {
-                (0, logger_1.logInfo)(`📦 AI cache from [${param.branches.main}] will be duplicated to [${param.branches.development}] for ${param.owner}/${param.repo}.`);
-                duplicationBranch = param.branches.development;
+            let branchesToProcess = [];
+            if (param.commit.branch) {
+                branchesToProcess.push(param.commit.branch);
             }
-            (0, logger_1.logInfo)(`📦 Getting repository files on ${param.owner}/${param.repo}/${branch}`);
-            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, branch, param.ai.getAiIgnoreFiles(), (fileName) => {
-                (0, logger_1.logSingleLine)(`Checking file ${fileName}`);
-            }, (fileName) => {
-                (0, logger_1.logSingleLine)(`Ignoring file ${fileName}`);
-            });
-            (0, logger_1.logInfo)(`📦 ✅ Files to index: ${repositoryFiles.size}`, true);
-            results.push(...await this.checkAICacheInSupabase(param, branch, repositoryFiles));
-            results.push(...await this.uploadAICacheToSupabase(param, branch, repositoryFiles));
-            if (duplicationBranch) {
-                results.push(...await this.duplicateAICacheToBranch(param, branch, duplicationBranch));
+            if (branchesToProcess.length === 0) {
+                branchesToProcess = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
             }
+            (0, logger_1.logInfo)(`📦 ${branchesToProcess.length} branches to process.`);
+            const branchResults = [];
+            for (let i = 0; i < branchesToProcess.length; i++) {
+                const branch = branchesToProcess[i];
+                const branchProgress = ((i + 1) / branchesToProcess.length) * 100;
+                (0, logger_1.logSingleLine)(`📦 [${i + 1}/${branchesToProcess.length}] (${branchProgress.toFixed(1)}%) Processing branch: ${branch}...`);
+                const branchStartTime = Date.now();
+                const branchResult = await this.prepareCacheOnBranch(param, branch, i + 1, branchesToProcess.length);
+                const branchDuration = Math.ceil((Date.now() - branchStartTime) / 1000);
+                results.push(...branchResult.results);
+                branchResults.push({
+                    branch,
+                    filesProcessed: branchResult.filesProcessed,
+                    filesReused: branchResult.filesReused,
+                    filesSkipped: branchResult.filesSkipped,
+                    filesGenerated: branchResult.filesGenerated,
+                    filesRemoved: branchResult.filesRemoved,
+                    duration: branchDuration,
+                    success: branchResult.success
+                });
+            }
+            // Print all results at the end
+            (0, logger_1.logInfo)(``); // Empty line for clarity
+            (0, logger_1.logInfo)(`📦 Processing Summary:`);
+            for (const result of branchResults) {
+                if (result.success) {
+                    (0, logger_1.logInfo)(`  ✅ ${result.branch}: ${result.filesProcessed} processed, ${result.filesReused} reused, ${result.filesSkipped} skipped, ${result.filesGenerated} generated, ${result.filesRemoved} removed. Duration: ${result.duration}s`);
+                }
+                else {
+                    (0, logger_1.logInfo)(`  ❌ ${result.branch}: Failed`);
+                }
+            }
+            results.push(...await this.removeOrphanedBranches(param, branchesToProcess));
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -61342,6 +68438,8 @@ const publish_github_action_use_case_1 = __nccwpck_require__(9029);
 const create_release_use_case_1 = __nccwpck_require__(2430);
 const create_tag_use_case_1 = __nccwpck_require__(5279);
 const think_use_case_1 = __nccwpck_require__(3841);
+const initial_setup_use_case_1 = __nccwpck_require__(3943);
+const check_progress_use_case_1 = __nccwpck_require__(7744);
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -61371,6 +68469,12 @@ class SingleActionUseCase {
             }
             else if (param.singleAction.isThinkAction) {
                 results.push(...await new think_use_case_1.ThinkUseCase().invoke(param));
+            }
+            else if (param.singleAction.isInitialSetupAction) {
+                results.push(...await new initial_setup_use_case_1.InitialSetupUseCase().invoke(param));
+            }
+            else if (param.singleAction.isCheckProgressAction) {
+                results.push(...await new check_progress_use_case_1.CheckProgressUseCase().invoke(param));
             }
         }
         catch (error) {
@@ -62667,312 +69771,6 @@ exports.CodebaseAnalyzer = CodebaseAnalyzer;
 
 /***/ }),
 
-/***/ 5788:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CommentFormatter = void 0;
-/**
- * Service for formatting GitHub comments and code changes
- */
-class CommentFormatter {
-    constructor() {
-        this.GITHUB_COMMENT_MAX_LENGTH = 65500; // Leave some margin below 65536
-    }
-    /**
-     * Format the complete reasoning comment for GitHub
-     */
-    formatReasoningComment(question, description, steps, analyzedFiles, proposedChanges, finalAnalysis, totalIterations, todoManager) {
-        let comment = '';
-        // Header
-        comment += `# 🤔 AI Reasoning Analysis\n\n`;
-        if (question) {
-            comment += `## 📝 Question\n\n${question}\n\n`;
-        }
-        comment += `---\n\n`;
-        // MAIN CONTENT: Summary and conclusions
-        comment += `## 📊 Analysis Summary\n\n`;
-        comment += `- **Total Iterations**: ${totalIterations}\n`;
-        comment += `- **Files Analyzed**: ${analyzedFiles.size}\n`;
-        comment += `- **Changes Proposed**: ${proposedChanges.length}\n`;
-        // TODO List Summary
-        const todoStats = todoManager.getStats();
-        if (todoStats.total > 0) {
-            comment += `- **TODO Tasks**: ${todoStats.total} (${todoStats.completed} completed, ${todoStats.in_progress} in progress, ${todoStats.pending} pending)\n`;
-        }
-        comment += `\n---\n\n`;
-        // Final Analysis & Conclusions (main content)
-        if (finalAnalysis) {
-            comment += `## 🎯 Final Analysis & Conclusions\n\n`;
-            comment += `${finalAnalysis}\n\n`;
-            comment += `---\n\n`;
-        }
-        else {
-            // Fallback summary if no final analysis
-            comment += `## 🎯 Summary\n\n`;
-            comment += `Analysis completed after ${totalIterations} iterations. `;
-            comment += `Analyzed ${analyzedFiles.size} file${analyzedFiles.size !== 1 ? 's' : ''} and `;
-            comment += `proposed ${proposedChanges.length} change${proposedChanges.length !== 1 ? 's' : ''}.\n\n`;
-            comment += `---\n\n`;
-        }
-        // Proposed Changes (main content)
-        if (proposedChanges.length > 0) {
-            comment += `## 💡 Proposed Changes\n\n`;
-            proposedChanges.forEach((change, idx) => {
-                comment += this.formatProposedChange(change, idx + 1);
-            });
-            comment += `\n---\n\n`;
-        }
-        else {
-            comment += `## 💡 Proposed Changes\n\n`;
-            comment += `No specific code changes were proposed. The analysis focused on understanding the codebase structure and requirements.\n\n`;
-            comment += `---\n\n`;
-        }
-        // Analyzed Files Summary (if relevant)
-        if (analyzedFiles.size > 0 && analyzedFiles.size <= 10) {
-            comment += `## 📄 Analyzed Files\n\n`;
-            Array.from(analyzedFiles.values()).forEach(file => {
-                comment += `- **\`${file.path}\`** (${file.relevance} relevance): ${file.key_findings.substring(0, 200)}${file.key_findings.length > 200 ? '...' : ''}\n`;
-            });
-            comment += `\n---\n\n`;
-        }
-        // TODO List Summary (if relevant)
-        if (todoStats.total > 0) {
-            comment += `## 📋 TODO List Summary\n\n`;
-            const completedTodos = todoManager.getTodosByStatus('completed');
-            const activeTodos = todoManager.getActiveTodos();
-            if (completedTodos.length > 0) {
-                comment += `### ✅ Completed Tasks\n\n`;
-                completedTodos.forEach(todo => {
-                    comment += `- ${todo.content}\n`;
-                });
-                comment += `\n`;
-            }
-            if (activeTodos.length > 0) {
-                comment += `### 🔄 Active/Pending Tasks\n\n`;
-                activeTodos.forEach(todo => {
-                    comment += `- ${todo.status === 'in_progress' ? '🔄' : '⏳'} ${todo.content}\n`;
-                });
-                comment += `\n`;
-            }
-            comment += `---\n\n`;
-        }
-        // COLLAPSED SECTION: Detailed Reasoning Steps
-        comment += `<details>\n<summary><strong>🔄 Detailed Reasoning Steps (${steps.length} steps) - Click to expand</strong></summary>\n\n`;
-        comment += `\n\n*This section contains the detailed step-by-step reasoning process. It's collapsed by default to keep the main analysis focused.*\n\n`;
-        comment += `---\n\n`;
-        let proposalIndex = 0;
-        const proposalShownFlags = new Set();
-        for (const step of steps) {
-            comment += `### Step ${step.step_number}: ${this.getActionEmoji(step.action)} ${this.formatActionName(step.action)}\n\n`;
-            // Show reasoning (truncated for collapsed section)
-            if (step.reasoning) {
-                const reasoningText = step.reasoning.length > 500
-                    ? `${step.reasoning.substring(0, 500)}...`
-                    : step.reasoning;
-                comment += `${reasoningText}\n\n`;
-            }
-            // Show files involved (simplified)
-            if (step.files_involved && step.files_involved.length > 0) {
-                const uniqueFiles = [...new Set(step.files_involved)];
-                comment += `**Files**: ${uniqueFiles.map(f => `\`${f}\``).join(', ')}\n\n`;
-            }
-            // Show file analysis (simplified)
-            if (step.action === 'analyze_code' || step.action === 'read_file') {
-                const relevantFiles = Array.from(analyzedFiles.values()).filter(f => step.files_involved?.includes(f.path));
-                const stepAnalysis = step.file_analysis_in_step;
-                const filesToShow = stepAnalysis || relevantFiles;
-                if (filesToShow.length > 0) {
-                    comment += `**Analysis**: `;
-                    filesToShow.forEach((file, idx) => {
-                        if (idx > 0)
-                            comment += ` | `;
-                        comment += `\`${file.path}\` (${file.relevance}): ${file.key_findings.substring(0, 100)}${file.key_findings.length > 100 ? '...' : ''}`;
-                    });
-                    comment += `\n\n`;
-                }
-            }
-            // Show proposals (simplified reference)
-            const stepProposals = step.proposals_in_step;
-            if (stepProposals && stepProposals.length > 0) {
-                comment += `**Proposed Changes**: ${stepProposals.map(c => `${c.change_type} \`${c.file_path}\``).join(', ')}\n\n`;
-                // Mark as shown
-                stepProposals.forEach((change) => {
-                    const globalIndex = proposedChanges.indexOf(change);
-                    if (globalIndex >= 0) {
-                        proposalShownFlags.add(globalIndex);
-                    }
-                });
-            }
-            comment += `---\n\n`;
-        }
-        comment += `\n</details>\n\n`;
-        comment += `---\n\n`;
-        // Footer
-        comment += `*Analysis completed in ${totalIterations} iterations. Analyzed ${analyzedFiles.size} files and proposed ${proposedChanges.length} changes.*\n`;
-        // Truncate if too long
-        if (comment.length > this.GITHUB_COMMENT_MAX_LENGTH) {
-            // Try to keep main content, truncate collapsed section
-            const mainContent = comment.substring(0, comment.indexOf('<details>'));
-            const truncated = mainContent + `\n\n<details>\n<summary><strong>🔄 Detailed Reasoning Steps - Truncated due to length</strong></summary>\n\n*Steps section was truncated due to comment length limits.*\n\n</details>\n\n`;
-            if (truncated.length > this.GITHUB_COMMENT_MAX_LENGTH) {
-                // If still too long, truncate main content
-                const finalTruncated = truncated.substring(0, this.GITHUB_COMMENT_MAX_LENGTH - 200);
-                return finalTruncated + `\n\n*[Comment truncated due to length limit]*\n`;
-            }
-            return truncated;
-        }
-        return comment;
-    }
-    /**
-     * Format a single proposed change
-     */
-    formatProposedChange(change, index) {
-        let formatted = `### ${index}. ${this.getChangeTypeEmoji(change.change_type)} ${change.change_type.toUpperCase()}: \`${change.file_path}\`\n\n`;
-        formatted += `**Description**: ${change.description}\n\n`;
-        if (change.reasoning) {
-            formatted += `**Reasoning**: ${change.reasoning}\n\n`;
-        }
-        if (change.suggested_code) {
-            const language = this.detectLanguageFromPath(change.file_path);
-            formatted += `**Suggested Code**:\n\n`;
-            formatted += `\`\`\`${language}\n${change.suggested_code}\n\`\`\`\n\n`;
-        }
-        formatted += `---\n\n`;
-        return formatted;
-    }
-    /**
-     * Detect programming language from file path/extension
-     */
-    detectLanguageFromPath(filePath) {
-        const extension = filePath.split('.').pop()?.toLowerCase() || '';
-        const languageMap = {
-            // TypeScript/JavaScript
-            'ts': 'typescript',
-            'tsx': 'tsx',
-            'js': 'javascript',
-            'jsx': 'jsx',
-            'mjs': 'javascript',
-            'cjs': 'javascript',
-            // Python
-            'py': 'python',
-            'pyw': 'python',
-            'pyi': 'python',
-            // Java/Kotlin
-            'java': 'java',
-            'kt': 'kotlin',
-            'kts': 'kotlin',
-            // Go
-            'go': 'go',
-            // Rust
-            'rs': 'rust',
-            // C/C++
-            'c': 'c',
-            'cpp': 'cpp',
-            'cc': 'cpp',
-            'cxx': 'cpp',
-            'h': 'c',
-            'hpp': 'cpp',
-            'hxx': 'cpp',
-            // C#
-            'cs': 'csharp',
-            // Ruby
-            'rb': 'ruby',
-            // PHP
-            'php': 'php',
-            // Swift
-            'swift': 'swift',
-            // Dart
-            'dart': 'dart',
-            // Shell
-            'sh': 'bash',
-            'bash': 'bash',
-            'zsh': 'bash',
-            'fish': 'fish',
-            // Configuration
-            'json': 'json',
-            'yaml': 'yaml',
-            'yml': 'yaml',
-            'toml': 'toml',
-            'xml': 'xml',
-            'ini': 'ini',
-            'conf': 'conf',
-            'config': 'conf',
-            // Markup
-            'html': 'html',
-            'htm': 'html',
-            'css': 'css',
-            'scss': 'scss',
-            'sass': 'sass',
-            'less': 'less',
-            'md': 'markdown',
-            'markdown': 'markdown',
-            // SQL
-            'sql': 'sql',
-            // Docker
-            'dockerfile': 'dockerfile',
-            'docker': 'dockerfile',
-            // Other
-            'txt': 'text',
-            'log': 'text',
-        };
-        // Check for exact match
-        if (languageMap[extension]) {
-            return languageMap[extension];
-        }
-        // Check for Dockerfile (no extension)
-        if (filePath.toLowerCase().includes('dockerfile')) {
-            return 'dockerfile';
-        }
-        // Default to empty string if unknown
-        return '';
-    }
-    /**
-     * Get emoji for action type
-     */
-    getActionEmoji(action) {
-        const emojiMap = {
-            'search_files': '🔍',
-            'read_file': '📖',
-            'analyze_code': '🔬',
-            'propose_changes': '💡',
-            'complete': '✅'
-        };
-        return emojiMap[action] || '📝';
-    }
-    /**
-     * Format action name for display
-     */
-    formatActionName(action) {
-        const nameMap = {
-            'search_files': 'Search Files',
-            'read_file': 'Read Files',
-            'analyze_code': 'Analyze Code',
-            'propose_changes': 'Propose Changes',
-            'complete': 'Complete'
-        };
-        return nameMap[action] || action;
-    }
-    /**
-     * Get emoji for change type
-     */
-    getChangeTypeEmoji(changeType) {
-        const emojiMap = {
-            'create': '✨',
-            'modify': '📝',
-            'delete': '🗑️',
-            'refactor': '♻️'
-        };
-        return emojiMap[changeType] || '📝';
-    }
-}
-exports.CommentFormatter = CommentFormatter;
-
-
-/***/ }),
-
 /***/ 1855:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -63040,9 +69838,6 @@ class FileCacheManager {
                 });
             }
             (0, logger_1.logInfo)(`📂 Loaded ${cache.size} files from Supabase cache`);
-            if (cachedFiles.length > 0) {
-                (0, logger_1.logDebugInfo)(`📂 Sample cached paths: ${Array.from(cache.keys()).slice(0, 5).join(', ')}`);
-            }
         }
         catch (error) {
             (0, logger_1.logError)(`Error loading AI cache from Supabase: ${error}`);
@@ -63336,76 +70131,6 @@ exports.FileImportAnalyzer = FileImportAnalyzer;
 
 /***/ }),
 
-/***/ 9810:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.FileSearchService = void 0;
-/**
- * Service for building file indexes and searching files
- */
-class FileSearchService {
-    /**
-     * Build file index for quick lookup by filename or directory
-     */
-    buildFileIndex(files) {
-        const index = new Map();
-        for (const [path, content] of files.entries()) {
-            const pathParts = path.split('/');
-            const fileName = pathParts[pathParts.length - 1];
-            // Index by filename
-            if (!index.has(fileName)) {
-                index.set(fileName, []);
-            }
-            index.get(fileName).push(path);
-            // Index by directory
-            if (pathParts.length > 1) {
-                const dir = pathParts.slice(0, -1).join('/');
-                if (!index.has(dir)) {
-                    index.set(dir, []);
-                }
-                index.get(dir).push(path);
-            }
-        }
-        return index;
-    }
-    /**
-     * Search files by search terms (filename, directory, or pattern)
-     */
-    searchFiles(searchTerms, fileIndex) {
-        const foundFiles = new Set();
-        for (const term of searchTerms) {
-            // Exact filename match
-            if (fileIndex.has(term)) {
-                fileIndex.get(term).forEach(f => foundFiles.add(f));
-            }
-            // Directory match
-            if (fileIndex.has(term)) {
-                fileIndex.get(term).forEach(f => foundFiles.add(f));
-            }
-            // Pattern match (simple contains)
-            for (const [key, paths] of fileIndex.entries()) {
-                if (key.toLowerCase().includes(term.toLowerCase())) {
-                    paths.forEach(p => foundFiles.add(p));
-                }
-                // Also check paths
-                paths.forEach(path => {
-                    if (path.toLowerCase().includes(term.toLowerCase())) {
-                        foundFiles.add(path);
-                    }
-                });
-            }
-        }
-        return Array.from(foundFiles);
-    }
-}
-exports.FileSearchService = FileSearchService;
-
-
-/***/ }),
-
 /***/ 9714:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -63434,222 +70159,6 @@ class StoreConfigurationUseCase {
     }
 }
 exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
-
-
-/***/ }),
-
-/***/ 8785:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ThinkCodeManager = void 0;
-const logger_1 = __nccwpck_require__(8836);
-/**
- * Manages virtual code state - keeps files in memory and applies proposed changes
- * so subsequent reasoning steps can see the accumulated progress
- */
-class ThinkCodeManager {
-    constructor() {
-        this.originalFiles = new Map();
-        this.virtualFiles = new Map();
-        this.appliedChanges = new Map(); // file -> changes applied
-        this.allAppliedChanges = [];
-    }
-    /**
-     * Initialize with original repository files
-     */
-    initialize(originalFiles) {
-        this.originalFiles = new Map(originalFiles);
-        this.virtualFiles = new Map(originalFiles);
-        this.appliedChanges.clear();
-        this.allAppliedChanges = [];
-        (0, logger_1.logInfo)(`📦 Code manager initialized with ${originalFiles.size} files`);
-    }
-    /**
-     * Get current state of a file (with applied changes)
-     */
-    getFileContent(filePath) {
-        return this.virtualFiles.get(filePath);
-    }
-    /**
-     * Get all virtual files
-     */
-    getAllFiles() {
-        return new Map(this.virtualFiles);
-    }
-    /**
-     * Check if a file has been modified
-     */
-    isFileModified(filePath) {
-        return this.appliedChanges.has(filePath);
-    }
-    /**
-     * Get changes applied to a specific file
-     */
-    getFileChanges(filePath) {
-        return this.appliedChanges.get(filePath) || [];
-    }
-    /**
-     * Apply a proposed change to the virtual codebase
-     */
-    applyChange(change) {
-        try {
-            const filePath = change.file_path;
-            const currentContent = this.virtualFiles.get(filePath) || '';
-            let newContent = currentContent;
-            switch (change.change_type) {
-                case 'create':
-                    if (!currentContent) {
-                        // File doesn't exist, create it with suggested code
-                        newContent = change.suggested_code || '';
-                        (0, logger_1.logDebugInfo)(`✅ Created virtual file: ${filePath}`);
-                    }
-                    else {
-                        (0, logger_1.logDebugInfo)(`⚠️ File ${filePath} already exists, skipping create`);
-                        return false;
-                    }
-                    break;
-                case 'modify':
-                    if (currentContent) {
-                        // Apply modification - for now, append suggested code
-                        // In a more sophisticated implementation, we could parse and merge
-                        if (change.suggested_code) {
-                            // Simple strategy: append the suggested code with a marker
-                            newContent = `${currentContent}\n\n// === AI Proposed Modification ===\n${change.suggested_code}`;
-                            (0, logger_1.logDebugInfo)(`✅ Modified virtual file: ${filePath}`);
-                        }
-                        else {
-                            // Just note the modification
-                            newContent = `${currentContent}\n\n// === AI Proposed Modification: ${change.description} ===`;
-                            (0, logger_1.logDebugInfo)(`✅ Noted modification in virtual file: ${filePath}`);
-                        }
-                    }
-                    else {
-                        (0, logger_1.logDebugInfo)(`⚠️ Cannot modify non-existent file: ${filePath}`);
-                        return false;
-                    }
-                    break;
-                case 'delete':
-                    // Mark as deleted but keep for reference
-                    newContent = `// === FILE MARKED FOR DELETION ===\n// Original content:\n${currentContent}`;
-                    (0, logger_1.logDebugInfo)(`✅ Marked virtual file for deletion: ${filePath}`);
-                    break;
-                case 'refactor':
-                    if (currentContent && change.suggested_code) {
-                        // Refactor: replace with new code
-                        newContent = `${currentContent}\n\n// === AI Proposed Refactoring ===\n${change.suggested_code}`;
-                        (0, logger_1.logDebugInfo)(`✅ Refactored virtual file: ${filePath}`);
-                    }
-                    else {
-                        (0, logger_1.logDebugInfo)(`⚠️ Cannot refactor file ${filePath}: ${currentContent ? 'no suggested code' : 'file does not exist'}`);
-                        return false;
-                    }
-                    break;
-                default:
-                    (0, logger_1.logDebugInfo)(`⚠️ Unknown change type: ${change.change_type}`);
-                    return false;
-            }
-            this.virtualFiles.set(filePath, newContent);
-            // Track applied changes
-            if (!this.appliedChanges.has(filePath)) {
-                this.appliedChanges.set(filePath, []);
-            }
-            this.appliedChanges.get(filePath).push(change);
-            this.allAppliedChanges.push(change);
-            return true;
-        }
-        catch (error) {
-            (0, logger_1.logDebugInfo)(`❌ Error applying change to ${change.file_path}: ${error}`);
-            return false;
-        }
-    }
-    /**
-     * Check if a change has already been applied (to avoid duplicates)
-     */
-    hasChangeBeenApplied(change) {
-        // Check by file path and description similarity
-        const existingChanges = this.allAppliedChanges.filter(c => c.file_path === change.file_path &&
-            c.change_type === change.change_type &&
-            this.areSimilar(c.description, change.description));
-        return existingChanges.length > 0;
-    }
-    /**
-     * Get summary of all applied changes
-     */
-    getChangesSummary() {
-        if (this.allAppliedChanges.length === 0) {
-            return 'No changes applied yet.';
-        }
-        const summary = [];
-        summary.push(`\n## Applied Changes (${this.allAppliedChanges.length} total):\n`);
-        for (const [filePath, changes] of this.appliedChanges.entries()) {
-            summary.push(`\n### ${filePath} (${changes.length} change${changes.length > 1 ? 's' : ''}):`);
-            changes.forEach((change, idx) => {
-                summary.push(`  ${idx + 1}. ${change.change_type.toUpperCase()}: ${change.description}`);
-            });
-        }
-        return summary.join('\n');
-    }
-    /**
-     * Get context about what has changed for the AI
-     */
-    getContextForAI() {
-        const context = [];
-        if (this.allAppliedChanges.length > 0) {
-            context.push(`\n## Code State Changes Applied:`);
-            context.push(`Total changes applied: ${this.allAppliedChanges.length}`);
-            context.push(`Files modified: ${this.appliedChanges.size}`);
-            context.push(this.getChangesSummary());
-            // Show modified file contents summary
-            context.push(`\n## Modified Files Preview:`);
-            for (const [filePath, changes] of this.appliedChanges.entries()) {
-                const currentContent = this.virtualFiles.get(filePath);
-                if (currentContent) {
-                    const preview = currentContent.substring(0, 500);
-                    context.push(`\n### ${filePath}:`);
-                    context.push(`\`\`\`\n${preview}${currentContent.length > 500 ? '\n... (truncated)' : ''}\n\`\`\``);
-                }
-            }
-        }
-        else {
-            context.push(`\n## Code State: No changes applied yet.`);
-        }
-        return context.join('\n');
-    }
-    /**
-     * Simple similarity check for change descriptions
-     */
-    areSimilar(desc1, desc2) {
-        const normalize = (s) => s.toLowerCase().trim().replace(/\s+/g, ' ');
-        const n1 = normalize(desc1);
-        const n2 = normalize(desc2);
-        // Exact match
-        if (n1 === n2)
-            return true;
-        // Check if one contains the other (for similar proposals)
-        if (n1.length > 20 && n2.length > 20) {
-            const words1 = n1.split(' ').filter(w => w.length > 3);
-            const words2 = n2.split(' ').filter(w => w.length > 3);
-            const commonWords = words1.filter(w => words2.includes(w));
-            // If 70% of significant words match, consider similar
-            return commonWords.length / Math.max(words1.length, words2.length) > 0.7;
-        }
-        return false;
-    }
-    /**
-     * Get statistics
-     */
-    getStats() {
-        return {
-            totalFiles: this.virtualFiles.size,
-            modifiedFiles: this.appliedChanges.size,
-            totalChanges: this.allAppliedChanges.length
-        };
-    }
-}
-exports.ThinkCodeManager = ThinkCodeManager;
 
 
 /***/ }),
@@ -63732,10 +70241,10 @@ class ThinkTodoManager {
         }
         todo.updated_at = now;
         if (oldStatus !== todo.status) {
-            (0, logger_1.logInfo)(`📝 Updated TODO ${id}: ${oldStatus} → ${todo.status}`);
+            // logInfo(`📝 Updated TODO ${id}: ${oldStatus} → ${todo.status}`);
         }
         else {
-            (0, logger_1.logDebugInfo)(`📝 Updated TODO ${id} (notes/metadata)`);
+            // logDebugInfo(`📝 Updated TODO ${id} (notes/metadata)`);
         }
         return true;
     }
@@ -63919,51 +70428,29 @@ exports.ThinkTodoManager = ThinkTodoManager;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ThinkUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
-const ai_repository_1 = __nccwpck_require__(8307);
 const file_repository_1 = __nccwpck_require__(1503);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
-const think_code_manager_1 = __nccwpck_require__(8785);
-const think_todo_manager_1 = __nccwpck_require__(3618);
-const file_import_analyzer_1 = __nccwpck_require__(5310);
-const file_cache_manager_1 = __nccwpck_require__(1855);
-const codebase_analyzer_1 = __nccwpck_require__(678);
-const file_search_service_1 = __nccwpck_require__(9810);
-const comment_formatter_1 = __nccwpck_require__(5788);
+const reasoning_visualizer_1 = __nccwpck_require__(8226);
 class ThinkUseCase {
     constructor() {
         this.taskId = 'ThinkUseCase';
-        this.aiRepository = new ai_repository_1.AiRepository();
         this.fileRepository = new file_repository_1.FileRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
-        // Services
-        this.fileImportAnalyzer = new file_import_analyzer_1.FileImportAnalyzer();
-        this.fileCacheManager = new file_cache_manager_1.FileCacheManager();
-        this.fileSearchService = new file_search_service_1.FileSearchService();
-        this.commentFormatter = new comment_formatter_1.CommentFormatter();
-        this.MAX_ITERATIONS = 30; // Increased to allow deeper analysis
-        this.MAX_FILES_TO_ANALYZE = 50; // Increased file limit
-        this.MAX_CONSECUTIVE_SEARCHES = 3; // Max consecutive search_files without progress
-        // Initialize CodebaseAnalyzer with dependencies
-        this.codebaseAnalyzer = new codebase_analyzer_1.CodebaseAnalyzer(this.aiRepository, this.fileImportAnalyzer, this.fileCacheManager);
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const visualizer = new reasoning_visualizer_1.ReasoningVisualizer();
         const results = [];
         try {
-            // Extract the question/prompt from the issue, PR, or comment
+            const description = await this.issueRepository.getDescription(param.owner, param.repo, param.issueNumber, param.tokens.token) ?? '';
             let question = '';
-            let description = '';
             if (param.issue.isIssueComment) {
                 question = param.issue.commentBody || '';
-                description = await this.getIssueDescription(param) || '';
             }
             else if (param.pullRequest.isPullRequestReviewComment) {
                 question = param.pullRequest.commentBody || '';
-                description = await this.getIssueDescription(param) || '';
             }
             else if (param.issue.isIssue) {
-                description = await this.getIssueDescription(param) || '';
                 question = description;
             }
             else if (param.singleAction.isThinkAction) {
@@ -63972,10 +70459,8 @@ class ThinkUseCase {
                 const commentBody = param.issue.commentBody || param.inputs?.comment?.body || '';
                 if (commentBody) {
                     question = commentBody;
-                    description = await this.getIssueDescription(param) || '';
                 }
                 else {
-                    description = await this.getIssueDescription(param) || '';
                     question = description || '';
                 }
             }
@@ -63999,8 +70484,8 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            (0, logger_1.logInfo)(`🔎 Question: ${question}`);
-            (0, logger_1.logInfo)(`🔎 Description: ${description}`);
+            // Show header with task
+            visualizer.showHeader(question || description || 'AI Reasoning');
             if (question.length === 0 || !question.includes(`@${param.tokenUser}`)) {
                 (0, logger_1.logInfo)(`🔎 Comment body is empty or does not include @${param.tokenUser}`);
                 results.push(new result_1.Result({
@@ -64015,332 +70500,20 @@ class ThinkUseCase {
             }
             // Get full repository content
             (0, logger_1.logInfo)(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);
-            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (fileName) => (0, logger_1.logDebugInfo)(`Loading: ${fileName}`), (fileName) => (0, logger_1.logDebugInfo)(`Ignoring: ${fileName}`));
+            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (fileName) => {
+                // logDebugInfo(`Loading: ${fileName}`)
+            }, (fileName) => {
+                // logDebugInfo(`Ignoring: ${fileName}`)
+            });
             (0, logger_1.logInfo)(`📚 Loaded ${repositoryFiles.size} files from repository`);
-            // Initialize code manager with repository files
-            const codeManager = new think_code_manager_1.ThinkCodeManager();
-            codeManager.initialize(repositoryFiles);
-            // Initialize TODO manager
-            const todoManager = new think_todo_manager_1.ThinkTodoManager();
-            // AI will create initial TODOs in first iteration if needed
-            // Build file index for quick lookup
-            const fileIndex = this.fileSearchService.buildFileIndex(repositoryFiles);
-            // STEP 0: Generate codebase analysis and file relationships
-            (0, logger_1.logInfo)(`🔍 Step 0: Analyzing codebase structure and file relationships...`);
-            const codebaseAnalysis = await this.codebaseAnalyzer.generateCodebaseAnalysis(param, repositoryFiles, question);
-            (0, logger_1.logInfo)(`✅ Codebase analysis completed. Analyzed ${codebaseAnalysis.length} files.`);
-            // Format codebase analysis for context
-            const codebaseAnalysisText = this.codebaseAnalyzer.formatCodebaseAnalysisForContext(codebaseAnalysis);
-            // Reasoning process
-            const steps = [];
-            let iteration = 0;
-            let complete = false;
-            let analyzedFiles = new Map();
-            let allProposedChanges = [];
-            let currentContext = codebaseAnalysisText; // Start with codebase analysis
-            let finalAnalysis = '';
-            let consecutiveSearches = 0; // Track consecutive search_files without reading
-            let lastProgressIteration = 0; // Track last iteration with actual progress
-            let filesReadInIteration = 0;
-            let seenActions = new Map(); // Track action patterns to detect repetition
-            while (!complete && iteration < this.MAX_ITERATIONS) {
-                iteration++;
-                filesReadInIteration = 0;
-                (0, logger_1.logInfo)(`🤔 Reasoning iteration ${iteration}/${this.MAX_ITERATIONS}`);
-                const thinkResponse = await this.performReasoningStep(param, question, description, codeManager, todoManager, fileIndex, analyzedFiles, currentContext, iteration, steps);
-                if (!thinkResponse) {
-                    (0, logger_1.logError)('No response from AI reasoning step');
-                    break;
-                }
-                // Handle TODO updates (can be included with any action)
-                if (thinkResponse.todo_updates) {
-                    // Create new TODOs
-                    if (thinkResponse.todo_updates.create) {
-                        for (const todo of thinkResponse.todo_updates.create) {
-                            const createdTodo = todoManager.createTodo(todo.content, todo.status || 'pending');
-                            (0, logger_1.logInfo)(`✅ Created TODO: [${createdTodo.id}] ${todo.content}`);
-                        }
-                        (0, logger_1.logInfo)(`📋 Created ${thinkResponse.todo_updates.create.length} new TODO items`);
-                    }
-                    // Update existing TODOs
-                    if (thinkResponse.todo_updates.update) {
-                        let successCount = 0;
-                        let failedIds = [];
-                        for (const update of thinkResponse.todo_updates.update) {
-                            const success = todoManager.updateTodo(update.id, {
-                                status: update.status,
-                                notes: update.notes
-                            });
-                            if (success) {
-                                successCount++;
-                            }
-                            else {
-                                failedIds.push(update.id);
-                            }
-                        }
-                        if (successCount > 0) {
-                            (0, logger_1.logInfo)(`📋 Successfully updated ${successCount} TODO items`);
-                        }
-                        if (failedIds.length > 0) {
-                            // Show available TODO IDs to help the AI
-                            const allTodos = todoManager.getAllTodos();
-                            const availableIds = allTodos.map(t => t.id).join(', ');
-                            (0, logger_1.logInfo)(`⚠️ Failed to update ${failedIds.length} TODO items. Available IDs: ${availableIds}`);
-                            currentContext += `\n\n⚠️ TODO Update Error: Could not find TODO(s) with ID(s): ${failedIds.join(', ')}. Available TODO IDs are: ${availableIds}. Please use the EXACT ID from the TODO list above.`;
-                        }
-                    }
-                }
-                // Record step with associated data for better comment formatting
-                const step = {
-                    step_number: iteration,
-                    action: thinkResponse.action,
-                    reasoning: thinkResponse.reasoning,
-                    files_involved: [
-                        ...(thinkResponse.files_to_read || []),
-                        ...(thinkResponse.files_to_search || []),
-                        ...(thinkResponse.analyzed_files?.map(f => f.path) || [])
-                    ],
-                    findings: thinkResponse.reasoning,
-                    timestamp: Date.now()
-                };
-                // Attach proposals to step if they were generated in this step
-                if (thinkResponse.action === 'propose_changes' && thinkResponse.proposed_changes) {
-                    step.proposals_in_step = thinkResponse.proposed_changes;
-                }
-                // Attach file analysis to step if provided
-                if (thinkResponse.action === 'analyze_code' && thinkResponse.analyzed_files) {
-                    step.file_analysis_in_step = thinkResponse.analyzed_files;
-                }
-                steps.push(step);
-                (0, logger_1.logInfo)(`🤔 Step ${iteration}: ${thinkResponse.action} - ${thinkResponse.reasoning.substring(0, 100)}...`);
-                // Track action patterns to detect repetition
-                const actionKey = `${thinkResponse.action}_${thinkResponse.files_to_search?.join(',') || thinkResponse.files_to_read?.join(',') || 'general'}`;
-                const actionCount = seenActions.get(actionKey) || 0;
-                seenActions.set(actionKey, actionCount + 1);
-                // Execute action
-                switch (thinkResponse.action) {
-                    case 'search_files':
-                        consecutiveSearches++;
-                        if (thinkResponse.files_to_search && thinkResponse.files_to_search.length > 0) {
-                            const foundFiles = this.fileSearchService.searchFiles(thinkResponse.files_to_search, fileIndex);
-                            (0, logger_1.logInfo)(`🔍 Search results: Found ${foundFiles.length} files for terms: ${thinkResponse.files_to_search.join(', ')}`);
-                            // Detect if we're repeating the same search
-                            if (actionCount > 1) {
-                                currentContext += `\n\n⚠️ WARNING: You've already searched for "${thinkResponse.files_to_search.join(', ')}" ${actionCount} times. `;
-                                if (foundFiles.length > 0) {
-                                    currentContext += `These files were found previously. Consider READING them instead of searching again.`;
-                                }
-                                else {
-                                    currentContext += `No files found. Consider trying different search terms or reading files from the list above.`;
-                                }
-                            }
-                            if (foundFiles.length > 0) {
-                                currentContext += `\n\nFound ${foundFiles.length} files matching search criteria:\n${foundFiles.map(f => `- ${f}`).join('\n')}`;
-                                // If found files after multiple searches, suggest reading them
-                                if (consecutiveSearches >= this.MAX_CONSECUTIVE_SEARCHES && foundFiles.length > 0) {
-                                    currentContext += `\n\n💡 IMPORTANT: You've searched ${consecutiveSearches} times. You MUST read some of the found files now to proceed with analysis. Suggested files: ${foundFiles.slice(0, 5).join(', ')}`;
-                                }
-                            }
-                            else {
-                                currentContext += `\n\nNo files found matching search criteria: ${thinkResponse.files_to_search.join(', ')}. Available files in repository: ${Array.from(repositoryFiles.keys()).slice(0, 30).join(', ')}...`;
-                                // If too many searches without finding files, provide full file list
-                                if (consecutiveSearches >= this.MAX_CONSECUTIVE_SEARCHES) {
-                                    currentContext += `\n\n📋 Here are all available files in the repository to help you:\n${Array.from(repositoryFiles.keys()).map((f, i) => `${i + 1}. ${f}`).slice(0, 100).join('\n')}${repositoryFiles.size > 100 ? '\n... and more' : ''}`;
-                                }
-                            }
-                        }
-                        break;
-                    case 'read_file':
-                        consecutiveSearches = 0; // Reset counter when reading files
-                        if (thinkResponse.files_to_read && thinkResponse.files_to_read.length > 0) {
-                            const filesToAnalyze = thinkResponse.files_to_read.slice(0, this.MAX_FILES_TO_ANALYZE - analyzedFiles.size);
-                            (0, logger_1.logInfo)(`📖 Reading ${filesToAnalyze.length} files: ${filesToAnalyze.join(', ')}`);
-                            for (const filePath of filesToAnalyze) {
-                                if (analyzedFiles.has(filePath)) {
-                                    (0, logger_1.logDebugInfo)(`⏭️ Skipping already analyzed file: ${filePath}`);
-                                    continue; // Already analyzed
-                                }
-                                // Get content from virtual files (includes applied changes)
-                                const content = codeManager.getFileContent(filePath);
-                                if (content !== undefined) {
-                                    filesReadInIteration++;
-                                    const isModified = codeManager.isFileModified(filePath);
-                                    const modificationNote = isModified ? ` [MODIFIED - ${codeManager.getFileChanges(filePath).length} change(s) applied]` : '';
-                                    (0, logger_1.logDebugInfo)(`✅ Reading file: ${filePath} (${content.length} chars)${modificationNote}`);
-                                    // Show current state with applied changes
-                                    currentContext += `\n\n=== File: ${filePath}${modificationNote} ===\n${content.substring(0, 8000)}${content.length > 8000 ? '\n... (truncated)' : ''}`;
-                                    // If file was modified, show what changed
-                                    if (isModified) {
-                                        const changes = codeManager.getFileChanges(filePath);
-                                        currentContext += `\n\n⚠️ This file has been modified in previous steps. Changes applied: ${changes.map(c => `${c.change_type}: ${c.description}`).join(', ')}`;
-                                    }
-                                    lastProgressIteration = iteration;
-                                }
-                                else {
-                                    (0, logger_1.logInfo)(`❌ File not found in repository: ${filePath}`);
-                                    // Try to find similar file names
-                                    const fileName = filePath.split('/').pop() || '';
-                                    const similarFiles = Array.from(repositoryFiles.keys()).filter(f => f.toLowerCase().includes(fileName.toLowerCase()) ||
-                                        f.split('/').pop()?.toLowerCase().includes(fileName.toLowerCase())).slice(0, 5);
-                                    currentContext += `\n\n⚠️ File not found: ${filePath}. ${similarFiles.length > 0 ? `Similar files found: ${similarFiles.join(', ')}` : 'Please check the file path.'}`;
-                                }
-                            }
-                        }
-                        break;
-                    case 'analyze_code':
-                        consecutiveSearches = 0; // Reset counter when analyzing
-                        if (thinkResponse.analyzed_files && thinkResponse.analyzed_files.length > 0) {
-                            const beforeCount = analyzedFiles.size;
-                            for (const analysis of thinkResponse.analyzed_files) {
-                                if (!analyzedFiles.has(analysis.path)) {
-                                    analyzedFiles.set(analysis.path, analysis);
-                                }
-                            }
-                            if (analyzedFiles.size > beforeCount) {
-                                lastProgressIteration = iteration;
-                            }
-                            const findings = thinkResponse.analyzed_files
-                                .map(f => `${f.path} (${f.relevance}): ${f.key_findings}`)
-                                .join('\n');
-                            currentContext += `\n\nAnalysis findings:\n${findings}`;
-                        }
-                        break;
-                    case 'propose_changes':
-                        consecutiveSearches = 0; // Reset counter when proposing changes
-                        if (thinkResponse.proposed_changes && thinkResponse.proposed_changes.length > 0) {
-                            // Filter out changes that have already been applied
-                            const newChanges = thinkResponse.proposed_changes.filter(change => !codeManager.hasChangeBeenApplied(change));
-                            if (newChanges.length === 0) {
-                                (0, logger_1.logInfo)(`⚠️ All proposed changes have already been applied. Skipping duplicates.`);
-                                currentContext += `\n\n⚠️ All proposed changes in this step have already been applied in previous iterations. Please propose NEW changes or move to the next step.`;
-                                break;
-                            }
-                            // Apply changes to virtual codebase
-                            let appliedCount = 0;
-                            for (const change of newChanges) {
-                                if (codeManager.applyChange(change)) {
-                                    appliedCount++;
-                                    allProposedChanges.push(change);
-                                }
-                            }
-                            (0, logger_1.logInfo)(`✅ Applied ${appliedCount} new changes to virtual codebase (${newChanges.length - appliedCount} skipped)`);
-                            // Auto-update TODOs based on applied changes
-                            todoManager.autoUpdateFromChanges(newChanges.slice(0, appliedCount));
-                            // Store the index where these proposals start for proper ordering
-                            const startIndex = allProposedChanges.length - appliedCount;
-                            const appliedChanges = newChanges.slice(0, appliedCount);
-                            // Attach to step with start index for proper display order
-                            const currentStep = steps[steps.length - 1];
-                            if (currentStep) {
-                                currentStep.proposals_in_step = appliedChanges;
-                                currentStep.proposals_start_index = startIndex;
-                            }
-                            const changesSummary = appliedChanges
-                                .map(c => `${c.change_type} ${c.file_path}: ${c.description}`)
-                                .join('\n');
-                            currentContext += `\n\n✅ Applied ${appliedCount} new changes to codebase:\n${changesSummary}`;
-                            // Add context about code state
-                            currentContext += codeManager.getContextForAI();
-                            lastProgressIteration = iteration;
-                        }
-                        break;
-                    case 'update_todos':
-                        consecutiveSearches = 0; // Reset counter when updating TODOs
-                        // Note: TODO updates are handled before the switch statement
-                        // This case is mainly for when action is explicitly update_todos
-                        if (thinkResponse.todo_updates && (!thinkResponse.files_to_search &&
-                            !thinkResponse.files_to_read &&
-                            !thinkResponse.analyzed_files &&
-                            !thinkResponse.proposed_changes)) {
-                            // Pure TODO update action - warn if this happens too often
-                            (0, logger_1.logInfo)(`📋 Pure TODO update action (no other work done)`);
-                            currentContext += `\n\n📋 TODO list updated. Current status:\n${todoManager.getContextForAI()}`;
-                            currentContext += `\n\n⚠️ **NOTE**: You updated TODOs but didn't do any actual work. In the next iteration, DO THE WORK: search for files, read files, analyze code, or propose changes related to the active TODOs.`;
-                            lastProgressIteration = iteration;
-                        }
-                        break;
-                    case 'complete':
-                        complete = true;
-                        finalAnalysis = thinkResponse.final_analysis || thinkResponse.reasoning;
-                        lastProgressIteration = iteration;
-                        break;
-                }
-                // Check for stagnation - if too many iterations without progress
-                const iterationsWithoutProgress = iteration - lastProgressIteration;
-                if (iterationsWithoutProgress > 5 && !complete && iteration > 5) {
-                    (0, logger_1.logInfo)(`⚠️ No significant progress in last ${iterationsWithoutProgress} iterations (last progress at iteration ${lastProgressIteration}). Forcing completion.`);
-                    complete = true;
-                    if (!finalAnalysis) {
-                        finalAnalysis = `Analysis completed after ${iteration} iterations. Analyzed ${analyzedFiles.size} files, proposed ${allProposedChanges.length} changes.`;
-                    }
-                }
-                // Check if stuck in TODO update loop
-                const recentActions = steps.slice(-3).map(s => s.action);
-                const allUpdateTodos = recentActions.every(a => a === 'update_todos');
-                if (allUpdateTodos && recentActions.length >= 3 && iteration > 3) {
-                    (0, logger_1.logInfo)(`⚠️ Detected loop: ${recentActions.length} consecutive update_todos actions. Warning AI to do actual work.`);
-                    const activeTodos = todoManager.getActiveTodos();
-                    const todoIds = activeTodos.map(t => t.id).join(', ');
-                    currentContext += `\n\n⚠️ **STOP UPDATING TODOs AND DO ACTUAL WORK**: You've been updating TODOs repeatedly. Pick a TODO to work on (IDs: ${todoIds}) and DO THE WORK: search for files, read files, analyze code, or propose changes. Stop just updating TODO status!`;
-                }
-                // Prevent infinite loops - check file limit
-                if (analyzedFiles.size >= this.MAX_FILES_TO_ANALYZE) {
-                    (0, logger_1.logInfo)(`Reached maximum files to analyze (${this.MAX_FILES_TO_ANALYZE})`);
-                    if (!complete) {
-                        complete = true;
-                        finalAnalysis = finalAnalysis || `Reached maximum file limit. Analyzed ${analyzedFiles.size} files, proposed ${allProposedChanges.length} changes.`;
-                    }
-                    break;
-                }
-            }
-            // Generate final comprehensive response
-            if (!finalAnalysis && complete) {
-                finalAnalysis = await this.generateFinalAnalysis(param, question, analyzedFiles, allProposedChanges, steps, todoManager);
-            }
-            // Format and post comprehensive reasoning comment
-            const formattedComment = this.commentFormatter.formatReasoningComment(question, description, steps, analyzedFiles, allProposedChanges, finalAnalysis, iteration, todoManager);
-            // Determine issue number
-            let issueNumber = param.issueNumber;
-            if (param.singleAction.isThinkAction && issueNumber <= 0) {
-                // Try to get from issue if available
-                issueNumber = param.issue?.number || 1;
-            }
-            // Post comment if we have a valid issue number and token
-            if (issueNumber > 0 && param.tokens.token) {
-                try {
-                    await this.issueRepository.addComment(param.owner, param.repo, issueNumber, formattedComment, param.tokens.token);
-                    (0, logger_1.logInfo)(`✅ Posted reasoning comment to issue #${issueNumber}`);
-                }
-                catch (error) {
-                    (0, logger_1.logError)(`Failed to post comment to issue: ${error}`);
-                }
-            }
-            else {
-                (0, logger_1.logInfo)(`⏭️ Skipping comment post: issueNumber=${issueNumber}, hasToken=${!!param.tokens.token}`);
-            }
-            results.push(new result_1.Result({
-                id: this.taskId,
-                success: true,
-                executed: true,
-                steps: steps.map(s => `Step ${s.step_number}: ${s.action} - ${s.reasoning.substring(0, 200)}`),
-                payload: {
-                    steps: steps,
-                    analyzed_files: Array.from(analyzedFiles.values()),
-                    proposed_changes: allProposedChanges,
-                    final_analysis: finalAnalysis,
-                    total_iterations: iteration,
-                    total_files_analyzed: analyzedFiles.size,
-                    comment_posted: issueNumber > 0
-                }
-            }));
         }
         catch (error) {
-            (0, logger_1.logError)(`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`);
+            (0, logger_1.logError)(`Error in ThinkUseCase: ${error}`);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
-                executed: true,
-                steps: [`Error in ${this.taskId}: ${JSON.stringify(error, null, 2)}`],
+                executed: false,
+                errors: [`Error in ThinkUseCase: ${error}`],
             }));
         }
         return results;
@@ -64354,180 +70527,6 @@ class ThinkUseCase {
             (0, logger_1.logError)(`Error getting issue description: ${error}`);
             return null;
         }
-    }
-    // All methods related to file imports, cache, codebase analysis, and comment formatting
-    // have been moved to dedicated services:
-    // - FileImportAnalyzer: extractImportsFromFile, resolveRelativePath, buildRelationshipMap
-    // - FileCacheManager: calculateFileSHA, loadAICache, saveAICacheEntry
-    // - CodebaseAnalyzer: generateCodebaseAnalysis, generateBasicDescription, generateFallbackFileDescriptions, formatCodebaseAnalysisForContext
-    // - FileSearchService: buildFileIndex, searchFiles
-    // - CommentFormatter: formatReasoningComment, formatProposedChange, detectLanguageFromPath, getActionEmoji, formatActionName, getChangeTypeEmoji
-    async performReasoningStep(param, question, description, codeManager, todoManager, fileIndex, analyzedFiles, currentContext, iteration, previousSteps) {
-        const analyzedFilesList = Array.from(analyzedFiles.values());
-        const analyzedFilesSummary = analyzedFilesList.length > 0
-            ? `\n\nPreviously analyzed files (${analyzedFilesList.length}):\n${analyzedFilesList.map(f => `- ${f.path} (${f.relevance}): ${f.key_findings.substring(0, 150)}...`).join('\n')}`
-            : '';
-        const codeStats = codeManager.getStats();
-        const codeStateInfo = codeManager.getContextForAI();
-        const todoContext = todoManager.getContextForAI();
-        const todoStats = todoManager.getStats();
-        // Get codebase analysis from initial step (stored in currentContext at start)
-        const codebaseAnalysisMatch = currentContext.match(/## 📋 Codebase Analysis & File Relationships\n\n([\s\S]*?)(?=\n##|$)/);
-        const codebaseAnalysis = codebaseAnalysisMatch ? codebaseAnalysisMatch[1] : '';
-        // Build summary of previous steps to avoid repetition
-        const stepsSummary = previousSteps.length > 0
-            ? `\n\n## Previous Steps Taken (${previousSteps.length}):\n${previousSteps.slice(-5).map(s => `- Step ${s.step_number}: ${s.action} - ${s.reasoning.substring(0, 100)}...`).join('\n')}${previousSteps.length > 5 ? `\n... and ${previousSteps.length - 5} more steps` : ''}`
-            : '';
-        const fileListSummary = `\n\nAvailable files in repository (${codeStats.totalFiles} files):\n${Array.from(codeManager.getAllFiles().keys()).slice(0, 50).join('\n')}${codeStats.totalFiles > 50 ? `\n... and ${codeStats.totalFiles - 50} more files` : ''}`;
-        const prompt = `
-# Code Analysis Assistant
-
-You are an advanced code analysis assistant similar to Cursor's Auto agent. Your role is to perform deep analysis of codebases and propose thoughtful changes.
-
-**CRITICAL CONCEPTS**:
-
-1. **VIRTUAL CODEBASE**: You are working with a VIRTUAL CODEBASE. When you propose changes, they are automatically applied to the code in memory. Subsequent steps will see the MODIFIED code, not the original. This allows you to build upon previous changes incrementally.
-
-2. **TODO LIST SYSTEM**: You have a TODO list system to track high-level tasks. Each task in the TODO list may require multiple reasoning steps (search, read, analyze, propose). Use this to:
-   - Create TODOs in your first iteration to break down the problem
-   - Update TODO status as you make progress (pending → in_progress → completed)
-   - Link your actions to TODOs to show which task you're working on
-   - This helps you understand where you are in the overall process, even if you need many steps per task
-
-3. **TWO-LEVEL REASONING**: 
-   - **High-level (TODO list)**: What major tasks need to be done?
-   - **Low-level (reasoning steps)**: How do I accomplish each task? (search, read, analyze, propose)
-
-${codebaseAnalysis ? `\n\n## 📋 Codebase Analysis & File Relationships\n\n${codebaseAnalysis}\n\n**This analysis helps you understand the codebase structure and relationships between files. Use it to make informed decisions about which files to examine for the task.**\n\n` : ''}
-
-${todoStats.total > 0 ? `\n${todoContext}\n\n**CRITICAL**: To work on a TODO, use its EXACT ID (shown above) when updating. Don't just update status - DO THE ACTUAL WORK (search, read, analyze, propose) in the same response where you update the TODO.` : iteration === 1 ? `\n\n## 📋 TODO List\n\n**IMPORTANT**: In your first response, you should create a TODO list breaking down the problem into manageable tasks. Use the \`todo_updates.create\` field to create initial TODOs. Each TODO represents a high-level task that may require multiple reasoning steps to complete.` : ''}
-
-## Current Task
-
-${description ? `### Context/Issue Description:\n\`\`\`\n${description}\n\`\`\`` : ''}
-
-### User's Question/Prompt:
-\`\`\`
-${question}
-\`\`\`
-
-## Reasoning Process (Iteration ${iteration}/${this.MAX_ITERATIONS})
-
-${iteration === 1 ? 'You are starting your analysis. Begin by understanding the question and identifying what files or areas of the codebase might be relevant.' : `You have been analyzing this problem through ${iteration - 1} previous iterations.`}
-
-${stepsSummary}
-
-${codeStats.totalChanges > 0 ? `\n\n## ⚠️ CODE STATE: ${codeStats.totalChanges} changes have been applied to ${codeStats.modifiedFiles} files\n\n${codeStateInfo}\n\n**IMPORTANT**: When you read files, you will see the MODIFIED version with all previous changes applied. Build upon this modified code, don't repeat changes that have already been made.` : ''}
-
-${analyzedFilesSummary}
-
-${iteration > 1 ? `\n\n## Previous Iteration Context:\n${currentContext.substring(0, 4000)}${currentContext.length > 4000 ? '\n... (truncated for brevity)' : ''}` : ''}
-
-${fileListSummary}
-
-## Your Analysis Approach
-
-1. **search_files**: Use when you need to find files by name, pattern, or path. Be specific. AVOID searching for the same terms repeatedly.
-2. **read_file**: Use when you need to examine specific files. The files you read will show the CURRENT STATE (with all applied changes from previous steps).
-3. **analyze_code**: Use when you've read files and want to document findings. Focus on understanding relationships and dependencies.
-4. **propose_changes**: Use when you have enough context. **CRITICAL**: Only propose NEW changes that build upon what's already been done. Don't repeat changes that were already applied.
-5. **update_todos** (or include with other actions): 
-   - Create TODOs ONLY in your first iteration to break down the problem
-   - Update TODO status when you START working on it (in_progress) or COMPLETE it (completed)
-   - **IMPORTANT**: Use the EXACT TODO ID from the list above (e.g., "todo_1"), NOT numeric IDs
-   - Include todo_updates in the SAME response where you do the actual work
-6. **complete**: Use when your analysis is finished and you have a comprehensive understanding. All TODOs should be completed or cancelled.
-
-## Critical Instructions
-
-- **USE TODO LIST CORRECTLY**: 
-  - Create TODOs in iteration 1 to break down the problem into manageable tasks
-  - **IMPORTANT**: When updating TODOs, you MUST use the EXACT ID shown in the TODO list (e.g., "todo_1", "todo_2"). Do NOT use numeric IDs like "1" or "2"
-  - Each TODO represents a high-level task that may require multiple reasoning steps (search, read, analyze, propose)
-  
-- **WORK ON TODOS, DON'T JUST UPDATE THEM**:
-  - When a TODO is "pending" or "in_progress", DO REAL WORK: search for files, read files, analyze code, propose changes
-  - Only update TODO status when you actually START working on it (mark "in_progress") or COMPLETE it (mark "completed")
-  - Don't waste iterations just updating TODO status - do the actual work!
-  
-- **TRACK PROGRESS**: 
-  - When you START working on a TODO: mark it "in_progress" AND then do the work (search, read, analyze, propose)
-  - When you COMPLETE work on a TODO: mark it "completed" 
-  - Update TODOs in the same response where you do the work, don't create separate "update_todos" actions
-
-- **AVOID REPETITION**: Don't search for the same files repeatedly. Don't propose changes that have already been applied. Don't try to update TODOs with wrong IDs.
-
-- **BUILD INCREMENTALLY**: Each step should build upon the previous one. Read files that were modified in previous steps to see the current state.
-
-- **PROGRESS FORWARD**: If you've already analyzed files, move to proposing changes. Don't re-analyze the same code.
-
-- **SEE THE MODIFIED CODE**: When you read files after changes have been applied, you'll see the modified version. Use this to understand the current state and propose the NEXT logical step.
-
-- **BE SPECIFIC**: When proposing changes, be very specific about what needs to change and provide suggested_code.
-
-- **THINK DEEPLY**: Don't just propose generic changes. Analyze the code structure, dependencies, and relationships before proposing changes.
-
-- **FOCUS ON ACTIVE TODOS**: Work on TODOs that are "pending" or "in_progress". Complete them by doing real work, not just updating status.
-
-## Important
-
-- You must return a valid JSON object matching the schema
-- Be thorough but efficient - don't request files you don't need
-- Build understanding incrementally
-- Connect insights across multiple files when relevant
-- Each iteration should advance the analysis, not repeat previous steps
-- You can include \`todo_updates\` alongside any action (not just when action is 'update_todos')
-- When creating TODOs, make them specific and actionable (e.g., "Analyze authentication system" not "Do stuff")
-`;
-        try {
-            const response = await this.aiRepository.askThinkJson(param.ai, prompt);
-            return response;
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Error in reasoning step: ${error}`);
-            return undefined;
-        }
-    }
-    async generateFinalAnalysis(param, question, analyzedFiles, proposedChanges, steps, todoManager) {
-        const prompt = `
-# Final Analysis Summary
-
-Based on your analysis of the codebase, provide a comprehensive summary and recommendations.
-
-## User's Question:
-${question}
-
-## Analysis Summary:
-- Total steps taken: ${steps.length}
-- Files analyzed: ${analyzedFiles.size}
-- Proposed changes: ${proposedChanges.length}
-- TODO list: ${todoManager.getSummary()}
-
-## Analyzed Files:
-${Array.from(analyzedFiles.values()).map(f => `- ${f.path} (${f.relevance}): ${f.key_findings}`).join('\n')}
-
-## Proposed Changes:
-${proposedChanges.map(c => `
-### ${c.change_type.toUpperCase()}: ${c.file_path}
-**Description:** ${c.description}
-**Reasoning:** ${c.reasoning}
-${c.suggested_code ? `**Suggested Code:**\n\`\`\`\n${c.suggested_code}\n\`\`\`` : ''}
-`).join('\n')}
-
-## Steps Taken:
-${steps.map(s => `${s.step_number}. ${s.action}: ${s.reasoning.substring(0, 150)}...`).join('\n')}
-
-Provide a comprehensive final analysis that:
-1. Summarizes what you discovered
-2. Explains the key insights
-3. Provides clear recommendations
-4. Describes the proposed changes and their rationale
-5. Notes any considerations or potential issues
-
-Be thorough, clear, and actionable.
-`;
-        const response = await this.aiRepository.ask(param.ai, prompt);
-        return response || 'Analysis completed. Review the proposed changes and steps above.';
     }
 }
 exports.ThinkUseCase = ThinkUseCase;
@@ -67187,6 +73186,8 @@ exports.ACTIONS = {
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',
     THINK: 'think_action',
+    INITIAL_SETUP: 'initial_setup',
+    CHECK_PROGRESS: 'check_progress_action',
 };
 exports.PROMPTS = {
     CODE_BASE_ANALYSIS: `
@@ -67327,7 +73328,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
+exports.setStructuredLogging = setStructuredLogging;
 exports.logInfo = logInfo;
+exports.logWarn = logWarn;
 exports.logWarning = logWarning;
 exports.logError = logError;
 exports.logDebugInfo = logDebugInfo;
@@ -67337,25 +73340,79 @@ exports.logSingleLine = logSingleLine;
 const readline_1 = __importDefault(__nccwpck_require__(4521));
 let loggerDebug = false;
 let loggerRemote = false;
+let structuredLogging = false;
 function setGlobalLoggerDebug(debug, isRemote = false) {
     loggerDebug = debug;
     loggerRemote = isRemote;
 }
-function logInfo(message, previousWasSingleLine = false) {
+function setStructuredLogging(enabled) {
+    structuredLogging = enabled;
+}
+function formatStructuredLog(entry) {
+    return JSON.stringify(entry);
+}
+function logInfo(message, previousWasSingleLine = false, metadata) {
     if (previousWasSingleLine && !loggerRemote) {
         console.log();
     }
-    console.log(message);
+    if (structuredLogging) {
+        console.log(formatStructuredLog({
+            level: 'info',
+            message,
+            timestamp: Date.now(),
+            metadata
+        }));
+    }
+    else {
+        console.log(message);
+    }
+}
+function logWarn(message, metadata) {
+    if (structuredLogging) {
+        console.warn(formatStructuredLog({
+            level: 'warn',
+            message,
+            timestamp: Date.now(),
+            metadata
+        }));
+    }
+    else {
+        console.warn(message);
+    }
 }
 function logWarning(message) {
-    console.warn(message);
+    logWarn(message);
 }
-function logError(message) {
-    console.error(message.toString());
+function logError(message, metadata) {
+    const errorMessage = message instanceof Error ? message.message : message.toString();
+    if (structuredLogging) {
+        console.error(formatStructuredLog({
+            level: 'error',
+            message: errorMessage,
+            timestamp: Date.now(),
+            metadata: {
+                ...metadata,
+                stack: message instanceof Error ? message.stack : undefined
+            }
+        }));
+    }
+    else {
+        console.error(errorMessage);
+    }
 }
-function logDebugInfo(message, previousWasSingleLine = false) {
+function logDebugInfo(message, previousWasSingleLine = false, metadata) {
     if (loggerDebug) {
-        logInfo(message, previousWasSingleLine);
+        if (structuredLogging) {
+            console.log(formatStructuredLog({
+                level: 'debug',
+                message,
+                timestamp: Date.now(),
+                metadata
+            }));
+        }
+        else {
+            logInfo(message, previousWasSingleLine);
+        }
     }
 }
 function logDebugWarning(message) {
@@ -67365,7 +73422,7 @@ function logDebugWarning(message) {
 }
 function logDebugError(message) {
     if (loggerDebug) {
-        logError(message.toString());
+        logError(message);
     }
 }
 function logSingleLine(message) {
@@ -67406,6 +73463,191 @@ const waitForPreviousRuns = async (params) => {
     throw new Error("Timeout waiting for previous runs to finish.");
 };
 exports.waitForPreviousRuns = waitForPreviousRuns;
+
+
+/***/ }),
+
+/***/ 8226:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReasoningVisualizer = void 0;
+const chalk_1 = __importDefault(__nccwpck_require__(7037));
+const logger_1 = __nccwpck_require__(8836);
+class ReasoningVisualizer {
+    constructor() {
+        this.currentIteration = 0;
+        this.maxIterations = 0;
+        this.startTime = 0;
+        this.lastAction = '';
+        this.todoStats = {
+            total: 0,
+            pending: 0,
+            in_progress: 0,
+            completed: 0
+        };
+        this.filesRead = 0;
+        this.filesAnalyzed = 0;
+        this.changesApplied = 0;
+    }
+    initialize(maxIterations) {
+        this.maxIterations = maxIterations;
+        this.startTime = Date.now();
+        this.currentIteration = 0;
+        this.filesRead = 0;
+        this.filesAnalyzed = 0;
+        this.changesApplied = 0;
+    }
+    updateIteration(iteration) {
+        this.currentIteration = iteration;
+    }
+    updateTodoStats(stats) {
+        this.todoStats = stats;
+    }
+    updateFilesRead(count) {
+        this.filesRead = count;
+    }
+    updateFilesAnalyzed(count) {
+        this.filesAnalyzed = count;
+    }
+    updateChangesApplied(count) {
+        this.changesApplied = count;
+    }
+    /**
+     * Show a clean header for the reasoning process
+     */
+    showHeader(question) {
+        (0, logger_1.logInfo)('');
+        (0, logger_1.logInfo)(chalk_1.default.cyan.bold('╔═══════════════════════════════════════════════════════════════╗'));
+        (0, logger_1.logInfo)(chalk_1.default.cyan.bold('║') + chalk_1.default.white.bold('  🤖 AI Reasoning Process') + chalk_1.default.cyan.bold('                                    ║'));
+        (0, logger_1.logInfo)(chalk_1.default.cyan.bold('╚═══════════════════════════════════════════════════════════════╝'));
+        (0, logger_1.logInfo)('');
+        (0, logger_1.logInfo)(chalk_1.default.gray('Task: ') + chalk_1.default.white(question));
+        (0, logger_1.logInfo)('');
+    }
+    /**
+     * Show current iteration status with progress bar
+     */
+    showIterationStatus(action, reasoning) {
+        // Guard against division by zero
+        const progress = this.maxIterations > 0 ? (this.currentIteration / this.maxIterations) * 100 : 0;
+        const progressBar = this.createProgressBar(progress, 40);
+        const elapsed = this.startTime > 0 ? ((Date.now() - this.startTime) / 1000).toFixed(1) : '0.0';
+        const statusLine = [
+            chalk_1.default.cyan(`[${this.currentIteration}/${this.maxIterations}]`),
+            progressBar,
+            chalk_1.default.gray(`${progress.toFixed(0)}%`),
+            chalk_1.default.gray(`• ${elapsed}s`)
+        ].join(' ');
+        (0, logger_1.logSingleLine)(statusLine);
+        (0, logger_1.logInfo)(''); // New line after single line update
+        // Show action and reasoning
+        const actionEmoji = this.getActionEmoji(action);
+        (0, logger_1.logInfo)(chalk_1.default.cyan(`${actionEmoji} ${action.toUpperCase()}`) + chalk_1.default.gray(` • Iteration ${this.currentIteration}`));
+        (0, logger_1.logInfo)(chalk_1.default.gray(`   ${reasoning.substring(0, 100)}${reasoning.length > 100 ? '...' : ''}`));
+    }
+    /**
+     * Show TODO status
+     */
+    showTodoStatus() {
+        if (this.todoStats.total === 0)
+            return;
+        const completionRate = this.todoStats.total > 0
+            ? ((this.todoStats.completed / this.todoStats.total) * 100).toFixed(0)
+            : '0';
+        const todoLine = [
+            chalk_1.default.blue('📋 TODOs:'),
+            chalk_1.default.white(`${this.todoStats.total}`),
+            chalk_1.default.gray('•'),
+            chalk_1.default.yellow(`⏳ ${this.todoStats.pending}`),
+            chalk_1.default.cyan(`🔄 ${this.todoStats.in_progress}`),
+            chalk_1.default.green(`✅ ${this.todoStats.completed}`),
+            chalk_1.default.gray(`(${completionRate}% done)`)
+        ].join(' ');
+        (0, logger_1.logSingleLine)(todoLine);
+    }
+    /**
+     * Show file and change statistics
+     */
+    showStats() {
+        const statsLine = [
+            chalk_1.default.blue('📊 Stats:'),
+            chalk_1.default.white(`📖 ${this.filesRead} read`),
+            chalk_1.default.gray('•'),
+            chalk_1.default.white(`🔍 ${this.filesAnalyzed} analyzed`),
+            chalk_1.default.gray('•'),
+            chalk_1.default.white(`✏️ ${this.changesApplied} changes`)
+        ].join(' ');
+        (0, logger_1.logSingleLine)(statsLine);
+    }
+    /**
+     * Show action result summary
+     */
+    showActionResult(action, result) {
+        (0, logger_1.logInfo)('');
+        if (result.success) {
+            (0, logger_1.logInfo)(chalk_1.default.green(`  ✓ ${result.message}`));
+        }
+        else {
+            (0, logger_1.logInfo)(chalk_1.default.yellow(`  ⚠ ${result.message}`));
+        }
+        if (result.details && result.details.length > 0) {
+            result.details.forEach(detail => {
+                (0, logger_1.logInfo)(chalk_1.default.gray(`    ${detail}`));
+            });
+        }
+    }
+    /**
+     * Show completion summary
+     */
+    showCompletion(finalAnalysis) {
+        (0, logger_1.logInfo)('');
+        (0, logger_1.logInfo)(chalk_1.default.green.bold('╔═══════════════════════════════════════════════════════════════╗'));
+        (0, logger_1.logInfo)(chalk_1.default.green.bold('║') + chalk_1.default.white.bold('  ✅ Reasoning Complete') + chalk_1.default.green.bold('                                         ║'));
+        (0, logger_1.logInfo)(chalk_1.default.green.bold('╚═══════════════════════════════════════════════════════════════╝'));
+        (0, logger_1.logInfo)('');
+        const totalTime = ((Date.now() - this.startTime) / 1000).toFixed(1);
+        (0, logger_1.logInfo)(chalk_1.default.gray(`Completed in ${totalTime}s • ${this.currentIteration} iterations`));
+        (0, logger_1.logInfo)('');
+    }
+    /**
+     * Create a visual progress bar
+     */
+    createProgressBar(percentage, length) {
+        const filled = Math.floor((percentage / 100) * length);
+        const empty = length - filled;
+        const bar = chalk_1.default.green('█'.repeat(filled)) + chalk_1.default.gray('░'.repeat(empty));
+        return bar;
+    }
+    /**
+     * Get emoji for action type
+     */
+    getActionEmoji(action) {
+        const emojiMap = {
+            'search_files': '🔍',
+            'read_file': '📖',
+            'analyze_code': '🔬',
+            'propose_changes': '✏️',
+            'update_todos': '📋',
+            'complete': '✅'
+        };
+        return emojiMap[action] || '🤔';
+    }
+    /**
+     * Clear current line and show updated status
+     */
+    updateStatus(action, reasoning) {
+        this.showIterationStatus(action, reasoning);
+        this.showTodoStatus();
+        this.showStats();
+    }
+}
+exports.ReasoningVisualizer = ReasoningVisualizer;
 
 
 /***/ }),
@@ -67574,6 +73816,14 @@ module.exports = require("events");
 
 "use strict";
 module.exports = require("fs");
+
+/***/ }),
+
+/***/ 3292:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("fs/promises");
 
 /***/ }),
 
@@ -69394,7 +75644,7 @@ module.exports = parseParams
 
 /***/ }),
 
-/***/ 6192:
+/***/ 4167:
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __nccwpck_require__) => {
 
 "use strict";
@@ -70095,7 +76345,7 @@ function camelCase(input, options) {
 
 // EXTERNAL MODULE: ./node_modules/ansi-align/index.js
 var ansi_align = __nccwpck_require__(2225);
-;// CONCATENATED MODULE: ./node_modules/ansi-styles/index.js
+;// CONCATENATED MODULE: ./node_modules/wrap-ansi/node_modules/ansi-styles/index.js
 const ANSI_BACKGROUND_OFFSET = 10;
 
 const wrapAnsi16 = (offset = 0) => code => `\u001B[${code + offset}m`;

@@ -21,7 +21,7 @@ jobs:
           openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
           openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
           project-ids: 2
-          single-action: vector_action
+          single-action: ai_cache_action
           supabase-url: ${{ secrets.SUPABASE_URL }}
           supabase-key: ${{ secrets.SUPABASE_KEY }}
           token: ${{ secrets.PAT }}

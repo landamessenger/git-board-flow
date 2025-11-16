@@ -32,33 +32,44 @@ export class FileSearchService {
     }
 
     /**
-     * Search files by search terms (filename, directory, or pattern)
+     * Search files by search terms (filename, directory, pattern, or content)
      */
-    searchFiles(searchTerms: string[], fileIndex: Map<string, string[]>): string[] {
+    searchFiles(
+        searchTerms: string[], 
+        fileIndex: Map<string, string[]>,
+        repositoryFiles?: Map<string, string>
+    ): string[] {
         const foundFiles = new Set<string>();
         
         for (const term of searchTerms) {
+            const termLower = term.toLowerCase();
+            
             // Exact filename match
             if (fileIndex.has(term)) {
                 fileIndex.get(term)!.forEach(f => foundFiles.add(f));
             }
             
-            // Directory match
-            if (fileIndex.has(term)) {
-                fileIndex.get(term)!.forEach(f => foundFiles.add(f));
-            }
-            
-            // Pattern match (simple contains)
+            // Pattern match in filename/directory (simple contains)
             for (const [key, paths] of fileIndex.entries()) {
-                if (key.toLowerCase().includes(term.toLowerCase())) {
+                if (key.toLowerCase().includes(termLower)) {
                     paths.forEach(p => foundFiles.add(p));
                 }
                 // Also check paths
                 paths.forEach(path => {
-                    if (path.toLowerCase().includes(term.toLowerCase())) {
+                    if (path.toLowerCase().includes(termLower)) {
                         foundFiles.add(path);
                     }
                 });
+            }
+            
+            // Search in file content if repositoryFiles is provided
+            if (repositoryFiles) {
+                for (const [filePath, content] of repositoryFiles.entries()) {
+                    // Search for term in content (case-insensitive)
+                    if (content.toLowerCase().includes(termLower)) {
+                        foundFiles.add(filePath);
+                    }
+                }
             }
         }
         

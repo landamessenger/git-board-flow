@@ -23,4 +23,57 @@ export declare class IssueRepository {
     assignMembersToIssue: (owner: string, repository: string, issueNumber: number, members: string[], token: string) => Promise<string[]>;
     getIssueDescription: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string>;
     setIssueType: (owner: string, repository: string, issueNumber: number, labels: Labels, issueTypes: IssueTypes, token: string) => Promise<void>;
+    /**
+     * List all labels for a repository
+     */
+    listLabelsForRepo: (owner: string, repository: string, token: string) => Promise<Array<{
+        name: string;
+        color: string;
+        description: string | null;
+    }>>;
+    /**
+     * Create a label in a repository
+     */
+    createLabel: (owner: string, repository: string, name: string, color: string, description: string, token: string) => Promise<void>;
+    /**
+     * Ensure a label exists, creating it if it doesn't
+     */
+    ensureLabel: (owner: string, repository: string, name: string, color: string, description: string, token: string) => Promise<{
+        created: boolean;
+        existed: boolean;
+    }>;
+    /**
+     * Ensure all required labels exist based on Labels configuration
+     */
+    ensureLabels: (owner: string, repository: string, labels: Labels, token: string) => Promise<{
+        created: number;
+        existing: number;
+        errors: string[];
+    }>;
+    /**
+     * List all issue types for an organization
+     */
+    listIssueTypes: (owner: string, token: string) => Promise<Array<{
+        id: string;
+        name: string;
+    }>>;
+    /**
+     * Create an issue type for an organization
+     */
+    createIssueType: (owner: string, name: string, description: string, color: string, token: string) => Promise<string>;
+    /**
+     * Ensure an issue type exists, creating it if it doesn't
+     */
+    ensureIssueType: (owner: string, name: string, description: string, color: string, token: string) => Promise<{
+        created: boolean;
+        existed: boolean;
+    }>;
+    /**
+     * Ensure all required issue types exist based on IssueTypes configuration
+     */
+    ensureIssueTypes: (owner: string, issueTypes: IssueTypes, token: string) => Promise<{
+        created: number;
+        existing: number;
+        errors: string[];
+    }>;
 }

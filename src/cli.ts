@@ -7,6 +7,10 @@ import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
 import { logInfo } from './utils/logger';
+import { registerAgentTestCommands } from './agent_tester_commands';
+import { registerMCPTestCommands } from './mcp_tester_commands';
+import { registerSubAgentTestCommands } from './sub_agent_tester_commands';
+import { registerTECTestCommands } from './tec_tester_commands';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -35,6 +39,7 @@ program
   .description(`${TITLE} - Build AI container and execute AI cache indexing`)
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('-b, --branch <name>', 'Branch name')
   .action(async (options) => {    
     const gitInfo = getGitInfo();
     
@@ -42,7 +47,8 @@ program
       console.log(gitInfo.error);
       return;
     }
-    
+    const branch = options.branch;
+  
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.AI_CACHE_LOCAL,
@@ -62,9 +68,15 @@ program
       },
     };
 
-    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Container Build';
+    if (branch && branch.length > 0) {
+      params.commits = {
+        ref: `refs/heads/${branch}`,
+      };
+    }
+
+    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Cache Indexing';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [
-      `Building AI container for ${gitInfo.owner}/${gitInfo.repo}...`,
+      `Indexing AI cache for ${gitInfo.owner}/${gitInfo.repo}...`,
     ];
 
     await runLocalAction(params);
@@ -182,8 +194,131 @@ program
       `Question: ${question.substring(0, 100)}${question.length > 100 ? '...' : ''}`,
     ];
 
-    logInfo(JSON.stringify(params, null, 2));
+    // logInfo(JSON.stringify(params, null, 2));
     runLocalAction(params);
   });
+
+/**
+ * Check progress of an issue based on code changes.
+ */
+program
+  .command('check-progress')
+  .description(`${TITLE} - Check progress of an issue based on code changes`)
+  .option('-i, --issue <number>', 'Issue number to check progress for (required)', '')
+  .option('-b, --branch <name>', 'Branch name (optional, will try to determine from issue)')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('--openrouter-api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .option('--openrouter-model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
+  .action(async (options) => {    
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+
+    // Helper function to clean CLI arguments that may have '=' prefix
+    const cleanArg = (value: any): string => {
+      if (!value) return '';
+      const str = String(value);
+      return str.startsWith('=') ? str.substring(1) : str;
+    };
+
+    const issueNumber = cleanArg(options.issue);
+
+    if (!issueNumber || issueNumber.length === 0) {
+      console.log('❌ Please provide an issue number using -i or --issue');
+      return;
+    }
+
+    const parsedIssueNumber = parseInt(issueNumber);
+    if (isNaN(parsedIssueNumber) || parsedIssueNumber <= 0) {
+      console.log(`❌ Invalid issue number: ${issueNumber}. Must be a positive number.`);
+      return;
+    }
+
+    const branch = cleanArg(options.branch);
+
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug.toString(),
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.CHECK_PROGRESS,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parsedIssueNumber,
+      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
+      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.OPENROUTER_API_KEY]: options.openrouterApiKey || process.env.OPENROUTER_API_KEY,
+      [INPUT_KEYS.OPENROUTER_MODEL]: options.openrouterModel || process.env.OPENROUTER_MODEL,
+      [INPUT_KEYS.AI_IGNORE_FILES]: process.env.AI_IGNORE_FILES || 'build/*,dist/*,node_modules/*,*.d.ts',
+      repo: {
+        owner: gitInfo.owner,
+        repo: gitInfo.repo,
+      },
+      issue: {
+        number: parsedIssueNumber,
+      },
+    };
+
+    // Set branch if provided
+    if (branch && branch.length > 0) {
+      params.commits = {
+        ref: `refs/heads/${branch}`,
+      };
+    }
+
+    params[INPUT_KEYS.WELCOME_TITLE] = '📊 Progress Check';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [
+      `Checking progress for issue #${parsedIssueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`,
+    ];
+
+    await runLocalAction(params);
+  });
+
+/**
+ * Run the initial setup to configure labels, issue types, and verify access.
+ */
+program
+  .command('setup')
+  .description(`${TITLE} - Initial setup: create labels, issue types, and verify access`)
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .action(async (options) => {    
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+    
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug.toString(),
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.INITIAL_SETUP,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
+      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
+      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      repo: {
+        owner: gitInfo.owner,
+        repo: gitInfo.repo,
+      },
+      issue: {
+        number: 1,
+      },
+    };
+
+    params[INPUT_KEYS.WELCOME_TITLE] = '⚙️  Initial Setup';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [
+      `Running initial setup for ${gitInfo.owner}/${gitInfo.repo}...`,
+      'This will create labels, issue types, and verify access to GitHub and Supabase.',
+    ];
+
+    await runLocalAction(params);
+  });
+
+// Register agent test commands
+registerAgentTestCommands(program);
+registerMCPTestCommands(program);
+registerSubAgentTestCommands(program);
+registerTECTestCommands(program);
 
 program.parse(process.argv); 

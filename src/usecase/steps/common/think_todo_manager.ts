@@ -85,9 +85,9 @@ export class ThinkTodoManager {
         todo.updated_at = now;
 
         if (oldStatus !== todo.status) {
-            logInfo(`📝 Updated TODO ${id}: ${oldStatus} → ${todo.status}`);
+            // logInfo(`📝 Updated TODO ${id}: ${oldStatus} → ${todo.status}`);
         } else {
-            logDebugInfo(`📝 Updated TODO ${id} (notes/metadata)`);
+            // logDebugInfo(`📝 Updated TODO ${id} (notes/metadata)`);
         }
 
         return true;

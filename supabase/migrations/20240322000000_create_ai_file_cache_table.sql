@@ -7,8 +7,15 @@ CREATE TABLE IF NOT EXISTS ai_file_cache (
     path TEXT NOT NULL,
     sha TEXT NOT NULL,
     description TEXT NOT NULL,
-    consumes TEXT[] DEFAULT '{}',
-    consumed_by TEXT[] DEFAULT '{}',
+    consumes TEXT[] DEFAULT ARRAY[]::TEXT[],
+    consumed_by TEXT[] DEFAULT ARRAY[]::TEXT[],
+    error_counter_total INTEGER DEFAULT 0,
+    error_counter_critical INTEGER DEFAULT 0,
+    error_counter_high INTEGER DEFAULT 0,
+    error_counter_medium INTEGER DEFAULT 0,
+    error_counter_low INTEGER DEFAULT 0,
+    error_types TEXT[] DEFAULT ARRAY[]::TEXT[],
+    errors_payload TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (owner, repository, branch, path)
@@ -50,6 +57,13 @@ RETURNS TABLE (
     description TEXT,
     consumes TEXT[],
     consumed_by TEXT[],
+    error_counter_total INTEGER,
+    error_counter_critical INTEGER,
+    error_counter_high INTEGER,
+    error_counter_medium INTEGER,
+    error_counter_low INTEGER,
+    error_types TEXT[],
+    errors_payload TEXT,
     created_at TIMESTAMP WITH TIME ZONE,
     last_updated TIMESTAMP WITH TIME ZONE
 )
@@ -68,6 +82,13 @@ BEGIN
         ai_file_cache.description,
         ai_file_cache.consumes,
         ai_file_cache.consumed_by,
+        ai_file_cache.error_counter_total,
+        ai_file_cache.error_counter_critical,
+        ai_file_cache.error_counter_high,
+        ai_file_cache.error_counter_medium,
+        ai_file_cache.error_counter_low,
+        ai_file_cache.error_types,
+        ai_file_cache.errors_payload,
         ai_file_cache.created_at,
         ai_file_cache.last_updated
     FROM ai_file_cache
@@ -95,6 +116,13 @@ RETURNS TABLE (
     description TEXT,
     consumes TEXT[],
     consumed_by TEXT[],
+    error_counter_total INTEGER,
+    error_counter_critical INTEGER,
+    error_counter_high INTEGER,
+    error_counter_medium INTEGER,
+    error_counter_low INTEGER,
+    error_types TEXT[],
+    errors_payload TEXT,
     created_at TIMESTAMP WITH TIME ZONE,
     last_updated TIMESTAMP WITH TIME ZONE
 )
@@ -113,6 +141,13 @@ BEGIN
         ai_file_cache.description,
         ai_file_cache.consumes,
         ai_file_cache.consumed_by,
+        ai_file_cache.error_counter_total,
+        ai_file_cache.error_counter_critical,
+        ai_file_cache.error_counter_high,
+        ai_file_cache.error_counter_medium,
+        ai_file_cache.error_counter_low,
+        ai_file_cache.error_types,
+        ai_file_cache.errors_payload,
         ai_file_cache.created_at,
         ai_file_cache.last_updated
     FROM ai_file_cache
@@ -183,6 +218,13 @@ BEGIN
         description,
         consumes,
         consumed_by,
+        error_counter_total,
+        error_counter_critical,
+        error_counter_high,
+        error_counter_medium,
+        error_counter_low,
+        error_types,
+        errors_payload,
         created_at,
         last_updated
     )
@@ -196,6 +238,13 @@ BEGIN
         description,
         consumes,
         consumed_by,
+        error_counter_total,
+        error_counter_critical,
+        error_counter_high,
+        error_counter_medium,
+        error_counter_low,
+        error_types,
+        errors_payload,
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
     FROM ai_file_cache
@@ -207,6 +256,13 @@ BEGIN
         description = EXCLUDED.description,
         consumes = EXCLUDED.consumes,
         consumed_by = EXCLUDED.consumed_by,
+        error_counter_total = EXCLUDED.error_counter_total,
+        error_counter_critical = EXCLUDED.error_counter_critical,
+        error_counter_high = EXCLUDED.error_counter_high,
+        error_counter_medium = EXCLUDED.error_counter_medium,
+        error_counter_low = EXCLUDED.error_counter_low,
+        error_types = EXCLUDED.error_types,
+        errors_payload = EXCLUDED.errors_payload,
         last_updated = CURRENT_TIMESTAMP;
 END;
 $$;

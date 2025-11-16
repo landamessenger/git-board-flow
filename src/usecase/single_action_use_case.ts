@@ -8,6 +8,8 @@ import { PublishGithubActionUseCase } from "./actions/publish_github_action_use_
 import { CreateReleaseUseCase } from "./actions/create_release_use_case";
 import { CreateTagUseCase } from "./actions/create_tag_use_case";
 import { ThinkUseCase } from "./steps/common/think_use_case";
+import { InitialSetupUseCase } from "./actions/initial_setup_use_case";
+import { CheckProgressUseCase } from "./actions/check_progress_use_case";
 
 export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'SingleActionUseCase';
@@ -34,6 +36,10 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 results.push(...await new CreateTagUseCase().invoke(param));
             } else if (param.singleAction.isThinkAction) {
                 results.push(...await new ThinkUseCase().invoke(param));
+            } else if (param.singleAction.isInitialSetupAction) {
+                results.push(...await new InitialSetupUseCase().invoke(param));
+            } else if (param.singleAction.isCheckProgressAction) {
+                results.push(...await new CheckProgressUseCase().invoke(param));
             }
         } catch (error) {
             logError(error);

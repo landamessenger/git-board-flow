@@ -7,7 +7,7 @@ export declare class FileSearchService {
      */
     buildFileIndex(files: Map<string, string>): Map<string, string[]>;
     /**
-     * Search files by search terms (filename, directory, or pattern)
+     * Search files by search terms (filename, directory, pattern, or content)
      */
-    searchFiles(searchTerms: string[], fileIndex: Map<string, string[]>): string[];
+    searchFiles(searchTerms: string[], fileIndex: Map<string, string[]>, repositoryFiles?: Map<string, string>): string[];
 }

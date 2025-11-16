@@ -1,5 +1,5 @@
 name: 🚀 Release Issue
-description: Request a new release for git-board-flow (only team members)
+description: Request a new release for giik (only team members)
 title: "<YOUR TITLE HERE>"
 labels: ["release", "branched", "priority: medium"]
 body:
@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         ### ⚠️ Disclaimer
-        > **Only members of the git-board-flow team can create release issues.**
+        > **Only members of the giik team can create release issues.**
         > Any release issue created by someone outside the team will be closed automatically.
 
         ---
