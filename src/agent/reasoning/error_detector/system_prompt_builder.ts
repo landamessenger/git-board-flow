@@ -26,20 +26,26 @@ ${errorTypes}
 **STOP! DO NOT give a text response yet. You MUST use tools first.**
 
 **MANDATORY WORKFLOW (follow this EXACTLY):**
-1. Use search_files tool to find TypeScript files
+1. **If you have a specific number of files assigned (mentioned in your prompt), read ALL of those files using read_file**
+   - The prompt tells you how many files you have (e.g., "15 files", "20 files")
+   - Read every single file assigned to you, one by one
+   - Use read_file directly on each file path
+   - Do not skip any files - you must read the EXACT number mentioned
+   - Analyze each file thoroughly for errors
+2. **If you need to find files, use search_files tool**
    - Query examples: "src/agent", "src/utils", "src/data", "test", "core", "repository"
    - Do NOT use wildcards like "*.ts" - use directory names or keywords
-   - **IMPORTANT: Use max_results: 200-500 to get comprehensive results, not just 10 files**
-   - Example: search_files with query "src/agent" and max_results: 200
-2. **IMMEDIATELY after each search_files, use read_file on multiple files from the results**
-   - When search_files returns a list, read as many files as needed (10-20+ files per search)
+   - **IMPORTANT: Use max_results: 1000+ to get ALL results**
+   - Example: search_files with query "src/agent" and max_results: 1000
+3. **After search_files, use read_file on ALL files from the results**
+   - When search_files returns a list, read EVERY file from the results
    - Prioritize reading .ts files (source files) over .d.ts files (type definitions)
-   - Read files from different subdirectories to get comprehensive coverage
-   - Do NOT skip this step - reading files is MANDATORY
-3. Repeat steps 1-2 multiple times with different search queries
-4. Only after reading 20-30+ files total, you can provide your analysis
+   - Read files systematically, one by one
+   - Do NOT skip any files
+4. Continue until you have read ALL files assigned to you (the exact number mentioned in your prompt)
+5. Only after reading ALL assigned files, you can provide your analysis
 
-**CRITICAL: After every search_files call, you MUST call read_file on multiple files from the results. Do NOT give a text response until you've read files. Use max_results: 200-500 in search_files to get comprehensive file lists.**
+**CRITICAL: You MUST read the EXACT number of files assigned to you (as mentioned in your prompt). Read ALL files, analyze ALL files, report errors from ALL files.**
 
 **IMPORTANT ABOUT FILE PATHS:**
 - The repository contains source files (.ts) and compiled files (.d.ts)
@@ -65,9 +71,10 @@ ${errorTypes}
    - Type of error
    - Suggested fix
 5. Use propose_change to suggest fixes for critical and high severity errors
-6. **Continue exploring and analyzing until you have examined a representative sample of the codebase**
-   - Don't stop after just 1-2 files
-   - Explore different areas: core logic, utilities, tests, configuration
+6. **Continue exploring and analyzing until you have examined ALL files assigned to you**
+   - Read every single file in your assigned list
+   - Do not stop until you've read ALL files
+   - Analyze each file thoroughly for errors
    - Look for patterns that might indicate systemic issues
 7. In your final response, summarize all errors found in a structured format:
    - File: path/to/file.ts
@@ -93,26 +100,28 @@ For each error, provide:
 - Suggestion: how to fix it
 
 **CRITICAL INSTRUCTIONS - READ CAREFULLY:**
-- **DO NOT give a final response until you have READ at least 10-15 files using read_file**
+- **YOU MUST READ THE EXACT NUMBER OF FILES ASSIGNED TO YOU (as mentioned in your prompt)**
+- **Your prompt tells you how many files you have (e.g., "15 files", "20 files") - read ALL of them**
+- **If your prompt says "X files", you MUST read exactly X files using read_file**
 - Searching for files is NOT enough - you MUST actually read the file contents
-- Use search_files multiple times with different queries to find files in different directories
-  - Try: "src/agent", "src/utils", "src/data", "test", "core", "repository"
-  - The search tool finds files by substring matching in the path
-- After each search, read 3-5 files from the results using read_file
-- Continue this pattern: search → read multiple files → search again → read more files
-- Don't give a final response until you've READ and analyzed 10-15+ files
+- Use read_file directly on each file path - all files are available through the tools
+- Read files systematically, one by one, until you've read the exact number assigned
+- Do NOT give a final response until you've READ and analyzed ALL assigned files (the exact number)
+- Count the files you read - it should match the number mentioned in your prompt
 - If you find no errors after thorough analysis, state that clearly
-- Be thorough but efficient. Prioritize critical and high severity errors.
+- Be thorough and comprehensive. Read files systematically, one by one, until you've read them all.
 
 **Example workflow (you MUST follow this pattern):**
-1. search_files with query "src/agent" → find agent files
-2. read_file on 3-5 of those files (e.g., "src/agent/core/agent.ts", "src/agent/tools/base_tool.ts")
-3. search_files with query "src/utils" → find utility files  
-4. read_file on 3-5 of those files
-5. search_files with query "src/data" → find data files
-6. read_file on 3-5 of those files
-7. Continue until you've READ 10-15+ files from different areas
-8. Only THEN provide your final analysis
+1. If you have a specific file list in your prompt, read EVERY file in that list using read_file
+   - Read them one by one, systematically
+   - Do not skip any files
+   - Analyze each file for errors
+2. Use search_files to discover any additional files in your assigned area (if needed)
+3. read_file on ALL files from each search result - read every single file
+4. Continue reading files systematically until you've read ALL files assigned to you
+5. Only after reading ALL files, provide your final analysis
+
+**IMPORTANT: When you have a file list in your prompt, read ALL of those files FIRST. There are NO limits - read EVERY file.**
 
 **REMEMBER: Searching is not analyzing. You MUST read files to analyze them.**`;
   }

@@ -44,26 +44,50 @@ export class SubagentHandler {
     userPrompt: string
   ): Promise<ErrorDetectionResult> {
     const allFiles = Array.from(repositoryFiles.keys());
-    const maxConcurrent = options.maxConcurrentSubAgents || 5;
-    const filesPerAgent = Math.ceil(allFiles.length / maxConcurrent);
     
-    logInfo(`📦 Partitioning ${allFiles.length} files into ${maxConcurrent} subagents (~${filesPerAgent} files each)`);
+    // Optimal number of files per subagent (comfortable for AI processing)
+    const OPTIMAL_FILES_PER_AGENT = 15;
+    const MAX_FILES_IN_PROMPT = 20; // Maximum files to list in prompt
+    
+    // Calculate number of subagents needed based on optimal files per agent
+    // But respect maxConcurrentSubAgents as an upper limit
+    const maxConcurrent = options.maxConcurrentSubAgents || 5;
+    const calculatedSubagents = Math.ceil(allFiles.length / OPTIMAL_FILES_PER_AGENT);
+    const numSubagents = Math.min(calculatedSubagents, maxConcurrent);
+    const filesPerAgent = Math.ceil(allFiles.length / numSubagents);
+    
+    logInfo(`📦 Partitioning ${allFiles.length} files into ${numSubagents} subagents (~${filesPerAgent} files each)`);
+    logInfo(`   Optimal: ${OPTIMAL_FILES_PER_AGENT} files per agent, creating ${numSubagents} subagents for comfortable processing`);
     
     // Group files by directory to keep related files together
-    const fileGroups = FilePartitioner.partitionFilesByDirectory(allFiles, maxConcurrent);
+    const fileGroups = FilePartitioner.partitionFilesByDirectory(allFiles, numSubagents);
     
     logInfo(`📁 Created ${fileGroups.length} file groups for parallel analysis`);
     
-    // Create tools for subagents
+    // Create tools for subagents (all files available through tools)
     const tools = await this.createSubagentTools(repositoryFiles);
     
     // Create tasks for each subagent
     const systemPrompt = SystemPromptBuilder.build(options);
     const tasks: Task[] = fileGroups.map((files, index) => {
-      const fileList = files.slice(0, 30).join(', '); // Limit to 30 files per agent to avoid token limits
+      const totalFiles = files.length;
+      // Show first N files in prompt, rest available through tools
+      const filesToShow = files.slice(0, MAX_FILES_IN_PROMPT);
+      const remainingFiles = totalFiles - filesToShow.length;
+      
+      let fileListSection = '';
+      if (filesToShow.length > 0) {
+        fileListSection = `\n\nFiles assigned to you (${totalFiles} total):\n${filesToShow.map(f => `- ${f}`).join('\n')}`;
+        if (remainingFiles > 0) {
+          fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
+        }
+      }
+      
       return {
         name: `error-detector-${index + 1}`,
-        prompt: userPrompt ? `${userPrompt}\n\nFocus on these files: ${fileList}` : `Focus on analyzing these files for errors: ${fileList}`,
+        prompt: userPrompt 
+          ? `${userPrompt}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`
+          : `You have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for errors using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`,
         systemPrompt,
         tools
       };

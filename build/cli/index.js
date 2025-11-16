@@ -67458,7 +67458,7 @@ class ErrorParser {
                 // TODOs created might represent errors found
                 const todoContent = toolCall.input.content || toolCall.input.description || toolCall.input.text || '';
                 if (this.isErrorRelatedTodo(todoContent)) {
-                    const error = this.extractErrorFromTodo(todoContent);
+                    const error = this.extractErrorFromTodo(todoContent, toolCall.input);
                     if (error) {
                         errors.push(error);
                     }
@@ -67541,13 +67541,72 @@ class ErrorParser {
     /**
      * Extract error from TODO content
      */
-    static extractErrorFromTodo(todoContent) {
-        // Try to extract file info from TODO content
-        const fileMatch = todoContent.match(/(?:file|archivo|en|at)\s*[:\s]+([^\s\n,]+)/i);
-        const severityMatch = todoContent.match(/(critical|high|medium|low|crítico|alto|medio|bajo)/i);
+    static extractErrorFromTodo(todoContent, toolInput) {
+        // First, check if file is explicitly provided in tool input
+        let filePath = toolInput?.file || toolInput?.file_path || toolInput?.related_files?.[0];
+        // Helper function to clean file path
+        const cleanFilePath = (path) => {
+            return path.replace(/[:\s,;]+$/, '').trim(); // Remove trailing punctuation and whitespace
+        };
+        // If not found, try to extract from TODO content using multiple patterns
+        if (!filePath) {
+            // Pattern 1: "in src/path/to/file.ts:" or "in file.ts:"
+            const inPattern = todoContent.match(/\bin\s+([^\s:]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte|jsx|tsx))[:\s,]/i);
+            if (inPattern) {
+                filePath = cleanFilePath(inPattern[1]);
+            }
+        }
+        if (!filePath) {
+            // Pattern 2: Direct file path patterns (src/..., ./..., or absolute paths)
+            const directPathPattern = todoContent.match(/\b(src\/|\.\/|\.\.\/|[\w\-]+\/)[^\s:,\n]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte)[:\s,]/i);
+            if (directPathPattern) {
+                filePath = cleanFilePath(directPathPattern[0]);
+            }
+        }
+        if (!filePath) {
+            // Pattern 3: "file: path" or "file path" or "at path"
+            const fileKeywordPattern = todoContent.match(/(?:file|archivo|at|en)\s*[:\s]+([^\s\n,]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte))/i);
+            if (fileKeywordPattern) {
+                filePath = cleanFilePath(fileKeywordPattern[1]);
+            }
+        }
+        if (!filePath) {
+            // Pattern 4: Look for any path-like string that contains slashes and ends with common extensions
+            const anyPathPattern = todoContent.match(/([^\s:,\n]+\/[^\s:,\n]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte))[:\s,]/i);
+            if (anyPathPattern) {
+                filePath = cleanFilePath(anyPathPattern[1]);
+            }
+        }
+        // Extract severity
+        const severityMatch = todoContent.match(/\b(critical|high|medium|low|crítico|alto|medio|bajo)\b/i);
+        // Extract type if available
+        let errorType = 'code-issue';
+        const typeMatch = todoContent.match(/\b(type|tipo)[:\s]+([^\s\n,]+)/i);
+        if (typeMatch) {
+            errorType = typeMatch[2];
+        }
+        else {
+            // Try to infer type from description
+            const lowerContent = todoContent.toLowerCase();
+            if (lowerContent.includes('type error') || lowerContent.includes('type-error')) {
+                errorType = 'type-error';
+            }
+            else if (lowerContent.includes('logic error') || lowerContent.includes('logic-error')) {
+                errorType = 'logic-error';
+            }
+            else if (lowerContent.includes('security') || lowerContent.includes('security issue')) {
+                errorType = 'security-issue';
+            }
+            else if (lowerContent.includes('performance') || lowerContent.includes('performance issue')) {
+                errorType = 'performance-issue';
+            }
+            else if (lowerContent.includes('runtime error') || lowerContent.includes('runtime-error')) {
+                errorType = 'runtime-error';
+            }
+        }
         return {
-            file: fileMatch ? fileMatch[1] : 'unknown',
-            type: 'code-issue',
+            file: filePath || 'unknown',
+            type: errorType,
             severity: (severityMatch?.[1]?.toLowerCase() || 'medium'),
             description: todoContent
         };
@@ -67580,6 +67639,7 @@ exports.FilePartitioner = void 0;
 class FilePartitioner {
     /**
      * Partition files by directory to keep related files together
+     * Tries to balance file distribution across groups
      */
     static partitionFilesByDirectory(files, maxGroups) {
         // Group files by top-level directory
@@ -67594,11 +67654,21 @@ class FilePartitioner {
         }
         // Convert to array and sort by size (largest first)
         const groups = Array.from(dirGroups.values()).sort((a, b) => b.length - a.length);
-        // Distribute groups across maxGroups subagents
+        // Initialize result groups
         const result = Array(maxGroups).fill(null).map(() => []);
+        // Distribute groups across subagents, trying to balance sizes
+        // Use a balanced approach: always assign to the subagent with the least files
         for (let i = 0; i < groups.length; i++) {
-            const targetIndex = i % maxGroups;
-            result[targetIndex].push(...groups[i]);
+            // Find the subagent with the least files
+            let minIndex = 0;
+            let minSize = result[0].length;
+            for (let j = 1; j < result.length; j++) {
+                if (result[j].length < minSize) {
+                    minSize = result[j].length;
+                    minIndex = j;
+                }
+            }
+            result[minIndex].push(...groups[i]);
         }
         // Remove empty groups
         return result.filter(group => group.length > 0);
@@ -67698,21 +67768,41 @@ class SubagentHandler {
      */
     static async detectErrorsWithSubAgents(agent, repositoryFiles, options, userPrompt) {
         const allFiles = Array.from(repositoryFiles.keys());
+        // Optimal number of files per subagent (comfortable for AI processing)
+        const OPTIMAL_FILES_PER_AGENT = 15;
+        const MAX_FILES_IN_PROMPT = 20; // Maximum files to list in prompt
+        // Calculate number of subagents needed based on optimal files per agent
+        // But respect maxConcurrentSubAgents as an upper limit
         const maxConcurrent = options.maxConcurrentSubAgents || 5;
-        const filesPerAgent = Math.ceil(allFiles.length / maxConcurrent);
-        (0, logger_1.logInfo)(`📦 Partitioning ${allFiles.length} files into ${maxConcurrent} subagents (~${filesPerAgent} files each)`);
+        const calculatedSubagents = Math.ceil(allFiles.length / OPTIMAL_FILES_PER_AGENT);
+        const numSubagents = Math.min(calculatedSubagents, maxConcurrent);
+        const filesPerAgent = Math.ceil(allFiles.length / numSubagents);
+        (0, logger_1.logInfo)(`📦 Partitioning ${allFiles.length} files into ${numSubagents} subagents (~${filesPerAgent} files each)`);
+        (0, logger_1.logInfo)(`   Optimal: ${OPTIMAL_FILES_PER_AGENT} files per agent, creating ${numSubagents} subagents for comfortable processing`);
         // Group files by directory to keep related files together
-        const fileGroups = file_partitioner_1.FilePartitioner.partitionFilesByDirectory(allFiles, maxConcurrent);
+        const fileGroups = file_partitioner_1.FilePartitioner.partitionFilesByDirectory(allFiles, numSubagents);
         (0, logger_1.logInfo)(`📁 Created ${fileGroups.length} file groups for parallel analysis`);
-        // Create tools for subagents
+        // Create tools for subagents (all files available through tools)
         const tools = await this.createSubagentTools(repositoryFiles);
         // Create tasks for each subagent
         const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
         const tasks = fileGroups.map((files, index) => {
-            const fileList = files.slice(0, 30).join(', '); // Limit to 30 files per agent to avoid token limits
+            const totalFiles = files.length;
+            // Show first N files in prompt, rest available through tools
+            const filesToShow = files.slice(0, MAX_FILES_IN_PROMPT);
+            const remainingFiles = totalFiles - filesToShow.length;
+            let fileListSection = '';
+            if (filesToShow.length > 0) {
+                fileListSection = `\n\nFiles assigned to you (${totalFiles} total):\n${filesToShow.map(f => `- ${f}`).join('\n')}`;
+                if (remainingFiles > 0) {
+                    fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
+                }
+            }
             return {
                 name: `error-detector-${index + 1}`,
-                prompt: userPrompt ? `${userPrompt}\n\nFocus on these files: ${fileList}` : `Focus on analyzing these files for errors: ${fileList}`,
+                prompt: userPrompt
+                    ? `${userPrompt}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`
+                    : `You have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for errors using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for errors.**`,
                 systemPrompt,
                 tools
             };
@@ -67980,20 +68070,26 @@ ${errorTypes}
 **STOP! DO NOT give a text response yet. You MUST use tools first.**
 
 **MANDATORY WORKFLOW (follow this EXACTLY):**
-1. Use search_files tool to find TypeScript files
+1. **If you have a specific number of files assigned (mentioned in your prompt), read ALL of those files using read_file**
+   - The prompt tells you how many files you have (e.g., "15 files", "20 files")
+   - Read every single file assigned to you, one by one
+   - Use read_file directly on each file path
+   - Do not skip any files - you must read the EXACT number mentioned
+   - Analyze each file thoroughly for errors
+2. **If you need to find files, use search_files tool**
    - Query examples: "src/agent", "src/utils", "src/data", "test", "core", "repository"
    - Do NOT use wildcards like "*.ts" - use directory names or keywords
-   - **IMPORTANT: Use max_results: 200-500 to get comprehensive results, not just 10 files**
-   - Example: search_files with query "src/agent" and max_results: 200
-2. **IMMEDIATELY after each search_files, use read_file on multiple files from the results**
-   - When search_files returns a list, read as many files as needed (10-20+ files per search)
+   - **IMPORTANT: Use max_results: 1000+ to get ALL results**
+   - Example: search_files with query "src/agent" and max_results: 1000
+3. **After search_files, use read_file on ALL files from the results**
+   - When search_files returns a list, read EVERY file from the results
    - Prioritize reading .ts files (source files) over .d.ts files (type definitions)
-   - Read files from different subdirectories to get comprehensive coverage
-   - Do NOT skip this step - reading files is MANDATORY
-3. Repeat steps 1-2 multiple times with different search queries
-4. Only after reading 20-30+ files total, you can provide your analysis
+   - Read files systematically, one by one
+   - Do NOT skip any files
+4. Continue until you have read ALL files assigned to you (the exact number mentioned in your prompt)
+5. Only after reading ALL assigned files, you can provide your analysis
 
-**CRITICAL: After every search_files call, you MUST call read_file on multiple files from the results. Do NOT give a text response until you've read files. Use max_results: 200-500 in search_files to get comprehensive file lists.**
+**CRITICAL: You MUST read the EXACT number of files assigned to you (as mentioned in your prompt). Read ALL files, analyze ALL files, report errors from ALL files.**
 
 **IMPORTANT ABOUT FILE PATHS:**
 - The repository contains source files (.ts) and compiled files (.d.ts)
@@ -68019,9 +68115,10 @@ ${errorTypes}
    - Type of error
    - Suggested fix
 5. Use propose_change to suggest fixes for critical and high severity errors
-6. **Continue exploring and analyzing until you have examined a representative sample of the codebase**
-   - Don't stop after just 1-2 files
-   - Explore different areas: core logic, utilities, tests, configuration
+6. **Continue exploring and analyzing until you have examined ALL files assigned to you**
+   - Read every single file in your assigned list
+   - Do not stop until you've read ALL files
+   - Analyze each file thoroughly for errors
    - Look for patterns that might indicate systemic issues
 7. In your final response, summarize all errors found in a structured format:
    - File: path/to/file.ts
@@ -68047,26 +68144,28 @@ For each error, provide:
 - Suggestion: how to fix it
 
 **CRITICAL INSTRUCTIONS - READ CAREFULLY:**
-- **DO NOT give a final response until you have READ at least 10-15 files using read_file**
+- **YOU MUST READ THE EXACT NUMBER OF FILES ASSIGNED TO YOU (as mentioned in your prompt)**
+- **Your prompt tells you how many files you have (e.g., "15 files", "20 files") - read ALL of them**
+- **If your prompt says "X files", you MUST read exactly X files using read_file**
 - Searching for files is NOT enough - you MUST actually read the file contents
-- Use search_files multiple times with different queries to find files in different directories
-  - Try: "src/agent", "src/utils", "src/data", "test", "core", "repository"
-  - The search tool finds files by substring matching in the path
-- After each search, read 3-5 files from the results using read_file
-- Continue this pattern: search → read multiple files → search again → read more files
-- Don't give a final response until you've READ and analyzed 10-15+ files
+- Use read_file directly on each file path - all files are available through the tools
+- Read files systematically, one by one, until you've read the exact number assigned
+- Do NOT give a final response until you've READ and analyzed ALL assigned files (the exact number)
+- Count the files you read - it should match the number mentioned in your prompt
 - If you find no errors after thorough analysis, state that clearly
-- Be thorough but efficient. Prioritize critical and high severity errors.
+- Be thorough and comprehensive. Read files systematically, one by one, until you've read them all.
 
 **Example workflow (you MUST follow this pattern):**
-1. search_files with query "src/agent" → find agent files
-2. read_file on 3-5 of those files (e.g., "src/agent/core/agent.ts", "src/agent/tools/base_tool.ts")
-3. search_files with query "src/utils" → find utility files  
-4. read_file on 3-5 of those files
-5. search_files with query "src/data" → find data files
-6. read_file on 3-5 of those files
-7. Continue until you've READ 10-15+ files from different areas
-8. Only THEN provide your final analysis
+1. If you have a specific file list in your prompt, read EVERY file in that list using read_file
+   - Read them one by one, systematically
+   - Do not skip any files
+   - Analyze each file for errors
+2. Use search_files to discover any additional files in your assigned area (if needed)
+3. read_file on ALL files from each search result - read every single file
+4. Continue reading files systematically until you've read ALL files assigned to you
+5. Only after reading ALL files, provide your final analysis
+
+**IMPORTANT: When you have a file list in your prompt, read ALL of those files FIRST. There are NO limits - read EVERY file.**
 
 **REMEMBER: Searching is not analyzing. You MUST read files to analyze them.**`;
     }
@@ -68488,7 +68587,7 @@ class SearchFilesTool extends base_tool_1.BaseTool {
                 },
                 max_results: {
                     type: 'number',
-                    description: 'Maximum number of results to return (default: 100, use higher values like 200-500 for comprehensive searches)'
+                    description: 'Maximum number of results to return (default: 1000, use higher values like 5000-10000 for comprehensive searches. No hard limit - use a very high number to get all results)'
                 }
             },
             required: ['query'],
@@ -68499,17 +68598,18 @@ class SearchFilesTool extends base_tool_1.BaseTool {
         const { logInfo } = __nccwpck_require__(8836);
         const query = input.query;
         logInfo(`   🔍 Searching files with query: "${query}"`);
-        const maxResults = input.max_results || 100; // Default to 100 instead of 10
+        const maxResults = input.max_results || 1000; // Default to 1000 for comprehensive searches
         if (!query || typeof query !== 'string') {
             throw new Error('query is required and must be a string');
         }
-        if (maxResults < 1 || maxResults > 1000) {
-            throw new Error('max_results must be between 1 and 1000');
+        if (maxResults < 1) {
+            throw new Error('max_results must be at least 1');
         }
         // Perform search
         const results = this.options.searchFiles(query);
-        // Limit results
-        const limitedResults = results.slice(0, maxResults);
+        // Limit results only if maxResults is reasonable (to prevent memory issues)
+        // For very large values (>= 10000), return all results
+        const limitedResults = maxResults >= 10000 ? results : results.slice(0, maxResults);
         if (limitedResults.length === 0) {
             return `No files found matching query: "${query}"`;
         }

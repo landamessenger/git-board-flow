@@ -42,7 +42,7 @@ export class ErrorParser {
         // TODOs created might represent errors found
         const todoContent = toolCall.input.content || toolCall.input.description || toolCall.input.text || '';
         if (this.isErrorRelatedTodo(todoContent)) {
-          const error = this.extractErrorFromTodo(todoContent);
+          const error = this.extractErrorFromTodo(todoContent, toolCall.input);
           if (error) {
             errors.push(error);
           }
@@ -138,14 +138,75 @@ export class ErrorParser {
   /**
    * Extract error from TODO content
    */
-  private static extractErrorFromTodo(todoContent: string): DetectedError | null {
-    // Try to extract file info from TODO content
-    const fileMatch = todoContent.match(/(?:file|archivo|en|at)\s*[:\s]+([^\s\n,]+)/i);
-    const severityMatch = todoContent.match(/(critical|high|medium|low|crítico|alto|medio|bajo)/i);
+  private static extractErrorFromTodo(todoContent: string, toolInput?: any): DetectedError | null {
+    // First, check if file is explicitly provided in tool input
+    let filePath = toolInput?.file || toolInput?.file_path || toolInput?.related_files?.[0];
+    
+    // Helper function to clean file path
+    const cleanFilePath = (path: string): string => {
+      return path.replace(/[:\s,;]+$/, '').trim(); // Remove trailing punctuation and whitespace
+    };
+    
+    // If not found, try to extract from TODO content using multiple patterns
+    if (!filePath) {
+      // Pattern 1: "in src/path/to/file.ts:" or "in file.ts:"
+      const inPattern = todoContent.match(/\bin\s+([^\s:]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte|jsx|tsx))[:\s,]/i);
+      if (inPattern) {
+        filePath = cleanFilePath(inPattern[1]);
+      }
+    }
+    
+    if (!filePath) {
+      // Pattern 2: Direct file path patterns (src/..., ./..., or absolute paths)
+      const directPathPattern = todoContent.match(/\b(src\/|\.\/|\.\.\/|[\w\-]+\/)[^\s:,\n]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte)[:\s,]/i);
+      if (directPathPattern) {
+        filePath = cleanFilePath(directPathPattern[0]);
+      }
+    }
+    
+    if (!filePath) {
+      // Pattern 3: "file: path" or "file path" or "at path"
+      const fileKeywordPattern = todoContent.match(/(?:file|archivo|at|en)\s*[:\s]+([^\s\n,]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte))/i);
+      if (fileKeywordPattern) {
+        filePath = cleanFilePath(fileKeywordPattern[1]);
+      }
+    }
+    
+    if (!filePath) {
+      // Pattern 4: Look for any path-like string that contains slashes and ends with common extensions
+      const anyPathPattern = todoContent.match(/([^\s:,\n]+\/[^\s:,\n]+\.(ts|js|tsx|jsx|py|java|go|rs|rb|php|cs|swift|kt|scala|clj|sh|bash|yaml|yml|json|xml|html|css|scss|less|vue|svelte))[:\s,]/i);
+      if (anyPathPattern) {
+        filePath = cleanFilePath(anyPathPattern[1]);
+      }
+    }
+    
+    // Extract severity
+    const severityMatch = todoContent.match(/\b(critical|high|medium|low|crítico|alto|medio|bajo)\b/i);
+    
+    // Extract type if available
+    let errorType = 'code-issue';
+    const typeMatch = todoContent.match(/\b(type|tipo)[:\s]+([^\s\n,]+)/i);
+    if (typeMatch) {
+      errorType = typeMatch[2];
+    } else {
+      // Try to infer type from description
+      const lowerContent = todoContent.toLowerCase();
+      if (lowerContent.includes('type error') || lowerContent.includes('type-error')) {
+        errorType = 'type-error';
+      } else if (lowerContent.includes('logic error') || lowerContent.includes('logic-error')) {
+        errorType = 'logic-error';
+      } else if (lowerContent.includes('security') || lowerContent.includes('security issue')) {
+        errorType = 'security-issue';
+      } else if (lowerContent.includes('performance') || lowerContent.includes('performance issue')) {
+        errorType = 'performance-issue';
+      } else if (lowerContent.includes('runtime error') || lowerContent.includes('runtime-error')) {
+        errorType = 'runtime-error';
+      }
+    }
     
     return {
-      file: fileMatch ? fileMatch[1] : 'unknown',
-      type: 'code-issue',
+      file: filePath || 'unknown',
+      type: errorType,
       severity: (severityMatch?.[1]?.toLowerCase() || 'medium') as DetectedError['severity'],
       description: todoContent
     };

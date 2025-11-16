@@ -57,6 +57,7 @@ Suggestion: Fix the type annotation`
       expect(errors.length).toBeGreaterThan(0);
       const error = errors[0];
       expect(error.description).toContain('Error');
+      expect(error.file).toBe('src/test.ts');
     });
 
     it('should extract severity from TODO content', () => {
@@ -69,7 +70,7 @@ Suggestion: Fix the type annotation`
             name: 'manage_todos',
             input: {
               action: 'create',
-              content: 'Critical error in file src/test.ts: security issue'
+              content: 'Critical error in src/test.ts: security issue'
             }
           }
         ],
@@ -81,6 +82,8 @@ Suggestion: Fix the type annotation`
       expect(errors.length).toBeGreaterThan(0);
       // Should detect "critical" in the content
       expect(errors[0].description.toLowerCase()).toContain('critical');
+      expect(errors[0].severity).toBe('critical');
+      expect(errors[0].file).toBe('src/test.ts');
     });
 
     it('should parse errors from tool results', () => {
@@ -172,6 +175,53 @@ Description: Second error`
 
       // Should not parse as error if it doesn't contain error keywords
       expect(errors.length).toBe(0);
+    });
+
+    it('should extract file path from "in src/file.ts" pattern', () => {
+      const result: AgentResult = {
+        finalResponse: '',
+        turns: [],
+        toolCalls: [
+          {
+            id: 'tool-call-5',
+            name: 'manage_todos',
+            input: {
+              action: 'create',
+              content: 'Logic error in src/actions/common_action.ts: Handle unknown execution types'
+            }
+          }
+        ],
+        messages: []
+      };
+
+      const errors = ErrorParser.parseErrors(result);
+
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].file).toBe('src/actions/common_action.ts');
+      expect(errors[0].type).toBe('logic-error');
+    });
+
+    it('should extract file path from direct path pattern', () => {
+      const result: AgentResult = {
+        finalResponse: '',
+        turns: [],
+        toolCalls: [
+          {
+            id: 'tool-call-6',
+            name: 'manage_todos',
+            input: {
+              action: 'create',
+              content: 'Type error in src/utils/logger.ts: logError may fail'
+            }
+          }
+        ],
+        messages: []
+      };
+
+      const errors = ErrorParser.parseErrors(result);
+
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].file).toBe('src/utils/logger.ts');
     });
   });
 });
