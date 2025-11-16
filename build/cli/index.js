@@ -67407,9 +67407,11 @@ For each error, provide:
     /**
      * Detect errors in the codebase
      */
-    async detectErrors(prompt = 'Busca potenciales errores en todo el proyecto') {
+    async detectErrors(prompt) {
         (0, logger_1.logInfo)('🔍 Starting error detection...');
-        (0, logger_1.logInfo)(`📋 Prompt: ${prompt}`);
+        // Use minimal prompt if not provided - systemPrompt already has all instructions
+        const userPrompt = prompt || 'Begin error detection analysis.';
+        (0, logger_1.logInfo)(`📋 User Prompt: ${userPrompt || '(using system prompt instructions only)'}`);
         (0, logger_1.logInfo)(`📊 Configuration:`);
         (0, logger_1.logInfo)(`   - Model: ${this.options.model}`);
         (0, logger_1.logInfo)(`   - Max Turns: ${this.options.maxTurns}`);
@@ -67429,13 +67431,13 @@ For each error, provide:
         let result;
         if (this.options.useSubAgents && this.repositoryFiles.size > 20) {
             (0, logger_1.logInfo)('🚀 Executing error detection with subagents...');
-            const subagentResult = await this.detectErrorsWithSubAgents(prompt);
+            const subagentResult = await this.detectErrorsWithSubAgents(userPrompt);
             result = subagentResult.agentResult; // Use the combined agent result
         }
         else {
             // Execute agent query
             (0, logger_1.logInfo)('🚀 Executing agent query...');
-            result = await this.agent.query(prompt);
+            result = await this.agent.query(userPrompt);
         }
         (0, logger_1.logInfo)(`📈 Agent execution completed:`);
         (0, logger_1.logInfo)(`   - Total Turns: ${result.turns.length}`);
@@ -67589,7 +67591,7 @@ For each error, provide:
     /**
      * Detect errors using subagents for parallel processing
      */
-    async detectErrorsWithSubAgents(prompt) {
+    async detectErrorsWithSubAgents(userPrompt) {
         const allFiles = Array.from(this.repositoryFiles.keys());
         const maxConcurrent = this.options.maxConcurrentSubAgents || 5;
         const filesPerAgent = Math.ceil(allFiles.length / maxConcurrent);
@@ -67716,11 +67718,12 @@ For each error, provide:
         });
         const tools = [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
         // Create tasks for each subagent
+        // Note: systemPrompt already has all instructions, so we use a minimal prompt with file focus
         const tasks = fileGroups.map((files, index) => {
             const fileList = files.slice(0, 30).join(', '); // Limit to 30 files per agent to avoid token limits
             return {
                 name: `error-detector-${index + 1}`,
-                prompt: `${prompt}\n\nFocus on these files: ${fileList}\n\nAnalyze these specific files for errors. Read each file and identify potential issues.`,
+                prompt: userPrompt ? `${userPrompt}\n\nFocus on these files: ${fileList}` : `Focus on analyzing these files for errors: ${fileList}`,
                 systemPrompt: this.buildSystemPrompt(),
                 tools: tools // Pass tools to each subagent
             };
@@ -71404,7 +71407,7 @@ class AiRepository {
                     messages: [
                         { role: 'user', content: prompt },
                     ],
-                    max_tokens: 1000, // Reduced to fit within credit limits (1119 available)
+                    max_tokens: 4096,
                     response_format: {
                         type: "json_schema",
                         json_schema: {
@@ -75326,7 +75329,7 @@ function registerTECTestCommands(program) {
     program
         .command('tec:detect-errors')
         .description('Detect potential errors in the codebase using Agent SDK')
-        .option('-p, --prompt <prompt>', 'Detection prompt', 'Busca potenciales errores en todo el proyecto')
+        .option('-p, --prompt <prompt>', 'Optional: Custom detection prompt (system prompt already has all instructions)')
         .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
         .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
         .option('--max-turns <number>', 'Maximum turns', '30')
@@ -75366,7 +75369,9 @@ function registerTECTestCommands(program) {
             };
             const detector = new error_detector_1.ErrorDetector(detectorOptions);
             // Detect errors
-            const result = await detector.detectErrors(options.prompt);
+            // Prompt is optional - systemPrompt already has all instructions
+            // Use prompt only for specific customization (e.g., "focus on security issues")
+            const result = await detector.detectErrors(options.prompt || undefined);
             // Output results
             if (options.output === 'json') {
                 console.log(JSON.stringify(result, null, 2));
@@ -75464,7 +75469,9 @@ function registerTECTestCommands(program) {
                 useSubAgents: true, // Enable subagents for parallel processing
                 maxConcurrentSubAgents: 3 // Fewer subagents for quick check
             });
-            const result = await detector.detectErrors('Haz una revisión rápida buscando errores críticos y de alta severidad');
+            // Quick check: no custom prompt needed, systemPrompt already has instructions
+            // Focus on critical/high severity errors is handled by errorTypes option
+            const result = await detector.detectErrors();
             console.log(`\n⚡ Quick Check Results:`);
             console.log(`  Critical: ${result.summary.bySeverity.critical}`);
             console.log(`  High: ${result.summary.bySeverity.high}`);

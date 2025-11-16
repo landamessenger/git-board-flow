@@ -61794,7 +61794,7 @@ class AiRepository {
                     messages: [
                         { role: 'user', content: prompt },
                     ],
-                    max_tokens: 1000, // Reduced to fit within credit limits (1119 available)
+                    max_tokens: 4096,
                     response_format: {
                         type: "json_schema",
                         json_schema: {

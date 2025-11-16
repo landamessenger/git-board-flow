@@ -52,7 +52,7 @@ export function registerTECTestCommands(program: Command) {
   program
     .command('tec:detect-errors')
     .description('Detect potential errors in the codebase using Agent SDK')
-    .option('-p, --prompt <prompt>', 'Detection prompt', 'Busca potenciales errores en todo el proyecto')
+    .option('-p, --prompt <prompt>', 'Optional: Custom detection prompt (system prompt already has all instructions)')
     .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
     .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
     .option('--max-turns <number>', 'Maximum turns', '30')
@@ -97,7 +97,9 @@ export function registerTECTestCommands(program: Command) {
         const detector = new ErrorDetector(detectorOptions);
 
         // Detect errors
-        const result = await detector.detectErrors(options.prompt);
+        // Prompt is optional - systemPrompt already has all instructions
+        // Use prompt only for specific customization (e.g., "focus on security issues")
+        const result = await detector.detectErrors(options.prompt || undefined);
 
         // Output results
         if (options.output === 'json') {
@@ -204,7 +206,9 @@ export function registerTECTestCommands(program: Command) {
               maxConcurrentSubAgents: 3 // Fewer subagents for quick check
             });
 
-        const result = await detector.detectErrors('Haz una revisión rápida buscando errores críticos y de alta severidad');
+        // Quick check: no custom prompt needed, systemPrompt already has instructions
+        // Focus on critical/high severity errors is handled by errorTypes option
+        const result = await detector.detectErrors();
 
         console.log(`\n⚡ Quick Check Results:`);
         console.log(`  Critical: ${result.summary.bySeverity.critical}`);

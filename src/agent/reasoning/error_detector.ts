@@ -404,9 +404,11 @@ For each error, provide:
   /**
    * Detect errors in the codebase
    */
-  async detectErrors(prompt: string = 'Busca potenciales errores en todo el proyecto'): Promise<ErrorDetectionResult> {
+  async detectErrors(prompt?: string): Promise<ErrorDetectionResult> {
     logInfo('🔍 Starting error detection...');
-    logInfo(`📋 Prompt: ${prompt}`);
+    // Use minimal prompt if not provided - systemPrompt already has all instructions
+    const userPrompt = prompt || 'Begin error detection analysis.';
+    logInfo(`📋 User Prompt: ${userPrompt || '(using system prompt instructions only)'}`);
     logInfo(`📊 Configuration:`);
     logInfo(`   - Model: ${this.options.model}`);
     logInfo(`   - Max Turns: ${this.options.maxTurns}`);
@@ -428,12 +430,12 @@ For each error, provide:
     let result: AgentResult;
     if (this.options.useSubAgents && this.repositoryFiles.size > 20) {
       logInfo('🚀 Executing error detection with subagents...');
-      const subagentResult = await this.detectErrorsWithSubAgents(prompt);
+      const subagentResult = await this.detectErrorsWithSubAgents(userPrompt);
       result = subagentResult.agentResult; // Use the combined agent result
     } else {
       // Execute agent query
       logInfo('🚀 Executing agent query...');
-      result = await this.agent.query(prompt);
+      result = await this.agent.query(userPrompt);
     }
     
     logInfo(`📈 Agent execution completed:`);
@@ -613,7 +615,7 @@ For each error, provide:
   /**
    * Detect errors using subagents for parallel processing
    */
-  private async detectErrorsWithSubAgents(prompt: string): Promise<ErrorDetectionResult> {
+  private async detectErrorsWithSubAgents(userPrompt: string): Promise<ErrorDetectionResult> {
     const allFiles = Array.from(this.repositoryFiles.keys());
     const maxConcurrent = this.options.maxConcurrentSubAgents || 5;
     const filesPerAgent = Math.ceil(allFiles.length / maxConcurrent);
@@ -759,11 +761,12 @@ For each error, provide:
     const tools = [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
     
     // Create tasks for each subagent
+    // Note: systemPrompt already has all instructions, so we use a minimal prompt with file focus
     const tasks: Task[] = fileGroups.map((files, index) => {
       const fileList = files.slice(0, 30).join(', '); // Limit to 30 files per agent to avoid token limits
       return {
         name: `error-detector-${index + 1}`,
-        prompt: `${prompt}\n\nFocus on these files: ${fileList}\n\nAnalyze these specific files for errors. Read each file and identify potential issues.`,
+        prompt: userPrompt ? `${userPrompt}\n\nFocus on these files: ${fileList}` : `Focus on analyzing these files for errors: ${fileList}`,
         systemPrompt: this.buildSystemPrompt(),
         tools: tools // Pass tools to each subagent
       };
