@@ -174,18 +174,22 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 );
                 logInfo(`📦 Retrieved ${allGitHubBranches.length} branch(es) from GitHub for orphaned branch detection.`);
             } catch (error) {
-                logError(`📦 ❌ Error retrieving branches from GitHub for orphaned branch detection: ${JSON.stringify(error, null, 2)}`);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                const errorStack = error instanceof Error ? error.stack : undefined;
+                logError(`📦 ❌ Error retrieving branches from GitHub for orphaned branch detection (owner: ${param.owner}, repo: ${param.repo}): ${errorMessage}${errorStack ? `\nStack: ${errorStack}` : ''}`);
+                logDebugInfo(`📦 Error details for orphaned branch detection: ${JSON.stringify(error, null, 2)}`);
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
                         errors: [
-                            `Error retrieving branches from GitHub for orphaned branch detection: ${JSON.stringify(error, null, 2)}`,
+                            `Error retrieving branches from GitHub for orphaned branch detection (${param.owner}/${param.repo}): ${errorMessage}`,
                         ],
                     })
                 );
                 // Continue execution even if we can't check for orphaned branches
+                // @internal This allows the main processing to complete even if orphaned branch cleanup fails
             }
             
             if (allGitHubBranches.length > 0) {
@@ -743,14 +747,16 @@ ${fileContent}
                 .map(branch => branch.trim());
             
             if (normalizedGitHubBranches.length === 0) {
-                logInfo(`📦 No valid branches from GitHub to compare against.`);
+                const originalCount = githubBranches.length;
+                logInfo(`📦 No valid branches from GitHub to compare against (received ${originalCount} branch(es), all filtered out as invalid).`);
+                logDebugInfo(`📦 Original GitHub branches received: [${githubBranches.map(b => `'${b}'`).join(', ')}]`);
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: true,
                         executed: true,
                         steps: [
-                            `No valid branches from GitHub to compare against.`,
+                            `No valid branches from GitHub to compare against (${originalCount} received, all invalid).`,
                         ],
                     })
                 );
@@ -765,6 +771,7 @@ ${fileContent}
 
             if (supabaseBranches.length === 0) {
                 logInfo(`📦 No branches found in Supabase, nothing to clean.`);
+                logDebugInfo(`📦 Supabase query returned empty result for owner: ${param.owner}, repo: ${param.repo}`);
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -777,6 +784,9 @@ ${fileContent}
                 );
                 return results;
             }
+            
+            // Log information about branches retrieved from Supabase
+            logDebugInfo(`📦 Retrieved ${supabaseBranches.length} branch(es) from Supabase for owner: ${param.owner}, repo: ${param.repo}`);
 
             // Normalize Supabase branches (same normalization as GitHub branches)
             // @internal Ensures consistent comparison between GitHub and Supabase branch names
@@ -788,8 +798,10 @@ ${fileContent}
             // @internal Case-sensitive comparison: GitHub branch names are case-sensitive (e.g., 'develop' != 'Develop')
             const githubBranchesSet = new Set(normalizedGitHubBranches);
 
-            // Debug logging
+            // Debug logging with detailed information
             logInfo(`📦 Comparing ${normalizedSupabaseBranches.length} Supabase branch(es) against ${normalizedGitHubBranches.length} GitHub branch(es).`);
+            logDebugInfo(`📦 Supabase branches: [${normalizedSupabaseBranches.join(', ')}]`);
+            logDebugInfo(`📦 GitHub branches: [${normalizedGitHubBranches.join(', ')}]`);
 
             // Find branches that exist in Supabase but not in GitHub
             // @internal Uses Set.has() for O(1) lookup performance
@@ -798,6 +810,7 @@ ${fileContent}
                 const isOrphaned = !githubBranchesSet.has(branch);
                 if (isOrphaned) {
                     logInfo(`📦 Branch '${branch}' found in Supabase but not in GitHub (will be marked as orphaned).`);
+                    logDebugInfo(`📦 Orphaned branch details: '${branch}' exists in Supabase cache but not in GitHub repository ${param.owner}/${param.repo}`);
                 }
                 return isOrphaned;
             });
@@ -820,6 +833,7 @@ ${fileContent}
             logInfo(`📦 Found ${orphanedBranches.length} orphaned branch(es) to remove: ${orphanedBranches.join(', ')}`);
 
             let branchesRemoved = 0;
+            const failedBranches: string[] = [];
             for (const branch of orphanedBranches) {
                 try {
                     await supabaseRepository.removeAIFileCacheByBranch(
@@ -830,8 +844,16 @@ ${fileContent}
                     branchesRemoved++;
                     logInfo(`📦 ✅ Removed AI cache for orphaned branch: ${branch}`);
                 } catch (error) {
-                    logError(`📦 ❌ Error removing AI cache for orphaned branch ${branch}: ${JSON.stringify(error, null, 2)}`);
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    failedBranches.push(branch);
+                    logError(`📦 ❌ Error removing AI cache for orphaned branch '${branch}' (owner: ${param.owner}, repo: ${param.repo}): ${errorMessage}`);
+                    logDebugInfo(`📦 Error details for branch '${branch}': ${JSON.stringify(error, null, 2)}`);
                 }
+            }
+            
+            // Log summary of removal operation
+            if (branchesRemoved > 0 || failedBranches.length > 0) {
+                logInfo(`📦 Orphaned branch removal summary: ${branchesRemoved} succeeded, ${failedBranches.length} failed${failedBranches.length > 0 ? ` (${failedBranches.join(', ')})` : ''}`);
             }
 
             if (branchesRemoved > 0) {
@@ -848,27 +870,32 @@ ${fileContent}
             }
 
             if (branchesRemoved < orphanedBranches.length) {
+                const failedCount = orphanedBranches.length - branchesRemoved;
+                logError(`📦 ❌ Failed to remove ${failedCount} of ${orphanedBranches.length} orphaned branch(es). Failed branches: ${failedBranches.join(', ')}`);
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
                         errors: [
-                            `Failed to remove ${orphanedBranches.length - branchesRemoved} orphaned branch(es).`,
+                            `Failed to remove ${failedCount} orphaned branch(es): ${failedBranches.join(', ')}`,
                         ],
                     })
                 );
             }
 
         } catch (error) {
-            logError(`📦 ❌ Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorStack = error instanceof Error ? error.stack : undefined;
+            logError(`📦 ❌ Error checking for orphaned branches (owner: ${param.owner}, repo: ${param.repo}): ${errorMessage}${errorStack ? `\nStack: ${errorStack}` : ''}`);
+            logDebugInfo(`📦 Error details for orphaned branch check: ${JSON.stringify(error, null, 2)}`);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Error checking for orphaned branches: ${JSON.stringify(error, null, 2)}`,
+                        `Error checking for orphaned branches (${param.owner}/${param.repo}): ${errorMessage}`,
                     ],
                 })
             );
