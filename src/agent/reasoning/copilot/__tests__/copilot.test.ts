@@ -165,22 +165,43 @@ describe('Copilot', () => {
       const { AgentInitializer } = require('../agent_initializer');
       const mockAgentResult: AgentResult = {
         finalResponse: 'I have created the file',
-        turns: [],
+        turns: [
+          {
+            turnNumber: 1,
+            assistantMessage: 'Creating file',
+            toolCalls: [
+              {
+                id: 'tool-call-1',
+                name: 'propose_change',
+                input: {
+                  file_path: 'copilot_dummy/test.ts',
+                  change_type: 'create',
+                  suggested_code: 'export const test = () => {};',
+                  description: 'Create test file',
+                  reasoning: 'Test file needed'
+                }
+              }
+            ],
+            toolResults: [
+              {
+                toolCallId: 'tool-call-1',
+                content: 'Change applied successfully'
+              }
+            ],
+            timestamp: Date.now()
+          }
+        ],
         toolCalls: [
           {
             id: 'tool-call-1',
-            toolName: 'propose_change',
+            name: 'propose_change',
             input: {
               file_path: 'copilot_dummy/test.ts',
               change_type: 'create',
               suggested_code: 'export const test = () => {};',
-              description: 'Create test file'
-            },
-            result: JSON.stringify({
-              file_path: 'copilot_dummy/test.ts',
-              change_type: 'create',
-              description: 'Create test file'
-            })
+              description: 'Create test file',
+              reasoning: 'Test file needed'
+            }
           }
         ],
         messages: []
@@ -209,34 +230,69 @@ describe('Copilot', () => {
       const { AgentInitializer } = require('../agent_initializer');
       const mockAgentResult: AgentResult = {
         finalResponse: 'I have made multiple changes',
-        turns: [],
+        turns: [
+          {
+            turnNumber: 1,
+            assistantMessage: 'Making changes',
+            toolCalls: [
+              {
+                id: 'tool-call-1',
+                name: 'propose_change',
+                input: {
+                  file_path: 'copilot_dummy/file1.ts',
+                  change_type: 'create',
+                  suggested_code: 'export const file1 = () => {};',
+                  description: 'Create file1',
+                  reasoning: 'Need file1'
+                }
+              },
+              {
+                id: 'tool-call-2',
+                name: 'propose_change',
+                input: {
+                  file_path: 'copilot_dummy/file2.ts',
+                  change_type: 'modify',
+                  suggested_code: 'export const file2 = () => { return true; };',
+                  description: 'Update function',
+                  reasoning: 'Update needed'
+                }
+              }
+            ],
+            toolResults: [
+              {
+                toolCallId: 'tool-call-1',
+                content: 'Change applied successfully'
+              },
+              {
+                toolCallId: 'tool-call-2',
+                content: 'Change applied successfully'
+              }
+            ],
+            timestamp: Date.now()
+          }
+        ],
         toolCalls: [
           {
             id: 'tool-call-1',
-            toolName: 'propose_change',
+            name: 'propose_change',
             input: {
               file_path: 'copilot_dummy/file1.ts',
               change_type: 'create',
-              suggested_code: 'export const file1 = () => {};'
-            },
-            result: JSON.stringify({
-              file_path: 'copilot_dummy/file1.ts',
-              change_type: 'create'
-            })
+              suggested_code: 'export const file1 = () => {};',
+              description: 'Create file1',
+              reasoning: 'Need file1'
+            }
           },
           {
             id: 'tool-call-2',
-            toolName: 'propose_change',
+            name: 'propose_change',
             input: {
               file_path: 'copilot_dummy/file2.ts',
               change_type: 'modify',
-              suggested_code: 'export const file2 = () => { return true; };'
-            },
-            result: JSON.stringify({
-              file_path: 'copilot_dummy/file2.ts',
-              change_type: 'modify',
-              description: 'Update function'
-            })
+              suggested_code: 'export const file2 = () => { return true; };',
+              description: 'Update function',
+              reasoning: 'Update needed'
+            }
           }
         ],
         messages: []
@@ -288,19 +344,43 @@ describe('Copilot', () => {
       const { AgentInitializer } = require('../agent_initializer');
       const mockAgentResult: AgentResult = {
         finalResponse: 'File deleted',
-        turns: [],
+        turns: [
+          {
+            turnNumber: 1,
+            assistantMessage: 'Deleting file',
+            toolCalls: [
+              {
+                id: 'tool-call-1',
+                name: 'propose_change',
+                input: {
+                  file_path: 'copilot_dummy/old.ts',
+                  change_type: 'delete',
+                  description: 'Delete old file',
+                  suggested_code: '',
+                  reasoning: 'File no longer needed'
+                }
+              }
+            ],
+            toolResults: [
+              {
+                toolCallId: 'tool-call-1',
+                content: 'Change applied successfully'
+              }
+            ],
+            timestamp: Date.now()
+          }
+        ],
         toolCalls: [
           {
             id: 'tool-call-1',
-            toolName: 'propose_change',
+            name: 'propose_change',
             input: {
               file_path: 'copilot_dummy/old.ts',
-              change_type: 'delete'
-            },
-            result: JSON.stringify({
-              file_path: 'copilot_dummy/old.ts',
-              change_type: 'delete'
-            })
+              change_type: 'delete',
+              description: 'Delete old file',
+              suggested_code: '',
+              reasoning: 'File no longer needed'
+            }
           }
         ],
         messages: []
@@ -326,21 +406,43 @@ describe('Copilot', () => {
       const { AgentInitializer } = require('../agent_initializer');
       const mockAgentResult: AgentResult = {
         finalResponse: 'Code refactored',
-        turns: [],
+        turns: [
+          {
+            turnNumber: 1,
+            assistantMessage: 'Refactoring code',
+            toolCalls: [
+              {
+                id: 'tool-call-1',
+                name: 'propose_change',
+                input: {
+                  file_path: 'copilot_dummy/refactor.ts',
+                  change_type: 'refactor',
+                  suggested_code: 'export const refactored = () => {};',
+                  description: 'Refactor for better readability',
+                  reasoning: 'Improve code structure'
+                }
+              }
+            ],
+            toolResults: [
+              {
+                toolCallId: 'tool-call-1',
+                content: 'Change applied successfully'
+              }
+            ],
+            timestamp: Date.now()
+          }
+        ],
         toolCalls: [
           {
             id: 'tool-call-1',
-            toolName: 'propose_change',
+            name: 'propose_change',
             input: {
               file_path: 'copilot_dummy/refactor.ts',
               change_type: 'refactor',
-              suggested_code: 'export const refactored = () => {};'
-            },
-            result: JSON.stringify({
-              file_path: 'copilot_dummy/refactor.ts',
-              change_type: 'refactor',
-              description: 'Refactor for better readability'
-            })
+              suggested_code: 'export const refactored = () => {};',
+              description: 'Refactor for better readability',
+              reasoning: 'Improve code structure'
+            }
           }
         ],
         messages: []
@@ -362,17 +464,36 @@ describe('Copilot', () => {
       expect(result.changes?.[0].changeType).toBe('refactor');
     });
 
-    it('should handle invalid JSON in tool result gracefully', async () => {
+    it('should handle invalid tool calls gracefully', async () => {
       const { AgentInitializer } = require('../agent_initializer');
       const mockAgentResult: AgentResult = {
         finalResponse: 'Test response',
-        turns: [],
+        turns: [
+          {
+            turnNumber: 1,
+            assistantMessage: 'Test',
+            toolCalls: [
+              {
+                id: 'tool-call-1',
+                name: 'propose_change',
+                input: {}
+              }
+            ],
+            toolResults: [
+              {
+                toolCallId: 'tool-call-1',
+                content: 'Error: missing required fields',
+                isError: true
+              }
+            ],
+            timestamp: Date.now()
+          }
+        ],
         toolCalls: [
           {
             id: 'tool-call-1',
-            toolName: 'propose_change',
-            input: {},
-            result: 'invalid json'
+            name: 'propose_change',
+            input: {}
           }
         ],
         messages: []

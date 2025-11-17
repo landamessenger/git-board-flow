@@ -161,10 +161,10 @@ export class Copilot {
    * Extract changes from agent result
    * 
    * @internal
-   * This method parses the agent's tool calls to identify any code changes
+   * This method parses the agent's tool calls and results to identify any code changes
    * that were proposed using the propose_change tool.
    * 
-   * @param result - Agent result containing tool calls
+   * @param result - Agent result containing tool calls and results
    * @returns Array of changes made
    */
   private extractChanges(result: AgentResult): Array<{
@@ -178,22 +178,36 @@ export class Copilot {
       description?: string;
     }> = [];
 
+    // Create a map of toolCallId -> toolResult for quick lookup
+    const toolResultMap = new Map<string, any>();
+    for (const turn of result.turns) {
+      if (turn.toolResults) {
+        for (const toolResult of turn.toolResults) {
+          toolResultMap.set(toolResult.toolCallId, toolResult);
+        }
+      }
+    }
+
+    // Look for propose_change tool calls and their results
     for (const toolCall of result.toolCalls) {
-      if (toolCall.toolName === 'propose_change' && toolCall.result) {
-        try {
-          const changeData = typeof toolCall.result === 'string' 
-            ? JSON.parse(toolCall.result) 
-            : toolCall.result;
-          
-          if (changeData && changeData.file_path) {
-            changes.push({
-              file: changeData.file_path,
-              changeType: changeData.change_type || 'modify',
-              description: changeData.description
-            });
+      if (toolCall.name === 'propose_change') {
+        const toolResult = toolResultMap.get(toolCall.id);
+        if (toolResult && !toolResult.isError) {
+          try {
+            // The tool result content contains the response from propose_change
+            // We need to extract the change info from the tool call input
+            const changeData = toolCall.input;
+            
+            if (changeData && changeData.file_path) {
+              changes.push({
+                file: changeData.file_path,
+                changeType: changeData.change_type || 'modify',
+                description: changeData.description
+              });
+            }
+          } catch (error) {
+            // Ignore parsing errors
           }
-        } catch (error) {
-          // Ignore parsing errors
         }
       }
     }

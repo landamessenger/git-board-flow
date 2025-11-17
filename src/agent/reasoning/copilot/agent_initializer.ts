@@ -11,8 +11,10 @@ import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
 import { ProposeChangeTool } from '../../tools/builtin_tools/propose_change_tool';
 import { ManageTodosTool } from '../../tools/builtin_tools/manage_todos_tool';
 import { FileRepository } from '../../../data/repository/file_repository';
-import { logInfo, logWarn, logDebugInfo } from '../../../utils/logger';
+import { logInfo, logWarn, logDebugInfo, logError } from '../../../utils/logger';
 import { SystemPromptBuilder } from './system_prompt_builder';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface AgentInitializerResult {
   agent: Agent;
@@ -134,11 +136,33 @@ export class AgentInitializer {
     repositoryFiles: Map<string, string>,
     options: CopilotOptions
   ) {
+    // Virtual codebase for proposed changes (must be declared first)
+    const virtualCodebase = new Map<string, string>(repositoryFiles);
+    const workingDir = options.workingDirectory || 'copilot_dummy';
+    
     const readFileTool = new ReadFileTool({
       getFileContent: (filePath: string) => {
+        // First check virtual codebase
+        if (virtualCodebase.has(filePath)) {
+          return virtualCodebase.get(filePath);
+        }
+        
+        // Then check if file exists on disk (for working directory files)
+        if (filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\')) {
+          const fullPath = path.resolve(filePath);
+          if (fs.existsSync(fullPath)) {
+            try {
+              return fs.readFileSync(fullPath, 'utf8');
+            } catch (error) {
+              // Ignore read errors
+            }
+          }
+        }
+        
+        // Finally check repository files
         return repositoryFiles.get(filePath);
       },
-      repositoryFiles
+      repositoryFiles: virtualCodebase
     });
 
     const searchFilesTool = new SearchFilesTool({
@@ -149,21 +173,60 @@ export class AgentInitializer {
         return this.getAllFiles(repositoryFiles);
       }
     });
-
-    // Virtual codebase for proposed changes
-    const virtualCodebase = new Map<string, string>(repositoryFiles);
     
     const proposeChangeTool = new ProposeChangeTool({
       applyChange: (change) => {
-        if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
-          virtualCodebase.set(change.file_path, change.suggested_code);
-          logInfo(`📝 Proposed change: ${change.file_path} (${change.description || 'no description'})`);
-          return true;
-        } else if (change.change_type === 'delete') {
-          virtualCodebase.delete(change.file_path);
-          logInfo(`📝 Proposed deletion: ${change.file_path}`);
-          return true;
+        try {
+          // Check if file is in the working directory (safe to write)
+          const isInWorkingDir = change.file_path.startsWith(workingDir + '/') || change.file_path.startsWith(workingDir + '\\');
+          
+          if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
+            // Update virtual codebase
+            virtualCodebase.set(change.file_path, change.suggested_code);
+            logInfo(`📝 Proposed change: ${change.file_path} (${change.description || 'no description'})`);
+            
+            // Write to disk if in working directory
+            if (isInWorkingDir) {
+              const fullPath = path.resolve(change.file_path);
+              const dir = path.dirname(fullPath);
+              
+              // Ensure directory exists
+              if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+                logInfo(`📁 Created directory: ${dir}`);
+              }
+              
+              // Write file
+              fs.writeFileSync(fullPath, change.suggested_code, 'utf8');
+              logInfo(`💾 Written to disk: ${fullPath}`);
+            } else {
+              logWarn(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
+            }
+            
+            return true;
+          } else if (change.change_type === 'delete') {
+            // Update virtual codebase
+            virtualCodebase.delete(change.file_path);
+            logInfo(`📝 Proposed deletion: ${change.file_path}`);
+            
+            // Delete from disk if in working directory
+            if (isInWorkingDir) {
+              const fullPath = path.resolve(change.file_path);
+              if (fs.existsSync(fullPath)) {
+                fs.unlinkSync(fullPath);
+                logInfo(`🗑️  Deleted from disk: ${fullPath}`);
+              }
+            } else {
+              logWarn(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
+            }
+            
+            return true;
+          }
+        } catch (error: any) {
+          logError(`❌ Error applying change to ${change.file_path}: ${error.message}`);
+          return false;
         }
+        
         return false;
       },
       onChangeApplied: (change: any) => {
