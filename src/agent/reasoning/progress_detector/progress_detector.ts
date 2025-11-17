@@ -6,7 +6,7 @@
 import { Agent } from '../../core/agent';
 import { AgentResult } from '../../types';
 import { ProgressDetectionOptions, ProgressDetectionResult } from './types';
-import { logInfo } from '../../../utils/logger';
+import { logInfo, logWarn } from '../../../utils/logger';
 import { AgentInitializer } from './agent_initializer';
 import { ProgressParser } from './progress_parser';
 import { SubagentHandler } from './subagent_handler';
@@ -87,6 +87,11 @@ export class ProgressDetector {
       logInfo(`✅ Progress detection completed: ${subagentResult.progress}%`);
       return subagentResult;
     } else {
+      // Warn if many files but sub-agents are disabled
+      if (!this.options.useSubAgents && this.repositoryFiles.size > 20) {
+        logWarn(`⚠️  Many files detected (${this.repositoryFiles.size}) but sub-agents are disabled. This may be slow or hit token limits. Consider enabling sub-agents for better performance.`);
+      }
+      
       // Execute agent query
       logInfo('🚀 Executing agent query...');
       result = await this.agent.query(userPrompt);
