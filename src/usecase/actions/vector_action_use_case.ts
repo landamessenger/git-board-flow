@@ -117,7 +117,13 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             }
 
-            results.push(...await this.removeOrphanedBranches(param, branchesToProcess));
+            // Get all branches from GitHub for orphaned branch detection
+            const allGitHubBranches = await this.branchRepository.getListOfBranches(
+                param.owner,
+                param.repo,
+                param.tokens.token
+            );
+            results.push(...await this.removeOrphanedBranches(param, allGitHubBranches));
 
             results.push(
                 new Result({
