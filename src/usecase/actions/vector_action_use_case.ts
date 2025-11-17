@@ -13,6 +13,20 @@ import { BranchRepository } from '../../data/repository/branch_repository';
 import { ErrorDetector } from '../../agent/reasoning/error_detector/error_detector';
 import { ErrorDetectionOptions, ErrorDetectionResult } from '../../agent/reasoning/error_detector/types';
 
+/**
+ * VectorActionUseCase - Processes repository files and creates AI cache in Supabase.
+ * 
+ * This use case is responsible for:
+ * - Processing files from GitHub repositories and generating AI descriptions
+ * - Caching file metadata (descriptions, imports, error information) in Supabase
+ * - Detecting and removing orphaned branches from the cache
+ * - Reusing cached data across branches when files have the same SHA
+ * 
+ * @internal
+ * This class is used internally by the SingleActionUseCase when the AI cache action is triggered.
+ * It processes files sequentially per branch and maintains a cache of file metadata for efficient
+ * codebase analysis and search operations.
+ */
 export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'VectorActionUseCase';
     private fileRepository: FileRepository = new FileRepository();
@@ -31,6 +45,34 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         );
     }
 
+    /**
+     * Main entry point for the VectorActionUseCase.
+     * 
+     * Processes repository files and creates/updates AI cache in Supabase. The process includes:
+     * 1. Validating configuration (Supabase, AI)
+     * 2. Determining which branches to process (specific branch or all branches)
+     * 3. Processing each branch: analyzing files, generating descriptions, detecting errors
+     * 4. Cleaning up orphaned branches (branches that no longer exist in GitHub)
+     * 
+     * @internal
+     * This method orchestrates the entire cache building process. It handles errors gracefully
+     * and continues processing even if individual branches fail.
+     * 
+     * @param param - Execution parameters containing repository info, tokens, AI config, and Supabase config
+     * @returns Array of Result objects indicating success/failure of each operation
+     * 
+     * @remarks
+     * - If no specific branch is provided via `param.commit.branch`, all branches are processed
+     * - Orphaned branch detection runs after processing all branches to ensure accurate comparison
+     * - Each branch is processed independently; failures in one branch don't stop processing of others
+     * 
+     * @example
+     * ```typescript
+     * const useCase = new VectorActionUseCase();
+     * const results = await useCase.invoke(execution);
+     * // Results contain information about processed files, reused cache, and orphaned branches
+     * ```
+     */
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
 
@@ -180,6 +222,51 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
+    /**
+     * Processes and caches files for a specific branch.
+     * 
+     * This method handles the complete file processing pipeline for a single branch:
+     * 1. Retrieves all files from the repository for the given branch
+     * 2. Builds relationship maps (imports/exports) for all files
+     * 3. For each file:
+     *    - Calculates SHA to check if file has changed
+     *    - Skips if SHA matches existing cache (optimization)
+     *    - Reuses description/errors if SHA exists in another branch
+     *    - Generates new AI description if file is new or changed
+     *    - Detects errors using ErrorDetector
+     *    - Saves metadata to Supabase
+     * 4. Removes files from cache that no longer exist in the repository
+     * 
+     * @internal
+     * This is a private method called by invoke() for each branch. It's designed to be
+     * idempotent - running it multiple times on the same branch is safe and efficient.
+     * 
+     * @param param - Execution parameters
+     * @param branch - Branch name to process
+     * @param branchIndex - Current branch index (for progress logging)
+     * @param totalBranches - Total number of branches being processed (for progress logging)
+     * 
+     * @returns Object containing:
+     *   - results: Array of Result objects for this branch
+     *   - filesProcessed: Number of files successfully processed and saved
+     *   - filesReused: Number of files that reused cache from other branches
+     *   - filesSkipped: Number of files skipped (unchanged, same SHA)
+     *   - filesGenerated: Number of files that required new AI description generation
+     *   - filesRemoved: Number of files removed from cache (no longer in repository)
+     *   - success: Whether the branch processing completed successfully
+     * 
+     * @remarks
+     * - File processing is optimized: files with unchanged SHA are skipped entirely
+     * - SHA-based reuse allows sharing descriptions across branches for identical files
+     * - Error detection is optional and failures don't block file caching
+     * - The cleanup phase (removing deleted files) runs after processing all files
+     * 
+     * @example
+     * ```typescript
+     * const result = await prepareCacheOnBranch(execution, 'develop', 1, 3);
+     * // result.filesProcessed = 150, result.filesReused = 50, result.filesSkipped = 200
+     * ```
+     */
     private prepareCacheOnBranch = async (
         param: Execution, 
         branch: string, 
@@ -296,6 +383,8 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             const filePaths = Array.from(repositoryFiles.keys());
             
             // Step 1: Build relationship map once for all files
+            // @internal This is done once upfront for performance - analyzing imports/exports for all files
+            // in a single pass is more efficient than analyzing each file individually
             logSingleLine(`📦 ${branchProgress} Branch ${branch}: Building relationship map for ${repositoryFiles.size} files...`);
             const relationshipMaps = this.fileImportAnalyzer.buildRelationshipMap(repositoryFiles);
             const consumesMap = relationshipMaps.consumes;
@@ -317,9 +406,12 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                 const normalizedPath = filePath;
                 
                 // Calculate SHA for comparison
+                // @internal SHA is used as a content fingerprint - identical files across branches
+                // share the same SHA, allowing us to reuse AI-generated descriptions and error data
                 const currentSHA = this.fileCacheManager.calculateFileSHA(fileContent);
                 
                 // Check if file already exists in target branch with same SHA
+                // @internal Early exit optimization: if SHA matches, file hasn't changed, skip processing
                 const remoteShasum = await supabaseRepository.getShasumByPath(
                     param.owner,
                     param.repo,
@@ -329,12 +421,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
 
                 if (remoteShasum === currentSHA) {
                     // File already exists with same SHA - skip
+                    // @internal This optimization significantly reduces processing time for unchanged files
                     filesSkipped++;
                     continue;
                 }
                 
 
                 // Check if this SHA exists in any branch (to reuse description and errors)
+                // @internal Cross-branch optimization: if the same file content exists in another branch,
+                // we can reuse the AI-generated description and error analysis, saving API calls
                 const existingCache = await supabaseRepository.getAIFileCacheBySha(
                     param.owner,
                     param.repo,
@@ -367,11 +462,14 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
                     filesReused++;
                 } else {
                     // Generate new description using AI
+                    // @internal This path is taken when file is new or changed (SHA doesn't exist in cache)
                     filesGenerated++;
                     
+                    // @internal Fallback description based on file path structure (e.g., "usecase", "repository")
                     description = this.codebaseAnalyzer.generateBasicDescription(filePath);
                     try {
                         // Create schema for single file description
+                        // @internal Structured JSON response ensures consistent format and reduces parsing errors
                         const FILE_DESCRIPTION_SCHEMA = {
                             "type": "object",
                             "description": "File description",
@@ -393,6 +491,8 @@ ${fileContent}
 
 `;
                         
+                        // @internal AI call to generate file description - this is the most expensive operation
+                        // so we try to reuse descriptions whenever possible via SHA matching
                         const aiResponse = await this.aiRepository.askJson(
                             param.ai,
                             descriptionPrompt,
@@ -404,10 +504,14 @@ ${fileContent}
                             description = aiResponse.description.trim();
                         }
                     } catch (error) {
+                        // @internal If AI description generation fails, we continue with fallback description
+                        // This ensures file processing doesn't stop due to AI API issues
                         logError(`Error generating AI description for ${filePath}, using fallback: ${error}`);
                     }
 
                     // Detect errors for this file
+                    // @internal Error detection is optional and runs in parallel with description generation
+                    // Failures in error detection don't block file caching
                     try {
                         const errorInfo = await this.detectErrorsForFile(
                             param,
@@ -426,12 +530,16 @@ ${fileContent}
                             errorsPayload = errorInfo.errors_payload;
                         }
                     } catch (error) {
+                        // @internal Error detection failures are logged but don't block file processing
+                        // Default values (all zeros) are used if detection fails
                         logError(`Error detecting errors for ${filePath}: ${JSON.stringify(error, null, 2)}`);
                         // Continue with default values (all zeros)
                     }
                 }
 
                 // Remove existing cache if SHA changed
+                // @internal When file content changes (SHA differs), we remove old cache entry before saving new one
+                // This ensures cache consistency and prevents stale data
                 if (remoteShasum && remoteShasum !== currentSHA) {
                     await supabaseRepository.removeAIFileCacheByPath(
                         param.owner,
@@ -442,9 +550,13 @@ ${fileContent}
                 }
 
                 // Save to Supabase
+                // @internal All file metadata is saved in a single transaction per file
+                // This includes description, imports/exports, error counts, and error details
                 try {
                     const fileName = normalizedPath.split('/').pop() || normalizedPath;
                     // Use normalizedPath directly to ensure consistency with the query path
+                    // @internal Path normalization ensures consistent storage and retrieval
+                    // Removes leading './' and normalizes path separators (Windows vs Unix)
                     const normalizedConsumes = consumes.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                     const normalizedConsumedBy = consumedBy.map(p => p.replace(/^\.\//, '').replace(/\\/g, '/').trim());
                     
@@ -481,6 +593,8 @@ ${fileContent}
             }
 
             // Step 2: Check for files that exist in Supabase but no longer exist in the repository
+            // @internal This cleanup phase runs after processing all files to identify and remove
+            // files that were deleted from the repository but still exist in the cache
             // logSingleLine(`📦 Checking for files to remove from AI cache (deleted files)...`);
             const remotePaths = await supabaseRepository.getDistinctPaths(
                 param.owner,
@@ -489,12 +603,14 @@ ${fileContent}
             );
 
             // Paths from file_repository are already normalized, use directly
+            // @internal Using Set for O(1) lookup performance when comparing paths
             const localPaths = new Set<string>();
             for (const filePath of repositoryFiles.keys()) {
                 localPaths.add(filePath);
             }
 
             // Find paths that exist in Supabase but not in the current branch
+            // @internal This identifies orphaned file entries that need to be cleaned up
             const pathsToRemove = remotePaths.filter(path => !localPaths.has(path));
 
             let filesRemoved = 0;
@@ -762,8 +878,47 @@ ${fileContent}
     }
 
     /**
-     * Detect errors for a specific file using ErrorDetector
-     * Analyzes only the target file, ignoring related files
+     * Detects errors, bugs, and code quality issues in a single file using ErrorDetector.
+     * 
+     * This method uses the ErrorDetector agent to analyze a file for:
+     * - Syntax errors and bugs
+     * - Security vulnerabilities
+     * - Code quality issues
+     * - Best practice violations
+     * 
+     * The analysis is limited to the target file only (analyzeOnlyTargetFile: true) to:
+     * - Reduce processing time
+     * - Lower API costs
+     * - Prevent analysis loops
+     * - Keep error detection focused and fast
+     * 
+     * @internal
+     * This is a private method called during file processing. Error detection is optional
+     * and failures don't block file caching. The method is designed to be lightweight
+     * and focused on single-file analysis.
+     * 
+     * @param param - Execution parameters containing AI config and repository info
+     * @param branch - Branch name where the file exists
+     * @param filePath - Path to the file to analyze
+     * @param fileContent - Content of the file to analyze
+     * 
+     * @returns Object containing error counts by severity and error details, or null if:
+     *   - AI configuration is missing
+     *   - Error detection fails
+     *   - File analysis cannot be completed
+     * 
+     * @remarks
+     * - Uses maxTurns: 10 to prevent infinite loops in error detection
+     * - analyzeOnlyTargetFile: true ensures only the target file is analyzed (not dependencies)
+     * - Errors are categorized by severity: critical, high, medium, low
+     * - Error types are extracted and stored for filtering/searching
+     * - Full error details are stored as JSON payload for detailed analysis
+     * 
+     * @example
+     * ```typescript
+     * const errorInfo = await detectErrorsForFile(execution, 'develop', 'src/file.ts', content);
+     * // errorInfo = { error_counter_total: 5, error_counter_critical: 1, ... }
+     * ```
      */
     private detectErrorsForFile = async (
         param: Execution,
