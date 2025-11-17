@@ -118,7 +118,11 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             // Get all branches from GitHub for orphaned branch detection
-            // This must be done separately from branchesToProcess to ensure we check against ALL branches
+            // IMPORTANT: This must be done separately from branchesToProcess to ensure we check against ALL branches.
+            // If we only checked against branchesToProcess, we would incorrectly mark branches like 'develop' as
+            // orphaned when processing a single branch, even though 'develop' still exists in GitHub.
+            // 
+            // @internal This is the key fix for bug #280: wrong orphaned branches detection
             let allGitHubBranches: string[] = [];
             try {
                 allGitHubBranches = await this.branchRepository.getListOfBranches(
@@ -564,6 +568,35 @@ ${fileContent}
         };
     }
 
+    /**
+     * Removes orphaned branches from Supabase AI cache.
+     * 
+     * An orphaned branch is a branch that exists in Supabase but no longer exists in GitHub.
+     * This method compares all branches in Supabase against all branches in GitHub to identify
+     * and remove orphaned branches.
+     * 
+     * @internal
+     * This is an internal method used by the VectorActionUseCase. It should not be called directly.
+     * 
+     * @param param - Execution parameters containing owner, repo, and Supabase config
+     * @param githubBranches - Array of all branch names that exist in GitHub (must be complete list, not just processed branches)
+     * 
+     * @returns Array of Result objects indicating success/failure of the operation
+     * 
+     * @remarks
+     * - Branch names are normalized (trimmed) before comparison
+     * - Comparison is case-sensitive (GitHub branch names are case-sensitive)
+     * - Invalid branch names (null, undefined, empty) are filtered out
+     * - If removal of a branch fails, the error is logged but processing continues
+     * 
+     * @example
+     * ```typescript
+     * // This method is called internally by invoke() after processing branches
+     * // It receives ALL branches from GitHub, not just the ones being processed
+     * const allBranches = await branchRepository.getListOfBranches(owner, repo, token);
+     * const results = await removeOrphanedBranches(execution, allBranches);
+     * ```
+     */
     private removeOrphanedBranches = async (param: Execution, githubBranches: string[]) => {
         const results: Result[] = [];
         
@@ -587,6 +620,8 @@ ${fileContent}
             logInfo(`📦 Checking for orphaned branches in Supabase (branches that no longer exist in GitHub)...`);
             
             // Validate and normalize GitHub branches
+            // Filter out invalid entries (null, undefined, empty strings) and normalize whitespace
+            // @internal This prevents false positives from corrupted data
             const normalizedGitHubBranches = githubBranches
                 .filter(branch => branch != null && branch !== undefined && branch.trim() !== '')
                 .map(branch => branch.trim());
@@ -627,19 +662,22 @@ ${fileContent}
                 return results;
             }
 
-            // Normalize Supabase branches
+            // Normalize Supabase branches (same normalization as GitHub branches)
+            // @internal Ensures consistent comparison between GitHub and Supabase branch names
             const normalizedSupabaseBranches = supabaseBranches
                 .filter(branch => branch != null && branch !== undefined && branch.trim() !== '')
                 .map(branch => branch.trim());
 
-            // Create a Set for faster lookup (case-sensitive comparison as GitHub branch names are case-sensitive)
+            // Create a Set for faster O(1) lookup
+            // @internal Case-sensitive comparison: GitHub branch names are case-sensitive (e.g., 'develop' != 'Develop')
             const githubBranchesSet = new Set(normalizedGitHubBranches);
 
             // Debug logging
             logInfo(`📦 Comparing ${normalizedSupabaseBranches.length} Supabase branch(es) against ${normalizedGitHubBranches.length} GitHub branch(es).`);
 
             // Find branches that exist in Supabase but not in GitHub
-            // Use exact match (case-sensitive) as GitHub branch names are case-sensitive
+            // @internal Uses Set.has() for O(1) lookup performance
+            // @internal Logs each orphaned branch for debugging purposes
             const orphanedBranches = normalizedSupabaseBranches.filter(branch => {
                 const isOrphaned = !githubBranchesSet.has(branch);
                 if (isOrphaned) {

@@ -279,6 +279,121 @@ describe('VectorActionUseCase - Orphaned Branch Detection', () => {
         'feature/special@branch'
       );
     });
+
+    it('should handle duplicate branch names in GitHub list', async () => {
+      // Setup: Duplicate branches in GitHub (should be deduplicated by Set)
+      const githubBranches = ['develop', 'main', 'develop', 'feature/test']; // 'develop' appears twice
+      const supabaseBranches = ['develop', 'main', 'feature/test'];
+
+      mockSupabaseRepository.getDistinctBranches.mockResolvedValue(supabaseBranches);
+
+      const results = await (useCase as any).removeOrphanedBranches(mockExecution, githubBranches);
+
+      // Should handle duplicates correctly (Set deduplicates)
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).not.toHaveBeenCalled();
+      expect(results[0].success).toBe(true);
+      expect(results[0].steps[0]).toContain('No orphaned branches found');
+    });
+
+    it('should handle duplicate branch names in Supabase list', async () => {
+      // Setup: Duplicate branches in Supabase (should be deduplicated)
+      const githubBranches = ['develop', 'main'];
+      const supabaseBranches = ['develop', 'main', 'develop', 'feature/orphaned']; // 'develop' appears twice
+
+      mockSupabaseRepository.getDistinctBranches.mockResolvedValue(supabaseBranches);
+      mockSupabaseRepository.removeAIFileCacheByBranch.mockResolvedValue(undefined);
+
+      const results = await (useCase as any).removeOrphanedBranches(mockExecution, githubBranches);
+
+      // Should only remove 'feature/orphaned' once, not 'develop' (even though it appears twice)
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).toHaveBeenCalledWith(
+        'test-owner',
+        'test-repo',
+        'feature/orphaned'
+      );
+    });
+
+    it('should handle partial failures when removing multiple orphaned branches', async () => {
+      // Setup: Multiple orphaned branches, one fails to remove
+      const githubBranches = ['develop'];
+      const supabaseBranches = ['develop', 'feature/branch1', 'feature/branch2', 'feature/branch3'];
+
+      mockSupabaseRepository.getDistinctBranches.mockResolvedValue(supabaseBranches);
+      mockSupabaseRepository.removeAIFileCacheByBranch
+        .mockResolvedValueOnce(undefined) // branch1 succeeds
+        .mockRejectedValueOnce(new Error('Database error')) // branch2 fails
+        .mockResolvedValueOnce(undefined); // branch3 succeeds
+
+      const results = await (useCase as any).removeOrphanedBranches(mockExecution, githubBranches);
+
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).toHaveBeenCalledTimes(3);
+      expect(logError).toHaveBeenCalled();
+      
+      // Should have success result for removed branches and error result for failures
+      const successResults = results.filter((r: Result) => r.success);
+      const errorResults = results.filter((r: Result) => !r.success);
+      
+      expect(successResults.length).toBeGreaterThan(0);
+      expect(errorResults.length).toBeGreaterThan(0);
+      expect(errorResults[0].errors[0]).toContain('Failed to remove');
+    });
+
+    it('should handle very long branch names', async () => {
+      // Setup: Branch with very long name
+      const longBranchName = 'feature/' + 'a'.repeat(200); // Very long branch name
+      const githubBranches = ['develop', 'main'];
+      const supabaseBranches = ['develop', 'main', longBranchName];
+
+      mockSupabaseRepository.getDistinctBranches.mockResolvedValue(supabaseBranches);
+      mockSupabaseRepository.removeAIFileCacheByBranch.mockResolvedValue(undefined);
+
+      const results = await (useCase as any).removeOrphanedBranches(mockExecution, githubBranches);
+
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).toHaveBeenCalledWith(
+        'test-owner',
+        'test-repo',
+        longBranchName
+      );
+    });
+
+    it('should handle Unicode characters in branch names', async () => {
+      // Setup: Branches with Unicode characters
+      const githubBranches = ['develop', 'main'];
+      const supabaseBranches = ['develop', 'main', 'feature/测试', 'feature/café'];
+
+      mockSupabaseRepository.getDistinctBranches.mockResolvedValue(supabaseBranches);
+      mockSupabaseRepository.removeAIFileCacheByBranch.mockResolvedValue(undefined);
+
+      const results = await (useCase as any).removeOrphanedBranches(mockExecution, githubBranches);
+
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).toHaveBeenCalledTimes(2);
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).toHaveBeenCalledWith(
+        'test-owner',
+        'test-repo',
+        'feature/测试'
+      );
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).toHaveBeenCalledWith(
+        'test-owner',
+        'test-repo',
+        'feature/café'
+      );
+    });
+
+    it('should handle branches with only whitespace after normalization', async () => {
+      // Setup: Branches that become empty after trim
+      const githubBranches = ['develop', 'main'];
+      const supabaseBranches = ['develop', 'main', '   ', '\t\t', '\n\n'];
+
+      mockSupabaseRepository.getDistinctBranches.mockResolvedValue(supabaseBranches);
+
+      const results = await (useCase as any).removeOrphanedBranches(mockExecution, githubBranches);
+
+      // Should filter out whitespace-only branches
+      expect(mockSupabaseRepository.removeAIFileCacheByBranch).not.toHaveBeenCalled();
+      expect(results[0].success).toBe(true);
+      expect(results[0].steps[0]).toContain('No orphaned branches found');
+    });
   });
 
   describe('invoke - Integration with removeOrphanedBranches', () => {
