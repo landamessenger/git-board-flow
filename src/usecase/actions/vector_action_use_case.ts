@@ -118,12 +118,35 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             // Get all branches from GitHub for orphaned branch detection
-            const allGitHubBranches = await this.branchRepository.getListOfBranches(
-                param.owner,
-                param.repo,
-                param.tokens.token
-            );
-            results.push(...await this.removeOrphanedBranches(param, allGitHubBranches));
+            // This must be done separately from branchesToProcess to ensure we check against ALL branches
+            let allGitHubBranches: string[] = [];
+            try {
+                allGitHubBranches = await this.branchRepository.getListOfBranches(
+                    param.owner,
+                    param.repo,
+                    param.tokens.token
+                );
+                logInfo(`📦 Retrieved ${allGitHubBranches.length} branch(es) from GitHub for orphaned branch detection.`);
+            } catch (error) {
+                logError(`📦 ❌ Error retrieving branches from GitHub for orphaned branch detection: ${JSON.stringify(error, null, 2)}`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: [
+                            `Error retrieving branches from GitHub for orphaned branch detection: ${JSON.stringify(error, null, 2)}`,
+                        ],
+                    })
+                );
+                // Continue execution even if we can't check for orphaned branches
+            }
+            
+            if (allGitHubBranches.length > 0) {
+                results.push(...await this.removeOrphanedBranches(param, allGitHubBranches));
+            } else {
+                logInfo(`📦 Skipping orphaned branch detection: No branches retrieved from GitHub.`);
+            }
 
             results.push(
                 new Result({
@@ -563,6 +586,26 @@ ${fileContent}
         try {
             logInfo(`📦 Checking for orphaned branches in Supabase (branches that no longer exist in GitHub)...`);
             
+            // Validate and normalize GitHub branches
+            const normalizedGitHubBranches = githubBranches
+                .filter(branch => branch != null && branch !== undefined && branch.trim() !== '')
+                .map(branch => branch.trim());
+            
+            if (normalizedGitHubBranches.length === 0) {
+                logInfo(`📦 No valid branches from GitHub to compare against.`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `No valid branches from GitHub to compare against.`,
+                        ],
+                    })
+                );
+                return results;
+            }
+
             // Get all branches from Supabase
             const supabaseBranches = await supabaseRepository.getDistinctBranches(
                 param.owner,
@@ -584,11 +627,26 @@ ${fileContent}
                 return results;
             }
 
-            // Create a Set for faster lookup
-            const githubBranchesSet = new Set(githubBranches);
+            // Normalize Supabase branches
+            const normalizedSupabaseBranches = supabaseBranches
+                .filter(branch => branch != null && branch !== undefined && branch.trim() !== '')
+                .map(branch => branch.trim());
+
+            // Create a Set for faster lookup (case-sensitive comparison as GitHub branch names are case-sensitive)
+            const githubBranchesSet = new Set(normalizedGitHubBranches);
+
+            // Debug logging
+            logInfo(`📦 Comparing ${normalizedSupabaseBranches.length} Supabase branch(es) against ${normalizedGitHubBranches.length} GitHub branch(es).`);
 
             // Find branches that exist in Supabase but not in GitHub
-            const orphanedBranches = supabaseBranches.filter(branch => !githubBranchesSet.has(branch));
+            // Use exact match (case-sensitive) as GitHub branch names are case-sensitive
+            const orphanedBranches = normalizedSupabaseBranches.filter(branch => {
+                const isOrphaned = !githubBranchesSet.has(branch);
+                if (isOrphaned) {
+                    logInfo(`📦 Branch '${branch}' found in Supabase but not in GitHub (will be marked as orphaned).`);
+                }
+                return isOrphaned;
+            });
 
             if (orphanedBranches.length === 0) {
                 logInfo(`📦 No orphaned branches found. All Supabase branches exist in GitHub.`);
