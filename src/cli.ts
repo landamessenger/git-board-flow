@@ -11,6 +11,7 @@ import { registerAgentTestCommands } from './agent_tester_commands';
 import { registerMCPTestCommands } from './mcp_tester_commands';
 import { registerSubAgentTestCommands } from './sub_agent_tester_commands';
 import { registerTECTestCommands } from './tec_tester_commands';
+import { Copilot, CopilotOptions } from './agent/reasoning/copilot';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -196,6 +197,125 @@ program
 
     // logInfo(JSON.stringify(params, null, 2));
     runLocalAction(params);
+  });
+
+/**
+ * Copilot agent - Advanced reasoning and code-manipulation capabilities.
+ * Can analyze, explain, answer questions about, and modify source code.
+ */
+program
+  .command('copilot')
+  .description(`${TITLE} - AI development assistant for code analysis and manipulation`)
+  .option('-p, --prompt <prompt...>', 'Prompt or question for the copilot agent (required)', '')
+  .option('-b, --branch <name>', 'Branch name', 'master')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('--openrouter-api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+  .option('--openrouter-model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
+  .option('--max-turns <number>', 'Maximum turns', '50')
+  .option('--working-dir <dir>', 'Working directory for file operations', 'copilot_dummy')
+  .option('--use-subagents', 'Use subagents for parallel processing (recommended for large codebases)', false)
+  .option('--max-concurrent-subagents <number>', 'Maximum concurrent subagents', '5')
+  .option('--output <format>', 'Output format (text|json)', 'text')
+  .action(async (options) => {    
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+
+    // Helper function to clean CLI arguments that may have '=' prefix
+    const cleanArg = (value: any): string => {
+      if (!value) return '';
+      const str = String(value);
+      return str.startsWith('=') ? str.substring(1) : str;
+    };
+
+    const promptParts = (options.prompt || []).map(cleanArg);
+    const prompt = promptParts.join(' ');
+
+    if (!prompt || prompt.length === 0) {
+      console.log('❌ Please provide a prompt using -p or --prompt');
+      return;
+    }
+
+    const branch = cleanArg(options.branch);
+    const apiKey = cleanArg(options.openrouterApiKey);
+    const model = cleanArg(options.openrouterModel);
+    const token = cleanArg(options.token);
+    const maxTurns = parseInt(cleanArg(options.maxTurns)) || 50;
+    const workingDir = cleanArg(options.workingDir) || 'copilot_dummy';
+    const useSubAgents = options.useSubagents === true;
+    const maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
+    const outputFormat = cleanArg(options.output) || 'text';
+
+    if (!apiKey) {
+      console.log('❌ OpenRouter API key required. Set OPENROUTER_API_KEY or use --openrouter-api-key');
+      return;
+    }
+
+    try {
+      const copilotOptions: CopilotOptions = {
+        model: model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+        apiKey: apiKey,
+        personalAccessToken: token,
+        maxTurns: maxTurns,
+        repositoryOwner: gitInfo.owner,
+        repositoryName: gitInfo.repo,
+        repositoryBranch: branch,
+        workingDirectory: workingDir,
+        useSubAgents: useSubAgents,
+        maxConcurrentSubAgents: maxConcurrentSubAgents
+      };
+
+      const copilot = new Copilot(copilotOptions);
+      const result = await copilot.processPrompt(prompt);
+
+      if (outputFormat === 'json') {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      // Text output (default)
+      console.log('\n' + '='.repeat(80));
+      console.log('🤖 COPILOT RESPONSE');
+      console.log('='.repeat(80));
+      console.log(`\n${result.response}\n`);
+
+      if (result.changes && result.changes.length > 0) {
+        console.log('='.repeat(80));
+        console.log('📝 CHANGES MADE');
+        console.log('='.repeat(80));
+        result.changes.forEach((change, index) => {
+          console.log(`\n${index + 1}. ${change.file}`);
+          console.log(`   Type: ${change.changeType}`);
+          if (change.description) {
+            console.log(`   Description: ${change.description}`);
+          }
+        });
+        console.log('');
+      }
+
+      if (result.agentResult.metrics) {
+        console.log('='.repeat(80));
+        console.log('📊 METRICS');
+        console.log('='.repeat(80));
+        console.log(`   - Total Turns: ${result.agentResult.turns.length}`);
+        console.log(`   - Tool Calls: ${result.agentResult.toolCalls.length}`);
+        console.log(`   - Input Tokens: ${result.agentResult.metrics.totalTokens.input}`);
+        console.log(`   - Output Tokens: ${result.agentResult.metrics.totalTokens.output}`);
+        console.log(`   - Total Duration: ${result.agentResult.metrics.totalDuration}ms`);
+        console.log(`   - Average Latency: ${result.agentResult.metrics.averageLatency}ms`);
+        console.log('');
+      }
+    } catch (error: any) {
+      console.error('❌ Error executing copilot:', error.message || error);
+      if (options.debug) {
+        console.error(error);
+      }
+      process.exit(1);
+    }
   });
 
 /**
