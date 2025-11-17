@@ -1,7 +1,7 @@
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
 import { FileRepository } from '../../data/repository/file_repository';
-import { SupabaseRepository, AICachedFileInfo } from '../../data/repository/supabase_repository';
+import { SupabaseRepository } from '../../data/repository/supabase_repository';
 import { AiRepository } from '../../data/repository/ai_repository';
 import { logError, logInfo, logSingleLine, logDebugInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
