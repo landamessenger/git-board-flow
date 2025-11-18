@@ -85,9 +85,19 @@ export class SubagentHandler {
         }
       }
       
+      // Add explicit instruction for subagents about applying changes
+      const subagentInstruction = `\n\n**CRITICAL INSTRUCTION FOR SUBAGENTS**: 
+When the user gives orders to CREATE, WRITE, MAKE, BUILD, SET UP, or MODIFY files:
+1. Call propose_change to prepare changes
+2. **IMMEDIATELY** call apply_changes to write files to disk
+3. **DO NOT** stop after propose_change - you MUST call apply_changes
+4. **DO NOT** execute commands until files are on disk
+
+If you only propose changes without applying them, you have FAILED your task. Files must exist on disk!`;
+      
       return {
         name: `copilot-${index + 1}`,
-        prompt: `${userPrompt}${fileListSection}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
+        prompt: `${userPrompt}${fileListSection}${subagentInstruction}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
         systemPrompt,
         tools
       };
