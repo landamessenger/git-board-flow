@@ -213,7 +213,7 @@ program
   .option('--openrouter-api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
   .option('--openrouter-model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
   .option('--max-turns <number>', 'Maximum turns', '50')
-  .option('--working-dir <dir>', 'Working directory for file operations', 'copilot_dummy')
+  .option('--working-dir <dir>', 'Working directory for file operations (default: current directory)')
   .option('--use-subagents', 'Use subagents for parallel processing (recommended for large codebases)', false)
   .option('--max-concurrent-subagents <number>', 'Maximum concurrent subagents', '5')
   .option('--output <format>', 'Output format (text|json)', 'text')
@@ -245,7 +245,7 @@ program
     const model = cleanArg(options.openrouterModel);
     const token = cleanArg(options.token);
     const maxTurns = parseInt(cleanArg(options.maxTurns)) || 50;
-    const workingDir = cleanArg(options.workingDir) || 'copilot_dummy';
+    const workingDir = cleanArg(options.workingDir) || process.cwd();
     const useSubAgents = options.useSubagents === true;
     const maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
     const outputFormat = cleanArg(options.output) || 'text';

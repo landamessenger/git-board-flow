@@ -30,7 +30,7 @@ export class Copilot {
       repositoryOwner: options.repositoryOwner,
       repositoryName: options.repositoryName,
       repositoryBranch: options.repositoryBranch,
-      workingDirectory: options.workingDirectory || 'copilot_dummy',
+      workingDirectory: options.workingDirectory || process.cwd(),
       useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
       maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
     };
@@ -57,7 +57,7 @@ export class Copilot {
     logInfo(`   - Max Turns: ${this.options.maxTurns}`);
     logInfo(`   - Repository: ${this.options.repositoryOwner}/${this.options.repositoryName || 'N/A'}`);
     logInfo(`   - Branch: ${this.options.repositoryBranch || 'N/A'}`);
-    logInfo(`   - Working Directory: ${this.options.workingDirectory || 'copilot_dummy'}`);
+    logInfo(`   - Working Directory: ${this.options.workingDirectory || process.cwd()}`);
 
     // Initialize agent if not already initialized
     if (!this.agent) {

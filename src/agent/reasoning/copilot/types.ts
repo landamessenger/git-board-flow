@@ -15,7 +15,7 @@ export interface CopilotOptions {
   repositoryOwner?: string;
   repositoryName?: string;
   repositoryBranch?: string; // Branch to analyze (required if repositoryOwner and repositoryName are provided)
-  workingDirectory?: string; // Working directory for file operations (default: 'copilot_dummy')
+  workingDirectory?: string; // Working directory for file operations (default: current directory)
   useSubAgents?: boolean; // Use subagents to parallelize file reading (default: false)
   maxConcurrentSubAgents?: number; // Maximum number of subagents to run in parallel (default: 5)
   userPrompt?: string; // Original user prompt for context (used for auto-detecting auto_apply)

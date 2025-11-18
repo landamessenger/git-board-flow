@@ -24,7 +24,7 @@ export class ApplyChangesTool extends BaseTool {
   }
 
   getDescription(): string {
-    return 'Apply proposed changes from the virtual codebase to the actual file system. Only applies changes to files within the working directory (copilot_dummy by default) for safety. Use this after proposing changes with propose_change to write them to disk.';
+    return 'Apply proposed changes from the virtual codebase to the actual file system. Only applies changes to files within the working directory (current directory by default) for safety. Use this after proposing changes with propose_change to write them to disk.';
   }
 
   getInputSchema(): {

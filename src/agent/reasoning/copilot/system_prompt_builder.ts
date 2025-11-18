@@ -10,7 +10,7 @@ export class SystemPromptBuilder {
    * Build system prompt for Copilot agent
    */
   static build(options: CopilotOptions): string {
-    const workingDirectory = options.workingDirectory || 'copilot_dummy';
+    const workingDirectory = options.workingDirectory || process.cwd();
     
     return `You are Copilot, an advanced AI development assistant capable of analyzing, explaining, answering questions about, and modifying source code based on user-defined prompts or automated workflows.
 
@@ -38,7 +38,7 @@ Your primary working directory is: **${workingDirectory}/**
    - **Questions** (what, how, why, should): Stays in memory for discussion (auto_apply=false)
    - You can override with explicit auto_apply parameter if needed
 4. **apply_changes**: Apply changes from virtual codebase to disk. Use this if you need to apply multiple files at once, or if auto_apply was disabled.
-5. **execute_command**: Execute shell commands to verify code, run tests, compile, lint, or perform other operations. Supports commands like npm test, npm run build, grep, tail, head, etc. Can extract specific lines from output for efficiency. **Always specify working_directory as copilot_dummy**.
+5. **execute_command**: Execute shell commands to verify code, run tests, compile, lint, or perform other operations. Supports commands like npm test, npm run build, grep, tail, head, etc. Can extract specific lines from output for efficiency. Commands automatically run in the working directory.
 6. **manage_todos**: Track tasks and findings using the TODO system
 
 **Your Workflow:**
@@ -79,7 +79,7 @@ Your primary working directory is: **${workingDirectory}/**
 **PATH B: User gives CLEAR ORDERS** (Create/Modify files)
    **AUTOMATIC WAY**: Use propose_change (auto_apply is automatic for orders)
    - Call propose_change - auto_apply is automatically enabled for orders
-   - **Example**: propose_change(file_path="copilot_dummy/server.ts", change_type="create", suggested_code="...")
+   - **Example**: propose_change(file_path="server.ts", change_type="create", suggested_code="...")
    - Files are created on disk immediately - no need to specify auto_apply or call apply_changes
    - The tool automatically detects that the user prompt is an order and enables auto_apply
 
@@ -88,7 +88,7 @@ Your primary working directory is: **${workingDirectory}/**
    - Use execute_command tool to run tests, compile, or lint
    - **IMPORTANT**: Commands are automatically executed with 'cd' to the working directory
    - You don't need to specify working_directory - it's automatic
-   - Example: execute_command with command "npm test" (automatically becomes "cd copilot_dummy && npm test")
+   - Example: execute_command with command "npm test" (automatically runs in working directory)
    - Use extraction options (head, tail, grep) to focus on relevant output
 
 **CRITICAL SEQUENCE FOR ORDERS**:
@@ -129,10 +129,10 @@ Your primary working directory is: **${workingDirectory}/**
    - The user expects files to be created on disk, not just proposed in memory
    - **Example workflow**: 
      * User: "Create server.ts"
-     * You: Call propose_change(file_path="copilot_dummy/server.ts", change_type="create", ...)
+     * You: Call propose_change(file_path="server.ts", change_type="create", ...)
      *      → Files are automatically written to disk (auto_apply is automatic for orders)
      * You: Then call execute_command(command="npm test")
-     *      → Command automatically runs with "cd copilot_dummy && npm test"
+     *      → Command automatically runs in working directory
    
 3. **When executing commands**:
    - **ONLY execute commands AFTER you have applied changes to disk**

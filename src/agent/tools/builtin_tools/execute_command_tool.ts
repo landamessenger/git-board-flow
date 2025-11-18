@@ -25,11 +25,11 @@ export class ExecuteCommandTool extends BaseTool {
   getDescription(): string {
     return `Execute shell commands to verify code, run tests, compile, lint, or perform other operations. 
     
-**IMPORTANT**: Commands are automatically executed with 'cd' to the working directory (copilot_dummy by default) to ensure they run in the correct location. This prevents accidentally affecting the main project.
+**IMPORTANT**: Commands are automatically executed with 'cd' to the working directory (current directory by default) to ensure they run in the correct location.
 
 **How it works**:
 - Commands are automatically prefixed with 'cd working_directory &&' to ensure execution in the correct directory
-- Example: "npm test" becomes "cd copilot_dummy && npm test"
+- Example: "npm test" becomes "cd <working_directory> && npm test"
 - You don't need to manually add 'cd' - it's done automatically
 
 You can use common Unix commands like:
@@ -56,7 +56,7 @@ The output will be captured and returned. Use this to verify that changes are co
         },
         working_directory: {
           type: 'string',
-          description: 'Working directory to execute the command in (default: working directory like copilot_dummy, NOT the project root). Always specify this explicitly to ensure commands run in the correct location.'
+          description: 'Working directory to execute the command in (default: current directory). Commands automatically run in the working directory unless specified otherwise.'
         },
         extract_lines: {
           type: 'object',

@@ -140,7 +140,7 @@ export class AgentInitializer {
   ) {
     // Virtual codebase for proposed changes (must be declared first)
     const virtualCodebase = new Map<string, string>(repositoryFiles);
-    const workingDir = options.workingDirectory || 'copilot_dummy';
+    const workingDir = options.workingDirectory || process.cwd();
     
     const readFileTool = new ReadFileTool({
       getFileContent: (filePath: string) => {
@@ -150,11 +150,13 @@ export class AgentInitializer {
         }
         
         // Then check if file exists on disk (for working directory files)
-        if (filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\')) {
-          const fullPath = path.resolve(filePath);
-          if (fs.existsSync(fullPath)) {
+        // Normalize both paths for comparison
+        const normalizedFilePath = path.resolve(filePath);
+        const normalizedWorkingDir = path.resolve(workingDir);
+        if (normalizedFilePath.startsWith(normalizedWorkingDir + path.sep) || normalizedFilePath === normalizedWorkingDir) {
+          if (fs.existsSync(normalizedFilePath)) {
             try {
-              return fs.readFileSync(fullPath, 'utf8');
+              return fs.readFileSync(normalizedFilePath, 'utf8');
             } catch (error) {
               // Ignore read errors
             }
@@ -206,7 +208,13 @@ export class AgentInitializer {
       // Auto-apply to disk when auto_apply=true is used
       autoApplyToDisk: async (filePath: string) => {
         try {
-          const isInWorkingDir = filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\');
+          // Normalize both paths for comparison
+          const normalizedFilePath = path.resolve(filePath);
+          const normalizedWorkingDir = path.resolve(workingDir);
+          
+          // Check if file is within working directory
+          const isInWorkingDir = normalizedFilePath.startsWith(normalizedWorkingDir + path.sep) || 
+                                  normalizedFilePath === normalizedWorkingDir;
           if (!isInWorkingDir) {
             logWarn(`⚠️  Cannot auto-apply ${filePath} - outside working directory (${workingDir})`);
             return false;
@@ -218,7 +226,7 @@ export class AgentInitializer {
             return false;
           }
 
-          const fullPath = path.resolve(filePath);
+          const fullPath = normalizedFilePath;
           const dir = path.dirname(fullPath);
           
           // Ensure directory exists
