@@ -214,7 +214,8 @@ program
   .option('--openrouter-model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
   .option('--max-turns <number>', 'Maximum turns', '50')
   .option('--working-dir <dir>', 'Working directory for file operations (default: current directory)')
-  .option('--use-subagents', 'Use subagents for parallel processing (recommended for large codebases)', false)
+  .option('--use-subagents', 'Use subagents for parallel processing (recommended for large codebases, enabled by default)', true)
+  .option('--no-use-subagents', 'Disable subagents (use single agent instead)')
   .option('--max-concurrent-subagents <number>', 'Maximum concurrent subagents', '5')
   .option('--output <format>', 'Output format (text|json)', 'text')
   .action(async (options) => {    
@@ -246,7 +247,9 @@ program
     const token = cleanArg(options.token);
     const maxTurns = parseInt(cleanArg(options.maxTurns)) || 50;
     const workingDir = cleanArg(options.workingDir) || process.cwd();
-    const useSubAgents = options.useSubagents === true;
+    // Handle subagents flag: default is true, can be disabled with --no-use-subagents
+    // Commander.js sets useSubagents to false when --no-use-subagents is used
+    const useSubAgents = options.useSubagents !== false;
     const maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
     const outputFormat = cleanArg(options.output) || 'text';
 
