@@ -13,6 +13,7 @@ export interface ProposeChangeToolOptions {
         reasoning: string;
     }) => boolean;
     onChangeApplied?: (change: any) => void;
+    autoApplyToDisk?: (filePath: string) => Promise<boolean>;
 }
 export declare class ProposeChangeTool extends BaseTool {
     private options;

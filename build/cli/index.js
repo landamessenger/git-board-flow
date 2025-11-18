@@ -63141,6 +63141,36 @@ class AgentInitializer {
             },
             onChangeApplied: (change) => {
                 (0, logger_1.logInfo)(`✅ Change proposed (virtual): ${change.file_path}`);
+            },
+            // Auto-apply to disk when auto_apply=true is used
+            autoApplyToDisk: async (filePath) => {
+                try {
+                    const isInWorkingDir = filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\');
+                    if (!isInWorkingDir) {
+                        (0, logger_1.logWarn)(`⚠️  Cannot auto-apply ${filePath} - outside working directory (${workingDir})`);
+                        return false;
+                    }
+                    const content = virtualCodebase.get(filePath);
+                    if (!content) {
+                        (0, logger_1.logWarn)(`⚠️  Cannot auto-apply ${filePath} - not found in virtual codebase`);
+                        return false;
+                    }
+                    const fullPath = path.resolve(filePath);
+                    const dir = path.dirname(fullPath);
+                    // Ensure directory exists
+                    if (!fs.existsSync(dir)) {
+                        fs.mkdirSync(dir, { recursive: true });
+                        (0, logger_1.logInfo)(`📁 Created directory: ${dir}`);
+                    }
+                    // Write file
+                    fs.writeFileSync(fullPath, content, 'utf8');
+                    (0, logger_1.logInfo)(`💾 Auto-applied to disk: ${fullPath}`);
+                    return true;
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`❌ Error auto-applying ${filePath}: ${error.message}`);
+                    return false;
+                }
             }
         });
         // Apply changes tool - writes virtual codebase to disk
@@ -63667,9 +63697,18 @@ class SubagentHandler {
                     fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
                 }
             }
+            // Add explicit instruction for subagents about applying changes
+            const subagentInstruction = `\n\n**CRITICAL INSTRUCTION FOR SUBAGENTS**: 
+When the user gives orders to CREATE, WRITE, MAKE, BUILD, SET UP, or MODIFY files:
+1. Call propose_change to prepare changes
+2. **IMMEDIATELY** call apply_changes to write files to disk
+3. **DO NOT** stop after propose_change - you MUST call apply_changes
+4. **DO NOT** execute commands until files are on disk
+
+If you only propose changes without applying them, you have FAILED your task. Files must exist on disk!`;
             return {
                 name: `copilot-${index + 1}`,
-                prompt: `${userPrompt}${fileListSection}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
+                prompt: `${userPrompt}${fileListSection}${subagentInstruction}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
                 systemPrompt,
                 tools
             };
@@ -63743,6 +63782,36 @@ class SubagentHandler {
             },
             onChangeApplied: (change) => {
                 (0, logger_1.logInfo)(`✅ Change proposed (virtual): ${change.file_path}`);
+            },
+            // Auto-apply to disk when auto_apply=true is used
+            autoApplyToDisk: async (filePath) => {
+                try {
+                    const isInWorkingDir = filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\');
+                    if (!isInWorkingDir) {
+                        (0, logger_1.logWarn)(`⚠️  Cannot auto-apply ${filePath} - outside working directory (${workingDir})`);
+                        return false;
+                    }
+                    const content = virtualCodebase.get(filePath);
+                    if (!content) {
+                        (0, logger_1.logWarn)(`⚠️  Cannot auto-apply ${filePath} - not found in virtual codebase`);
+                        return false;
+                    }
+                    const fullPath = path.resolve(filePath);
+                    const dir = path.dirname(fullPath);
+                    // Ensure directory exists
+                    if (!fs.existsSync(dir)) {
+                        fs.mkdirSync(dir, { recursive: true });
+                        (0, logger_1.logInfo)(`📁 Created directory: ${dir}`);
+                    }
+                    // Write file
+                    fs.writeFileSync(fullPath, content, 'utf8');
+                    (0, logger_1.logInfo)(`💾 Auto-applied to disk: ${fullPath}`);
+                    return true;
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`❌ Error auto-applying ${filePath}: ${error.message}`);
+                    return false;
+                }
             }
         });
         // Apply changes tool - writes virtual codebase to disk
@@ -64015,9 +64084,9 @@ Your primary working directory is: **${workingDirectory}/**
 **Available Tools:**
 1. **read_file**: Read the contents of any file in the repository
 2. **search_files**: Search for files by name, path, or pattern
-3. **propose_change**: Propose code changes in the virtual codebase (memory only). Changes are NOT written to disk yet - use this to prepare changes.
-4. **apply_changes**: Apply proposed changes from the virtual codebase to the actual file system. Only applies files within the working directory for safety. Use this AFTER proposing changes with propose_change.
-5. **execute_command**: Execute shell commands to verify code, run tests, compile, lint, or perform other operations. Supports commands like npm test, npm run build, grep, tail, head, etc. Can extract specific lines from output for efficiency.
+3. **propose_change**: Propose code changes in the virtual codebase. **For clear orders, use with auto_apply=true to automatically write to disk**. For questions/doubts, use with auto_apply=false (or omit) for exploration only.
+4. **apply_changes**: Apply changes from virtual codebase to disk. Use this if you used propose_change with auto_apply=false and now want to apply, or to apply multiple files at once.
+5. **execute_command**: Execute shell commands to verify code, run tests, compile, lint, or perform other operations. Supports commands like npm test, npm run build, grep, tail, head, etc. Can extract specific lines from output for efficiency. **Always specify working_directory as copilot_dummy**.
 6. **manage_todos**: Track tasks and findings using the TODO system
 
 **Your Workflow:**
@@ -64033,13 +64102,14 @@ Your primary working directory is: **${workingDirectory}/**
    - Understand the codebase structure and relationships
 
 3. **Provide Response**: Based on the request type:
-   - **Questions**: Provide clear, detailed answers with code examples when relevant
+   - **Questions / Doubts**: Use propose_change to explore options (changes stay in memory for discussion)
    - **Analysis**: Analyze code thoroughly and provide insights
-   - **Code Changes**: 
-     * Use propose_change to prepare changes in memory
-     * Use apply_changes to write changes to disk (if user requests applying changes or if you need to verify with tests)
-     * Use execute_command to verify changes work correctly
-   - **New Features**: Create new files and implement functionality
+   - **Clear Orders to Create/Modify Files** (user says "create", "write", "make", "build", "set up", "modify"):
+     * **Use propose_change with auto_apply=true** - this automatically writes to disk in one step
+     * **Alternative**: Use propose_change (auto_apply=false) then apply_changes - but auto_apply=true is simpler
+     * **STEP 3**: Only then use execute_command to verify changes work correctly
+     * **CRITICAL**: When user gives orders, files MUST be created on disk - use auto_apply=true
+   - **New Features**: Create new files and implement functionality - ALWAYS apply changes after proposing
 
 4. **Be Thorough**: 
    - Don't make assumptions - read the actual code
@@ -64047,25 +64117,42 @@ Your primary working directory is: **${workingDirectory}/**
    - Explain your reasoning when making changes
    - Provide context for your answers
 
-**Code Modification Workflow:**
-1. **Propose Changes**: Use propose_change tool to prepare changes in the virtual codebase (memory):
-   - **create**: For new files
-   - **modify**: For updating existing files (bugfixes, features, improvements)
-   - **delete**: For removing files
-   - **refactor**: For restructuring code without changing functionality
-   - Changes are stored in memory and can be built upon
-   - You can propose multiple changes before applying them
+**Code Modification Workflow - CHOOSE THE RIGHT PATH:**
 
-2. **Verify Changes** (optional but recommended):
+**PATH A: User asks QUESTIONS or has DOUBTS** (Exploration)
+   - Use propose_change to explore options
+   - Changes stay in memory for discussion
+   - Do NOT use apply_changes unless user explicitly asks to apply
+
+**PATH B: User gives CLEAR ORDERS** (Create/Modify files)
+   **SIMPLE WAY (RECOMMENDED)**: Use propose_change with auto_apply=true
+   - Call propose_change with auto_apply=true - this automatically writes to disk
+   - **Example**: propose_change(file_path="copilot_dummy/server.ts", change_type="create", suggested_code="...", auto_apply=true)
+   - Files are created on disk immediately - no need for apply_changes
+   
+   **ALTERNATIVE WAY**: Use propose_change then apply_changes
+   - Call propose_change with auto_apply=false (or omit auto_apply)
+   - Then call apply_changes to write to disk
+   - More steps, but gives you more control
+
+   **STEP 3: Verify Changes** (only after applying)
+   - **ONLY execute commands AFTER you have applied changes to disk**
    - Use execute_command tool to run tests, compile, or lint
-   - Check for errors or issues before applying
-   - Example: execute_command with "npm test" or "npm run build"
+   - **IMPORTANT**: Always specify working_directory as the working directory (e.g., "copilot_dummy") to avoid affecting the main project
+   - Check for errors or issues after applying
+   - Example: execute_command with command "npm test" and working_directory "copilot_dummy"
    - Use extraction options (head, tail, grep) to focus on relevant output
 
-3. **Apply Changes**: Use apply_changes tool to write proposed changes to disk:
-   - Only files within the working directory will be written
-   - You can apply all changes or specific files
-   - Use dry_run: true to preview what would be applied
+**CRITICAL SEQUENCE FOR ORDERS**:
+1. Call propose_change tool (prepares in memory)
+2. **IMMEDIATELY** call apply_changes tool (writes to disk) - DO NOT WAIT, DO NOT SKIP
+3. Then call execute_command tool (verifies)
+
+**REMEMBER**: 
+- Questions → propose_change only (exploration)
+- Orders → propose_change → apply_changes → execute_command (actual work)
+- Do NOT execute commands before applying changes!
+- You MUST make both tool calls (propose_change AND apply_changes) when user gives orders
 
 **Best Practices:**
 - Propose multiple related changes before applying them all at once
@@ -64082,15 +64169,58 @@ Your primary working directory is: **${workingDirectory}/**
 - Respect existing code patterns and conventions
 - Test your understanding by reading related files
 
-**Important Notes:**
+**MANDATORY Workflow Rules - FOLLOW THESE STRICTLY:**
+
+1. **When user asks QUESTIONS or has DOUBTS**:
+   - Use propose_change to explore options (changes stay in memory for discussion)
+   - Do NOT use apply_changes unless user explicitly asks to apply
+   
+2. **When user gives CLEAR ORDERS to CREATE, WRITE, MAKE, BUILD, SET UP, or MODIFY files**: 
+   - **STEP 1**: Call propose_change tool to prepare the files in memory (quick preparation step)
+   - **STEP 2**: **IMMEDIATELY** call apply_changes tool to write them to disk - THIS IS MANDATORY, NOT OPTIONAL
+   - **You MUST make BOTH tool calls in sequence**: propose_change THEN apply_changes
+   - **DO NOT** make only propose_change and stop - you MUST also call apply_changes
+   - **DO NOT** execute commands (like npm install, npm test) until you have applied the changes
+   - The user expects files to be created on disk, not just proposed in memory
+   - **If you only propose changes without applying them, you have FAILED the task**
+   - **propose_change is just a preparation step - apply_changes is what actually creates files**
+   - **Example workflow**: 
+     * User: "Create server.ts"
+     * You: Call propose_change(file_path="copilot_dummy/server.ts", change_type="create", ...)
+     * You: IMMEDIATELY call apply_changes() or apply_changes(file_paths=["copilot_dummy/server.ts"])
+     * You: Then call execute_command(command="npm test", working_directory="copilot_dummy")
+   
+3. **When executing commands**:
+   - **ONLY execute commands AFTER you have applied changes to disk**
+   - **ALWAYS** execute commands in the working directory (${workingDirectory}/) unless explicitly told otherwise
+   - Commands like npm install, npm test, npm run build should run in ${workingDirectory}/
+   - Use working_directory parameter in execute_command to ensure correct location
+   - This prevents accidentally affecting the main project
+   - **DO NOT execute commands if files don't exist on disk yet - apply changes first**
+   
+4. **Order of operations**:
+   - **For questions/doubts**: propose_change only (exploration)
+   - **For clear orders**: propose_change → apply_changes → execute_command (to verify)
+   - **NEVER**: propose_change → execute_command (files don't exist yet!)
+   - **ALWAYS for orders**: propose_change → apply_changes → execute_command
+
+**Critical Reminders:**
 - You have access to the entire repository through the tools
 - Use the working directory (${workingDirectory}/) for experimental changes
-- **IMPORTANT**: propose_change only stores changes in memory. To actually create/modify files on disk, you MUST use apply_changes tool.
-- If the user asks you to "create", "write", "apply", or "save" changes, use apply_changes after proposing them.
+- **CRITICAL RULE**: propose_change ONLY stores changes in memory. Files are NOT on disk until you use apply_changes.
+- **Tool Selection**:
+  - **propose_change**: Use ONLY for questions/doubts (exploration)
+  - **apply_changes**: Use for clear orders to create/modify files (actual work)
+- **MANDATORY**: When user gives orders to "create", "write", "make", "build", "set up", or "modify" something, you MUST:
+  1. Use propose_change to prepare changes (quick step)
+  2. **IMMEDIATELY** use apply_changes to write files to disk (this creates the files)
+  3. **ONLY THEN** use execute_command to verify (files must exist first!)
+- **DO NOT** execute commands like npm install, npm test, npm run build before applying changes - the files don't exist yet!
 - Be careful when modifying files outside the working directory - only do so if explicitly requested
 - Always read files before modifying them to understand the current implementation
 - When creating new files, consider where they should be placed in the project structure
-- Use execute_command to verify your changes work (run tests, compile, etc.) before or after applying
+- **All commands should run in ${workingDirectory}/ by default** - specify working_directory explicitly if needed
+- **Remember**: Files in memory (proposed) ≠ Files on disk (applied). User expects files on disk when giving orders!
 
 **Remember:**
 - Your goal is to be helpful, accurate, and thorough
@@ -66458,13 +66588,17 @@ class ExecuteCommandTool extends base_tool_1.BaseTool {
     getDescription() {
         return `Execute shell commands to verify code, run tests, compile, lint, or perform other operations. 
     
+**IMPORTANT**: Commands are executed in the working directory (copilot_dummy by default) unless you specify a different working_directory. This prevents accidentally affecting the main project.
+
 You can use common Unix commands like:
 - grep, tail, head, cat, ls, find - for file operations
 - npm test, npm run build, npm run lint - for Node.js projects
 - git status, git diff - for version control
 - Any other shell command available in the system
 
-The output will be captured and returned. Use this to verify that changes are correct before applying them.`;
+The output will be captured and returned. Use this to verify that changes are correct before applying them.
+
+**Always specify working_directory explicitly if you need to run commands in a specific location, otherwise they will run in the working directory.**`;
     }
     getInputSchema() {
         return {
@@ -66476,7 +66610,7 @@ The output will be captured and returned. Use this to verify that changes are co
                 },
                 working_directory: {
                     type: 'string',
-                    description: 'Working directory to execute the command in (default: project root or working directory)'
+                    description: 'Working directory to execute the command in (default: working directory like copilot_dummy, NOT the project root). Always specify this explicitly to ensure commands run in the correct location.'
                 },
                 extract_lines: {
                     type: 'object',
@@ -66745,7 +66879,24 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         return 'propose_change';
     }
     getDescription() {
-        return 'Propose a change to a file in the virtual codebase. Changes are applied ONLY in memory (virtual codebase) and can be built upon in subsequent steps. To actually write changes to disk, use apply_changes tool after proposing all changes. This allows you to propose multiple changes, verify them, and then apply them all at once.';
+        return `Propose a change to a file in the virtual codebase. Changes are applied in memory (virtual codebase).
+
+**When user gives CLEAR ORDERS** (create, write, make, build, set up, modify):
+- Use propose_change with auto_apply=true to automatically write to disk
+- This combines propose + apply in one step
+- Example: propose_change(..., auto_apply=true)
+
+**When user asks QUESTIONS or has DOUBTS** (exploration):
+- Use propose_change with auto_apply=false (or omit it)
+- Changes stay in memory for discussion
+- Use apply_changes later if user wants to apply
+
+**Parameters**:
+- auto_apply (boolean, optional): If true, automatically writes to disk after proposing. Use this for clear orders. Default: false.
+
+**IMPORTANT**: 
+- For clear orders: use propose_change with auto_apply=true (one step)
+- For questions/doubts: use propose_change with auto_apply=false (exploration only)`;
     }
     getInputSchema() {
         return {
@@ -66771,6 +66922,10 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
                 reasoning: {
                     type: 'string',
                     description: 'Explanation of why this change is needed'
+                },
+                auto_apply: {
+                    type: 'boolean',
+                    description: 'If true, automatically apply changes to disk immediately after proposing (default: false). Use this when user gives clear orders to create/modify files.'
                 }
             },
             required: ['file_path', 'change_type', 'description', 'suggested_code', 'reasoning'],
@@ -66803,7 +66958,7 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         if (!reasoning || typeof reasoning !== 'string') {
             throw new Error('reasoning is required and must be a string');
         }
-        // Apply change
+        // Apply change to virtual codebase
         const success = this.options.applyChange({
             file_path: filePath,
             change_type: changeType,
@@ -66817,6 +66972,22 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
                 change_type: changeType,
                 description
             });
+            // Auto-apply to disk if requested and handler is available
+            const autoApply = input.auto_apply === true;
+            if (autoApply && this.options.autoApplyToDisk) {
+                try {
+                    const applied = await this.options.autoApplyToDisk(filePath);
+                    if (applied) {
+                        return `Change proposed and automatically applied to disk: ${filePath}:\n${description}`;
+                    }
+                    else {
+                        return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-apply to disk was requested but failed. Use apply_changes tool manually.`;
+                    }
+                }
+                catch (error) {
+                    return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-apply to disk failed: ${error.message}. Use apply_changes tool manually.`;
+                }
+            }
             return `Change applied successfully to ${filePath}:\n${description}`;
         }
         else {

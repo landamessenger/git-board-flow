@@ -60763,7 +60763,24 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         return 'propose_change';
     }
     getDescription() {
-        return 'Propose a change to a file in the virtual codebase. Changes are applied ONLY in memory (virtual codebase) and can be built upon in subsequent steps. To actually write changes to disk, use apply_changes tool after proposing all changes. This allows you to propose multiple changes, verify them, and then apply them all at once.';
+        return `Propose a change to a file in the virtual codebase. Changes are applied in memory (virtual codebase).
+
+**When user gives CLEAR ORDERS** (create, write, make, build, set up, modify):
+- Use propose_change with auto_apply=true to automatically write to disk
+- This combines propose + apply in one step
+- Example: propose_change(..., auto_apply=true)
+
+**When user asks QUESTIONS or has DOUBTS** (exploration):
+- Use propose_change with auto_apply=false (or omit it)
+- Changes stay in memory for discussion
+- Use apply_changes later if user wants to apply
+
+**Parameters**:
+- auto_apply (boolean, optional): If true, automatically writes to disk after proposing. Use this for clear orders. Default: false.
+
+**IMPORTANT**: 
+- For clear orders: use propose_change with auto_apply=true (one step)
+- For questions/doubts: use propose_change with auto_apply=false (exploration only)`;
     }
     getInputSchema() {
         return {
@@ -60789,6 +60806,10 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
                 reasoning: {
                     type: 'string',
                     description: 'Explanation of why this change is needed'
+                },
+                auto_apply: {
+                    type: 'boolean',
+                    description: 'If true, automatically apply changes to disk immediately after proposing (default: false). Use this when user gives clear orders to create/modify files.'
                 }
             },
             required: ['file_path', 'change_type', 'description', 'suggested_code', 'reasoning'],
@@ -60821,7 +60842,7 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         if (!reasoning || typeof reasoning !== 'string') {
             throw new Error('reasoning is required and must be a string');
         }
-        // Apply change
+        // Apply change to virtual codebase
         const success = this.options.applyChange({
             file_path: filePath,
             change_type: changeType,
@@ -60835,6 +60856,22 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
                 change_type: changeType,
                 description
             });
+            // Auto-apply to disk if requested and handler is available
+            const autoApply = input.auto_apply === true;
+            if (autoApply && this.options.autoApplyToDisk) {
+                try {
+                    const applied = await this.options.autoApplyToDisk(filePath);
+                    if (applied) {
+                        return `Change proposed and automatically applied to disk: ${filePath}:\n${description}`;
+                    }
+                    else {
+                        return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-apply to disk was requested but failed. Use apply_changes tool manually.`;
+                    }
+                }
+                catch (error) {
+                    return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-apply to disk failed: ${error.message}. Use apply_changes tool manually.`;
+                }
+            }
             return `Change applied successfully to ${filePath}:\n${description}`;
         }
         else {
