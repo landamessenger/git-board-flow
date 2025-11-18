@@ -68,7 +68,7 @@ describe('Copilot', () => {
       expect(copilot).toBeDefined();
     });
 
-    it('should set default workingDirectory to copilot_dummy if not provided', () => {
+    it('should set default workingDirectory to current directory if not provided', () => {
       const options: CopilotOptions = {
         apiKey: 'test-key'
       };
@@ -76,6 +76,7 @@ describe('Copilot', () => {
       copilot = new Copilot(options);
 
       expect(copilot).toBeDefined();
+      // The default should be process.cwd() now, not 'copilot_dummy'
     });
 
     it('should use provided workingDirectory', () => {
@@ -457,7 +458,12 @@ describe('Copilot', () => {
         repositoryFiles: new Map()
       });
 
-      copilot = new Copilot(mockOptions);
+      const options: CopilotOptions = {
+        ...mockOptions,
+        useSubAgents: false // Disable sub-agents for this test to use direct agent query
+      };
+
+      copilot = new Copilot(options);
       const result = await copilot.processPrompt('Refactor this code');
 
       expect(result.changes).toBeDefined();
@@ -672,6 +678,73 @@ describe('Copilot', () => {
       await copilot.processPrompt('Simple question');
 
       expect(mockAgent.query).toHaveBeenCalled();
+    });
+
+    it('should use subagents by default when useSubAgents is not specified', async () => {
+      const { AgentInitializer } = require('../agent_initializer');
+      const { SubagentHandler } = require('../subagent_handler');
+      
+      const mockAgent = {} as Agent;
+      const repositoryFiles = new Map<string, string>();
+      // Add more than 20 files to trigger subagents
+      for (let i = 0; i < 25; i++) {
+        repositoryFiles.set(`src/file${i}.ts`, 'content');
+      }
+
+      AgentInitializer.initialize = jest.fn().mockResolvedValue({
+        agent: mockAgent,
+        repositoryFiles
+      });
+
+      SubagentHandler.processPromptWithSubAgents = jest.fn().mockResolvedValue({
+        response: 'Combined response',
+        agentResult: {
+          finalResponse: 'Combined response',
+          turns: [],
+          toolCalls: [],
+          messages: []
+        } as AgentResult,
+        changes: []
+      });
+
+      // useSubAgents is undefined (default should be true)
+      const options: CopilotOptions = {
+        apiKey: 'test-key',
+        repositoryOwner: 'owner',
+        repositoryName: 'repo'
+      };
+
+      copilot = new Copilot(options);
+      await copilot.processPrompt('Analyze all files');
+
+      // Should use subagents by default when files > 20
+      expect(SubagentHandler.processPromptWithSubAgents).toHaveBeenCalled();
+    });
+
+    it('should pass userPrompt to options when initializing', async () => {
+      const { AgentInitializer } = require('../agent_initializer');
+      const mockAgent = {
+        query: jest.fn().mockResolvedValue({
+          finalResponse: 'Test response',
+          turns: [],
+          toolCalls: [],
+          messages: []
+        } as AgentResult)
+      };
+
+      AgentInitializer.initialize = jest.fn().mockResolvedValue({
+        agent: mockAgent,
+        repositoryFiles: new Map()
+      });
+
+      copilot = new Copilot(mockOptions);
+      const userPrompt = 'Create a new file';
+      await copilot.processPrompt(userPrompt);
+
+      // Verify that initialize was called with options including userPrompt
+      expect(AgentInitializer.initialize).toHaveBeenCalled();
+      const callArgs = AgentInitializer.initialize.mock.calls[0][0];
+      expect(callArgs.userPrompt).toBe(userPrompt);
     });
 
     it('should not use subagents when files <= 20 and prompt is simple', async () => {

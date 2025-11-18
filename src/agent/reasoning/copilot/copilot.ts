@@ -31,7 +31,7 @@ export class Copilot {
       repositoryName: options.repositoryName,
       repositoryBranch: options.repositoryBranch,
       workingDirectory: options.workingDirectory || process.cwd(),
-      useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
+      useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : true, // Default to true
       maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
     };
   }
@@ -88,33 +88,35 @@ export class Copilot {
             prompt
           );
         } else {
-      // Warn if many files but sub-agents are disabled
-      if (!this.options.useSubAgents && this.repositoryFiles.size > 20) {
-        logWarn(`⚠️  Many files detected (${this.repositoryFiles.size}) but sub-agents are disabled. This may be slow or hit token limits. Consider enabling sub-agents for better performance.`);
-      }
-      
-      // Execute agent query
-      logInfo('🚀 Executing agent query...');
-      const agentResult: AgentResult = await this.agent.query(prompt);
-      
-      // Extract changes from tool calls
-      const changes = this.extractChanges(agentResult);
-      
-      result = {
-        response: agentResult.finalResponse || 'No response generated',
-        agentResult: agentResult,
-        changes: changes.length > 0 ? changes : undefined
-      };
-    }
+          // Warn if many files but sub-agents are disabled
+          if (!this.options.useSubAgents && this.repositoryFiles.size > 20) {
+            logWarn(`⚠️  Many files detected (${this.repositoryFiles.size}) but sub-agents are disabled. This may be slow or hit token limits. Consider enabling sub-agents for better performance.`);
+          }
+          
+          // Execute agent query
+          logInfo('🚀 Executing agent query...');
+          const agentResult: AgentResult = await this.agent.query(prompt);
+          
+          // Extract changes from tool calls
+          const changes = this.extractChanges(agentResult);
+          
+          result = {
+            response: agentResult.finalResponse || 'No response generated',
+            agentResult: agentResult,
+            changes: changes.length > 0 ? changes : undefined
+          };
+        }
     
     logInfo(`📈 Agent execution completed:`);
-    logInfo(`   - Total Turns: ${result.agentResult.turns.length}`);
-    logInfo(`   - Tool Calls: ${result.agentResult.toolCalls.length}`);
-    if (result.agentResult.metrics) {
-      logInfo(`   - Input Tokens: ${result.agentResult.metrics.totalTokens.input}`);
-      logInfo(`   - Output Tokens: ${result.agentResult.metrics.totalTokens.output}`);
-      logInfo(`   - Total Duration: ${result.agentResult.metrics.totalDuration}ms`);
-      logInfo(`   - Average Latency: ${result.agentResult.metrics.averageLatency}ms`);
+    if (result.agentResult) {
+      logInfo(`   - Total Turns: ${result.agentResult.turns.length}`);
+      logInfo(`   - Tool Calls: ${result.agentResult.toolCalls.length}`);
+      if (result.agentResult.metrics) {
+        logInfo(`   - Input Tokens: ${result.agentResult.metrics.totalTokens.input}`);
+        logInfo(`   - Output Tokens: ${result.agentResult.metrics.totalTokens.output}`);
+        logInfo(`   - Total Duration: ${result.agentResult.metrics.totalDuration}ms`);
+        logInfo(`   - Average Latency: ${result.agentResult.metrics.averageLatency}ms`);
+      }
     }
     if (result.changes && result.changes.length > 0) {
       logInfo(`   - Changes Made: ${result.changes.length}`);

@@ -100,22 +100,29 @@ export class ProposeChangeTool extends BaseTool {
     if (!prompt) return false;
     const promptLower = prompt.toLowerCase();
     
-    // Question indicators
-    const questionIndicators = ['?', 'what', 'how', 'why', 'when', 'where', 'which', 'should', 'could', 'would', 'can you explain', 'tell me', 'describe', 'analyze'];
-    const isQuestion = questionIndicators.some(indicator => promptLower.includes(indicator));
+    // Strong question indicators (these take priority)
+    const strongQuestionIndicators = ['?', 'what', 'how', 'why', 'when', 'where', 'which', 'should', 'could', 'would', 'can you explain', 'tell me', 'describe', 'analyze'];
+    const hasStrongQuestion = strongQuestionIndicators.some(indicator => promptLower.includes(indicator));
     
     // Order indicators
     const orderIndicators = ['create', 'write', 'make', 'build', 'set up', 'modify', 'add', 'implement', 'generate', 'do', 'ensure', 'verify', 'test', 'run', 'execute'];
-    const isOrder = orderIndicators.some(indicator => promptLower.includes(indicator));
+    const hasOrder = orderIndicators.some(indicator => promptLower.includes(indicator));
     
-    // If it's clearly a question, return false
-    if (isQuestion && !isOrder) return false;
+    // If it has a question mark or strong question words, it's a question (not an order)
+    if (hasStrongQuestion) {
+      // Exception: if it's a question about implementing (e.g., "How should I implement X?")
+      // but also contains clear order words without question context, check more carefully
+      if (promptLower.includes('?') || promptLower.startsWith('what') || promptLower.startsWith('how') || 
+          promptLower.startsWith('why') || promptLower.startsWith('when') || promptLower.startsWith('where')) {
+        return false; // Clear question format
+      }
+    }
     
-    // If it's clearly an order, return true
-    if (isOrder) return true;
+    // If it's clearly an order without question indicators, return true
+    if (hasOrder && !hasStrongQuestion) return true;
     
     // Default: if no question mark and has action verbs, treat as order
-    return !prompt.includes('?') && isOrder;
+    return !prompt.includes('?') && hasOrder;
   }
 
   async execute(input: Record<string, any>): Promise<string> {
@@ -142,7 +149,8 @@ export class ProposeChangeTool extends BaseTool {
       throw new Error('description is required and must be a string');
     }
 
-    if (!suggestedCode || typeof suggestedCode !== 'string') {
+    // suggested_code is required but can be empty string for delete operations
+    if (suggestedCode === undefined || suggestedCode === null || typeof suggestedCode !== 'string') {
       throw new Error('suggested_code is required and must be a string');
     }
 
@@ -167,9 +175,18 @@ export class ProposeChangeTool extends BaseTool {
       });
 
       // Auto-detect if should auto-apply: check explicit input first, then user prompt
-      let shouldAutoApply = input.auto_apply === true;
-      if (input.auto_apply === undefined || input.auto_apply === false) {
-        // If not explicitly set, check if user prompt is an order
+      let shouldAutoApply = false;
+      
+      // If explicitly set to true, use it
+      if (input.auto_apply === true) {
+        shouldAutoApply = true;
+      }
+      // If explicitly set to false, don't auto-apply
+      else if (input.auto_apply === false) {
+        shouldAutoApply = false;
+      }
+      // If not explicitly set, check if user prompt is an order
+      else {
         const userPrompt = this.options.getUserPrompt?.();
         if (userPrompt && this.isOrderPrompt(userPrompt)) {
           shouldAutoApply = true;
