@@ -24,13 +24,17 @@ export class ExecuteCommandTool extends BaseTool {
   getDescription(): string {
     return `Execute shell commands to verify code, run tests, compile, lint, or perform other operations. 
     
+**IMPORTANT**: Commands are executed in the working directory (copilot_dummy by default) unless you specify a different working_directory. This prevents accidentally affecting the main project.
+
 You can use common Unix commands like:
 - grep, tail, head, cat, ls, find - for file operations
 - npm test, npm run build, npm run lint - for Node.js projects
 - git status, git diff - for version control
 - Any other shell command available in the system
 
-The output will be captured and returned. Use this to verify that changes are correct before applying them.`;
+The output will be captured and returned. Use this to verify that changes are correct before applying them.
+
+**Always specify working_directory explicitly if you need to run commands in a specific location, otherwise they will run in the working directory.**`;
   }
 
   getInputSchema(): {
@@ -48,7 +52,7 @@ The output will be captured and returned. Use this to verify that changes are co
         },
         working_directory: {
           type: 'string',
-          description: 'Working directory to execute the command in (default: project root or working directory)'
+          description: 'Working directory to execute the command in (default: working directory like copilot_dummy, NOT the project root). Always specify this explicitly to ensure commands run in the correct location.'
         },
         extract_lines: {
           type: 'object',
