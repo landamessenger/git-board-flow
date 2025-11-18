@@ -28,7 +28,13 @@ export class ProposeChangeTool extends BaseTool {
   }
 
   getDescription(): string {
-    return 'Propose a change to a file in the virtual codebase. Changes are applied ONLY in memory (virtual codebase) and can be built upon in subsequent steps. To actually write changes to disk, use apply_changes tool after proposing all changes. This allows you to propose multiple changes, verify them, and then apply them all at once.';
+    return `Propose a change to a file in the virtual codebase. Changes are applied ONLY in memory (virtual codebase) and are NOT written to disk. 
+
+**IMPORTANT**: This tool ONLY stores changes in memory. You MUST use apply_changes tool to actually write files to disk. 
+
+**When to use propose_change**: Use this when you want to prepare multiple changes before applying them, or when you need to build upon changes incrementally.
+
+**When NOT to use propose_change alone**: If the user asks you to "create", "write", "make", "build", "set up", or "modify" files, you MUST use apply_changes immediately after propose_change to actually create the files. Do not just propose changes and leave them in memory - the user expects files to be created on disk.`;
   }
 
   getInputSchema(): {
