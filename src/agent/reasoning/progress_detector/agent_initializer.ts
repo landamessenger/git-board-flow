@@ -151,10 +151,10 @@ export class AgentInitializer {
               branch,
               this.IGNORE_FILES,
               (fileName: string) => {
-                logDebugInfo(`   📄 Loaded: ${fileName}`);
+                // logDebugInfo(`   📄 Loaded: ${fileName}`);
               },
               (fileName: string) => {
-                logDebugInfo(`   ⏭️  Ignored: ${fileName}`);
+                // logDebugInfo(`   ⏭️  Ignored: ${fileName}`);
               }
             );
             
