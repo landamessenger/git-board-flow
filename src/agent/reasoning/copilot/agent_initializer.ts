@@ -9,6 +9,8 @@ import { CopilotOptions } from './types';
 import { ReadFileTool } from '../../tools/builtin_tools/read_file_tool';
 import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
 import { ProposeChangeTool } from '../../tools/builtin_tools/propose_change_tool';
+import { ApplyChangesTool } from '../../tools/builtin_tools/apply_changes_tool';
+import { ExecuteCommandTool } from '../../tools/builtin_tools/execute_command_tool';
 import { ManageTodosTool } from '../../tools/builtin_tools/manage_todos_tool';
 import { FileRepository } from '../../../data/repository/file_repository';
 import { logInfo, logWarn, logDebugInfo, logError } from '../../../utils/logger';
@@ -174,70 +176,58 @@ export class AgentInitializer {
       }
     });
     
+    // Propose change tool - only updates virtual codebase (memory)
     const proposeChangeTool = new ProposeChangeTool({
       applyChange: (change) => {
         try {
-          // Check if file is in the working directory (safe to write)
-          const isInWorkingDir = change.file_path.startsWith(workingDir + '/') || change.file_path.startsWith(workingDir + '\\');
-          
           if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
-            // Update virtual codebase
+            // Only update virtual codebase (memory)
             virtualCodebase.set(change.file_path, change.suggested_code);
-            logInfo(`📝 Proposed change: ${change.file_path} (${change.description || 'no description'})`);
-            
-            // Write to disk if in working directory
-            if (isInWorkingDir) {
-              const fullPath = path.resolve(change.file_path);
-              const dir = path.dirname(fullPath);
-              
-              // Ensure directory exists
-              if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-                logInfo(`📁 Created directory: ${dir}`);
-              }
-              
-              // Write file
-              fs.writeFileSync(fullPath, change.suggested_code, 'utf8');
-              logInfo(`💾 Written to disk: ${fullPath}`);
-            } else {
-              logWarn(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
-            }
-            
+            logInfo(`📝 Proposed change (virtual): ${change.file_path} (${change.description || 'no description'})`);
             return true;
           } else if (change.change_type === 'delete') {
-            // Update virtual codebase
+            // Only update virtual codebase (memory)
             virtualCodebase.delete(change.file_path);
-            logInfo(`📝 Proposed deletion: ${change.file_path}`);
-            
-            // Delete from disk if in working directory
-            if (isInWorkingDir) {
-              const fullPath = path.resolve(change.file_path);
-              if (fs.existsSync(fullPath)) {
-                fs.unlinkSync(fullPath);
-                logInfo(`🗑️  Deleted from disk: ${fullPath}`);
-              }
-            } else {
-              logWarn(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
-            }
-            
+            logInfo(`📝 Proposed deletion (virtual): ${change.file_path}`);
             return true;
           }
         } catch (error: any) {
-          logError(`❌ Error applying change to ${change.file_path}: ${error.message}`);
+          logError(`❌ Error proposing change to ${change.file_path}: ${error.message}`);
           return false;
         }
         
         return false;
       },
       onChangeApplied: (change: any) => {
-        logInfo(`✅ Change applied: ${change.file_path}`);
+        logInfo(`✅ Change proposed (virtual): ${change.file_path}`);
+      }
+    });
+
+    // Apply changes tool - writes virtual codebase to disk
+    const applyChangesTool = new ApplyChangesTool({
+      getVirtualCodebase: () => virtualCodebase,
+      getWorkingDirectory: () => workingDir,
+      onChangesApplied: (changes) => {
+        logInfo(`✅ Applied ${changes.length} change(s) to disk`);
+      }
+    });
+
+    // Execute command tool - runs shell commands
+    const executeCommandTool = new ExecuteCommandTool({
+      getWorkingDirectory: () => workingDir,
+      onCommandExecuted: (command, success, output) => {
+        if (success) {
+          logInfo(`✅ Command executed successfully: ${command.substring(0, 50)}...`);
+        } else {
+          logWarn(`⚠️  Command may have failed: ${command.substring(0, 50)}...`);
+        }
       }
     });
 
     // Initialize TODO manager for tracking tasks
     const manageTodosTool = await this.createManageTodosTool();
     
-    return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+    return [readFileTool, searchFilesTool, proposeChangeTool, applyChangesTool, executeCommandTool, manageTodosTool];
   }
 
   /**

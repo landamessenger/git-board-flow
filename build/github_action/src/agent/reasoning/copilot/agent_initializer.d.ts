@@ -7,6 +7,8 @@ import { CopilotOptions } from './types';
 import { ReadFileTool } from '../../tools/builtin_tools/read_file_tool';
 import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
 import { ProposeChangeTool } from '../../tools/builtin_tools/propose_change_tool';
+import { ApplyChangesTool } from '../../tools/builtin_tools/apply_changes_tool';
+import { ExecuteCommandTool } from '../../tools/builtin_tools/execute_command_tool';
 import { ManageTodosTool } from '../../tools/builtin_tools/manage_todos_tool';
 export interface AgentInitializerResult {
     agent: Agent;
@@ -26,7 +28,7 @@ export declare class AgentInitializer {
     /**
      * Create tools for the agent
      */
-    static createTools(repositoryFiles: Map<string, string>, options: CopilotOptions): Promise<(ReadFileTool | SearchFilesTool | ProposeChangeTool | ManageTodosTool)[]>;
+    static createTools(repositoryFiles: Map<string, string>, options: CopilotOptions): Promise<(ReadFileTool | SearchFilesTool | ProposeChangeTool | ManageTodosTool | ApplyChangesTool | ExecuteCommandTool)[]>;
     /**
      * Create ManageTodosTool
      */

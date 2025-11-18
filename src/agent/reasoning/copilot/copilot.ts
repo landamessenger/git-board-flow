@@ -188,21 +188,46 @@ export class Copilot {
       }
     }
 
-    // Look for propose_change tool calls and their results
+    // Look for apply_changes tool calls (these are the ones actually written to disk)
+    // Also check propose_change for proposed changes (in memory)
     for (const toolCall of result.toolCalls) {
-      if (toolCall.name === 'propose_change') {
+      if (toolCall.name === 'apply_changes') {
         const toolResult = toolResultMap.get(toolCall.id);
         if (toolResult && !toolResult.isError) {
           try {
-            // The tool result content contains the response from propose_change
-            // We need to extract the change info from the tool call input
-            const changeData = toolCall.input;
+            // Extract applied changes from the result
+            // The result contains information about which files were applied
+            const resultContent = toolResult.content || '';
             
+            // Parse the result to extract file paths
+            // Format: "Applied N file(s) to disk:\n  - file1 (create)\n  - file2 (modify)"
+            const lines = resultContent.split('\n');
+            for (const line of lines) {
+              const match = line.match(/^\s*-\s*(.+?)\s*\((\w+)\)/);
+              if (match) {
+                changes.push({
+                  file: match[1].trim(),
+                  changeType: match[2] as 'create' | 'modify' | 'delete' | 'refactor',
+                  description: `Applied ${match[2]}`
+                });
+              }
+            }
+          } catch (error) {
+            // Ignore parsing errors
+          }
+        }
+      } else if (toolCall.name === 'propose_change') {
+        // Also track proposed changes (even if not yet applied)
+        const toolResult = toolResultMap.get(toolCall.id);
+        if (toolResult && !toolResult.isError) {
+          try {
+            const changeData = toolCall.input;
             if (changeData && changeData.file_path) {
+              // Mark as proposed (not yet applied)
               changes.push({
                 file: changeData.file_path,
                 changeType: changeData.change_type || 'modify',
-                description: changeData.description
+                description: `Proposed: ${changeData.description || 'no description'}`
               });
             }
           } catch (error) {

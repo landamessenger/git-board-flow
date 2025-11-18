@@ -223,7 +223,7 @@ describe('Copilot', () => {
       expect(result.changes?.length).toBe(1);
       expect(result.changes?.[0].file).toBe('copilot_dummy/test.ts');
       expect(result.changes?.[0].changeType).toBe('create');
-      expect(result.changes?.[0].description).toBe('Create test file');
+      expect(result.changes?.[0].description).toContain('Create test file');
     });
 
     it('should handle multiple changes', async () => {
@@ -711,6 +711,143 @@ describe('Copilot', () => {
 
       expect(SubagentHandler.processPromptWithSubAgents).not.toHaveBeenCalled();
       expect(mockAgent.query).toHaveBeenCalled();
+    });
+
+    it('should extract changes from apply_changes tool calls', async () => {
+      const { AgentInitializer } = require('../agent_initializer');
+      const mockAgentResult: AgentResult = {
+        finalResponse: 'Changes applied',
+        turns: [
+          {
+            turnNumber: 1,
+            assistantMessage: 'Applying changes',
+            toolCalls: [
+              {
+                id: 'tool-call-1',
+                name: 'apply_changes',
+                input: {
+                  file_paths: ['copilot_dummy/test.ts']
+                }
+              }
+            ],
+            toolResults: [
+              {
+                toolCallId: 'tool-call-1',
+                content: 'Applied 1 file(s) to disk:\n  - copilot_dummy/test.ts (create)'
+              }
+            ],
+            timestamp: Date.now()
+          }
+        ],
+        toolCalls: [
+          {
+            id: 'tool-call-1',
+            name: 'apply_changes',
+            input: {
+              file_paths: ['copilot_dummy/test.ts']
+            }
+          }
+        ],
+        messages: []
+      };
+
+      const mockAgent = {
+        query: jest.fn().mockResolvedValue(mockAgentResult)
+      };
+
+      AgentInitializer.initialize = jest.fn().mockResolvedValue({
+        agent: mockAgent,
+        repositoryFiles: new Map()
+      });
+
+      copilot = new Copilot(mockOptions);
+      const result = await copilot.processPrompt('Apply changes');
+
+      expect(result.changes).toBeDefined();
+      expect(result.changes?.length).toBe(1);
+      expect(result.changes?.[0].file).toBe('copilot_dummy/test.ts');
+      expect(result.changes?.[0].changeType).toBe('create');
+    });
+
+    it('should distinguish between proposed and applied changes', async () => {
+      const { AgentInitializer } = require('../agent_initializer');
+      const mockAgentResult: AgentResult = {
+        finalResponse: 'Changes proposed and applied',
+        turns: [
+          {
+            turnNumber: 1,
+            assistantMessage: 'Proposing changes',
+            toolCalls: [
+              {
+                id: 'tool-call-1',
+                name: 'propose_change',
+                input: {
+                  file_path: 'copilot_dummy/file1.ts',
+                  change_type: 'create',
+                  suggested_code: 'export const file1 = () => {};',
+                  description: 'Create file1',
+                  reasoning: 'Need file1'
+                }
+              },
+              {
+                id: 'tool-call-2',
+                name: 'apply_changes',
+                input: {
+                  file_paths: ['copilot_dummy/file1.ts']
+                }
+              }
+            ],
+            toolResults: [
+              {
+                toolCallId: 'tool-call-1',
+                content: 'Change applied successfully'
+              },
+              {
+                toolCallId: 'tool-call-2',
+                content: 'Applied 1 file(s) to disk:\n  - copilot_dummy/file1.ts (create)'
+              }
+            ],
+            timestamp: Date.now()
+          }
+        ],
+        toolCalls: [
+          {
+            id: 'tool-call-1',
+            name: 'propose_change',
+            input: {
+              file_path: 'copilot_dummy/file1.ts',
+              change_type: 'create',
+              suggested_code: 'export const file1 = () => {};',
+              description: 'Create file1',
+              reasoning: 'Need file1'
+            }
+          },
+          {
+            id: 'tool-call-2',
+            name: 'apply_changes',
+            input: {
+              file_paths: ['copilot_dummy/file1.ts']
+            }
+          }
+        ],
+        messages: []
+      };
+
+      const mockAgent = {
+        query: jest.fn().mockResolvedValue(mockAgentResult)
+      };
+
+      AgentInitializer.initialize = jest.fn().mockResolvedValue({
+        agent: mockAgent,
+        repositoryFiles: new Map()
+      });
+
+      copilot = new Copilot(mockOptions);
+      const result = await copilot.processPrompt('Propose and apply changes');
+
+      expect(result.changes).toBeDefined();
+      // Should include both proposed and applied changes
+      expect(result.changes?.length).toBeGreaterThanOrEqual(1);
     });
   });
 

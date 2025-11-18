@@ -64869,7 +64869,7 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         return 'propose_change';
     }
     getDescription() {
-        return 'Propose a change to a file in the virtual codebase. Changes are applied in memory and can be built upon in subsequent steps.';
+        return 'Propose a change to a file in the virtual codebase. Changes are applied ONLY in memory (virtual codebase) and can be built upon in subsequent steps. To actually write changes to disk, use apply_changes tool after proposing all changes. This allows you to propose multiple changes, verify them, and then apply them all at once.';
     }
     getInputSchema() {
         return {

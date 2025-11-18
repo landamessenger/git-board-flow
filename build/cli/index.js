@@ -67087,6 +67087,8 @@ const agent_1 = __nccwpck_require__(1963);
 const read_file_tool_1 = __nccwpck_require__(9010);
 const search_files_tool_1 = __nccwpck_require__(4293);
 const propose_change_tool_1 = __nccwpck_require__(4962);
+const apply_changes_tool_1 = __nccwpck_require__(74);
+const execute_command_tool_1 = __nccwpck_require__(3549);
 const manage_todos_tool_1 = __nccwpck_require__(7645);
 const file_repository_1 = __nccwpck_require__(1503);
 const logger_1 = __nccwpck_require__(8836);
@@ -67188,64 +67190,56 @@ class AgentInitializer {
                 return this.getAllFiles(repositoryFiles);
             }
         });
+        // Propose change tool - only updates virtual codebase (memory)
         const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
             applyChange: (change) => {
                 try {
-                    // Check if file is in the working directory (safe to write)
-                    const isInWorkingDir = change.file_path.startsWith(workingDir + '/') || change.file_path.startsWith(workingDir + '\\');
                     if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
-                        // Update virtual codebase
+                        // Only update virtual codebase (memory)
                         virtualCodebase.set(change.file_path, change.suggested_code);
-                        (0, logger_1.logInfo)(`📝 Proposed change: ${change.file_path} (${change.description || 'no description'})`);
-                        // Write to disk if in working directory
-                        if (isInWorkingDir) {
-                            const fullPath = path.resolve(change.file_path);
-                            const dir = path.dirname(fullPath);
-                            // Ensure directory exists
-                            if (!fs.existsSync(dir)) {
-                                fs.mkdirSync(dir, { recursive: true });
-                                (0, logger_1.logInfo)(`📁 Created directory: ${dir}`);
-                            }
-                            // Write file
-                            fs.writeFileSync(fullPath, change.suggested_code, 'utf8');
-                            (0, logger_1.logInfo)(`💾 Written to disk: ${fullPath}`);
-                        }
-                        else {
-                            (0, logger_1.logWarn)(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
-                        }
+                        (0, logger_1.logInfo)(`📝 Proposed change (virtual): ${change.file_path} (${change.description || 'no description'})`);
                         return true;
                     }
                     else if (change.change_type === 'delete') {
-                        // Update virtual codebase
+                        // Only update virtual codebase (memory)
                         virtualCodebase.delete(change.file_path);
-                        (0, logger_1.logInfo)(`📝 Proposed deletion: ${change.file_path}`);
-                        // Delete from disk if in working directory
-                        if (isInWorkingDir) {
-                            const fullPath = path.resolve(change.file_path);
-                            if (fs.existsSync(fullPath)) {
-                                fs.unlinkSync(fullPath);
-                                (0, logger_1.logInfo)(`🗑️  Deleted from disk: ${fullPath}`);
-                            }
-                        }
-                        else {
-                            (0, logger_1.logWarn)(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
-                        }
+                        (0, logger_1.logInfo)(`📝 Proposed deletion (virtual): ${change.file_path}`);
                         return true;
                     }
                 }
                 catch (error) {
-                    (0, logger_1.logError)(`❌ Error applying change to ${change.file_path}: ${error.message}`);
+                    (0, logger_1.logError)(`❌ Error proposing change to ${change.file_path}: ${error.message}`);
                     return false;
                 }
                 return false;
             },
             onChangeApplied: (change) => {
-                (0, logger_1.logInfo)(`✅ Change applied: ${change.file_path}`);
+                (0, logger_1.logInfo)(`✅ Change proposed (virtual): ${change.file_path}`);
+            }
+        });
+        // Apply changes tool - writes virtual codebase to disk
+        const applyChangesTool = new apply_changes_tool_1.ApplyChangesTool({
+            getVirtualCodebase: () => virtualCodebase,
+            getWorkingDirectory: () => workingDir,
+            onChangesApplied: (changes) => {
+                (0, logger_1.logInfo)(`✅ Applied ${changes.length} change(s) to disk`);
+            }
+        });
+        // Execute command tool - runs shell commands
+        const executeCommandTool = new execute_command_tool_1.ExecuteCommandTool({
+            getWorkingDirectory: () => workingDir,
+            onCommandExecuted: (command, success, output) => {
+                if (success) {
+                    (0, logger_1.logInfo)(`✅ Command executed successfully: ${command.substring(0, 50)}...`);
+                }
+                else {
+                    (0, logger_1.logWarn)(`⚠️  Command may have failed: ${command.substring(0, 50)}...`);
+                }
             }
         });
         // Initialize TODO manager for tracking tasks
         const manageTodosTool = await this.createManageTodosTool();
-        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+        return [readFileTool, searchFilesTool, proposeChangeTool, applyChangesTool, executeCommandTool, manageTodosTool];
     }
     /**
      * Create ManageTodosTool
@@ -67512,20 +67506,47 @@ class Copilot {
                 }
             }
         }
-        // Look for propose_change tool calls and their results
+        // Look for apply_changes tool calls (these are the ones actually written to disk)
+        // Also check propose_change for proposed changes (in memory)
         for (const toolCall of result.toolCalls) {
-            if (toolCall.name === 'propose_change') {
+            if (toolCall.name === 'apply_changes') {
                 const toolResult = toolResultMap.get(toolCall.id);
                 if (toolResult && !toolResult.isError) {
                     try {
-                        // The tool result content contains the response from propose_change
-                        // We need to extract the change info from the tool call input
+                        // Extract applied changes from the result
+                        // The result contains information about which files were applied
+                        const resultContent = toolResult.content || '';
+                        // Parse the result to extract file paths
+                        // Format: "Applied N file(s) to disk:\n  - file1 (create)\n  - file2 (modify)"
+                        const lines = resultContent.split('\n');
+                        for (const line of lines) {
+                            const match = line.match(/^\s*-\s*(.+?)\s*\((\w+)\)/);
+                            if (match) {
+                                changes.push({
+                                    file: match[1].trim(),
+                                    changeType: match[2],
+                                    description: `Applied ${match[2]}`
+                                });
+                            }
+                        }
+                    }
+                    catch (error) {
+                        // Ignore parsing errors
+                    }
+                }
+            }
+            else if (toolCall.name === 'propose_change') {
+                // Also track proposed changes (even if not yet applied)
+                const toolResult = toolResultMap.get(toolCall.id);
+                if (toolResult && !toolResult.isError) {
+                    try {
                         const changeData = toolCall.input;
                         if (changeData && changeData.file_path) {
+                            // Mark as proposed (not yet applied)
                             changes.push({
                                 file: changeData.file_path,
                                 changeType: changeData.change_type || 'modify',
-                                description: changeData.description
+                                description: `Proposed: ${changeData.description || 'no description'}`
                             });
                         }
                     }
@@ -67676,6 +67697,8 @@ exports.SubagentHandler = void 0;
 const read_file_tool_1 = __nccwpck_require__(9010);
 const search_files_tool_1 = __nccwpck_require__(4293);
 const propose_change_tool_1 = __nccwpck_require__(4962);
+const apply_changes_tool_1 = __nccwpck_require__(74);
+const execute_command_tool_1 = __nccwpck_require__(3549);
 const manage_todos_tool_1 = __nccwpck_require__(7645);
 const logger_1 = __nccwpck_require__(8836);
 const file_partitioner_1 = __nccwpck_require__(8951);
@@ -67769,64 +67792,56 @@ class SubagentHandler {
                 return this.getAllFiles(repositoryFiles);
             }
         });
+        // Propose change tool - only updates virtual codebase (memory)
         const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
             applyChange: (change) => {
                 try {
-                    // Check if file is in the working directory (safe to write)
-                    const isInWorkingDir = change.file_path.startsWith(workingDir + '/') || change.file_path.startsWith(workingDir + '\\');
                     if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
-                        // Update virtual codebase
+                        // Only update virtual codebase (memory)
                         virtualCodebase.set(change.file_path, change.suggested_code);
-                        (0, logger_1.logInfo)(`📝 Proposed change: ${change.file_path} (${change.description || 'no description'})`);
-                        // Write to disk if in working directory
-                        if (isInWorkingDir) {
-                            const fullPath = path.resolve(change.file_path);
-                            const dir = path.dirname(fullPath);
-                            // Ensure directory exists
-                            if (!fs.existsSync(dir)) {
-                                fs.mkdirSync(dir, { recursive: true });
-                                (0, logger_1.logInfo)(`📁 Created directory: ${dir}`);
-                            }
-                            // Write file
-                            fs.writeFileSync(fullPath, change.suggested_code, 'utf8');
-                            (0, logger_1.logInfo)(`💾 Written to disk: ${fullPath}`);
-                        }
-                        else {
-                            (0, logger_1.logWarn)(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
-                        }
+                        (0, logger_1.logInfo)(`📝 Proposed change (virtual): ${change.file_path} (${change.description || 'no description'})`);
                         return true;
                     }
                     else if (change.change_type === 'delete') {
-                        // Update virtual codebase
+                        // Only update virtual codebase (memory)
                         virtualCodebase.delete(change.file_path);
-                        (0, logger_1.logInfo)(`📝 Proposed deletion: ${change.file_path}`);
-                        // Delete from disk if in working directory
-                        if (isInWorkingDir) {
-                            const fullPath = path.resolve(change.file_path);
-                            if (fs.existsSync(fullPath)) {
-                                fs.unlinkSync(fullPath);
-                                (0, logger_1.logInfo)(`🗑️  Deleted from disk: ${fullPath}`);
-                            }
-                        }
-                        else {
-                            (0, logger_1.logWarn)(`⚠️  File ${change.file_path} is outside working directory (${workingDir}), only updating virtual codebase`);
-                        }
+                        (0, logger_1.logInfo)(`📝 Proposed deletion (virtual): ${change.file_path}`);
                         return true;
                     }
                 }
                 catch (error) {
-                    (0, logger_1.logError)(`❌ Error applying change to ${change.file_path}: ${error.message}`);
+                    (0, logger_1.logError)(`❌ Error proposing change to ${change.file_path}: ${error.message}`);
                     return false;
                 }
                 return false;
             },
             onChangeApplied: (change) => {
-                (0, logger_1.logInfo)(`✅ Change applied: ${change.file_path}`);
+                (0, logger_1.logInfo)(`✅ Change proposed (virtual): ${change.file_path}`);
+            }
+        });
+        // Apply changes tool - writes virtual codebase to disk
+        const applyChangesTool = new apply_changes_tool_1.ApplyChangesTool({
+            getVirtualCodebase: () => virtualCodebase,
+            getWorkingDirectory: () => workingDir,
+            onChangesApplied: (changes) => {
+                (0, logger_1.logInfo)(`✅ Applied ${changes.length} change(s) to disk`);
+            }
+        });
+        // Execute command tool - runs shell commands
+        const executeCommandTool = new execute_command_tool_1.ExecuteCommandTool({
+            getWorkingDirectory: () => workingDir,
+            onCommandExecuted: (command, success, output) => {
+                if (success) {
+                    (0, logger_1.logInfo)(`✅ Command executed successfully: ${command.substring(0, 50)}...`);
+                }
+                else {
+                    (0, logger_1.logWarn)(`⚠️  Command may have failed: ${command.substring(0, 50)}...`);
+                }
             }
         });
         // Initialize TODO manager for tracking tasks
         const manageTodosTool = await this.createManageTodosTool();
-        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+        return [readFileTool, searchFilesTool, proposeChangeTool, applyChangesTool, executeCommandTool, manageTodosTool];
     }
     /**
      * Create ManageTodosTool
@@ -67924,19 +67939,42 @@ class SubagentHandler {
                     }
                 }
             }
-            // Look for propose_change tool calls and their results
+            // Look for apply_changes and propose_change tool calls
             for (const toolCall of result.toolCalls) {
-                if (toolCall.name === 'propose_change') {
+                if (toolCall.name === 'apply_changes') {
                     const toolResult = toolResultMap.get(toolCall.id);
                     if (toolResult && !toolResult.isError) {
                         try {
-                            // Extract change info from the tool call input
+                            // Extract applied changes from the result
+                            const resultContent = toolResult.content || '';
+                            const lines = resultContent.split('\n');
+                            for (const line of lines) {
+                                const match = line.match(/^\s*-\s*(.+?)\s*\((\w+)\)/);
+                                if (match) {
+                                    allChanges.push({
+                                        file: match[1].trim(),
+                                        changeType: match[2],
+                                        description: `Applied ${match[2]}`
+                                    });
+                                }
+                            }
+                        }
+                        catch (error) {
+                            // Ignore parsing errors
+                        }
+                    }
+                }
+                else if (toolCall.name === 'propose_change') {
+                    // Also track proposed changes
+                    const toolResult = toolResultMap.get(toolCall.id);
+                    if (toolResult && !toolResult.isError) {
+                        try {
                             const changeData = toolCall.input;
                             if (changeData && changeData.file_path) {
                                 allChanges.push({
                                     file: changeData.file_path,
                                     changeType: changeData.change_type || 'modify',
-                                    description: changeData.description
+                                    description: `Proposed: ${changeData.description || 'no description'}`
                                 });
                             }
                         }
@@ -68051,8 +68089,10 @@ Your primary working directory is: **${workingDirectory}/**
 **Available Tools:**
 1. **read_file**: Read the contents of any file in the repository
 2. **search_files**: Search for files by name, path, or pattern
-3. **propose_change**: Propose code changes (create, modify, delete, or refactor files)
-4. **manage_todos**: Track tasks and findings using the TODO system
+3. **propose_change**: Propose code changes in the virtual codebase (memory only). Changes are NOT written to disk yet - use this to prepare changes.
+4. **apply_changes**: Apply proposed changes from the virtual codebase to the actual file system. Only applies files within the working directory for safety. Use this AFTER proposing changes with propose_change.
+5. **execute_command**: Execute shell commands to verify code, run tests, compile, lint, or perform other operations. Supports commands like npm test, npm run build, grep, tail, head, etc. Can extract specific lines from output for efficiency.
+6. **manage_todos**: Track tasks and findings using the TODO system
 
 **Your Workflow:**
 1. **Understand the Request**: Carefully read and understand what the user is asking
@@ -68069,7 +68109,10 @@ Your primary working directory is: **${workingDirectory}/**
 3. **Provide Response**: Based on the request type:
    - **Questions**: Provide clear, detailed answers with code examples when relevant
    - **Analysis**: Analyze code thoroughly and provide insights
-   - **Code Changes**: Use propose_change to make modifications
+   - **Code Changes**: 
+     * Use propose_change to prepare changes in memory
+     * Use apply_changes to write changes to disk (if user requests applying changes or if you need to verify with tests)
+     * Use execute_command to verify changes work correctly
    - **New Features**: Create new files and implement functionality
 
 4. **Be Thorough**: 
@@ -68078,18 +68121,34 @@ Your primary working directory is: **${workingDirectory}/**
    - Explain your reasoning when making changes
    - Provide context for your answers
 
-**Code Modification Guidelines:**
-- When modifying code, use the propose_change tool with appropriate change_type:
-  - **create**: For new files
-  - **modify**: For updating existing files (bugfixes, features, improvements)
-  - **delete**: For removing files
-  - **refactor**: For restructuring code without changing functionality
+**Code Modification Workflow:**
+1. **Propose Changes**: Use propose_change tool to prepare changes in the virtual codebase (memory):
+   - **create**: For new files
+   - **modify**: For updating existing files (bugfixes, features, improvements)
+   - **delete**: For removing files
+   - **refactor**: For restructuring code without changing functionality
+   - Changes are stored in memory and can be built upon
+   - You can propose multiple changes before applying them
+
+2. **Verify Changes** (optional but recommended):
+   - Use execute_command tool to run tests, compile, or lint
+   - Check for errors or issues before applying
+   - Example: execute_command with "npm test" or "npm run build"
+   - Use extraction options (head, tail, grep) to focus on relevant output
+
+3. **Apply Changes**: Use apply_changes tool to write proposed changes to disk:
+   - Only files within the working directory will be written
+   - You can apply all changes or specific files
+   - Use dry_run: true to preview what would be applied
+
+**Best Practices:**
+- Propose multiple related changes before applying them all at once
+- Verify changes with tests/compilation before applying
+- Use execute_command tool to check for errors after applying
+- If verification fails, propose fixes and re-verify before applying again
 - Always explain what changes you're making and why
 - Consider backward compatibility and impact on other parts of the codebase
 - Follow existing code style and patterns
-- Add appropriate comments and documentation
-
-**Best Practices:**
 - Be precise and accurate in your responses
 - When unsure, ask clarifying questions or state your assumptions
 - Provide code examples when explaining concepts
@@ -68100,9 +68159,12 @@ Your primary working directory is: **${workingDirectory}/**
 **Important Notes:**
 - You have access to the entire repository through the tools
 - Use the working directory (${workingDirectory}/) for experimental changes
+- **IMPORTANT**: propose_change only stores changes in memory. To actually create/modify files on disk, you MUST use apply_changes tool.
+- If the user asks you to "create", "write", "apply", or "save" changes, use apply_changes after proposing them.
 - Be careful when modifying files outside the working directory - only do so if explicitly requested
 - Always read files before modifying them to understand the current implementation
 - When creating new files, consider where they should be placed in the project structure
+- Use execute_command to verify your changes work (run tests, compile, etc.) before or after applying
 
 **Remember:**
 - Your goal is to be helpful, accurate, and thorough
@@ -70273,6 +70335,341 @@ exports.BaseTool = BaseTool;
 
 /***/ }),
 
+/***/ 74:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Apply Changes Tool
+ * Applies proposed changes from the virtual codebase to the actual file system
+ * Only applies changes to files within the working directory for safety
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ApplyChangesTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+class ApplyChangesTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'apply_changes';
+    }
+    getDescription() {
+        return 'Apply proposed changes from the virtual codebase to the actual file system. Only applies changes to files within the working directory (copilot_dummy by default) for safety. Use this after proposing changes with propose_change to write them to disk.';
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                file_paths: {
+                    type: 'array',
+                    items: {
+                        type: 'string'
+                    },
+                    description: 'Array of file paths to apply. If empty or not provided, applies all pending changes in the virtual codebase that are within the working directory.'
+                },
+                dry_run: {
+                    type: 'boolean',
+                    description: 'If true, shows what would be applied without actually writing to disk (default: false)'
+                }
+            },
+            required: [],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo, logWarn, logError } = __nccwpck_require__(8836);
+        const filePaths = input.file_paths;
+        const dryRun = input.dry_run === true;
+        const virtualCodebase = this.options.getVirtualCodebase();
+        const workingDir = this.options.getWorkingDirectory();
+        // Get files to apply
+        let filesToApply = [];
+        if (filePaths && filePaths.length > 0) {
+            // Apply specific files
+            filesToApply = filePaths.filter(filePath => {
+                const isInWorkingDir = filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\');
+                if (!isInWorkingDir) {
+                    logWarn(`⚠️  Skipping ${filePath} - outside working directory (${workingDir})`);
+                }
+                return isInWorkingDir;
+            });
+        }
+        else {
+            // Apply all files in virtual codebase that are in working directory
+            for (const filePath of virtualCodebase.keys()) {
+                const isInWorkingDir = filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\');
+                if (isInWorkingDir) {
+                    filesToApply.push(filePath);
+                }
+            }
+        }
+        if (filesToApply.length === 0) {
+            return 'No files to apply. Make sure files are within the working directory and have been proposed with propose_change first.';
+        }
+        const appliedChanges = [];
+        const errors = [];
+        for (const filePath of filesToApply) {
+            try {
+                const content = virtualCodebase.get(filePath);
+                if (!content) {
+                    errors.push(`${filePath}: Not found in virtual codebase`);
+                    continue;
+                }
+                const fullPath = path.resolve(filePath);
+                const dir = path.dirname(fullPath);
+                const exists = fs.existsSync(fullPath);
+                if (dryRun) {
+                    logInfo(`   🔍 [DRY RUN] Would ${exists ? 'update' : 'create'}: ${filePath}`);
+                    appliedChanges.push({
+                        file: filePath,
+                        changeType: exists ? 'modify' : 'create'
+                    });
+                }
+                else {
+                    // Ensure directory exists
+                    if (!fs.existsSync(dir)) {
+                        fs.mkdirSync(dir, { recursive: true });
+                        logInfo(`📁 Created directory: ${dir}`);
+                    }
+                    // Write file
+                    fs.writeFileSync(fullPath, content, 'utf8');
+                    logInfo(`💾 Applied change: ${filePath} (${exists ? 'updated' : 'created'})`);
+                    appliedChanges.push({
+                        file: filePath,
+                        changeType: exists ? 'modify' : 'create'
+                    });
+                }
+            }
+            catch (error) {
+                const errorMsg = `Error applying ${filePath}: ${error.message}`;
+                logError(`❌ ${errorMsg}`);
+                errors.push(errorMsg);
+            }
+        }
+        if (!dryRun && appliedChanges.length > 0) {
+            this.options.onChangesApplied?.(appliedChanges);
+        }
+        let result = dryRun
+            ? `[DRY RUN] Would apply ${appliedChanges.length} file(s):\n`
+            : `Applied ${appliedChanges.length} file(s) to disk:\n`;
+        appliedChanges.forEach(change => {
+            result += `  - ${change.file} (${change.changeType})\n`;
+        });
+        if (errors.length > 0) {
+            result += `\nErrors:\n`;
+            errors.forEach(error => {
+                result += `  - ${error}\n`;
+            });
+        }
+        return result.trim();
+    }
+}
+exports.ApplyChangesTool = ApplyChangesTool;
+
+
+/***/ }),
+
+/***/ 3549:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Execute Command Tool
+ * Executes shell commands and returns their output
+ * Useful for running tests, compilation, linting, and other verification tasks
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ExecuteCommandTool = void 0;
+const base_tool_1 = __nccwpck_require__(9121);
+const child_process_1 = __nccwpck_require__(2081);
+class ExecuteCommandTool extends base_tool_1.BaseTool {
+    constructor(options) {
+        super();
+        this.options = options;
+    }
+    getName() {
+        return 'execute_command';
+    }
+    getDescription() {
+        return `Execute shell commands to verify code, run tests, compile, lint, or perform other operations. 
+    
+You can use common Unix commands like:
+- grep, tail, head, cat, ls, find - for file operations
+- npm test, npm run build, npm run lint - for Node.js projects
+- git status, git diff - for version control
+- Any other shell command available in the system
+
+The output will be captured and returned. Use this to verify that changes are correct before applying them.`;
+    }
+    getInputSchema() {
+        return {
+            type: 'object',
+            properties: {
+                command: {
+                    type: 'string',
+                    description: 'The shell command to execute (e.g., "npm test", "grep -r error src/", "tail -n 50 build.log")'
+                },
+                working_directory: {
+                    type: 'string',
+                    description: 'Working directory to execute the command in (default: project root or working directory)'
+                },
+                extract_lines: {
+                    type: 'object',
+                    properties: {
+                        head: {
+                            type: 'number',
+                            description: 'Extract first N lines from output (like head -N)'
+                        },
+                        tail: {
+                            type: 'number',
+                            description: 'Extract last N lines from output (like tail -N)'
+                        },
+                        grep: {
+                            type: 'string',
+                            description: 'Filter lines containing this pattern (like grep pattern)'
+                        }
+                    },
+                    description: 'Optional: Extract specific lines from command output for efficiency'
+                }
+            },
+            required: ['command'],
+            additionalProperties: false
+        };
+    }
+    async execute(input) {
+        const { logInfo, logError, logWarn } = __nccwpck_require__(8836);
+        const command = input.command;
+        const workingDir = input.working_directory || this.options.getWorkingDirectory?.() || process.cwd();
+        const extractLines = input.extract_lines;
+        if (!command || typeof command !== 'string') {
+            throw new Error('command is required and must be a string');
+        }
+        logInfo(`   🔧 Executing command: ${command}`);
+        if (workingDir) {
+            logInfo(`      Working directory: ${workingDir}`);
+        }
+        try {
+            // Execute command
+            const output = (0, child_process_1.execSync)(command, {
+                cwd: workingDir,
+                encoding: 'utf8',
+                maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+                stdio: ['pipe', 'pipe', 'pipe'] // Capture stdout and stderr
+            });
+            let result = output.toString();
+            let success = true;
+            // Apply extraction filters if specified
+            if (extractLines) {
+                const lines = result.split('\n');
+                let filteredLines = lines;
+                // Apply grep filter
+                if (extractLines.grep) {
+                    const pattern = extractLines.grep.toLowerCase();
+                    filteredLines = filteredLines.filter(line => line.toLowerCase().includes(pattern));
+                    logInfo(`      Filtered with grep pattern: "${extractLines.grep}" (${filteredLines.length} lines)`);
+                }
+                // Apply head filter
+                if (extractLines.head && extractLines.head > 0) {
+                    filteredLines = filteredLines.slice(0, extractLines.head);
+                    logInfo(`      Extracted first ${extractLines.head} lines`);
+                }
+                // Apply tail filter
+                if (extractLines.tail && extractLines.tail > 0) {
+                    filteredLines = filteredLines.slice(-extractLines.tail);
+                    logInfo(`      Extracted last ${extractLines.tail} lines`);
+                }
+                result = filteredLines.join('\n');
+            }
+            // Check if output indicates failure (common patterns)
+            const failurePatterns = [
+                /error/i,
+                /failed/i,
+                /failure/i,
+                /✖/,
+                /×/,
+                /exit code [1-9]/,
+                /command failed/i
+            ];
+            const hasFailure = failurePatterns.some(pattern => pattern.test(result));
+            if (hasFailure) {
+                logWarn(`   ⚠️  Command output suggests possible failure`);
+                success = false;
+            }
+            else {
+                logInfo(`   ✅ Command executed successfully`);
+            }
+            this.options.onCommandExecuted?.(command, success, result);
+            // Format result
+            const exitCode = 0; // execSync throws on non-zero, so if we're here it succeeded
+            let formattedResult = `Command: ${command}\n`;
+            formattedResult += `Working Directory: ${workingDir}\n`;
+            formattedResult += `Exit Code: ${exitCode}\n`;
+            formattedResult += `Output:\n${'='.repeat(60)}\n${result}\n${'='.repeat(60)}`;
+            if (hasFailure) {
+                formattedResult += `\n⚠️  WARNING: Output contains error indicators. Please review and fix if needed.`;
+            }
+            return formattedResult;
+        }
+        catch (error) {
+            const errorOutput = error.stdout?.toString() || error.stderr?.toString() || error.message;
+            const exitCode = error.status || error.code || 1;
+            logError(`   ❌ Command failed with exit code ${exitCode}`);
+            this.options.onCommandExecuted?.(command, false, errorOutput);
+            // Format error result
+            let formattedResult = `Command: ${command}\n`;
+            formattedResult += `Working Directory: ${workingDir}\n`;
+            formattedResult += `Exit Code: ${exitCode}\n`;
+            formattedResult += `Status: FAILED\n`;
+            formattedResult += `Error Output:\n${'='.repeat(60)}\n${errorOutput}\n${'='.repeat(60)}`;
+            formattedResult += `\n❌ Command execution failed. Please review the error and fix the issue.`;
+            return formattedResult;
+        }
+    }
+}
+exports.ExecuteCommandTool = ExecuteCommandTool;
+
+
+/***/ }),
+
 /***/ 7645:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -70422,7 +70819,7 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         return 'propose_change';
     }
     getDescription() {
-        return 'Propose a change to a file in the virtual codebase. Changes are applied in memory and can be built upon in subsequent steps.';
+        return 'Propose a change to a file in the virtual codebase. Changes are applied ONLY in memory (virtual codebase) and can be built upon in subsequent steps. To actually write changes to disk, use apply_changes tool after proposing all changes. This allows you to propose multiple changes, verify them, and then apply them all at once.';
     }
     getInputSchema() {
         return {
