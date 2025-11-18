@@ -208,9 +208,18 @@ export class AgentInitializer {
       // Auto-apply to disk when auto_apply=true is used
       autoApplyToDisk: async (filePath: string) => {
         try {
-          // Normalize both paths for comparison
-          const normalizedFilePath = path.resolve(filePath);
+          // Normalize working directory first
           const normalizedWorkingDir = path.resolve(workingDir);
+          
+          // Resolve file path relative to working directory if it's a relative path
+          // If filePath is already absolute, use it as-is; otherwise resolve from working directory
+          let normalizedFilePath: string;
+          if (path.isAbsolute(filePath)) {
+            normalizedFilePath = path.resolve(filePath);
+          } else {
+            // Resolve relative path from working directory
+            normalizedFilePath = path.resolve(normalizedWorkingDir, filePath);
+          }
           
           // Check if file is within working directory
           const isInWorkingDir = normalizedFilePath.startsWith(normalizedWorkingDir + path.sep) || 
