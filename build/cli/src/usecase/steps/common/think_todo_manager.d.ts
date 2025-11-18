@@ -1,4 +1,4 @@
-import { ThinkTodoItem } from '../../../data/model/think_response';
+import { ThinkTodoItem, TodoStatus } from '../../../data/model/think_response';
 import { ProposedChange } from '../../../data/model/think_response';
 /**
  * Manages TODO list for the reasoning process
@@ -12,17 +12,17 @@ export declare class ThinkTodoManager {
      */
     initialize(initialTodos?: Array<{
         content: string;
-        status?: 'pending' | 'in_progress';
+        status?: TodoStatus;
     }>): void;
     /**
      * Create a new TODO item
      */
-    createTodo(content: string, status?: 'pending' | 'in_progress'): ThinkTodoItem;
+    createTodo(content: string, status?: TodoStatus): ThinkTodoItem;
     /**
      * Update an existing TODO item
      */
     updateTodo(id: string, updates: {
-        status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        status?: TodoStatus;
         notes?: string;
         related_files?: string[];
         related_changes?: string[];

@@ -277,7 +277,7 @@ export function registerAgentTestCommands(program: Command) {
         createTodo: (content, status) => todoManager.createTodo(content, status),
         updateTodo: (id, updates) => {
           return todoManager.updateTodo(id, {
-            status: updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' | undefined,
+            status: updates.status,
             notes: updates.notes,
             related_files: updates.related_files,
             related_changes: updates.related_changes
@@ -442,7 +442,7 @@ Use these tools systematically to analyze code and propose improvements.`,
         createTodo: (content, status) => todoManager.createTodo(content, status),
         updateTodo: (id, updates) => {
           return todoManager.updateTodo(id, {
-            status: updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' | undefined,
+            status: updates.status,
             notes: updates.notes,
             related_files: updates.related_files,
             related_changes: updates.related_changes

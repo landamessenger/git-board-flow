@@ -312,7 +312,7 @@ If you only propose changes without applying them, you have FAILED your task. Fi
         };
       },
       updateTodo: (id: string, updates: {
-        status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        status?: TodoStatus;
         notes?: string;
         related_files?: string[];
         related_changes?: string[];
@@ -330,7 +330,7 @@ If you only propose changes without applying them, you have FAILED your task. Fi
       getActiveTodos: () => {
         const todos = todoManager.getAllTodos();
         return todos
-          .filter((todo: any) => todo.status !== 'completed' && todo.status !== 'cancelled')
+          .filter((todo: any) => todo.status !== TodoStatus.COMPLETED && todo.status !== TodoStatus.CANCELLED)
           .map((todo: any) => ({
             id: todo.id,
             content: todo.content,

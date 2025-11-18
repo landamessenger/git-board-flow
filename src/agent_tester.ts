@@ -276,7 +276,7 @@ program
       createTodo: (content, status) => todoManager.createTodo(content, status),
       updateTodo: (id, updates) => {
         return todoManager.updateTodo(id, {
-          status: updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' | undefined,
+          status: updates.status,
           notes: updates.notes,
           related_files: updates.related_files,
           related_changes: updates.related_changes
@@ -441,7 +441,7 @@ program
       createTodo: (content, status) => todoManager.createTodo(content, status),
       updateTodo: (id, updates) => {
         return todoManager.updateTodo(id, {
-          status: updates.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' | undefined,
+          status: updates.status,
           notes: updates.notes,
           related_files: updates.related_files,
           related_changes: updates.related_changes

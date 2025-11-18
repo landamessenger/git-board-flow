@@ -1,10 +1,10 @@
 /**
- * Manage TODOs Tool
+ * Manage TODOs Tool - Tool for managing TODO list items for task tracking and progress monitoring.
  * 
- * Tool for managing TODO list items for task tracking and progress monitoring.
- * This tool allows agents to create, update, and list TODO items with different statuses
- * (pending, in_progress, completed, cancelled) to track high-level tasks that may
- * require multiple steps to complete.
+ * This tool provides a structured interface for agents to manage task lists during their reasoning
+ * process. It allows agents to create, update, and list TODO items with different statuses
+ * (pending, in_progress, completed, cancelled) to track high-level tasks that may require
+ * multiple steps to complete.
  * 
  * @internal
  * This tool is used by reasoning agents (IntentClassifier, ErrorDetector, ProgressDetector)
@@ -16,13 +16,43 @@
  * - UPDATE: Modify existing TODO items (change status, add notes)
  * - LIST: Retrieve all TODO items with their current status
  * 
+ * The tool validates all inputs and ensures type safety using TodoStatus and TodoAction enums.
+ * It handles three distinct actions and provides clear error messages when validation fails.
+ * 
+ * @remarks
+ * - The tool is designed to be flexible - it accepts multiple field names for content
+ *   (content, description, text, task) to accommodate different agent response formats
+ * - CREATE action only allows PENDING or IN_PROGRESS status during creation
+ * - UPDATE action allows all TodoStatus values including COMPLETED and CANCELLED
+ * - LIST action returns formatted list with emojis and status indicators
+ * 
  * @example
+ * ```typescript
  * const tool = new ManageTodosTool({
  *   createTodo: (content, status) => { return { id: 'todo_1', content, status }; },
  *   updateTodo: (id, updates) => { return true; },
  *   getAllTodos: () => { return []; },
  *   getActiveTodos: () => { return []; }
  * });
+ * 
+ * // Create a TODO
+ * await tool.execute({
+ *   action: 'create',
+ *   content: 'Fix bug in authentication',
+ *   status: 'pending'
+ * });
+ * 
+ * // Update a TODO
+ * await tool.execute({
+ *   action: 'update',
+ *   todo_id: 'todo_1',
+ *   status: 'in_progress',
+ *   notes: 'Working on it'
+ * });
+ * 
+ * // List all TODOs
+ * await tool.execute({ action: 'list' });
+ * ```
  */
 
 import { BaseTool } from '../base_tool';

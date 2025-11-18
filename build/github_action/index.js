@@ -62649,6 +62649,7 @@ const report_errors_tool_1 = __nccwpck_require__(8742);
 const file_repository_1 = __nccwpck_require__(1503);
 const logger_1 = __nccwpck_require__(8836);
 const system_prompt_builder_1 = __nccwpck_require__(6058);
+const think_response_1 = __nccwpck_require__(5893);
 class AgentInitializer {
     /**
      * Initialize agent with tools and repository files
@@ -62771,7 +62772,10 @@ class AgentInitializer {
         const todoManager = new ThinkTodoManager();
         return new manage_todos_tool_1.ManageTodosTool({
             createTodo: (content, status) => {
-                const todo = todoManager.createTodo(content, status || 'pending');
+                const todoStatus = status && (status === think_response_1.TodoStatus.PENDING || status === think_response_1.TodoStatus.IN_PROGRESS)
+                    ? status
+                    : think_response_1.TodoStatus.PENDING;
+                const todo = todoManager.createTodo(content, todoStatus);
                 return {
                     id: todo.id,
                     content: todo.content,
@@ -63034,11 +63038,22 @@ class ErrorParser {
                                     (0, logger_1.logDebugInfo)(`   ⚠️ Error at index ${i}: invalid type "${typeStr}", using fallback "${issueType}"`);
                                 }
                             }
+                            // Validate and convert severity to SeverityLevel enum
+                            let severityLevel;
+                            const severityStr = String(err.severity).toLowerCase().trim();
+                            if (Object.values(types_1.SeverityLevel).includes(severityStr)) {
+                                severityLevel = severityStr;
+                            }
+                            else {
+                                // Default to LOW if invalid
+                                severityLevel = types_1.SeverityLevel.LOW;
+                                (0, logger_1.logDebugInfo)(`   ⚠️ Error at index ${i}: invalid severity "${severityStr}", using fallback "${severityLevel}"`);
+                            }
                             errors.push({
                                 file: String(err.file).trim(),
                                 line: typeof err.line === 'number' ? err.line : (err.line ? parseInt(String(err.line), 10) : undefined),
                                 type: issueType,
-                                severity: String(err.severity).toLowerCase().trim(),
+                                severity: severityLevel,
                                 description: String(err.description).trim(),
                                 suggestion: err.suggestion ? String(err.suggestion).trim() : undefined
                             });
@@ -63245,6 +63260,7 @@ const error_parser_1 = __nccwpck_require__(3224);
 const summary_generator_1 = __nccwpck_require__(4345);
 const system_prompt_builder_1 = __nccwpck_require__(6058);
 const file_relationship_analyzer_1 = __nccwpck_require__(7248);
+const think_response_1 = __nccwpck_require__(5893);
 class SubagentHandler {
     /**
      * Detect errors using subagents for parallel processing
@@ -63392,7 +63408,10 @@ class SubagentHandler {
         const todoManager = new ThinkTodoManager();
         const manageTodosTool = new manage_todos_tool_1.ManageTodosTool({
             createTodo: (content, status) => {
-                const todo = todoManager.createTodo(content, status || 'pending');
+                const todoStatus = status && (status === think_response_1.TodoStatus.PENDING || status === think_response_1.TodoStatus.IN_PROGRESS)
+                    ? status
+                    : think_response_1.TodoStatus.PENDING;
+                const todo = todoManager.createTodo(content, todoStatus);
                 return {
                     id: todo.id,
                     content: todo.content,
@@ -63803,7 +63822,7 @@ exports.SystemPromptBuilder = SystemPromptBuilder;
  * Types and interfaces for Error Detector
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.IssueType = void 0;
+exports.SeverityLevel = exports.IssueType = void 0;
 /**
  * Standard issue types for code analysis
  * Based on common industry standards (SonarQube, ESLint, PMD, CWE, OWASP)
@@ -63880,6 +63899,16 @@ var IssueType;
     // Generic fallback
     IssueType["CODE_ISSUE"] = "code-issue";
 })(IssueType || (exports.IssueType = IssueType = {}));
+/**
+ * Severity levels for detected errors
+ */
+var SeverityLevel;
+(function (SeverityLevel) {
+    SeverityLevel["CRITICAL"] = "critical";
+    SeverityLevel["HIGH"] = "high";
+    SeverityLevel["MEDIUM"] = "medium";
+    SeverityLevel["LOW"] = "low";
+})(SeverityLevel || (exports.SeverityLevel = SeverityLevel = {}));
 
 
 /***/ }),
@@ -64726,30 +64755,143 @@ exports.BaseTool = BaseTool;
 "use strict";
 
 /**
- * Manage TODOs Tool
- * Manages TODO list for task tracking
+ * Manage TODOs Tool - Tool for managing TODO list items for task tracking and progress monitoring.
+ *
+ * This tool provides a structured interface for agents to manage task lists during their reasoning
+ * process. It allows agents to create, update, and list TODO items with different statuses
+ * (pending, in_progress, completed, cancelled) to track high-level tasks that may require
+ * multiple steps to complete.
+ *
+ * @internal
+ * This tool is used by reasoning agents (IntentClassifier, ErrorDetector, ProgressDetector)
+ * to track tasks and maintain state across multiple agent turns. It provides a structured
+ * way to manage task lists that persist throughout the agent's reasoning process.
+ *
+ * The tool supports three main actions:
+ * - CREATE: Add new TODO items (only with pending or in_progress status)
+ * - UPDATE: Modify existing TODO items (change status, add notes)
+ * - LIST: Retrieve all TODO items with their current status
+ *
+ * The tool validates all inputs and ensures type safety using TodoStatus and TodoAction enums.
+ * It handles three distinct actions and provides clear error messages when validation fails.
+ *
+ * @remarks
+ * - The tool is designed to be flexible - it accepts multiple field names for content
+ *   (content, description, text, task) to accommodate different agent response formats
+ * - CREATE action only allows PENDING or IN_PROGRESS status during creation
+ * - UPDATE action allows all TodoStatus values including COMPLETED and CANCELLED
+ * - LIST action returns formatted list with emojis and status indicators
+ *
+ * @example
+ * ```typescript
+ * const tool = new ManageTodosTool({
+ *   createTodo: (content, status) => { return { id: 'todo_1', content, status }; },
+ *   updateTodo: (id, updates) => { return true; },
+ *   getAllTodos: () => { return []; },
+ *   getActiveTodos: () => { return []; }
+ * });
+ *
+ * // Create a TODO
+ * await tool.execute({
+ *   action: 'create',
+ *   content: 'Fix bug in authentication',
+ *   status: 'pending'
+ * });
+ *
+ * // Update a TODO
+ * await tool.execute({
+ *   action: 'update',
+ *   todo_id: 'todo_1',
+ *   status: 'in_progress',
+ *   notes: 'Working on it'
+ * });
+ *
+ * // List all TODOs
+ * await tool.execute({ action: 'list' });
+ * ```
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ManageTodosTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const think_response_1 = __nccwpck_require__(5893);
+/**
+ * ManageTodosTool - Tool for managing TODO list items.
+ *
+ * This tool provides a structured interface for agents to manage task lists during
+ * their reasoning process. It supports creating new tasks, updating existing ones,
+ * and listing all tasks with their current status.
+ *
+ * @internal
+ * The tool validates all inputs and ensures type safety using TodoStatus and TodoAction
+ * enums. It handles three distinct actions (CREATE, UPDATE, LIST) and provides clear
+ * error messages when validation fails.
+ *
+ * The tool is designed to be flexible - it accepts multiple field names for content
+ * (content, description, text, task) to accommodate different agent response formats.
+ */
 class ManageTodosTool extends base_tool_1.BaseTool {
+    /**
+     * Creates a new ManageTodosTool instance.
+     *
+     * @internal
+     * The options parameter provides callbacks that connect this tool to the underlying
+     * TODO manager. This separation allows the tool to be used with different TODO
+     * management implementations.
+     *
+     * @param options - Configuration object with callbacks for TODO operations
+     */
     constructor(options) {
         super();
         this.options = options;
     }
+    /**
+     * Returns the tool name used by the agent system.
+     *
+     * @internal
+     * This name is used when the agent calls the tool via tool calls.
+     *
+     * @returns Tool identifier: 'manage_todos'
+     */
     getName() {
         return 'manage_todos';
     }
+    /**
+     * Returns the tool description shown to the agent.
+     *
+     * @internal
+     * This description helps the agent understand when and how to use this tool.
+     * It's included in the agent's available tools list.
+     *
+     * @returns Human-readable description of the tool's purpose
+     */
     getDescription() {
         return 'Manage the TODO list. Create new TODOs, update their status (pending, in_progress, completed, cancelled), or add notes. Use this to track high-level tasks that may require multiple steps to complete.';
     }
+    /**
+     * Returns the JSON schema for tool input validation.
+     *
+     * @internal
+     * The schema defines the structure and validation rules for the tool's input parameters.
+     * It uses enums (TodoAction, TodoStatus) to ensure type safety and prevent invalid values.
+     * The schema is used by the agent system to validate tool calls before execution.
+     *
+     * @returns JSON schema object defining input structure and validation rules
+     *
+     * @remarks
+     * - action is required and must be one of: CREATE, UPDATE, LIST
+     * - content is required for CREATE action
+     * - todo_id is required for UPDATE action
+     * - status uses TodoStatus enum values (pending, in_progress, completed, cancelled)
+     * - notes is optional and only used for UPDATE action
+     * - additionalProperties: true allows flexibility for future extensions
+     */
     getInputSchema() {
         return {
             type: 'object',
             properties: {
                 action: {
                     type: 'string',
-                    enum: ['create', 'update', 'list'],
+                    enum: Object.values(think_response_1.TodoAction),
                     description: 'Action to perform: create a new TODO, update an existing TODO, or list all TODOs'
                 },
                 content: {
@@ -64762,7 +64904,7 @@ class ManageTodosTool extends base_tool_1.BaseTool {
                 },
                 status: {
                     type: 'string',
-                    enum: ['pending', 'in_progress', 'completed', 'cancelled'],
+                    enum: Object.values(think_response_1.TodoStatus),
                     description: 'Status to set (for create or update). For create, use "pending" or "in_progress".'
                 },
                 notes: {
@@ -64774,43 +64916,110 @@ class ManageTodosTool extends base_tool_1.BaseTool {
             additionalProperties: true
         };
     }
+    /**
+     * Executes the tool with the provided input.
+     *
+     * This method handles three distinct actions:
+     * 1. CREATE: Creates a new TODO item with content and optional status
+     * 2. UPDATE: Updates an existing TODO item (status, notes)
+     * 3. LIST: Returns a formatted list of all TODO items
+     *
+     * @internal
+     * The method validates all inputs before processing. It uses TodoAction and TodoStatus
+     * enums to ensure type safety. For CREATE action, it accepts multiple field names
+     * (content, description, text, task) for flexibility with different agent response formats.
+     *
+     * @param input - Tool input containing action and action-specific parameters
+     * @returns String response indicating success or error, or formatted TODO list
+     *
+     * @throws Error if action is invalid, required fields are missing, or status values are invalid
+     *
+     * @remarks
+     * - CREATE action: Only PENDING or IN_PROGRESS status allowed during creation
+     * - UPDATE action: All TodoStatus values allowed, including COMPLETED and CANCELLED
+     * - LIST action: Returns formatted list with emojis and status indicators
+     * - All actions log their execution for debugging and monitoring
+     *
+     * @example
+     * // Create a TODO
+     * const result = await tool.execute({
+     *   action: 'create',
+     *   content: 'Fix bug in authentication',
+     *   status: 'pending'
+     * });
+     * // Returns: "TODO created: [todo_1] Fix bug in authentication (pending)"
+     *
+     * // Update a TODO
+     * const result2 = await tool.execute({
+     *   action: 'update',
+     *   todo_id: 'todo_1',
+     *   status: 'in_progress',
+     *   notes: 'Working on it'
+     * });
+     * // Returns: "TODO updated: [todo_1]"
+     *
+     * // List all TODOs
+     * const result3 = await tool.execute({ action: 'list' });
+     * // Returns formatted list with all TODOs
+     */
     async execute(input) {
         const { logInfo } = __nccwpck_require__(8836);
         const action = input.action;
         logInfo(`   📋 Managing TODOs - Action: ${action}`);
-        if (!['create', 'update', 'list'].includes(action)) {
-            throw new Error('action must be one of: create, update, list');
+        // Validate action is a valid TodoAction enum value
+        // @internal This ensures type safety and prevents invalid action values
+        if (!Object.values(think_response_1.TodoAction).includes(action)) {
+            throw new Error(`action must be one of: ${Object.values(think_response_1.TodoAction).join(', ')}`);
         }
-        if (action === 'create') {
-            // Accept 'content', 'description', or 'text' for flexibility
+        // Handle CREATE action
+        // @internal CREATE allows new TODO items to be added with PENDING or IN_PROGRESS status only
+        if (action === think_response_1.TodoAction.CREATE) {
+            // Accept multiple field names for flexibility (content, description, text, task)
+            // @internal This accommodates different agent response formats and improves robustness
             const content = (input.content || input.description || input.text || input.task);
-            const status = input.status || 'pending';
+            const status = input.status || think_response_1.TodoStatus.PENDING;
+            // Validate content is provided and is a string
+            // @internal Content is required for creating a meaningful TODO item
             if (!content || typeof content !== 'string') {
                 throw new Error('content is required for create action. Provide the task description in the "content" field.');
             }
-            if (!['pending', 'in_progress'].includes(status)) {
-                throw new Error('status for create must be "pending" or "in_progress"');
+            // Validate status is PENDING or IN_PROGRESS for new TODOs
+            // @internal COMPLETED and CANCELLED cannot be set during creation as they represent terminal states
+            if (![think_response_1.TodoStatus.PENDING, think_response_1.TodoStatus.IN_PROGRESS].includes(status)) {
+                throw new Error(`status for create must be "${think_response_1.TodoStatus.PENDING}" or "${think_response_1.TodoStatus.IN_PROGRESS}"`);
             }
+            // Create TODO via callback
+            // @internal The callback connects to the underlying TODO manager (ThinkTodoManager)
             const todo = this.options.createTodo(content, status);
             return `TODO created: [${todo.id}] ${todo.content} (${todo.status})`;
         }
-        if (action === 'update') {
+        // Handle UPDATE action
+        // @internal UPDATE allows modifying existing TODO items, including changing status to any valid value
+        if (action === think_response_1.TodoAction.UPDATE) {
             const todoId = input.todo_id;
             const status = input.status;
             const notes = input.notes;
+            // Validate todo_id is provided
+            // @internal todo_id is required to identify which TODO to update
             if (!todoId || typeof todoId !== 'string') {
                 throw new Error('todo_id is required for update action');
             }
+            // Build updates object with validated values
+            // @internal Only include fields that are provided and valid
             const updates = {};
             if (status) {
-                if (!['pending', 'in_progress', 'completed', 'cancelled'].includes(status)) {
-                    throw new Error('status must be one of: pending, in_progress, completed, cancelled');
+                // Validate status is a valid TodoStatus enum value
+                // @internal UPDATE allows all status values including COMPLETED and CANCELLED
+                if (!Object.values(think_response_1.TodoStatus).includes(status)) {
+                    throw new Error(`status must be one of: ${Object.values(think_response_1.TodoStatus).join(', ')}`);
                 }
                 updates.status = status;
             }
             if (notes) {
                 updates.notes = notes;
             }
+            // Update TODO via callback
+            // @internal Returns true if TODO was found and updated, false if not found
             const success = this.options.updateTodo(todoId, {
                 status: updates.status,
                 notes: updates.notes
@@ -64822,24 +65031,36 @@ class ManageTodosTool extends base_tool_1.BaseTool {
                 return `Error: TODO [${todoId}] not found`;
             }
         }
-        if (action === 'list') {
+        // Handle LIST action
+        // @internal LIST returns a formatted view of all TODO items with their status and notes
+        if (action === think_response_1.TodoAction.LIST) {
             const allTodos = this.options.getAllTodos();
             const activeTodos = this.options.getActiveTodos();
+            // Return early if no TODOs exist
+            // @internal Prevents unnecessary processing when list is empty
             if (allTodos.length === 0) {
                 return 'No TODOs found.';
             }
+            // Format each TODO with emoji based on status
+            // @internal Emojis provide visual indicators: ✅ completed, 🔄 in_progress, ❌ cancelled, ⏳ pending
             const todoList = allTodos.map(todo => {
-                const statusEmoji = todo.status === 'completed' ? '✅' :
-                    todo.status === 'in_progress' ? '🔄' :
-                        todo.status === 'cancelled' ? '❌' : '⏳';
+                const statusEmoji = todo.status === think_response_1.TodoStatus.COMPLETED ? '✅' :
+                    todo.status === think_response_1.TodoStatus.IN_PROGRESS ? '🔄' :
+                        todo.status === think_response_1.TodoStatus.CANCELLED ? '❌' : '⏳';
                 let line = `${statusEmoji} [${todo.id}] ${todo.status.toUpperCase()}: ${todo.content}`;
+                // Include notes if present
+                // @internal Notes provide additional context about the TODO's progress or blockers
                 if (todo.notes) {
                     line += `\n   📝 Notes: ${todo.notes}`;
                 }
                 return line;
             }).join('\n\n');
+            // Return formatted list with summary
+            // @internal Summary shows total count and active count (pending + in_progress)
             return `TODO List (${allTodos.length} total, ${activeTodos.length} active):\n\n${todoList}`;
         }
+        // This should never be reached due to validation above, but included for type safety
+        // @internal Fallback error for unexpected action values
         throw new Error('Invalid action');
     }
 }
@@ -64854,17 +65075,85 @@ exports.ManageTodosTool = ManageTodosTool;
 "use strict";
 
 /**
- * Propose Change Tool
- * Proposes changes to files in the virtual codebase
+ * Propose Change Tool - Proposes changes to files in the virtual codebase.
+ *
+ * This tool allows agents to propose modifications to files in the virtual codebase (in-memory
+ * representation). Changes can be created, modified, deleted, or refactored. The tool supports
+ * automatic application to disk when the user prompt is detected as an order (not a question).
+ *
+ * @internal
+ * This tool is used by agents to make code changes during their reasoning process. Changes are
+ * first applied to the virtual codebase (in-memory), and can optionally be automatically written
+ * to disk based on intent classification or explicit auto_apply parameter.
+ *
+ * The tool implements intelligent auto-apply detection:
+ * - If user prompt is an ORDER (create, write, make, build, set up, modify): auto_apply is enabled
+ * - If user prompt is a QUESTION (what, how, why, should, could): auto_apply is disabled
+ * - Explicit auto_apply parameter can override the auto-detection
+ *
+ * @remarks
+ * - Changes are always applied to virtual codebase first (in-memory)
+ * - Auto-apply to disk happens when shouldApplyChanges is true (from intent classifier or prompt analysis)
+ * - For clear orders: files are written to disk immediately
+ * - For questions/doubts: changes stay in memory for discussion
+ * - The tool validates all inputs and ensures type safety using ChangeType enum
+ *
+ * @example
+ * ```typescript
+ * const tool = new ProposeChangeTool({
+ *   applyChange: (change) => { return true; },
+ *   autoApplyToDisk: async (filePath) => { return true; },
+ *   getUserPrompt: () => 'Create a new file',
+ *   getShouldApplyChanges: () => true
+ * });
+ *
+ * // Propose a change (auto-apply will be determined automatically)
+ * await tool.execute({
+ *   file_path: 'src/utils/helper.ts',
+ *   change_type: 'create',
+ *   description: 'Create helper utility',
+ *   suggested_code: 'export function helper() {}',
+ *   reasoning: 'User requested to create this file'
+ * });
+ * ```
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ProposeChangeTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const think_response_1 = __nccwpck_require__(5893);
+/**
+ * ProposeChangeTool - Tool for proposing changes to files in the virtual codebase.
+ *
+ * This tool provides a structured interface for agents to propose file modifications. Changes
+ * are applied to the virtual codebase (in-memory) and can optionally be automatically written
+ * to disk based on intent classification or explicit configuration.
+ *
+ * @internal
+ * The tool validates all inputs and ensures type safety using ChangeType enum. It implements
+ * intelligent auto-apply detection based on user prompt analysis or pre-classified intent.
+ */
 class ProposeChangeTool extends base_tool_1.BaseTool {
+    /**
+     * Creates a new ProposeChangeTool instance.
+     *
+     * @internal
+     * The options parameter provides callbacks that connect this tool to the underlying change
+     * management system and enable auto-apply functionality.
+     *
+     * @param options - Configuration object with callbacks for change operations
+     */
     constructor(options) {
         super();
         this.options = options;
     }
+    /**
+     * Returns the tool name used by the agent system.
+     *
+     * @internal
+     * This name is used when the agent calls the tool via tool calls.
+     *
+     * @returns Tool identifier: 'propose_change'
+     */
     getName() {
         return 'propose_change';
     }
@@ -64901,7 +65190,7 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
                 },
                 change_type: {
                     type: 'string',
-                    enum: ['create', 'modify', 'delete', 'refactor'],
+                    enum: Object.values(think_response_1.ChangeType),
                     description: 'Type of change to make: create (new file), modify (update existing code - use for bugfixes, features, updates), delete (remove file), refactor (restructure code without changing functionality)'
                 },
                 description: {
@@ -64926,7 +65215,25 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         };
     }
     /**
-     * Detect if user prompt is an order (not a question)
+     * Detects if user prompt is an order (not a question).
+     *
+     * This method analyzes the user prompt to determine if it represents a clear instruction
+     * to perform an action (order) versus a question seeking information.
+     *
+     * @internal
+     * This is a fallback method used when intent classifier is not available. It uses pattern
+     * matching to identify order indicators (create, write, make, build, etc.) and question
+     * indicators (what, how, why, ?, etc.). Question indicators take priority - if a prompt
+     * contains both, it's treated as a question.
+     *
+     * @param prompt - Optional user prompt to analyze
+     * @returns true if prompt is detected as an order, false if it's a question or unclear
+     *
+     * @remarks
+     * - Strong question indicators (?, what, how, why, etc.) take priority over order indicators
+     * - Order indicators include: create, write, make, build, set up, modify, add, implement, etc.
+     * - If prompt contains question mark or starts with question words, it's treated as a question
+     * - Default behavior: if no question mark and has action verbs, treat as order
      */
     isOrderPrompt(prompt) {
         if (!prompt)
@@ -64953,6 +65260,56 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         // Default: if no question mark and has action verbs, treat as order
         return !prompt.includes('?') && hasOrder;
     }
+    /**
+     * Executes the tool with the provided input.
+     *
+     * This method handles the complete change proposal workflow:
+     * 1. Validates all input parameters (file_path, change_type, description, suggested_code, reasoning)
+     * 2. Applies change to virtual codebase (in-memory)
+     * 3. Determines if auto-apply to disk should be enabled (explicit parameter, intent classifier, or prompt analysis)
+     * 4. Optionally writes changes to disk if auto-apply is enabled
+     *
+     * @internal
+     * The method validates all inputs before processing. It uses ChangeType enum to ensure
+     * type safety. Auto-apply detection follows a priority order:
+     * 1. Explicit auto_apply parameter (if provided)
+     * 2. Pre-classified intent from intent classifier (if available)
+     * 3. Fallback to user prompt analysis (if classifier not used)
+     *
+     * @param input - Tool input containing file_path, change_type, description, suggested_code, reasoning, and optional auto_apply
+     * @returns String response indicating success or error, including whether changes were auto-applied to disk
+     *
+     * @throws Error if required fields are missing, change_type is invalid, or file operations fail
+     *
+     * @remarks
+     * - All changes are applied to virtual codebase first (in-memory)
+     * - Auto-apply to disk only happens if shouldAutoApply is true and autoApplyToDisk callback is provided
+     * - For DELETE operations, special handling is required when writing to disk
+     * - If auto-apply fails, the change remains in virtual codebase and user can use apply_changes tool manually
+     *
+     * @example
+     * ```typescript
+     * // Propose a change (auto-apply determined automatically)
+     * const result = await tool.execute({
+     *   file_path: 'src/utils/helper.ts',
+     *   change_type: 'create',
+     *   description: 'Create helper utility',
+     *   suggested_code: 'export function helper() {}',
+     *   reasoning: 'User requested to create this file'
+     * });
+     * // Returns: "Change proposed and automatically applied to disk: src/utils/helper.ts: Create helper utility"
+     *
+     * // Propose a change with explicit auto_apply
+     * const result2 = await tool.execute({
+     *   file_path: 'src/utils/helper.ts',
+     *   change_type: 'modify',
+     *   description: 'Update helper function',
+     *   suggested_code: 'export function helper() { return true; }',
+     *   reasoning: 'Add return value',
+     *   auto_apply: true
+     * });
+     * ```
+     */
     async execute(input) {
         const { logInfo } = __nccwpck_require__(8836);
         const filePath = input.file_path;
@@ -64966,9 +65323,8 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
         if (!filePath || typeof filePath !== 'string') {
             throw new Error('file_path is required and must be a string');
         }
-        const validChangeTypes = ['create', 'modify', 'delete', 'refactor'];
-        if (!validChangeTypes.includes(changeType)) {
-            throw new Error(`change_type must be one of: ${validChangeTypes.join(', ')}`);
+        if (!Object.values(think_response_1.ChangeType).includes(changeType)) {
+            throw new Error(`change_type must be one of: ${Object.values(think_response_1.ChangeType).join(', ')}`);
         }
         if (!description || typeof description !== 'string') {
             throw new Error('description is required and must be a string');
@@ -65027,8 +65383,8 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
             if (shouldAutoApply && this.options.autoApplyToDisk) {
                 try {
                     // For delete operations, we need special handling
-                    if (changeType === 'delete') {
-                        const applied = await this.options.autoApplyToDisk(filePath, 'delete');
+                    if (changeType === think_response_1.ChangeType.DELETE) {
+                        const applied = await this.options.autoApplyToDisk(filePath, think_response_1.ChangeType.DELETE);
                         if (applied) {
                             return `File deleted from disk: ${filePath}`;
                         }
@@ -65069,20 +65425,81 @@ exports.ProposeChangeTool = ProposeChangeTool;
 "use strict";
 
 /**
- * Read File Tool
- * Reads file contents from repository or virtual codebase
+ * Read File Tool - Reads file contents from repository or virtual codebase.
+ *
+ * This tool allows agents to read and examine file contents from either the virtual codebase
+ * (in-memory changes) or the original repository files. It provides a unified interface for
+ * accessing file content regardless of whether the file has been modified in the virtual codebase.
+ *
+ * @internal
+ * This tool is used by agents to examine code, configuration files, or any file in the codebase
+ * during their reasoning process. It checks the virtual codebase first (for modified files) and
+ * falls back to repository files if not found.
+ *
+ * @remarks
+ * - Virtual codebase is checked first (for files modified via propose_change)
+ * - Falls back to repository files if not found in virtual codebase
+ * - Returns formatted response with file path, line count, and code block
+ * - Returns error message if file is not found in either location
+ *
+ * @example
+ * ```typescript
+ * const tool = new ReadFileTool({
+ *   getFileContent: (filePath) => { return 'file content'; },
+ *   repositoryFiles: new Map([['src/utils.ts', 'export function util() {}']])
+ * });
+ *
+ * const result = await tool.execute({ file_path: 'src/utils.ts' });
+ * // Returns: "File: src/utils.ts\nLines: 1\n\n```\nfile content\n```"
+ * ```
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReadFileTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+/**
+ * ReadFileTool - Tool for reading file contents from repository or virtual codebase.
+ *
+ * This tool provides a unified interface for accessing file content from either the virtual
+ * codebase (modified files) or the original repository files.
+ *
+ * @internal
+ * The tool checks the virtual codebase first, then falls back to repository files. This ensures
+ * that agents always see the most recent changes (from propose_change) when reading files.
+ */
 class ReadFileTool extends base_tool_1.BaseTool {
+    /**
+     * Creates a new ReadFileTool instance.
+     *
+     * @internal
+     * The options parameter provides callbacks that connect this tool to the virtual codebase
+     * and repository file storage.
+     *
+     * @param options - Configuration object with callbacks for file operations
+     */
     constructor(options) {
         super();
         this.options = options;
     }
+    /**
+     * Returns the tool name used by the agent system.
+     *
+     * @internal
+     * This name is used when the agent calls the tool via tool calls.
+     *
+     * @returns Tool identifier: 'read_file'
+     */
     getName() {
         return 'read_file';
     }
+    /**
+     * Returns the tool description shown to the agent.
+     *
+     * @internal
+     * This description helps the agent understand when and how to use this tool.
+     * It's included in the agent's available tools list.
+     *
+     * @returns Human-readable description of the tool's purpose
+     */
     getDescription() {
         return 'Read the contents of a file from the repository. Use this to examine code, configuration files, or any file in the codebase.';
     }
@@ -65099,23 +65516,65 @@ class ReadFileTool extends base_tool_1.BaseTool {
             additionalProperties: false
         };
     }
+    /**
+     * Executes the tool with the provided input.
+     *
+     * This method reads file content from either the virtual codebase or repository files.
+     * It checks the virtual codebase first (for modified files) and falls back to repository
+     * files if not found.
+     *
+     * @internal
+     * The method validates the file_path input and then attempts to retrieve the file content
+     * from two sources in order:
+     * 1. Virtual codebase (via getFileContent callback) - contains files modified via propose_change
+     * 2. Repository files (via repositoryFiles Map) - contains original files
+     *
+     * @param input - Tool input containing file_path
+     * @returns Formatted string with file path, line count, and code block, or error message if file not found
+     *
+     * @throws Error if file_path is missing or not a string
+     *
+     * @remarks
+     * - Virtual codebase is checked first to ensure agents see the most recent changes
+     * - Response format includes file path, line count, and code block for easy reading
+     * - Returns error message (not exception) if file is not found in either location
+     *
+     * @example
+     * ```typescript
+     * const result = await tool.execute({ file_path: 'src/utils.ts' });
+     * // Returns: "File: src/utils.ts\nLines: 10\n\n```\nexport function util() {}\n```"
+     *
+     * const result2 = await tool.execute({ file_path: 'nonexistent.ts' });
+     * // Returns: "Error: File "nonexistent.ts" not found in the repository."
+     * ```
+     */
     async execute(input) {
         const { logInfo } = __nccwpck_require__(8836);
         const filePath = input.file_path;
         logInfo(`   📖 Reading file: ${filePath}`);
+        // Validate file_path is provided and is a string
+        // @internal file_path is required to identify which file to read
         if (!filePath || typeof filePath !== 'string') {
             throw new Error('file_path is required and must be a string');
         }
         // Try to get from virtual codebase first
+        // @internal Virtual codebase contains files modified via propose_change, so we check it first
+        // to ensure agents see the most recent changes
         let content = this.options.getFileContent(filePath);
         // If not found, try repository files
-        if (!content && this.options.repositoryFiles) {
+        // @internal Fallback to original repository files if file hasn't been modified
+        // Note: We check for undefined/null specifically, not falsy, because empty string is valid content
+        if (content === undefined && this.options.repositoryFiles) {
             content = this.options.repositoryFiles.get(filePath);
         }
-        if (!content) {
+        // Return error message if file not found in either location
+        // @internal We return an error message (not exception) so the agent can handle it gracefully
+        // Note: Empty string is valid content, so we only check for undefined
+        if (content === undefined) {
             return `Error: File "${filePath}" not found in the repository.`;
         }
-        // Format response
+        // Format response with file path, line count, and code block
+        // @internal This format makes it easy for agents to understand file structure and content
         const lines = content.split('\n').length;
         return `File: ${filePath}\nLines: ${lines}\n\n\`\`\`\n${content}\n\`\`\``;
     }
@@ -65131,18 +65590,84 @@ exports.ReadFileTool = ReadFileTool;
 "use strict";
 
 /**
- * Report Errors Tool
- * Tool for reporting detected errors in structured format
+ * Report Errors Tool - Tool for reporting detected errors in structured format.
+ *
+ * This tool allows agents to report detected errors, bugs, vulnerabilities, or issues in a
+ * structured format. Each error includes file path, line number (if applicable), type, severity,
+ * description, and optional suggestion for fixing it.
+ *
+ * @internal
+ * This tool is used by the ErrorDetector agent to report all errors found during code analysis.
+ * The tool validates and cleans error data to ensure consistency, removing markdown formatting
+ * and normalizing values according to IssueType and SeverityLevel enums.
+ *
+ * @remarks
+ * - Errors must be provided as an array of plain JSON objects
+ * - File paths and types are cleaned to remove markdown formatting
+ * - IssueType values are validated and normalized (fallback to CODE_ISSUE if invalid)
+ * - SeverityLevel values must be one of: critical, high, medium, low
+ * - Descriptions and suggestions can contain newlines but no markdown formatting
+ * - Line numbers are optional and parsed from strings if needed
+ *
+ * @example
+ * ```typescript
+ * const tool = new ReportErrorsTool({
+ *   onErrorsReported: (errors) => { console.log('Errors reported:', errors); }
+ * });
+ *
+ * await tool.execute({
+ *   errors: [
+ *     {
+ *       file: 'src/utils.ts',
+ *       line: 42,
+ *       type: 'bug',
+ *       severity: 'high',
+ *       description: 'Null pointer exception possible',
+ *       suggestion: 'Add null check before accessing property'
+ *     }
+ *   ]
+ * });
+ * ```
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportErrorsTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
 const types_1 = __nccwpck_require__(9978);
+/**
+ * ReportErrorsTool - Tool for reporting detected errors in structured format.
+ *
+ * This tool provides a structured interface for agents to report errors found during code
+ * analysis. It validates, cleans, and normalizes error data before passing it to the callback.
+ *
+ * @internal
+ * The tool performs extensive cleaning and validation:
+ * - Removes markdown formatting from file paths, types, descriptions, and suggestions
+ * - Validates IssueType values (with fallback to CODE_ISSUE if invalid)
+ * - Validates SeverityLevel values (must be one of: critical, high, medium, low)
+ * - Parses line numbers from strings if needed
+ * - Extracts first error from concatenated error descriptions
+ */
 class ReportErrorsTool extends base_tool_1.BaseTool {
+    /**
+     * Creates a new ReportErrorsTool instance.
+     *
+     * @internal
+     * The options parameter provides the callback that receives cleaned and validated errors.
+     *
+     * @param options - Configuration object with callback for error reporting
+     */
     constructor(options) {
         super();
         this.options = options;
     }
+    /**
+     * Returns the tool name used by the agent system.
+     *
+     * @internal
+     * This name is used when the agent calls the tool via tool calls.
+     *
+     * @returns Tool identifier: 'report_errors'
+     */
     getName() {
         return 'report_errors';
     }
@@ -65174,7 +65699,7 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
                             },
                             severity: {
                                 type: 'string',
-                                enum: ['critical', 'high', 'medium', 'low'],
+                                enum: Object.values(types_1.SeverityLevel),
                                 description: 'Severity level. MUST be exactly one of: "critical", "high", "medium", "low" (lowercase, no quotes in the value itself).'
                             },
                             description: {
@@ -65195,12 +65720,62 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
             additionalProperties: false
         };
     }
+    /**
+     * Executes the tool with the provided input.
+     *
+     * This method processes an array of errors, validates and cleans each error, and then
+     * passes the cleaned errors to the callback. The cleaning process removes markdown
+     * formatting, normalizes values, and validates against IssueType and SeverityLevel enums.
+     *
+     * @internal
+     * The method performs extensive validation and cleaning:
+     * 1. Validates errors is an array
+     * 2. For each error: validates required fields, cleans file paths and types, normalizes
+     *    IssueType and SeverityLevel, parses line numbers, cleans descriptions and suggestions
+     * 3. Passes cleaned errors to callback
+     *
+     * @param input - Tool input containing errors array
+     * @returns String response indicating success or error details
+     *
+     * @throws Error if errors is not an array, required fields are missing, or validation fails
+     *
+     * @remarks
+     * - Empty errors array is valid and returns success message
+     * - File paths are cleaned to remove markdown, prefixes, and newlines
+     * - IssueType values are validated and normalized (fallback to CODE_ISSUE if invalid)
+     * - SeverityLevel values must be exactly one of: critical, high, medium, low
+     * - Line numbers are parsed from strings if needed (extracts first number found)
+     * - Descriptions and suggestions are cleaned but preserve newlines for readability
+     * - If multiple errors are concatenated in description, only first is extracted
+     *
+     * @example
+     * ```typescript
+     * const result = await tool.execute({
+     *   errors: [
+     *     {
+     *       file: '**src/utils.ts**',
+     *       line: '42',
+     *       type: 'BUG',
+     *       severity: 'HIGH',
+     *       description: '**Null pointer** exception',
+     *       suggestion: 'Add null check'
+     *     }
+     *   ]
+     * });
+     * // Errors are cleaned: file='src/utils.ts', line=42, type='bug', severity='high'
+     * // Returns: "Successfully reported 1 error(s). Errors have been recorded for analysis."
+     * ```
+     */
     async execute(input) {
         const { logInfo } = __nccwpck_require__(8836);
         const errors = input.errors;
+        // Validate errors is an array
+        // @internal errors must be an array to process multiple errors at once
         if (!Array.isArray(errors)) {
             throw new Error('errors must be an array');
         }
+        // Handle empty errors array
+        // @internal Empty array is valid - means no errors were found during analysis
         if (errors.length === 0) {
             logInfo('   ✅ No errors reported');
             this.options.onErrorsReported([]);
@@ -65208,6 +65783,7 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
         }
         logInfo(`   📋 Reporting ${errors.length} error(s) in structured format`);
         // Clean and validate each error
+        // @internal Each error is processed individually to ensure all are valid before reporting
         const cleanedErrors = [];
         for (let i = 0; i < errors.length; i++) {
             const error = errors[i];
@@ -65264,8 +65840,8 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
             }
             // Validate and normalize severity
             let severity = String(error.severity).toLowerCase().trim();
-            if (!['critical', 'high', 'medium', 'low'].includes(severity)) {
-                throw new Error(`Error at index ${i}: Invalid severity "${error.severity}". Must be one of: critical, high, medium, low`);
+            if (!Object.values(types_1.SeverityLevel).includes(severity)) {
+                throw new Error(`Error at index ${i}: Invalid severity "${error.severity}". Must be one of: ${Object.values(types_1.SeverityLevel).join(', ')}`);
             }
             // Clean description - remove markdown but preserve content
             let description = String(error.description)
@@ -65336,17 +65912,76 @@ exports.ReportErrorsTool = ReportErrorsTool;
 "use strict";
 
 /**
- * Report Progress Tool
- * Tool for reporting task progress in structured format
+ * Report Progress Tool - Tool for reporting task progress in structured format.
+ *
+ * This tool allows agents to report the progress percentage of a task based on code changes
+ * analysis. It reports the completion percentage (0-100) and a brief summary of the assessment.
+ * This is the primary way for agents to report progress after analyzing changes.
+ *
+ * @internal
+ * This tool is used by the ProgressDetector agent to report task completion percentage. The tool
+ * validates progress is within 0-100 range, cleans the summary text to remove markdown formatting,
+ * and rounds progress to integer for consistency.
+ *
+ * @remarks
+ * - progress must be a number between 0 and 100 (inclusive)
+ * - Progress can be provided as number or string (extracts number from string)
+ * - Progress is rounded to integer for consistency
+ * - summary is cleaned to remove markdown formatting but preserves newlines
+ * - This is the PRIMARY way to report progress - agents MUST use this tool
+ *
+ * @example
+ * ```typescript
+ * const tool = new ReportProgressTool({
+ *   onProgressReported: (progress, summary) => {
+ *     console.log(`Progress: ${progress}%`);
+ *   }
+ * });
+ *
+ * await tool.execute({
+ *   progress: 75,
+ *   summary: 'Most changes are complete, only tests remaining'
+ * });
+ * ```
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportProgressTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+/**
+ * ReportProgressTool - Tool for reporting task progress in structured format.
+ *
+ * This tool provides a structured interface for agents to report task completion percentage.
+ * It validates progress range, cleans summary text, and ensures data consistency.
+ *
+ * @internal
+ * The tool performs validation and cleaning:
+ * - Validates progress is within 0-100 range
+ * - Parses progress from string if needed (extracts first number)
+ * - Rounds progress to integer for consistency
+ * - Cleans summary to remove markdown formatting (preserves newlines)
+ * - Passes cleaned data to callback
+ */
 class ReportProgressTool extends base_tool_1.BaseTool {
+    /**
+     * Creates a new ReportProgressTool instance.
+     *
+     * @internal
+     * The options parameter provides the callback that receives the progress assessment.
+     *
+     * @param options - Configuration object with callback for progress reporting
+     */
     constructor(options) {
         super();
         this.options = options;
     }
+    /**
+     * Returns the tool name used by the agent system.
+     *
+     * @internal
+     * This name is used when the agent calls the tool via tool calls.
+     *
+     * @returns Tool identifier: 'report_progress'
+     */
     getName() {
         return 'report_progress';
     }
@@ -65372,9 +66007,55 @@ class ReportProgressTool extends base_tool_1.BaseTool {
             additionalProperties: false
         };
     }
+    /**
+     * Executes the tool with the provided input.
+     *
+     * This method validates and processes the progress assessment, parses progress from number
+     * or string, validates the range, cleans the summary text, and passes the cleaned data
+     * to the callback.
+     *
+     * @internal
+     * The method performs the following steps:
+     * 1. Validates progress is provided
+     * 2. Parses progress from number or string (extracts first number from string)
+     * 3. Validates progress is within 0-100 range
+     * 4. Rounds progress to integer for consistency
+     * 5. Validates summary is provided and is a string
+     * 6. Cleans summary to remove markdown formatting (preserves newlines)
+     * 7. Passes cleaned data to callback
+     *
+     * @param input - Tool input containing progress and summary
+     * @returns String response indicating success
+     *
+     * @throws Error if progress is missing, invalid, or out of range; or if summary is missing or empty after cleaning
+     *
+     * @remarks
+     * - Progress can be provided as number or string (extracts first number from string)
+     * - Progress is rounded to integer for consistency (e.g., 75.5 becomes 76)
+     * - Summary is cleaned to remove markdown but preserves newlines for readability
+     * - Empty summary after cleaning throws an error
+     *
+     * @example
+     * ```typescript
+     * // With number
+     * const result = await tool.execute({
+     *   progress: 75,
+     *   summary: '**Most changes** are complete'
+     * });
+     * // Progress: 75, Summary: 'Most changes are complete'
+     *
+     * // With string
+     * const result2 = await tool.execute({
+     *   progress: '50%',
+     *   summary: 'Halfway done'
+     * });
+     * // Progress: 50, Summary: 'Halfway done'
+     * ```
+     */
     async execute(input) {
         const { logInfo } = __nccwpck_require__(8836);
         // Validate progress
+        // @internal progress is required to know the completion percentage
         if (input.progress === undefined || input.progress === null) {
             throw new Error('progress is required');
         }
@@ -65384,6 +66065,7 @@ class ReportProgressTool extends base_tool_1.BaseTool {
         }
         else if (typeof input.progress === 'string') {
             // Try to extract number from string
+            // @internal Allows flexibility - extracts first number from strings like "50%", "75.5", etc.
             const match = input.progress.match(/(\d+(?:\.\d+)?)/);
             if (match) {
                 progress = parseFloat(match[1]);
@@ -65396,16 +66078,20 @@ class ReportProgressTool extends base_tool_1.BaseTool {
             throw new Error(`Invalid progress type: ${typeof input.progress}. Must be a number between 0 and 100.`);
         }
         // Validate progress range
+        // @internal Progress must be between 0 and 100 (inclusive)
         if (isNaN(progress) || progress < 0 || progress > 100) {
             throw new Error(`Progress must be a number between 0 and 100, got: ${progress}`);
         }
         // Round to integer
+        // @internal Rounding ensures consistency - progress is always an integer
         progress = Math.round(progress);
         // Validate summary
+        // @internal summary is required to explain the progress assessment
         if (!input.summary || typeof input.summary !== 'string') {
             throw new Error('summary is required and must be a string');
         }
         // Clean summary - remove markdown but preserve content
+        // @internal Remove markdown formatting to ensure clean plain text, but preserve newlines for readability
         let summary = String(input.summary)
             .replace(/\*\*/g, '')
             .replace(/\*/g, '')
@@ -65420,6 +66106,7 @@ class ReportProgressTool extends base_tool_1.BaseTool {
         logInfo(`   📊 Progress reported: ${progress}%`);
         logInfo(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
         // Notify callback
+        // @internal Pass cleaned and validated data to callback
         this.options.onProgressReported(progress, summary);
         return `Successfully reported progress: ${progress}%. Progress has been recorded.`;
     }
@@ -65435,20 +66122,86 @@ exports.ReportProgressTool = ReportProgressTool;
 "use strict";
 
 /**
- * Search Files Tool
- * Searches for files by name or content
+ * Search Files Tool - Searches for files by name or content.
+ *
+ * This tool allows agents to search for files in the repository by name, path, or content
+ * keywords. It returns a list of matching file paths, with optional result limiting for
+ * efficiency.
+ *
+ * @internal
+ * This tool is used by agents to find files during their reasoning process. It delegates
+ * the actual search logic to the searchFiles callback, which can implement various search
+ * strategies (name matching, path patterns, content search, etc.).
+ *
+ * @remarks
+ * - query is required and can be a file name, path pattern, or content keyword
+ * - max_results defaults to 1000 but can be set higher (>= 10000 returns all results)
+ * - Results are formatted as a numbered list for easy reading
+ * - Returns empty message if no files match the query
+ *
+ * @example
+ * ```typescript
+ * const tool = new SearchFilesTool({
+ *   searchFiles: (query) => {
+ *     // Implement search logic
+ *     return ['src/utils.ts', 'src/helper.ts'];
+ *   }
+ * });
+ *
+ * // Search with default limit
+ * await tool.execute({ query: 'utils' });
+ *
+ * // Search with custom limit
+ * await tool.execute({ query: 'test', max_results: 5000 });
+ * ```
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SearchFilesTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+/**
+ * SearchFilesTool - Tool for searching files by name or content.
+ *
+ * This tool provides a unified interface for file searching, with result limiting and
+ * formatting capabilities.
+ *
+ * @internal
+ * The tool validates the query, delegates search to the callback, limits results if needed,
+ * and formats the response as a numbered list. For very large max_results (>= 10000), it
+ * returns all results without limiting.
+ */
 class SearchFilesTool extends base_tool_1.BaseTool {
+    /**
+     * Creates a new SearchFilesTool instance.
+     *
+     * @internal
+     * The options parameter provides callbacks that implement the search logic.
+     *
+     * @param options - Configuration object with callbacks for file search
+     */
     constructor(options) {
         super();
         this.options = options;
     }
+    /**
+     * Returns the tool name used by the agent system.
+     *
+     * @internal
+     * This name is used when the agent calls the tool via tool calls.
+     *
+     * @returns Tool identifier: 'search_files'
+     */
     getName() {
         return 'search_files';
     }
+    /**
+     * Returns the tool description shown to the agent.
+     *
+     * @internal
+     * This description helps the agent understand when and how to use this tool.
+     * It's included in the agent's available tools list.
+     *
+     * @returns Human-readable description of the tool's purpose
+     */
     getDescription() {
         return 'Search for files in the repository by name, path, or content keywords. Returns a list of matching file paths.';
     }
@@ -65469,26 +66222,75 @@ class SearchFilesTool extends base_tool_1.BaseTool {
             additionalProperties: false
         };
     }
+    /**
+     * Executes the tool with the provided input.
+     *
+     * This method performs a file search based on the query, limits results if needed, and
+     * formats the response as a numbered list.
+     *
+     * @internal
+     * The method performs the following steps:
+     * 1. Validates query is provided and is a string
+     * 2. Validates max_results is at least 1
+     * 3. Delegates search to searchFiles callback
+     * 4. Limits results if max_results is reasonable (< 10000)
+     * 5. Formats results as numbered list or returns empty message
+     *
+     * @param input - Tool input containing query and optional max_results
+     * @returns Formatted string with numbered list of matching files, or empty message if none found
+     *
+     * @throws Error if query is missing or not a string, or if max_results is less than 1
+     *
+     * @remarks
+     * - max_results defaults to 1000 for comprehensive searches
+     * - For max_results >= 10000, all results are returned (no limiting)
+     * - Results are formatted as a numbered list for easy reading
+     * - Returns empty message (not exception) if no files match
+     *
+     * @example
+     * ```typescript
+     * // Search with default limit
+     * const result = await tool.execute({ query: 'utils' });
+     * // Returns: "Found 2 file(s) matching "utils":\n\n1. src/utils.ts\n2. src/utils/helper.ts"
+     *
+     * // Search with custom limit
+     * const result2 = await tool.execute({ query: 'test', max_results: 5000 });
+     *
+     * // No results
+     * const result3 = await tool.execute({ query: 'nonexistent' });
+     * // Returns: "No files found matching query: "nonexistent""
+     * ```
+     */
     async execute(input) {
         const { logInfo } = __nccwpck_require__(8836);
         const query = input.query;
         logInfo(`   🔍 Searching files with query: "${query}"`);
-        const maxResults = input.max_results || 1000; // Default to 1000 for comprehensive searches
+        // Use nullish coalescing to handle 0 correctly (0 || 1000 would be 1000)
+        const maxResults = input.max_results !== undefined ? input.max_results : 1000; // Default to 1000 for comprehensive searches
+        // Validate query is provided and is a string
+        // @internal query is required to know what to search for
         if (!query || typeof query !== 'string') {
             throw new Error('query is required and must be a string');
         }
+        // Validate max_results is at least 1
+        // @internal max_results must be positive to limit results
         if (maxResults < 1) {
             throw new Error('max_results must be at least 1');
         }
         // Perform search
+        // @internal Delegate actual search logic to callback
         const results = this.options.searchFiles(query);
         // Limit results only if maxResults is reasonable (to prevent memory issues)
         // For very large values (>= 10000), return all results
+        // @internal Very large max_results values indicate comprehensive search, so return all results
         const limitedResults = maxResults >= 10000 ? results : results.slice(0, maxResults);
+        // Return empty message if no results
+        // @internal Return message (not exception) so agent can handle gracefully
         if (limitedResults.length === 0) {
             return `No files found matching query: "${query}"`;
         }
-        // Format response
+        // Format response as numbered list
+        // @internal Numbered list makes it easy for agents to reference specific files
         const resultList = limitedResults.map((file, index) => `${index + 1}. ${file}`).join('\n');
         return `Found ${limitedResults.length} file(s) matching "${query}":\n\n${resultList}`;
     }
@@ -67430,6 +68232,46 @@ class SupabaseConfig {
     }
 }
 exports.SupabaseConfig = SupabaseConfig;
+
+
+/***/ }),
+
+/***/ 5893:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ChangeType = exports.TodoAction = exports.TodoStatus = void 0;
+/**
+ * Status levels for TODO items
+ */
+var TodoStatus;
+(function (TodoStatus) {
+    TodoStatus["PENDING"] = "pending";
+    TodoStatus["IN_PROGRESS"] = "in_progress";
+    TodoStatus["COMPLETED"] = "completed";
+    TodoStatus["CANCELLED"] = "cancelled";
+})(TodoStatus || (exports.TodoStatus = TodoStatus = {}));
+/**
+ * Actions for managing TODOs
+ */
+var TodoAction;
+(function (TodoAction) {
+    TodoAction["CREATE"] = "create";
+    TodoAction["UPDATE"] = "update";
+    TodoAction["LIST"] = "list";
+})(TodoAction || (exports.TodoAction = TodoAction = {}));
+/**
+ * Types of changes that can be proposed to files
+ */
+var ChangeType;
+(function (ChangeType) {
+    ChangeType["CREATE"] = "create";
+    ChangeType["MODIFY"] = "modify";
+    ChangeType["DELETE"] = "delete";
+    ChangeType["REFACTOR"] = "refactor";
+})(ChangeType || (exports.ChangeType = ChangeType = {}));
 
 
 /***/ }),
@@ -74661,6 +75503,7 @@ exports.StoreConfigurationUseCase = StoreConfigurationUseCase;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ThinkTodoManager = void 0;
+const think_response_1 = __nccwpck_require__(5893);
 const logger_1 = __nccwpck_require__(8836);
 /**
  * Manages TODO list for the reasoning process
@@ -74679,7 +75522,10 @@ class ThinkTodoManager {
         this.nextId = 1;
         if (initialTodos && initialTodos.length > 0) {
             for (const todo of initialTodos) {
-                this.createTodo(todo.content, todo.status || 'pending');
+                const status = todo.status && (todo.status === think_response_1.TodoStatus.PENDING || todo.status === think_response_1.TodoStatus.IN_PROGRESS)
+                    ? todo.status
+                    : think_response_1.TodoStatus.PENDING;
+                this.createTodo(todo.content, status);
             }
             (0, logger_1.logInfo)(`📋 TODO list initialized with ${initialTodos.length} tasks`);
         }
@@ -74690,7 +75536,7 @@ class ThinkTodoManager {
     /**
      * Create a new TODO item
      */
-    createTodo(content, status = 'pending') {
+    createTodo(content, status = think_response_1.TodoStatus.PENDING) {
         const id = `todo_${this.nextId++}`;
         const now = Date.now();
         const todo = {
@@ -74717,7 +75563,7 @@ class ThinkTodoManager {
         const oldStatus = todo.status;
         if (updates.status) {
             todo.status = updates.status;
-            if (updates.status === 'completed' && !todo.completed_at) {
+            if (updates.status === think_response_1.TodoStatus.COMPLETED && !todo.completed_at) {
                 todo.completed_at = now;
             }
         }
@@ -74755,17 +75601,17 @@ class ThinkTodoManager {
      * Get active TODOs (pending or in_progress)
      */
     getActiveTodos() {
-        return this.getAllTodos().filter(todo => todo.status === 'pending' || todo.status === 'in_progress');
+        return this.getAllTodos().filter(todo => todo.status === think_response_1.TodoStatus.PENDING || todo.status === think_response_1.TodoStatus.IN_PROGRESS);
     }
     /**
      * Get completion statistics
      */
     getStats() {
         const all = this.getAllTodos();
-        const pending = all.filter(t => t.status === 'pending').length;
-        const in_progress = all.filter(t => t.status === 'in_progress').length;
-        const completed = all.filter(t => t.status === 'completed').length;
-        const cancelled = all.filter(t => t.status === 'cancelled').length;
+        const pending = all.filter(t => t.status === think_response_1.TodoStatus.PENDING).length;
+        const in_progress = all.filter(t => t.status === think_response_1.TodoStatus.IN_PROGRESS).length;
+        const completed = all.filter(t => t.status === think_response_1.TodoStatus.COMPLETED).length;
+        const cancelled = all.filter(t => t.status === think_response_1.TodoStatus.CANCELLED).length;
         const total = all.length;
         const completion_rate = total > 0 ? (completed / total) * 100 : 0;
         return {
@@ -74783,7 +75629,7 @@ class ThinkTodoManager {
     getContextForAI() {
         const stats = this.getStats();
         const activeTodos = this.getActiveTodos();
-        const completedTodos = this.getTodosByStatus('completed').slice(-5); // Last 5 completed
+        const completedTodos = this.getTodosByStatus(think_response_1.TodoStatus.COMPLETED).slice(-5); // Last 5 completed
         const allTodos = this.getAllTodos();
         const context = [];
         context.push(`\n## 📋 TODO List Status`);
@@ -74868,9 +75714,9 @@ class ThinkTodoManager {
                     // Link changes to TODO
                     this.linkTodoToChanges(todo.id, relatedChanges);
                     // If TODO was pending, mark as in_progress
-                    if (todo.status === 'pending') {
+                    if (todo.status === think_response_1.TodoStatus.PENDING) {
                         this.updateTodo(todo.id, {
-                            status: 'in_progress',
+                            status: think_response_1.TodoStatus.IN_PROGRESS,
                             notes: `Auto-updated: ${relatedChanges.length} change(s) applied`
                         });
                     }

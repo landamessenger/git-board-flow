@@ -11,5 +11,5 @@ export declare class IntentParser {
      * Only uses structured format from report_intent tool - no text parsing
      * The tool already validates and cleans the data, so we just extract it directly
      */
-    static parseIntent(result: AgentResult): Omit<IntentClassificationResult, 'agentResult'>;
+    static parseIntent(result: AgentResult): IntentClassificationResult;
 }

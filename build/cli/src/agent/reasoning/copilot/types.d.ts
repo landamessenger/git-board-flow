@@ -2,6 +2,7 @@
  * Types and interfaces for Copilot Agent
  */
 import { AgentResult } from '../../types';
+import { ChangeType } from '../../../data/model/think_response';
 /**
  * Options for Copilot agent
  */
@@ -28,7 +29,7 @@ export interface CopilotResult {
     agentResult: AgentResult;
     changes?: Array<{
         file: string;
-        changeType: 'create' | 'modify' | 'delete' | 'refactor';
+        changeType: ChangeType;
         description?: string;
     }>;
 }

@@ -1,4 +1,4 @@
-import { ThinkResponse, ThinkStep, ProposedChange, FileAnalysis } from '../../../data/model/think_response';
+import { ThinkResponse, ThinkStep, ProposedChange, FileAnalysis, TodoStatus } from '../../../data/model/think_response';
 import { Execution } from '../../../data/model/execution';
 import { Result } from '../../../data/model/result';
 import { AiRepository } from '../../../data/repository/ai_repository';
@@ -229,7 +229,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                         } else {
                             // First iteration - allow TODO creation
                             for (const todo of thinkResponse.todo_updates.create) {
-                                const createdTodo = todoManager.createTodo(todo.content, todo.status || 'pending');
+                                const createdTodo = todoManager.createTodo(todo.content, todo.status || TodoStatus.PENDING);
                                 logInfo(`✅ Created TODO: [${createdTodo.id}] ${todo.content}`);
                             }
                             if (thinkResponse.todo_updates.create.length > 0) {

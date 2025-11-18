@@ -52,7 +52,7 @@ export class ThinkTodoManager {
      * Update an existing TODO item
      */
     updateTodo(id: string, updates: {
-        status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        status?: TodoStatus;
         notes?: string;
         related_files?: string[];
         related_changes?: string[];
@@ -68,7 +68,7 @@ export class ThinkTodoManager {
 
         if (updates.status) {
             todo.status = updates.status;
-            if (updates.status === 'completed' && !todo.completed_at) {
+            if (updates.status === TodoStatus.COMPLETED && !todo.completed_at) {
                 todo.completed_at = now;
             }
         }
@@ -115,7 +115,7 @@ export class ThinkTodoManager {
      */
     getActiveTodos(): ThinkTodoItem[] {
         return this.getAllTodos().filter(todo => 
-            todo.status === 'pending' || todo.status === 'in_progress'
+            todo.status === TodoStatus.PENDING || todo.status === TodoStatus.IN_PROGRESS
         );
     }
 
@@ -131,10 +131,10 @@ export class ThinkTodoManager {
         completion_rate: number;
     } {
         const all = this.getAllTodos();
-        const pending = all.filter(t => t.status === 'pending').length;
-        const in_progress = all.filter(t => t.status === 'in_progress').length;
-        const completed = all.filter(t => t.status === 'completed').length;
-        const cancelled = all.filter(t => t.status === 'cancelled').length;
+        const pending = all.filter(t => t.status === TodoStatus.PENDING).length;
+        const in_progress = all.filter(t => t.status === TodoStatus.IN_PROGRESS).length;
+        const completed = all.filter(t => t.status === TodoStatus.COMPLETED).length;
+        const cancelled = all.filter(t => t.status === TodoStatus.CANCELLED).length;
         const total = all.length;
         const completion_rate = total > 0 ? (completed / total) * 100 : 0;
 
@@ -154,7 +154,7 @@ export class ThinkTodoManager {
     getContextForAI(): string {
         const stats = this.getStats();
         const activeTodos = this.getActiveTodos();
-        const completedTodos = this.getTodosByStatus('completed').slice(-5); // Last 5 completed
+        const completedTodos = this.getTodosByStatus(TodoStatus.COMPLETED).slice(-5); // Last 5 completed
         const allTodos = this.getAllTodos();
 
         const context: string[] = [];
@@ -260,9 +260,9 @@ export class ThinkTodoManager {
                     this.linkTodoToChanges(todo.id, relatedChanges);
                     
                     // If TODO was pending, mark as in_progress
-                    if (todo.status === 'pending') {
+                    if (todo.status === TodoStatus.PENDING) {
                         this.updateTodo(todo.id, { 
-                            status: 'in_progress',
+                            status: TodoStatus.IN_PROGRESS,
                             notes: `Auto-updated: ${relatedChanges.length} change(s) applied`
                         });
                     }

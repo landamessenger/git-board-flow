@@ -1,4 +1,4 @@
-import { ThinkStep, ProposedChange, FileAnalysis } from '../../../../data/model/think_response';
+import { ThinkStep, ProposedChange, FileAnalysis, TodoStatus } from '../../../../data/model/think_response';
 import { ThinkTodoManager } from '../think_todo_manager';
 
 /**
@@ -84,7 +84,7 @@ export class CommentFormatter {
         // TODO List Summary (if relevant)
         if (todoStats.total > 0) {
             comment += `## 📋 TODO List Summary\n\n`;
-            const completedTodos = todoManager.getTodosByStatus('completed');
+            const completedTodos = todoManager.getTodosByStatus(TodoStatus.COMPLETED);
             const activeTodos = todoManager.getActiveTodos();
             
             if (completedTodos.length > 0) {
