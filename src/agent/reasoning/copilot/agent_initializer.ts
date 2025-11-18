@@ -201,6 +201,8 @@ export class AgentInitializer {
       onChangeApplied: (change: any) => {
         logInfo(`✅ Change proposed (virtual): ${change.file_path}`);
       },
+      // Get user prompt for auto-detection
+      getUserPrompt: () => options.userPrompt,
       // Auto-apply to disk when auto_apply=true is used
       autoApplyToDisk: async (filePath: string) => {
         try {
@@ -248,6 +250,7 @@ export class AgentInitializer {
     // Execute command tool - runs shell commands
     const executeCommandTool = new ExecuteCommandTool({
       getWorkingDirectory: () => workingDir,
+      autoCd: true, // Automatically prepend cd to working directory
       onCommandExecuted: (command, success, output) => {
         if (success) {
           logInfo(`✅ Command executed successfully: ${command.substring(0, 50)}...`);

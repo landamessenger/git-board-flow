@@ -62,7 +62,9 @@ export class Copilot {
     // Initialize agent if not already initialized
     if (!this.agent) {
       logInfo('🤖 Initializing agent...');
-      const { agent, repositoryFiles } = await AgentInitializer.initialize(this.options);
+      // Pass user prompt to options for context
+      const optionsWithPrompt = { ...this.options, userPrompt: prompt };
+      const { agent, repositoryFiles } = await AgentInitializer.initialize(optionsWithPrompt);
       this.agent = agent;
       this.repositoryFiles = repositoryFiles;
       logInfo('✅ Agent initialized');
@@ -76,15 +78,16 @@ export class Copilot {
     const shouldUseSubAgents = this.options.useSubAgents && 
       (this.repositoryFiles.size > 20 || isComplexPrompt);
     
-    if (shouldUseSubAgents) {
-      logInfo('🚀 Executing copilot task with subagents...');
-      result = await SubagentHandler.processPromptWithSubAgents(
-        this.agent,
-        this.repositoryFiles,
-        this.options,
-        prompt
-      );
-    } else {
+        if (shouldUseSubAgents) {
+          logInfo('🚀 Executing copilot task with subagents...');
+          const optionsWithPrompt = { ...this.options, userPrompt: prompt };
+          result = await SubagentHandler.processPromptWithSubAgents(
+            this.agent,
+            this.repositoryFiles,
+            optionsWithPrompt,
+            prompt
+          );
+        } else {
       // Warn if many files but sub-agents are disabled
       if (!this.options.useSubAgents && this.repositoryFiles.size > 20) {
         logWarn(`⚠️  Many files detected (${this.repositoryFiles.size}) but sub-agents are disabled. This may be slow or hit token limits. Consider enabling sub-agents for better performance.`);

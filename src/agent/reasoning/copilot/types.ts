@@ -18,6 +18,7 @@ export interface CopilotOptions {
   workingDirectory?: string; // Working directory for file operations (default: 'copilot_dummy')
   useSubAgents?: boolean; // Use subagents to parallelize file reading (default: false)
   maxConcurrentSubAgents?: number; // Maximum number of subagents to run in parallel (default: 5)
+  userPrompt?: string; // Original user prompt for context (used for auto-detecting auto_apply)
 }
 
 /**

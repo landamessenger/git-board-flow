@@ -17,6 +17,7 @@ export interface ProposeChangeToolOptions {
   }) => boolean;
   onChangeApplied?: (change: any) => void;
   autoApplyToDisk?: (filePath: string) => Promise<boolean>; // Optional: auto-apply to disk when provided
+  getUserPrompt?: () => string | undefined; // Optional: get original user prompt to detect if it's an order
 }
 
 export class ProposeChangeTool extends BaseTool {
@@ -31,22 +32,25 @@ export class ProposeChangeTool extends BaseTool {
   getDescription(): string {
     return `Propose a change to a file in the virtual codebase. Changes are applied in memory (virtual codebase).
 
+**AUTO-APPLY BEHAVIOR**:
+- If user prompt is an ORDER (create, write, make, build, set up, modify): auto_apply is automatically enabled
+- If user prompt is a QUESTION (what, how, why, should, could): auto_apply is disabled (exploration mode)
+- You can override with explicit auto_apply parameter if needed
+
 **When user gives CLEAR ORDERS** (create, write, make, build, set up, modify):
-- Use propose_change with auto_apply=true to automatically write to disk
-- This combines propose + apply in one step
-- Example: propose_change(..., auto_apply=true)
+- auto_apply is automatically enabled - files are written to disk immediately
+- No need to specify auto_apply=true manually (but you can if you want to be explicit)
 
 **When user asks QUESTIONS or has DOUBTS** (exploration):
-- Use propose_change with auto_apply=false (or omit it)
-- Changes stay in memory for discussion
+- auto_apply is automatically disabled - changes stay in memory for discussion
 - Use apply_changes later if user wants to apply
 
 **Parameters**:
-- auto_apply (boolean, optional): If true, automatically writes to disk after proposing. Use this for clear orders. Default: false.
+- auto_apply (boolean, optional): Override auto-detection. If true, writes to disk. If false, stays in memory. If not specified, auto-detects from user prompt.
 
 **IMPORTANT**: 
-- For clear orders: use propose_change with auto_apply=true (one step)
-- For questions/doubts: use propose_change with auto_apply=false (exploration only)`;
+- For clear orders: auto_apply is automatic - files are created on disk
+- For questions/doubts: auto_apply is disabled - changes stay in memory for discussion`;
   }
 
   getInputSchema(): {
@@ -87,6 +91,31 @@ export class ProposeChangeTool extends BaseTool {
       required: ['file_path', 'change_type', 'description', 'suggested_code', 'reasoning'],
       additionalProperties: false
     };
+  }
+
+  /**
+   * Detect if user prompt is an order (not a question)
+   */
+  private isOrderPrompt(prompt?: string): boolean {
+    if (!prompt) return false;
+    const promptLower = prompt.toLowerCase();
+    
+    // Question indicators
+    const questionIndicators = ['?', 'what', 'how', 'why', 'when', 'where', 'which', 'should', 'could', 'would', 'can you explain', 'tell me', 'describe', 'analyze'];
+    const isQuestion = questionIndicators.some(indicator => promptLower.includes(indicator));
+    
+    // Order indicators
+    const orderIndicators = ['create', 'write', 'make', 'build', 'set up', 'modify', 'add', 'implement', 'generate', 'do', 'ensure', 'verify', 'test', 'run', 'execute'];
+    const isOrder = orderIndicators.some(indicator => promptLower.includes(indicator));
+    
+    // If it's clearly a question, return false
+    if (isQuestion && !isOrder) return false;
+    
+    // If it's clearly an order, return true
+    if (isOrder) return true;
+    
+    // Default: if no question mark and has action verbs, treat as order
+    return !prompt.includes('?') && isOrder;
   }
 
   async execute(input: Record<string, any>): Promise<string> {
@@ -137,9 +166,19 @@ export class ProposeChangeTool extends BaseTool {
         description
       });
 
+      // Auto-detect if should auto-apply: check explicit input first, then user prompt
+      let shouldAutoApply = input.auto_apply === true;
+      if (input.auto_apply === undefined || input.auto_apply === false) {
+        // If not explicitly set, check if user prompt is an order
+        const userPrompt = this.options.getUserPrompt?.();
+        if (userPrompt && this.isOrderPrompt(userPrompt)) {
+          shouldAutoApply = true;
+          logInfo(`   🔄 Auto-detected order prompt, enabling auto_apply`);
+        }
+      }
+
       // Auto-apply to disk if requested and handler is available
-      const autoApply = input.auto_apply === true;
-      if (autoApply && this.options.autoApplyToDisk) {
+      if (shouldAutoApply && this.options.autoApplyToDisk) {
         try {
           const applied = await this.options.autoApplyToDisk(filePath);
           if (applied) {

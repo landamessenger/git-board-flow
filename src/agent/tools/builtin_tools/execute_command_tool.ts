@@ -10,6 +10,7 @@ import { execSync } from 'child_process';
 export interface ExecuteCommandToolOptions {
   getWorkingDirectory?: () => string;
   onCommandExecuted?: (command: string, success: boolean, output: string) => void;
+  autoCd?: boolean; // If true, automatically prepend cd command (default: true)
 }
 
 export class ExecuteCommandTool extends BaseTool {
@@ -24,17 +25,20 @@ export class ExecuteCommandTool extends BaseTool {
   getDescription(): string {
     return `Execute shell commands to verify code, run tests, compile, lint, or perform other operations. 
     
-**IMPORTANT**: Commands are executed in the working directory (copilot_dummy by default) unless you specify a different working_directory. This prevents accidentally affecting the main project.
+**IMPORTANT**: Commands are automatically executed with 'cd' to the working directory (copilot_dummy by default) to ensure they run in the correct location. This prevents accidentally affecting the main project.
+
+**How it works**:
+- Commands are automatically prefixed with 'cd working_directory &&' to ensure execution in the correct directory
+- Example: "npm test" becomes "cd copilot_dummy && npm test"
+- You don't need to manually add 'cd' - it's done automatically
 
 You can use common Unix commands like:
-- grep, tail, head, cat, ls, find - for file operations
 - npm test, npm run build, npm run lint - for Node.js projects
+- grep, tail, head, cat, ls, find - for file operations
 - git status, git diff - for version control
 - Any other shell command available in the system
 
-The output will be captured and returned. Use this to verify that changes are correct before applying them.
-
-**Always specify working_directory explicitly if you need to run commands in a specific location, otherwise they will run in the working directory.**`;
+The output will be captured and returned. Use this to verify that changes are correct after applying them.`;
   }
 
   getInputSchema(): {
@@ -80,27 +84,38 @@ The output will be captured and returned. Use this to verify that changes are co
 
   async execute(input: Record<string, any>): Promise<string> {
     const { logInfo, logError, logWarn } = require('../../../utils/logger');
-    const command = input.command as string;
+    let command = input.command as string;
     const workingDir = input.working_directory || this.options.getWorkingDirectory?.() || process.cwd();
     const extractLines = input.extract_lines as {
       head?: number;
       tail?: number;
       grep?: string;
     } | undefined;
+    const autoCd = this.options.autoCd !== false; // Default to true
 
     if (!command || typeof command !== 'string') {
       throw new Error('command is required and must be a string');
     }
 
-    logInfo(`   🔧 Executing command: ${command}`);
+    // Auto-prepend cd if working directory is specified and command doesn't already start with cd
+    if (autoCd && workingDir && workingDir !== process.cwd() && !command.trim().startsWith('cd ')) {
+      // Escape the working directory path for shell
+      const escapedDir = workingDir.replace(/'/g, "'\\''");
+      command = `cd '${escapedDir}' && ${command}`;
+      logInfo(`   🔧 Executing command with auto cd: ${command}`);
+    } else {
+      logInfo(`   🔧 Executing command: ${command}`);
+    }
+    
     if (workingDir) {
       logInfo(`      Working directory: ${workingDir}`);
     }
 
     try {
-      // Execute command
+      // Execute command (if autoCd prepended cd, use process.cwd() as cwd since cd is in command)
+      const actualCwd = (autoCd && command.startsWith('cd ')) ? process.cwd() : workingDir;
       const output = execSync(command, {
-        cwd: workingDir,
+        cwd: actualCwd,
         encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer
         stdio: ['pipe', 'pipe', 'pipe'] // Capture stdout and stderr
