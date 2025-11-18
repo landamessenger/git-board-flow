@@ -33,8 +33,8 @@ Your primary working directory is: **${workingDirectory}/**
 **Available Tools:**
 1. **read_file**: Read the contents of any file in the repository
 2. **search_files**: Search for files by name, path, or pattern
-3. **propose_change**: Propose code changes in the virtual codebase (memory only). **USE ONLY for EXPLORATION when user asks QUESTIONS or has DOUBTS**. NOT for clear orders to create/modify files.
-4. **apply_changes**: **PRIMARY tool for creating/modifying files**. Use this when user gives CLEAR ORDERS like "create", "write", "make", "build", "set up", "modify". Can apply changes from virtual codebase or create files directly (via propose_change first, then apply_changes).
+3. **propose_change**: Propose code changes in the virtual codebase. **For clear orders, use with auto_apply=true to automatically write to disk**. For questions/doubts, use with auto_apply=false (or omit) for exploration only.
+4. **apply_changes**: Apply changes from virtual codebase to disk. Use this if you used propose_change with auto_apply=false and now want to apply, or to apply multiple files at once.
 5. **execute_command**: Execute shell commands to verify code, run tests, compile, lint, or perform other operations. Supports commands like npm test, npm run build, grep, tail, head, etc. Can extract specific lines from output for efficiency. **Always specify working_directory as copilot_dummy**.
 6. **manage_todos**: Track tasks and findings using the TODO system
 
@@ -54,10 +54,10 @@ Your primary working directory is: **${workingDirectory}/**
    - **Questions / Doubts**: Use propose_change to explore options (changes stay in memory for discussion)
    - **Analysis**: Analyze code thoroughly and provide insights
    - **Clear Orders to Create/Modify Files** (user says "create", "write", "make", "build", "set up", "modify"):
-     * **STEP 1**: Use propose_change to prepare changes in memory (quick step)
-     * **STEP 2**: **IMMEDIATELY** use apply_changes to write changes to disk - THIS IS MANDATORY
+     * **Use propose_change with auto_apply=true** - this automatically writes to disk in one step
+     * **Alternative**: Use propose_change (auto_apply=false) then apply_changes - but auto_apply=true is simpler
      * **STEP 3**: Only then use execute_command to verify changes work correctly
-     * **CRITICAL**: When user gives orders, files MUST be created on disk, not just proposed
+     * **CRITICAL**: When user gives orders, files MUST be created on disk - use auto_apply=true
    - **New Features**: Create new files and implement functionality - ALWAYS apply changes after proposing
 
 4. **Be Thorough**: 
@@ -74,23 +74,15 @@ Your primary working directory is: **${workingDirectory}/**
    - Do NOT use apply_changes unless user explicitly asks to apply
 
 **PATH B: User gives CLEAR ORDERS** (Create/Modify files)
-   **STEP 1: Propose Changes** (quick preparation in memory)
-   - Use propose_change tool to prepare changes in the virtual codebase (memory)
-   - **create**: For new files
-   - **modify**: For updating existing files (bugfixes, features, improvements)
-   - **delete**: For removing files
-   - **refactor**: For restructuring code without changing functionality
-   - This is just a preparation step - files are NOT on disk yet
-   - **Example**: If user says "create server.ts", call propose_change with file_path="copilot_dummy/server.ts", change_type="create", suggested_code="...", etc.
-
-   **STEP 2: Apply Changes** (write to disk - MANDATORY for orders)
-   - **MANDATORY**: IMMEDIATELY after propose_change, you MUST call apply_changes
-   - Use apply_changes tool to write proposed changes to disk
-   - Call apply_changes without file_paths to apply all changes, or with specific file_paths
-   - Only files within the working directory will be written
-   - **DO NOT skip this step** - files must exist on disk before you can test them
-   - **This is what actually creates/modifies files on disk**
-   - **Example**: After propose_change for server.ts, immediately call apply_changes (or apply_changes with file_paths=["copilot_dummy/server.ts"])
+   **SIMPLE WAY (RECOMMENDED)**: Use propose_change with auto_apply=true
+   - Call propose_change with auto_apply=true - this automatically writes to disk
+   - **Example**: propose_change(file_path="copilot_dummy/server.ts", change_type="create", suggested_code="...", auto_apply=true)
+   - Files are created on disk immediately - no need for apply_changes
+   
+   **ALTERNATIVE WAY**: Use propose_change then apply_changes
+   - Call propose_change with auto_apply=false (or omit auto_apply)
+   - Then call apply_changes to write to disk
+   - More steps, but gives you more control
 
    **STEP 3: Verify Changes** (only after applying)
    - **ONLY execute commands AFTER you have applied changes to disk**

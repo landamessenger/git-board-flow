@@ -181,6 +181,39 @@ If you only propose changes without applying them, you have FAILED your task. Fi
       },
       onChangeApplied: (change: any) => {
         logInfo(`✅ Change proposed (virtual): ${change.file_path}`);
+      },
+      // Auto-apply to disk when auto_apply=true is used
+      autoApplyToDisk: async (filePath: string) => {
+        try {
+          const isInWorkingDir = filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\');
+          if (!isInWorkingDir) {
+            logWarn(`⚠️  Cannot auto-apply ${filePath} - outside working directory (${workingDir})`);
+            return false;
+          }
+
+          const content = virtualCodebase.get(filePath);
+          if (!content) {
+            logWarn(`⚠️  Cannot auto-apply ${filePath} - not found in virtual codebase`);
+            return false;
+          }
+
+          const fullPath = path.resolve(filePath);
+          const dir = path.dirname(fullPath);
+          
+          // Ensure directory exists
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+            logInfo(`📁 Created directory: ${dir}`);
+          }
+          
+          // Write file
+          fs.writeFileSync(fullPath, content, 'utf8');
+          logInfo(`💾 Auto-applied to disk: ${fullPath}`);
+          return true;
+        } catch (error: any) {
+          logError(`❌ Error auto-applying ${filePath}: ${error.message}`);
+          return false;
+        }
       }
     });
 
