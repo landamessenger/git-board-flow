@@ -13,7 +13,9 @@ export interface ProposeChangeToolOptions {
         reasoning: string;
     }) => boolean;
     onChangeApplied?: (change: any) => void;
-    autoApplyToDisk?: (filePath: string) => Promise<boolean>;
+    autoApplyToDisk?: (filePath: string, operation?: 'create' | 'modify' | 'delete' | 'refactor') => Promise<boolean>;
+    getUserPrompt?: () => string | undefined;
+    getShouldApplyChanges?: () => boolean | undefined;
 }
 export declare class ProposeChangeTool extends BaseTool {
     private options;
@@ -26,5 +28,9 @@ export declare class ProposeChangeTool extends BaseTool {
         required: string[];
         additionalProperties?: boolean;
     };
+    /**
+     * Detect if user prompt is an order (not a question)
+     */
+    private isOrderPrompt;
     execute(input: Record<string, any>): Promise<string>;
 }

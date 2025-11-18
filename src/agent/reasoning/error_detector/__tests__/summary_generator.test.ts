@@ -3,7 +3,7 @@
  */
 
 import { SummaryGenerator } from '../summary_generator';
-import { DetectedError, IssueType } from '../types';
+import { DetectedError, IssueType, SeverityLevel } from '../types';
 
 describe('SummaryGenerator', () => {
   describe('generateSummary', () => {
@@ -24,25 +24,25 @@ describe('SummaryGenerator', () => {
         {
           file: 'file1.ts',
           type: IssueType.TYPE_ERROR,
-          severity: 'critical',
+          severity: SeverityLevel.CRITICAL,
           description: 'Critical error'
         },
         {
           file: 'file2.ts',
           type: IssueType.LOGIC_ERROR,
-          severity: 'high',
+          severity: SeverityLevel.HIGH,
           description: 'High error'
         },
         {
           file: 'file3.ts',
           type: IssueType.TYPE_ERROR,
-          severity: 'medium',
+          severity: SeverityLevel.MEDIUM,
           description: 'Medium error'
         },
         {
           file: 'file4.ts',
           type: IssueType.SECURITY_VULNERABILITY,
-          severity: 'low',
+          severity: SeverityLevel.LOW,
           description: 'Low error'
         }
       ];
@@ -64,19 +64,19 @@ describe('SummaryGenerator', () => {
         {
           file: 'file1.ts',
           type: IssueType.TYPE_ERROR,
-          severity: 'critical',
+          severity: SeverityLevel.CRITICAL,
           description: 'Error 1'
         },
         {
           file: 'file2.ts',
           type: IssueType.TYPE_ERROR,
-          severity: 'high',
+          severity: SeverityLevel.HIGH,
           description: 'Error 2'
         },
         {
           file: 'file3.ts',
           type: IssueType.TYPE_ERROR,
-          severity: 'medium',
+          severity: SeverityLevel.MEDIUM,
           description: 'Error 3'
         }
       ];

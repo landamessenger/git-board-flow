@@ -4,7 +4,7 @@
  */
 
 import { AgentResult } from '../../types';
-import { DetectedError, IssueType } from './types';
+import { DetectedError, IssueType, SeverityLevel } from './types';
 import { logDebugInfo } from '../../../utils/logger';
 
 export class ErrorParser {
@@ -47,11 +47,22 @@ export class ErrorParser {
                 }
               }
               
+              // Validate and convert severity to SeverityLevel enum
+              let severityLevel: SeverityLevel;
+              const severityStr = String(err.severity).toLowerCase().trim();
+              if (Object.values(SeverityLevel).includes(severityStr as SeverityLevel)) {
+                severityLevel = severityStr as SeverityLevel;
+              } else {
+                // Default to LOW if invalid
+                severityLevel = SeverityLevel.LOW;
+                logDebugInfo(`   ⚠️ Error at index ${i}: invalid severity "${severityStr}", using fallback "${severityLevel}"`);
+              }
+              
               errors.push({
                 file: String(err.file).trim(),
                 line: typeof err.line === 'number' ? err.line : (err.line ? parseInt(String(err.line), 10) : undefined),
                 type: issueType,
-                severity: String(err.severity).toLowerCase().trim() as DetectedError['severity'],
+                severity: severityLevel,
                 description: String(err.description).trim(),
                 suggestion: err.suggestion ? String(err.suggestion).trim() : undefined
               });

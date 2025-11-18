@@ -3,6 +3,7 @@
  */
 
 import { AgentResult } from '../../types';
+import { ChangeType } from '../../../data/model/think_response';
 
 /**
  * Options for Copilot agent
@@ -19,6 +20,8 @@ export interface CopilotOptions {
   useSubAgents?: boolean; // Use subagents to parallelize file reading (default: false)
   maxConcurrentSubAgents?: number; // Maximum number of subagents to run in parallel (default: 5)
   userPrompt?: string; // Original user prompt for context (used for auto-detecting auto_apply)
+  useIntentClassifier?: boolean; // Use intent classifier to determine if changes should be applied (default: true)
+  shouldApplyChanges?: boolean; // Pre-classified intent: should changes be applied? (from intent classifier)
 }
 
 /**
@@ -29,7 +32,7 @@ export interface CopilotResult {
   agentResult: AgentResult;
   changes?: Array<{
     file: string;
-    changeType: 'create' | 'modify' | 'delete' | 'refactor';
+    changeType: ChangeType;
     description?: string;
   }>; // List of changes made (if any)
 }

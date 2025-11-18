@@ -12,14 +12,17 @@
 import { Agent } from '../../core/agent';
 import { AgentResult } from '../../types';
 import { CopilotOptions, CopilotResult } from './types';
+import { ChangeType } from '../../../data/model/think_response';
 import { logInfo, logWarn } from '../../../utils/logger';
 import { AgentInitializer } from './agent_initializer';
 import { SubagentHandler } from './subagent_handler';
+import { IntentClassifier } from '../intent_classifier';
 
 export class Copilot {
   private agent!: Agent; // Will be initialized in initializeAgent
   private options: CopilotOptions;
   private repositoryFiles: Map<string, string> = new Map();
+  private intentClassifier?: IntentClassifier;
 
   constructor(options: CopilotOptions) {
     this.options = {
@@ -32,8 +35,18 @@ export class Copilot {
       repositoryBranch: options.repositoryBranch,
       workingDirectory: options.workingDirectory || process.cwd(),
       useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : true, // Default to true
-      maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
+      maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5,
+      useIntentClassifier: options.useIntentClassifier !== undefined ? options.useIntentClassifier : true // Default to true
     };
+
+    // Initialize intent classifier if enabled
+    if (this.options.useIntentClassifier) {
+      this.intentClassifier = new IntentClassifier({
+        model: this.options.model,
+        apiKey: this.options.apiKey,
+        maxTurns: 5
+      });
+    }
   }
 
   /**
@@ -59,11 +72,24 @@ export class Copilot {
     logInfo(`   - Branch: ${this.options.repositoryBranch || 'N/A'}`);
     logInfo(`   - Working Directory: ${this.options.workingDirectory || process.cwd()}`);
 
+    // Classify intent if classifier is enabled
+    let shouldApplyChanges: boolean | undefined = undefined;
+    if (this.intentClassifier) {
+      const classificationResult = await this.intentClassifier.classifyIntent(prompt);
+      shouldApplyChanges = classificationResult.shouldApplyChanges;
+      logInfo(`🎯 Intent Classification: shouldApplyChanges=${shouldApplyChanges} (confidence: ${classificationResult.confidence})`);
+      logInfo(`   Reasoning: ${classificationResult.reasoning}`);
+    }
+
     // Initialize agent if not already initialized
     if (!this.agent) {
       logInfo('🤖 Initializing agent...');
-      // Pass user prompt to options for context
-      const optionsWithPrompt = { ...this.options, userPrompt: prompt };
+      // Pass user prompt and intent classification to options for context
+      const optionsWithPrompt = { 
+        ...this.options, 
+        userPrompt: prompt,
+        shouldApplyChanges: shouldApplyChanges // Pass classification result
+      };
       const { agent, repositoryFiles } = await AgentInitializer.initialize(optionsWithPrompt);
       this.agent = agent;
       this.repositoryFiles = repositoryFiles;
@@ -80,17 +106,26 @@ export class Copilot {
     
         if (shouldUseSubAgents) {
           logInfo('🚀 Executing copilot task with subagents...');
-          const optionsWithPrompt = { ...this.options, userPrompt: prompt };
+          const optionsWithPrompt = { ...this.options, userPrompt: prompt, shouldApplyChanges };
           result = await SubagentHandler.processPromptWithSubAgents(
             this.agent,
             this.repositoryFiles,
             optionsWithPrompt,
-            prompt
+            prompt,
+            shouldApplyChanges
           );
         } else {
           // Warn if many files but sub-agents are disabled
           if (!this.options.useSubAgents && this.repositoryFiles.size > 20) {
             logWarn(`⚠️  Many files detected (${this.repositoryFiles.size}) but sub-agents are disabled. This may be slow or hit token limits. Consider enabling sub-agents for better performance.`);
+          }
+          
+          // Pass shouldApplyChanges to agent initialization for this query
+          const optionsWithIntent = { ...this.options, userPrompt: prompt, shouldApplyChanges };
+          if (!this.agent) {
+            const { agent, repositoryFiles } = await AgentInitializer.initialize(optionsWithIntent);
+            this.agent = agent;
+            this.repositoryFiles = repositoryFiles;
           }
           
           // Execute agent query
@@ -174,12 +209,12 @@ export class Copilot {
    */
   private extractChanges(result: AgentResult): Array<{
     file: string;
-    changeType: 'create' | 'modify' | 'delete' | 'refactor';
+    changeType: ChangeType;
     description?: string;
   }> {
     const changes: Array<{
       file: string;
-      changeType: 'create' | 'modify' | 'delete' | 'refactor';
+      changeType: ChangeType;
       description?: string;
     }> = [];
 
@@ -210,11 +245,14 @@ export class Copilot {
             for (const line of lines) {
               const match = line.match(/^\s*-\s*(.+?)\s*\((\w+)\)/);
               if (match) {
-                changes.push({
-                  file: match[1].trim(),
-                  changeType: match[2] as 'create' | 'modify' | 'delete' | 'refactor',
-                  description: `Applied ${match[2]}`
-                });
+                const changeType = match[2] as ChangeType;
+                if (Object.values(ChangeType).includes(changeType)) {
+                  changes.push({
+                    file: match[1].trim(),
+                    changeType,
+                    description: `Applied ${match[2]}`
+                  });
+                }
               }
             }
           } catch (error) {

@@ -88,6 +88,16 @@ export enum IssueType {
   CODE_ISSUE = 'code-issue'
 }
 
+/**
+ * Severity levels for detected errors
+ */
+export enum SeverityLevel {
+  CRITICAL = 'critical',
+  HIGH = 'high',
+  MEDIUM = 'medium',
+  LOW = 'low'
+}
+
 export interface ErrorDetectionOptions {
   model?: string;
   apiKey: string;
@@ -109,7 +119,7 @@ export interface DetectedError {
   file: string;
   line?: number;
   type: IssueType;
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  severity: SeverityLevel;
   description: string;
   suggestion?: string;
 }

@@ -19,6 +19,7 @@ import { SummaryGenerator } from './summary_generator';
 import { SystemPromptBuilder } from './system_prompt_builder';
 import { AgentInitializer } from './agent_initializer';
 import { FileRelationshipAnalyzer } from './file_relationship_analyzer';
+import { TodoStatus } from '../../../data/model/think_response';
 
 export class SubagentHandler {
   private static readonly EXCLUDE_PATTERNS = [
@@ -212,8 +213,11 @@ export class SubagentHandler {
     const todoManager = new ThinkTodoManager();
     
     const manageTodosTool = new ManageTodosTool({
-      createTodo: (content: string, status?: 'pending' | 'in_progress') => {
-        const todo = todoManager.createTodo(content, status || 'pending');
+      createTodo: (content: string, status?: TodoStatus) => {
+        const todoStatus = status && (status === TodoStatus.PENDING || status === TodoStatus.IN_PROGRESS) 
+          ? status 
+          : TodoStatus.PENDING;
+        const todo = todoManager.createTodo(content, todoStatus);
         return {
           id: todo.id,
           content: todo.content,
@@ -221,7 +225,7 @@ export class SubagentHandler {
         };
       },
       updateTodo: (id: string, updates: {
-        status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        status?: TodoStatus;
         notes?: string;
         related_files?: string[];
         related_changes?: string[];

@@ -7,6 +7,7 @@ import { BaseTool } from '../base_tool';
 export interface ExecuteCommandToolOptions {
     getWorkingDirectory?: () => string;
     onCommandExecuted?: (command: string, success: boolean, output: string) => void;
+    autoCd?: boolean;
 }
 export declare class ExecuteCommandTool extends BaseTool {
     private options;

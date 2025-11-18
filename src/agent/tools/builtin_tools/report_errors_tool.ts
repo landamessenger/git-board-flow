@@ -4,7 +4,7 @@
  */
 
 import { BaseTool } from '../base_tool';
-import { DetectedError, IssueType } from '../../reasoning/error_detector/types';
+import { DetectedError, IssueType, SeverityLevel } from '../../reasoning/error_detector/types';
 
 export interface ReportErrorsToolOptions {
   onErrorsReported: (errors: DetectedError[]) => void;
@@ -53,7 +53,7 @@ export class ReportErrorsTool extends BaseTool {
               },
               severity: {
                 type: 'string',
-                enum: ['critical', 'high', 'medium', 'low'],
+                enum: Object.values(SeverityLevel),
                 description: 'Severity level. MUST be exactly one of: "critical", "high", "medium", "low" (lowercase, no quotes in the value itself).'
               },
               description: {
@@ -155,8 +155,8 @@ export class ReportErrorsTool extends BaseTool {
 
       // Validate and normalize severity
       let severity = String(error.severity).toLowerCase().trim();
-      if (!['critical', 'high', 'medium', 'low'].includes(severity)) {
-        throw new Error(`Error at index ${i}: Invalid severity "${error.severity}". Must be one of: critical, high, medium, low`);
+      if (!Object.values(SeverityLevel).includes(severity as SeverityLevel)) {
+        throw new Error(`Error at index ${i}: Invalid severity "${error.severity}". Must be one of: ${Object.values(SeverityLevel).join(', ')}`);
       }
 
       // Clean description - remove markdown but preserve content
@@ -212,7 +212,7 @@ export class ReportErrorsTool extends BaseTool {
         file,
         line,
         type: type as IssueType,
-        severity: severity as DetectedError['severity'],
+        severity: severity as SeverityLevel,
         description,
         suggestion
       });

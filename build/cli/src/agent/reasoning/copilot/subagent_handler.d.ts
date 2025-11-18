@@ -9,7 +9,7 @@ export declare class SubagentHandler {
     /**
      * Process prompt using subagents for parallel processing
      */
-    static processPromptWithSubAgents(agent: Agent, repositoryFiles: Map<string, string>, options: CopilotOptions, userPrompt: string): Promise<CopilotResult>;
+    static processPromptWithSubAgents(agent: Agent, repositoryFiles: Map<string, string>, options: CopilotOptions, userPrompt: string, shouldApplyChanges?: boolean): Promise<CopilotResult>;
     /**
      * Create tools for subagents
      */

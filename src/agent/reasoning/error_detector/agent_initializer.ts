@@ -15,6 +15,7 @@ import { DetectedError } from './types';
 import { FileRepository } from '../../../data/repository/file_repository';
 import { logInfo, logWarn, logDebugInfo } from '../../../utils/logger';
 import { SystemPromptBuilder } from './system_prompt_builder';
+import { TodoStatus } from '../../../data/model/think_response';
 
 export interface AgentInitializerResult {
   agent: Agent;
@@ -202,8 +203,11 @@ export class AgentInitializer {
     const todoManager = new ThinkTodoManager();
     
     return new ManageTodosTool({
-      createTodo: (content: string, status?: 'pending' | 'in_progress') => {
-        const todo = todoManager.createTodo(content, status || 'pending');
+      createTodo: (content: string, status?: TodoStatus) => {
+        const todoStatus = status && (status === TodoStatus.PENDING || status === TodoStatus.IN_PROGRESS) 
+          ? status 
+          : TodoStatus.PENDING;
+        const todo = todoManager.createTodo(content, todoStatus);
         return {
           id: todo.id,
           content: todo.content,
@@ -211,7 +215,7 @@ export class AgentInitializer {
         };
       },
       updateTodo: (id: string, updates: {
-        status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        status?: TodoStatus;
         notes?: string;
         related_files?: string[];
         related_changes?: string[];

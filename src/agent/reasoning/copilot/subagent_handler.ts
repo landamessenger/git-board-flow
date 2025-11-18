@@ -7,6 +7,7 @@ import { Agent } from '../../core/agent';
 import { AgentResult } from '../../types';
 import { Task } from '../../core/subagent_manager';
 import { CopilotOptions, CopilotResult } from './types';
+import { ChangeType, TodoStatus } from '../../../data/model/think_response';
 import { ReadFileTool } from '../../tools/builtin_tools/read_file_tool';
 import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
 import { ProposeChangeTool } from '../../tools/builtin_tools/propose_change_tool';
@@ -42,7 +43,8 @@ export class SubagentHandler {
     agent: Agent,
     repositoryFiles: Map<string, string>,
     options: CopilotOptions,
-    userPrompt: string
+    userPrompt: string,
+    shouldApplyChanges?: boolean
   ): Promise<CopilotResult> {
     const allFiles = Array.from(repositoryFiles.keys());
     
@@ -131,16 +133,27 @@ If you only propose changes without applying them, you have FAILED your task. Fi
         }
         
         // Then check if file exists on disk (for working directory files)
-        // Normalize both paths for comparison
-        const normalizedFilePath = path.resolve(filePath);
+        // Normalize working directory first
         const normalizedWorkingDir = path.resolve(workingDir);
-        if (normalizedFilePath.startsWith(normalizedWorkingDir + path.sep) || normalizedFilePath === normalizedWorkingDir) {
-          if (fs.existsSync(normalizedFilePath)) {
-            try {
-              return fs.readFileSync(normalizedFilePath, 'utf8');
-            } catch (error) {
-              // Ignore read errors
-            }
+        
+        // Resolve file path relative to working directory if it's a relative path
+        // If filePath is already absolute, use it as-is; otherwise resolve from working directory
+        let normalizedFilePath: string;
+        if (path.isAbsolute(filePath)) {
+          normalizedFilePath = path.resolve(filePath);
+        } else {
+          // Resolve relative path from working directory
+          normalizedFilePath = path.resolve(normalizedWorkingDir, filePath);
+        }
+        
+        // Check if file is within working directory and exists
+        const isInWorkingDir = normalizedFilePath.startsWith(normalizedWorkingDir + path.sep) || 
+                                normalizedFilePath === normalizedWorkingDir;
+        if (isInWorkingDir && fs.existsSync(normalizedFilePath)) {
+          try {
+            return fs.readFileSync(normalizedFilePath, 'utf8');
+          } catch (error) {
+            // Ignore read errors
           }
         }
         
@@ -184,10 +197,12 @@ If you only propose changes without applying them, you have FAILED your task. Fi
       onChangeApplied: (change: any) => {
         logInfo(`✅ Change proposed (virtual): ${change.file_path}`);
       },
-      // Get user prompt for auto-detection
+      // Get user prompt for auto-detection (fallback if intent classifier not used)
       getUserPrompt: () => options.userPrompt,
+      // Get pre-classified intent (from intent classifier)
+      getShouldApplyChanges: () => options.shouldApplyChanges,
       // Auto-apply to disk when auto_apply=true is used
-      autoApplyToDisk: async (filePath: string) => {
+      autoApplyToDisk: async (filePath: string, operation?: ChangeType) => {
         try {
           // Normalize working directory first
           const normalizedWorkingDir = path.resolve(workingDir);
@@ -210,6 +225,19 @@ If you only propose changes without applying them, you have FAILED your task. Fi
             return false;
           }
 
+          // Handle delete operation
+          if (operation === 'delete') {
+            if (fs.existsSync(normalizedFilePath)) {
+              fs.unlinkSync(normalizedFilePath);
+              logInfo(`🗑️  Auto-deleted from disk: ${normalizedFilePath}`);
+              return true;
+            } else {
+              logWarn(`⚠️  Cannot auto-delete ${filePath} - file does not exist on disk`);
+              return false;
+            }
+          }
+
+          // Handle create/modify/refactor operations
           const content = virtualCodebase.get(filePath);
           if (!content) {
             logWarn(`⚠️  Cannot auto-apply ${filePath} - not found in virtual codebase`);
@@ -218,13 +246,13 @@ If you only propose changes without applying them, you have FAILED your task. Fi
 
           const fullPath = normalizedFilePath;
           const dir = path.dirname(fullPath);
-          
+
           // Ensure directory exists
           if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
             logInfo(`📁 Created directory: ${dir}`);
           }
-          
+
           // Write file
           fs.writeFileSync(fullPath, content, 'utf8');
           logInfo(`💾 Auto-applied to disk: ${fullPath}`);
@@ -272,8 +300,11 @@ If you only propose changes without applying them, you have FAILED your task. Fi
     const todoManager = new ThinkTodoManager();
     
     return new ManageTodosTool({
-      createTodo: (content: string, status?: 'pending' | 'in_progress') => {
-        const todo = todoManager.createTodo(content, status || 'pending');
+      createTodo: (content: string, status?: TodoStatus) => {
+        const todoStatus = status && (status === TodoStatus.PENDING || status === TodoStatus.IN_PROGRESS) 
+          ? status 
+          : TodoStatus.PENDING;
+        const todo = todoManager.createTodo(content, todoStatus);
         return {
           id: todo.id,
           content: todo.content,
@@ -358,7 +389,7 @@ If you only propose changes without applying them, you have FAILED your task. Fi
     // Extract changes from all subagents
     const allChanges: Array<{
       file: string;
-      changeType: 'create' | 'modify' | 'delete' | 'refactor';
+      changeType: ChangeType;
       description?: string;
     }> = [];
     
@@ -395,11 +426,14 @@ If you only propose changes without applying them, you have FAILED your task. Fi
               for (const line of lines) {
                 const match = line.match(/^\s*-\s*(.+?)\s*\((\w+)\)/);
                 if (match) {
-                  allChanges.push({
-                    file: match[1].trim(),
-                    changeType: match[2] as 'create' | 'modify' | 'delete' | 'refactor',
-                    description: `Applied ${match[2]}`
-                  });
+                  const changeType = match[2] as ChangeType;
+                  if (Object.values(ChangeType).includes(changeType)) {
+                    allChanges.push({
+                      file: match[1].trim(),
+                      changeType,
+                      description: `Applied ${match[2]}`
+                    });
+                  }
                 }
               }
             } catch (error) {

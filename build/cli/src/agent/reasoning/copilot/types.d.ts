@@ -16,6 +16,9 @@ export interface CopilotOptions {
     workingDirectory?: string;
     useSubAgents?: boolean;
     maxConcurrentSubAgents?: number;
+    userPrompt?: string;
+    useIntentClassifier?: boolean;
+    shouldApplyChanges?: boolean;
 }
 /**
  * Result of Copilot agent execution

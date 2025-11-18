@@ -11,6 +11,7 @@ import { AgentResult } from '../../../types';
 jest.mock('../agent_initializer');
 jest.mock('../subagent_handler');
 jest.mock('../../../core/agent');
+jest.mock('../../intent_classifier');
 
 describe('Copilot', () => {
   let copilot: Copilot;
@@ -94,6 +95,7 @@ describe('Copilot', () => {
   describe('processPrompt', () => {
     it('should initialize agent on first call', async () => {
       const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
       const mockAgent = {
         query: jest.fn().mockResolvedValue({
           finalResponse: 'Test response',
@@ -106,6 +108,12 @@ describe('Copilot', () => {
       AgentInitializer.initialize = jest.fn().mockResolvedValue({
         agent: mockAgent,
         repositoryFiles: new Map()
+      });
+
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Test',
+        confidence: 'high'
       });
 
       copilot = new Copilot(mockOptions);
@@ -116,6 +124,7 @@ describe('Copilot', () => {
 
     it('should execute agent query with user prompt', async () => {
       const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
       const mockAgent = {
         query: jest.fn().mockResolvedValue({
           finalResponse: 'Test response',
@@ -130,15 +139,23 @@ describe('Copilot', () => {
         repositoryFiles: new Map()
       });
 
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Question about code',
+        confidence: 'high'
+      });
+
       copilot = new Copilot(mockOptions);
       const userPrompt = 'Explain how this code works';
       await copilot.processPrompt(userPrompt);
 
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalledWith(userPrompt);
       expect(mockAgent.query).toHaveBeenCalledWith(userPrompt);
     });
 
     it('should return response and agent result', async () => {
       const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
       const mockAgentResult: AgentResult = {
         finalResponse: 'This code implements a sorting algorithm',
         turns: [],
@@ -155,6 +172,12 @@ describe('Copilot', () => {
         repositoryFiles: new Map()
       });
 
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Question about code',
+        confidence: 'high'
+      });
+
       copilot = new Copilot(mockOptions);
       const result = await copilot.processPrompt('Explain this code');
 
@@ -164,6 +187,7 @@ describe('Copilot', () => {
 
     it('should extract changes from propose_change tool calls', async () => {
       const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
       const mockAgentResult: AgentResult = {
         finalResponse: 'I have created the file',
         turns: [
@@ -215,6 +239,12 @@ describe('Copilot', () => {
       AgentInitializer.initialize = jest.fn().mockResolvedValue({
         agent: mockAgent,
         repositoryFiles: new Map()
+      });
+
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: true,
+        reasoning: 'Order to create file',
+        confidence: 'high'
       });
 
       copilot = new Copilot(mockOptions);
@@ -573,6 +603,7 @@ describe('Copilot', () => {
     it('should use subagents when enabled and files > 20', async () => {
       const { AgentInitializer } = require('../agent_initializer');
       const { SubagentHandler } = require('../subagent_handler');
+      const { IntentClassifier } = require('../../intent_classifier');
       
       const mockAgent = {} as Agent;
       const repositoryFiles = new Map<string, string>();
@@ -584,6 +615,12 @@ describe('Copilot', () => {
       AgentInitializer.initialize = jest.fn().mockResolvedValue({
         agent: mockAgent,
         repositoryFiles
+      });
+
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Analysis request',
+        confidence: 'high'
       });
 
       SubagentHandler.processPromptWithSubAgents = jest.fn().mockResolvedValue({
@@ -607,6 +644,7 @@ describe('Copilot', () => {
       copilot = new Copilot(options);
       const result = await copilot.processPrompt('Analyze all files');
 
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalledWith('Analyze all files');
       expect(SubagentHandler.processPromptWithSubAgents).toHaveBeenCalled();
       expect(result.response).toBe('Combined response from subagents');
     });
@@ -655,6 +693,7 @@ describe('Copilot', () => {
 
     it('should use regular agent query when subagents disabled', async () => {
       const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
       const mockAgent = {
         query: jest.fn().mockResolvedValue({
           finalResponse: 'Test response',
@@ -669,6 +708,12 @@ describe('Copilot', () => {
         repositoryFiles: new Map()
       });
 
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Question',
+        confidence: 'high'
+      });
+
       const options: CopilotOptions = {
         ...mockOptions,
         useSubAgents: false
@@ -677,12 +722,14 @@ describe('Copilot', () => {
       copilot = new Copilot(options);
       await copilot.processPrompt('Simple question');
 
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalled();
       expect(mockAgent.query).toHaveBeenCalled();
     });
 
     it('should use subagents by default when useSubAgents is not specified', async () => {
       const { AgentInitializer } = require('../agent_initializer');
       const { SubagentHandler } = require('../subagent_handler');
+      const { IntentClassifier } = require('../../intent_classifier');
       
       const mockAgent = {} as Agent;
       const repositoryFiles = new Map<string, string>();
@@ -694,6 +741,12 @@ describe('Copilot', () => {
       AgentInitializer.initialize = jest.fn().mockResolvedValue({
         agent: mockAgent,
         repositoryFiles
+      });
+
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Analysis request',
+        confidence: 'high'
       });
 
       SubagentHandler.processPromptWithSubAgents = jest.fn().mockResolvedValue({
@@ -718,11 +771,13 @@ describe('Copilot', () => {
       await copilot.processPrompt('Analyze all files');
 
       // Should use subagents by default when files > 20
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalled();
       expect(SubagentHandler.processPromptWithSubAgents).toHaveBeenCalled();
     });
 
-    it('should pass userPrompt to options when initializing', async () => {
+    it('should pass userPrompt and shouldApplyChanges to options when initializing', async () => {
       const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
       const mockAgent = {
         query: jest.fn().mockResolvedValue({
           finalResponse: 'Test response',
@@ -737,19 +792,59 @@ describe('Copilot', () => {
         repositoryFiles: new Map()
       });
 
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: true,
+        reasoning: 'Order to create file',
+        confidence: 'high'
+      });
+
       copilot = new Copilot(mockOptions);
       const userPrompt = 'Create a new file';
       await copilot.processPrompt(userPrompt);
 
-      // Verify that initialize was called with options including userPrompt
+      // Verify that classifyIntent was called
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalledWith(userPrompt);
+      
+      // Verify that initialize was called with options including userPrompt and shouldApplyChanges
       expect(AgentInitializer.initialize).toHaveBeenCalled();
       const callArgs = AgentInitializer.initialize.mock.calls[0][0];
       expect(callArgs.userPrompt).toBe(userPrompt);
+      expect(callArgs.shouldApplyChanges).toBe(true);
+    });
+
+    it('should disable intent classifier when useIntentClassifier is false', async () => {
+      const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
+      const mockAgent = {
+        query: jest.fn().mockResolvedValue({
+          finalResponse: 'Test response',
+          turns: [],
+          toolCalls: [],
+          messages: []
+        } as AgentResult)
+      };
+
+      AgentInitializer.initialize = jest.fn().mockResolvedValue({
+        agent: mockAgent,
+        repositoryFiles: new Map()
+      });
+
+      const options: CopilotOptions = {
+        ...mockOptions,
+        useIntentClassifier: false
+      };
+
+      copilot = new Copilot(options);
+      await copilot.processPrompt('Create a file');
+
+      // Intent classifier should not be instantiated
+      expect(IntentClassifier).not.toHaveBeenCalled();
     });
 
     it('should not use subagents when files <= 20 and prompt is simple', async () => {
       const { AgentInitializer } = require('../agent_initializer');
       const { SubagentHandler } = require('../subagent_handler');
+      const { IntentClassifier } = require('../../intent_classifier');
       
       const mockAgent = {
         query: jest.fn().mockResolvedValue({
@@ -771,6 +866,12 @@ describe('Copilot', () => {
         repositoryFiles
       });
 
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Question',
+        confidence: 'high'
+      });
+
       const options: CopilotOptions = {
         ...mockOptions,
         useSubAgents: true,
@@ -782,6 +883,7 @@ describe('Copilot', () => {
       // Simple prompt that should NOT trigger sub-agents
       await copilot.processPrompt('What does this function do?');
 
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalled();
       expect(SubagentHandler.processPromptWithSubAgents).not.toHaveBeenCalled();
       expect(mockAgent.query).toHaveBeenCalled();
     });
@@ -927,6 +1029,7 @@ describe('Copilot', () => {
   describe('getAgent', () => {
     it('should return agent instance', async () => {
       const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
       const mockAgent = {
         query: jest.fn().mockResolvedValue({
           finalResponse: 'Test',
@@ -941,11 +1044,83 @@ describe('Copilot', () => {
         repositoryFiles: new Map()
       });
 
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Test',
+        confidence: 'high'
+      });
+
       copilot = new Copilot(mockOptions);
       await copilot.processPrompt('Test prompt');
 
       const agent = copilot.getAgent();
       expect(agent).toBe(mockAgent);
+    });
+  });
+
+  describe('intent classifier integration', () => {
+    it('should use intent classifier result for shouldApplyChanges', async () => {
+      const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
+      const mockAgent = {
+        query: jest.fn().mockResolvedValue({
+          finalResponse: 'Created file',
+          turns: [],
+          toolCalls: [],
+          messages: []
+        } as AgentResult)
+      };
+
+      AgentInitializer.initialize = jest.fn().mockResolvedValue({
+        agent: mockAgent,
+        repositoryFiles: new Map()
+      });
+
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: true,
+        reasoning: 'Order to create file',
+        confidence: 'high'
+      });
+
+      copilot = new Copilot(mockOptions);
+      await copilot.processPrompt('Create hello.js');
+
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalledWith('Create hello.js');
+      // Verify that shouldApplyChanges was passed to agent initialization
+      const initCall = AgentInitializer.initialize.mock.calls[0][0];
+      expect(initCall.shouldApplyChanges).toBe(true);
+    });
+
+    it('should use intent classifier result for questions', async () => {
+      const { AgentInitializer } = require('../agent_initializer');
+      const { IntentClassifier } = require('../../intent_classifier');
+      const mockAgent = {
+        query: jest.fn().mockResolvedValue({
+          finalResponse: 'Explanation',
+          turns: [],
+          toolCalls: [],
+          messages: []
+        } as AgentResult)
+      };
+
+      AgentInitializer.initialize = jest.fn().mockResolvedValue({
+        agent: mockAgent,
+        repositoryFiles: new Map()
+      });
+
+      IntentClassifier.prototype.classifyIntent = jest.fn().mockResolvedValue({
+        shouldApplyChanges: false,
+        reasoning: 'Question about code',
+        confidence: 'high'
+      });
+
+      copilot = new Copilot(mockOptions);
+      await copilot.processPrompt('What does this function do?');
+
+      expect(IntentClassifier.prototype.classifyIntent).toHaveBeenCalledWith('What does this function do?');
+      // Verify that shouldApplyChanges was passed to agent initialization
+      const initCall = AgentInitializer.initialize.mock.calls[0][0];
+      expect(initCall.shouldApplyChanges).toBe(false);
     });
   });
 });

@@ -68,7 +68,7 @@ describe('ProposeChangeTool', () => {
       });
 
       expect(applyChange).toHaveBeenCalled();
-      expect(autoApplyToDisk).toHaveBeenCalledWith('test.ts');
+      expect(autoApplyToDisk).toHaveBeenCalledWith('test.ts', 'create');
       expect(result).toContain('automatically applied to disk');
     });
 

@@ -1,4 +1,4 @@
-import { ThinkTodoItem, ThinkTodoList } from '../../../data/model/think_response';
+import { ThinkTodoItem, ThinkTodoList, TodoStatus } from '../../../data/model/think_response';
 import { ProposedChange } from '../../../data/model/think_response';
 import { logDebugInfo, logInfo } from '../../../utils/logger';
 
@@ -13,13 +13,16 @@ export class ThinkTodoManager {
     /**
      * Initialize with optional initial todos
      */
-    initialize(initialTodos?: Array<{ content: string; status?: 'pending' | 'in_progress' }>): void {
+    initialize(initialTodos?: Array<{ content: string; status?: TodoStatus }>): void {
         this.todos.clear();
         this.nextId = 1;
         
         if (initialTodos && initialTodos.length > 0) {
             for (const todo of initialTodos) {
-                this.createTodo(todo.content, todo.status || 'pending');
+                const status = todo.status && (todo.status === TodoStatus.PENDING || todo.status === TodoStatus.IN_PROGRESS)
+                    ? todo.status
+                    : TodoStatus.PENDING;
+                this.createTodo(todo.content, status);
             }
             logInfo(`📋 TODO list initialized with ${initialTodos.length} tasks`);
         } else {
@@ -30,7 +33,7 @@ export class ThinkTodoManager {
     /**
      * Create a new TODO item
      */
-    createTodo(content: string, status: 'pending' | 'in_progress' = 'pending'): ThinkTodoItem {
+    createTodo(content: string, status: TodoStatus = TodoStatus.PENDING): ThinkTodoItem {
         const id = `todo_${this.nextId++}`;
         const now = Date.now();
         const todo: ThinkTodoItem = {

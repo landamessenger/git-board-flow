@@ -14,6 +14,7 @@ export declare class Copilot {
     private agent;
     private options;
     private repositoryFiles;
+    private intentClassifier?;
     constructor(options: CopilotOptions);
     /**
      * Process a user prompt and provide a response

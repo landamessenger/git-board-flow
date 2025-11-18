@@ -4,8 +4,7 @@
  */
 
 import { BaseTool } from '../base_tool';
-
-export type ChangeType = 'create' | 'modify' | 'delete' | 'refactor';
+import { ChangeType } from '../../../data/model/think_response';
 
 export interface ProposeChangeToolOptions {
   applyChange: (change: {
@@ -16,8 +15,9 @@ export interface ProposeChangeToolOptions {
     reasoning: string;
   }) => boolean;
   onChangeApplied?: (change: any) => void;
-  autoApplyToDisk?: (filePath: string) => Promise<boolean>; // Optional: auto-apply to disk when provided
-  getUserPrompt?: () => string | undefined; // Optional: get original user prompt to detect if it's an order
+  autoApplyToDisk?: (filePath: string, operation?: ChangeType) => Promise<boolean>; // Optional: auto-apply to disk when provided
+  getUserPrompt?: () => string | undefined; // Optional: get original user prompt to detect if it's an order (fallback)
+  getShouldApplyChanges?: () => boolean | undefined; // Optional: get pre-classified intent from intent classifier
 }
 
 export class ProposeChangeTool extends BaseTool {
@@ -68,7 +68,7 @@ export class ProposeChangeTool extends BaseTool {
         },
         change_type: {
           type: 'string',
-          enum: ['create', 'modify', 'delete', 'refactor'],
+          enum: Object.values(ChangeType),
           description: 'Type of change to make: create (new file), modify (update existing code - use for bugfixes, features, updates), delete (remove file), refactor (restructure code without changing functionality)'
         },
         description: {
@@ -105,7 +105,7 @@ export class ProposeChangeTool extends BaseTool {
     const hasStrongQuestion = strongQuestionIndicators.some(indicator => promptLower.includes(indicator));
     
     // Order indicators
-    const orderIndicators = ['create', 'write', 'make', 'build', 'set up', 'modify', 'add', 'implement', 'generate', 'do', 'ensure', 'verify', 'test', 'run', 'execute'];
+    const orderIndicators = ['create', 'write', 'make', 'build', 'set up', 'modify', 'add', 'implement', 'generate', 'do', 'ensure', 'verify', 'test', 'run', 'execute', 'delete', 'remove', 'eliminate'];
     const hasOrder = orderIndicators.some(indicator => promptLower.includes(indicator));
     
     // If it has a question mark or strong question words, it's a question (not an order)
@@ -140,9 +140,8 @@ export class ProposeChangeTool extends BaseTool {
       throw new Error('file_path is required and must be a string');
     }
 
-    const validChangeTypes: ChangeType[] = ['create', 'modify', 'delete', 'refactor'];
-    if (!validChangeTypes.includes(changeType)) {
-      throw new Error(`change_type must be one of: ${validChangeTypes.join(', ')}`);
+    if (!Object.values(ChangeType).includes(changeType)) {
+      throw new Error(`change_type must be one of: ${Object.values(ChangeType).join(', ')}`);
     }
 
     if (!description || typeof description !== 'string') {
@@ -174,7 +173,10 @@ export class ProposeChangeTool extends BaseTool {
         description
       });
 
-      // Auto-detect if should auto-apply: check explicit input first, then user prompt
+      // Auto-detect if should auto-apply: check in order:
+      // 1. Explicit input parameter
+      // 2. Pre-classified intent from intent classifier
+      // 3. Fallback to user prompt analysis (if classifier not used)
       let shouldAutoApply = false;
       
       // If explicitly set to true, use it
@@ -185,23 +187,42 @@ export class ProposeChangeTool extends BaseTool {
       else if (input.auto_apply === false) {
         shouldAutoApply = false;
       }
-      // If not explicitly set, check if user prompt is an order
+      // If not explicitly set, check pre-classified intent first (from intent classifier)
       else {
-        const userPrompt = this.options.getUserPrompt?.();
-        if (userPrompt && this.isOrderPrompt(userPrompt)) {
-          shouldAutoApply = true;
-          logInfo(`   🔄 Auto-detected order prompt, enabling auto_apply`);
+        const preClassifiedIntent = this.options.getShouldApplyChanges?.();
+        if (preClassifiedIntent !== undefined) {
+          shouldAutoApply = preClassifiedIntent;
+          logInfo(`   🎯 Using intent classifier result: shouldApplyChanges=${shouldAutoApply}`);
+        }
+        // Fallback to user prompt analysis (if classifier not used)
+        else {
+          const userPrompt = this.options.getUserPrompt?.();
+          if (userPrompt && this.isOrderPrompt(userPrompt)) {
+            shouldAutoApply = true;
+            logInfo(`   🔄 Auto-detected order prompt (fallback), enabling auto_apply`);
+          }
         }
       }
 
       // Auto-apply to disk if requested and handler is available
       if (shouldAutoApply && this.options.autoApplyToDisk) {
         try {
-          const applied = await this.options.autoApplyToDisk(filePath);
-          if (applied) {
-            return `Change proposed and automatically applied to disk: ${filePath}:\n${description}`;
+          // For delete operations, we need special handling
+          if (changeType === ChangeType.DELETE) {
+            const applied = await this.options.autoApplyToDisk(filePath, ChangeType.DELETE);
+            if (applied) {
+              return `File deleted from disk: ${filePath}`;
+            } else {
+              return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-delete from disk was requested but failed. Use apply_changes tool manually.`;
+            }
           } else {
-            return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-apply to disk was requested but failed. Use apply_changes tool manually.`;
+            // For create/modify/refactor
+            const applied = await this.options.autoApplyToDisk(filePath, changeType);
+            if (applied) {
+              return `Change proposed and automatically applied to disk: ${filePath}:\n${description}`;
+            } else {
+              return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-apply to disk was requested but failed. Use apply_changes tool manually.`;
+            }
           }
         } catch (error: any) {
           return `Change proposed to virtual codebase: ${filePath}:\n${description}\nNote: Auto-apply to disk failed: ${error.message}. Use apply_changes tool manually.`;
