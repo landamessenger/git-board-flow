@@ -43,7 +43,7 @@ npm run lint:fix
 - `src/actions/common_action.ts` – Shared flow: single actions vs issue/PR/push pipelines.
 - `src/usecase/` – Use cases (issue, pull request, commit, single actions).
 - `src/data/model/` – Domain models (Execution, Ai, Issue, etc.).
-- `src/agent/` – OpenCode-backed agent (progress, errors, copilot, intent).
+- `src/data/repository/ai_repository.ts` – OpenCode API (ask, askAgent, copilotMessage); no separate agent layer.
 - `action.yml` – Action metadata and input definitions.
 
 ## Conventions
