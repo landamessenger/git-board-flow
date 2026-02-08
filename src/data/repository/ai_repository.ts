@@ -21,6 +21,9 @@ function extractTextFromParts(parts: any): string {
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 export const OPENCODE_AGENT_PLAN = 'plan';
 
+/** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
+export const OPENCODE_AGENT_BUILD = 'build';
+
 /**
  * OpenCode HTTP API: create session and send message, return assistant parts.
  * Uses fetch to avoid ESM-only SDK with ncc.
@@ -71,10 +74,16 @@ export interface AskAgentOptions {
     schemaName?: string;
 }
 
+export interface OpenCodeAgentMessageResult {
+    text: string;
+    parts: any[];
+    sessionId: string;
+}
+
 /**
- * Send a message to an OpenCode agent (e.g. "plan") and wait for the full response.
+ * Send a message to an OpenCode agent (e.g. "plan", "build") and wait for the full response.
  * The server runs the agent loop (tools, etc.) and returns when done.
- * Use this to delegate PR description, progress, error detection, recommendations to OpenCode.
+ * Use this to delegate PR description, progress, error detection, recommendations, or copilot (build) to OpenCode.
  */
 async function opencodeMessageWithAgent(
     baseUrl: string,
@@ -84,7 +93,7 @@ async function opencodeMessageWithAgent(
         agent: string;
         promptText: string;
     }
-): Promise<{ text: string; parts: any[] }> {
+): Promise<OpenCodeAgentMessageResult> {
     const base = ensureNoTrailingSlash(baseUrl);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
@@ -117,7 +126,32 @@ async function opencodeMessageWithAgent(
     const messageData = (await messageRes.json()) as { parts?: any[]; data?: { parts?: any[] } };
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     const text = extractTextFromParts(parts);
-    return { text, parts };
+    return { text, parts, sessionId };
+}
+
+/** File diff from OpenCode GET /session/:id/diff */
+export interface OpenCodeFileDiff {
+    path?: string;
+    file?: string;
+    [key: string]: unknown;
+}
+
+/**
+ * Get the diff for an OpenCode session (files changed by the agent).
+ * Call after opencodeMessageWithAgent when using the "build" agent so the user can see what was edited.
+ */
+export async function getSessionDiff(
+    baseUrl: string,
+    sessionId: string
+): Promise<OpenCodeFileDiff[]> {
+    const base = ensureNoTrailingSlash(baseUrl);
+    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET' });
+    if (!res.ok) return [];
+    const data = (await res.json()) as OpenCodeFileDiff[] | { data?: OpenCodeFileDiff[] };
+    if (Array.isArray(data)) return data;
+    if (Array.isArray((data as { data?: OpenCodeFileDiff[] }).data))
+        return (data as { data: OpenCodeFileDiff[] }).data;
+    return [];
 }
 
 export class AiRepository {
@@ -239,8 +273,56 @@ export class AiRepository {
                 return JSON.parse(cleaned) as Record<string, unknown>;
             }
             return text;
-        } catch (error) {
-            logError(`Error querying OpenCode agent ${agentId} (${model}): ${error}`);
+        } catch (error: unknown) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            const errWithCause = err as Error & { cause?: unknown };
+            const cause =
+                errWithCause.cause instanceof Error
+                    ? errWithCause.cause.message
+                    : errWithCause.cause != null
+                      ? String(errWithCause.cause)
+                      : '';
+            const detail = cause ? ` (${cause})` : '';
+            logError(`Error querying OpenCode agent ${agentId} (${model}): ${err.message}${detail}`);
+            return undefined;
+        }
+    };
+
+    /**
+     * Run the OpenCode "build" agent for the copilot command. The build agent can read and write
+     * files when the OpenCode server is run locally with the project as workspace (e.g. opencode serve
+     * from the repo). Returns the assistant text and sessionId so the CLI can optionally fetch the session diff.
+     */
+    copilotMessage = async (
+        ai: Ai,
+        prompt: string
+    ): Promise<{ text: string; sessionId: string } | undefined> => {
+        const serverUrl = ai.getOpencodeServerUrl();
+        const model = ai.getOpencodeModel();
+        if (!serverUrl || !model) {
+            logError('Missing required AI configuration: opencode-server-url and opencode-model');
+            return undefined;
+        }
+        try {
+            const { providerID, modelID } = ai.getOpencodeModelParts();
+            const result = await opencodeMessageWithAgent(serverUrl, {
+                providerID,
+                modelID,
+                agent: OPENCODE_AGENT_BUILD,
+                promptText: prompt,
+            });
+            return { text: result.text, sessionId: result.sessionId };
+        } catch (error: unknown) {
+            const err = error instanceof Error ? error : new Error(String(error));
+            const errWithCause = err as Error & { cause?: unknown };
+            const cause =
+                errWithCause.cause instanceof Error
+                    ? errWithCause.cause.message
+                    : errWithCause.cause != null
+                      ? String(errWithCause.cause)
+                      : '';
+            const detail = cause ? ` (${cause})` : '';
+            logError(`Error querying OpenCode build agent (${model}): ${err.message}${detail}`);
             return undefined;
         }
     };

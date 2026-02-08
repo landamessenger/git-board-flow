@@ -42102,7 +42102,7 @@ async function runGitHubAction() {
      * AI (OpenCode)
      */
     let opencodeServerUrl = getInput(constants_1.INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://localhost:4096';
-    const opencodeModel = getInput(constants_1.INPUT_KEYS.OPENCODE_MODEL) || 'openai/gpt-4o-mini';
+    const opencodeModel = getInput(constants_1.INPUT_KEYS.OPENCODE_MODEL) || 'opencode/kimi-k2.5';
     const opencodeStartServer = getInput(constants_1.INPUT_KEYS.OPENCODE_START_SERVER) === 'true';
     let managedOpencodeServer;
     if (opencodeStartServer) {
@@ -42529,7 +42529,7 @@ class Ai {
         const model = this.opencodeModel.trim();
         const slash = model.indexOf('/');
         if (slash <= 0) {
-            return { providerID: 'openai', modelID: model || 'gpt-4o-mini' };
+            return { providerID: 'opencode', modelID: model || 'kimi-k2.5' };
         }
         return {
             providerID: model.slice(0, slash).trim(),
@@ -44074,7 +44074,8 @@ exports.Workflows = Workflows;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AiRepository = exports.OPENCODE_AGENT_PLAN = void 0;
+exports.AiRepository = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
+exports.getSessionDiff = getSessionDiff;
 const logger_1 = __nccwpck_require__(8836);
 const ai_response_schema_1 = __nccwpck_require__(5968);
 const think_response_schema_1 = __nccwpck_require__(7057);
@@ -44094,6 +44095,8 @@ function extractTextFromParts(parts) {
 }
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 exports.OPENCODE_AGENT_PLAN = 'plan';
+/** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
+exports.OPENCODE_AGENT_BUILD = 'build';
 /**
  * OpenCode HTTP API: create session and send message, return assistant parts.
  * Uses fetch to avoid ESM-only SDK with ncc.
@@ -44131,9 +44134,9 @@ async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
     return extractTextFromParts(parts);
 }
 /**
- * Send a message to an OpenCode agent (e.g. "plan") and wait for the full response.
+ * Send a message to an OpenCode agent (e.g. "plan", "build") and wait for the full response.
  * The server runs the agent loop (tools, etc.) and returns when done.
- * Use this to delegate PR description, progress, error detection, recommendations to OpenCode.
+ * Use this to delegate PR description, progress, error detection, recommendations, or copilot (build) to OpenCode.
  */
 async function opencodeMessageWithAgent(baseUrl, options) {
     const base = ensureNoTrailingSlash(baseUrl);
@@ -44168,7 +44171,23 @@ async function opencodeMessageWithAgent(baseUrl, options) {
     const messageData = (await messageRes.json());
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     const text = extractTextFromParts(parts);
-    return { text, parts };
+    return { text, parts, sessionId };
+}
+/**
+ * Get the diff for an OpenCode session (files changed by the agent).
+ * Call after opencodeMessageWithAgent when using the "build" agent so the user can see what was edited.
+ */
+async function getSessionDiff(baseUrl, sessionId) {
+    const base = ensureNoTrailingSlash(baseUrl);
+    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET' });
+    if (!res.ok)
+        return [];
+    const data = (await res.json());
+    if (Array.isArray(data))
+        return data;
+    if (Array.isArray(data.data))
+        return data.data;
+    return [];
 }
 class AiRepository {
     constructor() {
@@ -44280,7 +44299,50 @@ class AiRepository {
                 return text;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error querying OpenCode agent ${agentId} (${model}): ${error}`);
+                const err = error instanceof Error ? error : new Error(String(error));
+                const errWithCause = err;
+                const cause = errWithCause.cause instanceof Error
+                    ? errWithCause.cause.message
+                    : errWithCause.cause != null
+                        ? String(errWithCause.cause)
+                        : '';
+                const detail = cause ? ` (${cause})` : '';
+                (0, logger_1.logError)(`Error querying OpenCode agent ${agentId} (${model}): ${err.message}${detail}`);
+                return undefined;
+            }
+        };
+        /**
+         * Run the OpenCode "build" agent for the copilot command. The build agent can read and write
+         * files when the OpenCode server is run locally with the project as workspace (e.g. opencode serve
+         * from the repo). Returns the assistant text and sessionId so the CLI can optionally fetch the session diff.
+         */
+        this.copilotMessage = async (ai, prompt) => {
+            const serverUrl = ai.getOpencodeServerUrl();
+            const model = ai.getOpencodeModel();
+            if (!serverUrl || !model) {
+                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+                return undefined;
+            }
+            try {
+                const { providerID, modelID } = ai.getOpencodeModelParts();
+                const result = await opencodeMessageWithAgent(serverUrl, {
+                    providerID,
+                    modelID,
+                    agent: exports.OPENCODE_AGENT_BUILD,
+                    promptText: prompt,
+                });
+                return { text: result.text, sessionId: result.sessionId };
+            }
+            catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                const errWithCause = err;
+                const cause = errWithCause.cause instanceof Error
+                    ? errWithCause.cause.message
+                    : errWithCause.cause != null
+                        ? String(errWithCause.cause)
+                        : '';
+                const detail = cause ? ` (${cause})` : '';
+                (0, logger_1.logError)(`Error querying OpenCode build agent (${model}): ${err.message}${detail}`);
                 return undefined;
             }
         };

@@ -23,7 +23,9 @@ In your workflow, pass the action name and any required inputs:
 
 | Action | Inputs | Description |
 |--------|--------|-------------|
-| `check_progress_action` | `single-action-issue` | Analyzes branch vs issue description via OpenCode and posts a progress percentage and summary on the issue. |
+| `check_progress_action` | `single-action-issue` | Analyzes branch vs issue description via OpenCode Plan and posts a progress percentage and summary on the issue. |
+| `detect_errors_action` | `single-action-issue` | Detects potential errors in the branch vs base using OpenCode Plan agent. |
+| `recommend_steps_action` | `single-action-issue` | Recommends implementation steps for the issue based on its description (OpenCode Plan). |
 | `think_action` | — | Deep code analysis and change proposals (OpenCode). No issue required. |
 | `initial_setup` | — | Initial setup steps. No issue required. |
 | `create_release` | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release. |

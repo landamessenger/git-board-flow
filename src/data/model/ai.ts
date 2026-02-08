@@ -58,7 +58,7 @@ export class Ai {
         const model = this.opencodeModel.trim();
         const slash = model.indexOf('/');
         if (slash <= 0) {
-            return { providerID: 'openai', modelID: model || 'gpt-4o-mini' };
+            return { providerID: 'opencode', modelID: model || 'kimi-k2.5' };
         }
         return {
             providerID: model.slice(0, slash).trim(),

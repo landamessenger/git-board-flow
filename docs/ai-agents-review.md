@@ -163,3 +163,47 @@ Se ha implementado el uso del **agente Plan de OpenCode** para delegar toda la l
 - **Recomendar pasos al crear una issue**: Nueva single action `recommend_steps_action` y `RecommendStepsUseCase`: a partir de la descripción de la issue, el agente Plan recomienda pasos a seguir. CLI: `recommend-steps -i <issue>`.
 
 Requisito: el servidor OpenCode debe estar ejecutándose y ser capaz de trabajar sobre el path del proyecto (mismo proyecto o acceso al repo) para que el agente tenga contexto. Las llamadas usan `POST /session/:id/message` con `agent: "plan"`.
+
+### ¿Hay que pasar el diff desde la GitHub Action o lo calcula OpenCode?
+
+**Sí, tenemos que pasar el diff (o la rama base) nosotros.** El agente Plan no puede calcularlo solo en el caso típico:
+
+1. **Plan por defecto no tiene bash**  
+   En la documentación de OpenCode, el agente Plan tiene `write: false`, `edit: false`, `bash: false`. No puede ejecutar `git diff` ni ningún comando. Lo que “ve” es solo el contenido de los ficheros del workspace (el checkout de la rama del PR en el runner).
+
+2. **No sabe cuál es la rama base**  
+   Aunque se habilitara bash solo para `git diff`, el agente no sabe con qué rama comparar (p. ej. `main`, `develop`). Esa información la tiene la GitHub Action (p. ej. `pull_request.base.ref` o la config de tu flujo), no el repo en disco.
+
+3. **En CI el clone puede ser shallow**  
+   En el runner a veces se hace un clone superficial y puede no tener la rama base. La API de GitHub (compare, o “files changed” del PR) nos da el diff sin depender de tener esa rama en local.
+
+Por eso en los use cases (descripción de PR, progreso, detección de errores) **construimos el diff desde nuestra capa** (GitHub API / `PullRequestRepository.getPullRequestChanges`, `BranchRepository.getChanges`) y lo incluimos en el prompt. Así:
+
+- Funciona con la config por defecto de Plan (sin bash).
+- La “base” es siempre la que define el PR o tu configuración (rama base del PR o develop).
+- No dependemos de que el runner tenga la rama base ni de un clone completo.
+
+**Resumen:** desde la GitHub Action (o CLI) debemos pasar el diff —o al menos la rama base y dejar que el agente ejecute `git diff` solo si en tu proyecto habilitas bash para Plan—. La opción actual (pasamos el diff en el prompt) es la más segura y portable.
+
+---
+
+## 8. ¿Sigue siendo necesario `src/agent/`?
+
+**Flujo principal (GitHub Action + single actions): no.** Los use cases de producto ya no importan nada de `src/agent/`:
+
+- **Descripción de PR, check-progress, detect-errors, recommend-steps** usan `AiRepository.askAgent(ai, OPENCODE_AGENT_PLAN, prompt)` y no usan ProgressDetector, ErrorDetector ni Agent core.
+
+**Comando CLI `copilot`: sí.** Es el único flujo que sigue usando la orquestación local:
+
+- **`giik copilot`** → `Copilot` → `Agent` + ReasoningLoop + tools (read_file, search_files, propose_change, apply_changes, execute_command, manage_todos) + `IntentClassifier` + SubagentHandler. Todo eso vive en `src/agent/` (core, reasoning/copilot, reasoning/intent_classifier, tools).
+
+**Comandos de test (opcionales):** `agent_tester_commands`, `sub_agent_tester_commands`, `tec_tester_commands` usan Agent, ErrorDetector y tools; son solo para desarrollo/pruebas, no para el flujo principal.
+
+**Resumen:**
+
+| Componente | Estado |
+|------------|--------|
+| Agent core, ReasoningLoop, tools, ProgressDetector, ErrorDetector, IntentClassifier, Copilot local | **Eliminados** (`src/agent/` borrado). |
+| Comando `giik copilot` | Usa OpenCode agente **build** vía `AiRepository.copilotMessage()`. |
+
+**Actualización:** El comando **`giik copilot`** usa OpenCode con el agente **build** (`OPENCODE_AGENT_BUILD`). **`src/agent/`** ha sido **eliminado**: ya no existe orquestación local de agentes ni comandos de test que dependieran de ella. Toda la lógica de AI (descripción de PR, progreso, detección de errores, recomendación de pasos, copilot) delega en OpenCode (agentes Plan y Build).

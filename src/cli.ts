@@ -7,10 +7,8 @@ import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
 import { logInfo } from './utils/logger';
-import { registerAgentTestCommands } from './agent_tester_commands';
-import { registerSubAgentTestCommands } from './sub_agent_tester_commands';
-import { registerTECTestCommands } from './tec_tester_commands';
-import { Copilot, CopilotOptions } from './agent/reasoning/copilot';
+import { Ai } from './data/model/ai';
+import { AiRepository, getSessionDiff, OpenCodeFileDiff } from './data/repository/ai_repository';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -46,7 +44,7 @@ program
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('-q, --question <question...>', 'Question or prompt for analysis', '')
   .option('--opencode-server-url <url>', 'OpenCode server URL (e.g. http://localhost:4096)', '')
-  .option('--opencode-model <model>', 'OpenCode model (e.g. openai/gpt-4o-mini)', '')
+  .option('--opencode-model <model>', 'OpenCode model (e.g. opencode/kimi-k2.5, openai/gpt-4o-mini)', '')
   .option('--ai-ignore-files <ai-ignore-files>', 'AI ignore files', 'node_modules/*,build/*')
   .option('--include-reasoning <include-reasoning>', 'Include reasoning', 'false')
   .action(async (options) => {    
@@ -135,23 +133,17 @@ program
   });
 
 /**
- * Copilot agent - Advanced reasoning and code-manipulation capabilities.
- * Can analyze, explain, answer questions about, and modify source code.
+ * Copilot - AI development assistant using OpenCode "build" agent.
+ * When the OpenCode server is run locally from your repo (e.g. opencode serve), the build agent
+ * can read and write files; changes are applied in the server workspace.
  */
 program
   .command('copilot')
-  .description(`${TITLE} - AI development assistant for code analysis and manipulation`)
-  .option('-p, --prompt <prompt...>', 'Prompt or question for the copilot agent (required)', '')
-  .option('-b, --branch <name>', 'Branch name', 'master')
+  .description(`${TITLE} - AI development assistant (OpenCode build agent; can edit files when run locally)`)
+  .option('-p, --prompt <prompt...>', 'Prompt or question for the copilot (required)', '')
   .option('-d, --debug', 'Debug mode', false)
-  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
   .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
-  .option('--max-turns <number>', 'Maximum turns', '50')
-  .option('--working-dir <dir>', 'Working directory for file operations (default: current directory)')
-  .option('--use-subagents', 'Use subagents for parallel processing (recommended for large codebases, enabled by default)', true)
-  .option('--no-use-subagents', 'Disable subagents (use single agent instead)')
-  .option('--max-concurrent-subagents <number>', 'Maximum concurrent subagents', '5')
   .option('--output <format>', 'Output format (text|json)', 'text')
   .action(async (options) => {    
     const gitInfo = getGitInfo();
@@ -176,11 +168,8 @@ program
       return;
     }
 
-    const branch = cleanArg(options.branch);
     const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096';
-    const model = cleanArg(options.opencodeModel);
-    const token = cleanArg(options.token);
-    const maxTurns = parseInt(cleanArg(options.maxTurns)) || 50;
+    const model = cleanArg(options.opencodeModel) || process.env.OPENCODE_MODEL || 'opencode/kimi-k2.5';
     const workingDir = cleanArg(options.workingDir) || process.cwd();
     // Handle subagents flag: default is true, can be disabled with --no-use-subagents
     // Commander.js sets useSubagents to false when --no-use-subagents is used
@@ -194,57 +183,37 @@ program
     }
 
     try {
-      const copilotOptions: CopilotOptions = {
-        model: model || process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini',
-        serverUrl: serverUrl,
-        personalAccessToken: token,
-        maxTurns: maxTurns,
-        repositoryOwner: gitInfo.owner,
-        repositoryName: gitInfo.repo,
-        repositoryBranch: branch,
-        workingDirectory: workingDir,
-        useSubAgents: useSubAgents,
-        maxConcurrentSubAgents: maxConcurrentSubAgents
-      };
+      const ai = new Ai(serverUrl, model, false, false, [], false);
+      const aiRepository = new AiRepository();
+      const result = await aiRepository.copilotMessage(ai, prompt);
 
-      const copilot = new Copilot(copilotOptions);
-      const result = await copilot.processPrompt(prompt);
+      if (!result) {
+        console.error('❌ Copilot request failed (check OpenCode server and model).');
+        process.exit(1);
+      }
+
+      const { text, sessionId } = result;
 
       if (outputFormat === 'json') {
-        console.log(JSON.stringify(result, null, 2));
+        const diff = await getSessionDiff(serverUrl, sessionId);
+        console.log(JSON.stringify({ response: text, sessionId, diff }, null, 2));
         return;
       }
 
-      // Text output (default)
       console.log('\n' + '='.repeat(80));
-      console.log('🤖 COPILOT RESPONSE');
+      console.log('🤖 COPILOT RESPONSE (OpenCode build agent)');
       console.log('='.repeat(80));
-      console.log(`\n${result.response}\n`);
+      console.log(`\n${text || '(No text response)'}\n`);
 
-      if (result.changes && result.changes.length > 0) {
+      const diff = await getSessionDiff(serverUrl, sessionId);
+      if (diff && diff.length > 0) {
         console.log('='.repeat(80));
-        console.log('📝 CHANGES MADE');
+        console.log('📝 FILES CHANGED (by OpenCode in this session)');
         console.log('='.repeat(80));
-        result.changes.forEach((change, index) => {
-          console.log(`\n${index + 1}. ${change.file}`);
-          console.log(`   Type: ${change.changeType}`);
-          if (change.description) {
-            console.log(`   Description: ${change.description}`);
-          }
+        diff.forEach((d: OpenCodeFileDiff, index: number) => {
+          const path = d.path ?? d.file ?? JSON.stringify(d);
+          console.log(`  ${index + 1}. ${path}`);
         });
-        console.log('');
-      }
-
-      if (result.agentResult.metrics) {
-        console.log('='.repeat(80));
-        console.log('📊 METRICS');
-        console.log('='.repeat(80));
-        console.log(`   - Total Turns: ${result.agentResult.turns.length}`);
-        console.log(`   - Tool Calls: ${result.agentResult.toolCalls.length}`);
-        console.log(`   - Input Tokens: ${result.agentResult.metrics.totalTokens.input}`);
-        console.log(`   - Output Tokens: ${result.agentResult.metrics.totalTokens.output}`);
-        console.log(`   - Total Duration: ${result.agentResult.metrics.totalDuration}ms`);
-        console.log(`   - Average Latency: ${result.agentResult.metrics.averageLatency}ms`);
         console.log('');
       }
     } catch (error: any) {
@@ -444,10 +413,5 @@ program
 
     await runLocalAction(params);
   });
-
-// Register agent test commands
-registerAgentTestCommands(program);
-registerSubAgentTestCommands(program);
-registerTECTestCommands(program);
 
 program.parse(process.argv); 

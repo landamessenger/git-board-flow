@@ -1,6 +1,8 @@
 import { Ai } from '../model/ai';
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 export declare const OPENCODE_AGENT_PLAN = "plan";
+/** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
+export declare const OPENCODE_AGENT_BUILD = "build";
 export interface AskAgentOptions {
     /** Request JSON response and parse it. If schema provided, include it in the prompt. */
     expectJson?: boolean;
@@ -8,6 +10,22 @@ export interface AskAgentOptions {
     schema?: Record<string, unknown>;
     schemaName?: string;
 }
+export interface OpenCodeAgentMessageResult {
+    text: string;
+    parts: any[];
+    sessionId: string;
+}
+/** File diff from OpenCode GET /session/:id/diff */
+export interface OpenCodeFileDiff {
+    path?: string;
+    file?: string;
+    [key: string]: unknown;
+}
+/**
+ * Get the diff for an OpenCode session (files changed by the agent).
+ * Call after opencodeMessageWithAgent when using the "build" agent so the user can see what was edited.
+ */
+export declare function getSessionDiff(baseUrl: string, sessionId: string): Promise<OpenCodeFileDiff[]>;
 export declare class AiRepository {
     ask: (ai: Ai, prompt: string) => Promise<string | undefined>;
     askJson: (ai: Ai, prompt: string, schema?: any, schemaName?: string, streaming?: boolean, onChunk?: (chunk: string) => void, strict?: boolean) => Promise<any | undefined>;
@@ -25,4 +43,13 @@ export declare class AiRepository {
      * @returns Response text, or parsed JSON when expectJson is true
      */
     askAgent: (ai: Ai, agentId: string, prompt: string, options?: AskAgentOptions) => Promise<string | Record<string, unknown> | undefined>;
+    /**
+     * Run the OpenCode "build" agent for the copilot command. The build agent can read and write
+     * files when the OpenCode server is run locally with the project as workspace (e.g. opencode serve
+     * from the repo). Returns the assistant text and sessionId so the CLI can optionally fetch the session diff.
+     */
+    copilotMessage: (ai: Ai, prompt: string) => Promise<{
+        text: string;
+        sessionId: string;
+    } | undefined>;
 }

@@ -16,7 +16,7 @@ Git Board Flow uses **OpenCode** for all AI-backed features: code analysis, prog
 ## Requirements
 
 1. **OpenCode server** must be running and reachable (e.g. `http://localhost:4096` or your deployed URL).
-2. **Model** in `provider/model` format (e.g. `openai/gpt-4o-mini`, `anthropic/claude-3-5-sonnet`).
+2. **Model** in `provider/model` format (e.g. `opencode/kimi-k2.5`, `anthropic/claude-3-5-sonnet`).
 3. **API keys** are configured on the OpenCode server (not in this action). Use OpenCode's auth/config to add provider keys.
 
 ## Configuration
@@ -26,7 +26,7 @@ Git Board Flow uses **OpenCode** for all AI-backed features: code analysis, prog
 | Input | Description | Default |
 |-------|-------------|--------|
 | `opencode-server-url` | OpenCode server URL | `http://localhost:4096` |
-| `opencode-model` | Model in `provider/model` format | `openai/gpt-4o-mini` |
+| `opencode-model` | Model in `provider/model` format | `opencode/kimi-k2.5` |
 | `opencode-start-server` | If `true`, the action starts an OpenCode server at the beginning of the job and stops it when the job ends. No need to install or run OpenCode yourself. Requires provider API keys (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) as GitHub secrets. | `false` |
 
 Example (using your own OpenCode server):
@@ -46,7 +46,7 @@ Example (action starts and stops OpenCode for you; no separate server needed):
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   with:
     opencode-start-server: true
-    opencode-model: 'openai/gpt-4o-mini'
+    opencode-model: 'opencode/kimi-k2.5'
 ```
 
 ### Environment variables (CLI / local)
@@ -117,6 +117,7 @@ When the GitHub Action runs with `single-action: check_progress_action` and `sin
 
 Use `provider/model` as in OpenCode's config, for example:
 
+- `opencode/kimi-k2.5` (free, Kimi K2.5)
 - `openai/gpt-4o-mini`
 - `openai/gpt-4o`
 - `anthropic/claude-3-5-sonnet-20241022`

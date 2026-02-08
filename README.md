@@ -143,11 +143,15 @@ giik <command> [options]
 | Command | Description | Example |
 |--------|-------------|--------|
 | `setup` | Initial setup: labels, issue types, verify access | `node build/cli/index.js setup -t <PAT>` |
-| `check-progress` | Check progress for an issue (posts % on the issue) | `node build/cli/index.js check-progress -i 123 -t <PAT>` |
+| `check-progress` | Check progress for an issue (OpenCode Plan; posts % on the issue) | `node build/cli/index.js check-progress -i 123 -t <PAT>` |
+| `detect-errors` | Detect potential errors in the branch vs base (OpenCode Plan) | `node build/cli/index.js detect-errors -i 123 -t <PAT>` |
+| `recommend-steps` | Recommend implementation steps for an issue (OpenCode Plan) | `node build/cli/index.js recommend-steps -i 123 -t <PAT>` |
 | `think` | Deep code analysis / reasoning (needs a question) | `node build/cli/index.js think -q "Where is auth validated?" -t <PAT>` |
 | `copilot` | AI development assistant (analyze/modify code) | `node build/cli/index.js copilot -p "Explain src/cli.ts" -t <PAT>` |
 
 Add `-d` or `--debug` for verbose logs. For OpenCode, use `--opencode-server-url` and `--opencode-model` if you don’t set env vars.
+
+For a step-by-step guide to testing the OpenCode Plan flows (check-progress, detect-errors, recommend-steps) locally, see [docs/testing-opencode-plan-locally.md](docs/testing-opencode-plan-locally.md).
 
 ### 4. Optional: `.env` in repo root
 
@@ -157,7 +161,7 @@ You can put secrets in a `.env` file (do not commit it). The CLI loads it via `d
 # .env (do not commit)
 PERSONAL_ACCESS_TOKEN=ghp_...
 OPENCODE_SERVER_URL=http://localhost:4096
-OPENCODE_MODEL=openai/gpt-4o-mini
+OPENCODE_MODEL=opencode/kimi-k2.5
 ```
 
 Then you can run without passing `-t` every time, e.g.:
