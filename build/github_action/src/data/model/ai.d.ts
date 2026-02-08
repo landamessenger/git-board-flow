@@ -19,6 +19,7 @@ export declare class Ai {
     getAiIncludeReasoning(): boolean;
     /**
      * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
+     * Uses OPENCODE_DEFAULT_MODEL when no model is set (e.g. opencode/kimi-k2.5-free).
      */
     getOpencodeModelParts(): {
         providerID: string;

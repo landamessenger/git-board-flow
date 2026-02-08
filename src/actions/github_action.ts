@@ -22,7 +22,7 @@ import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
 import { PublishResultUseCase } from '../usecase/steps/common/publish_resume_use_case';
 import { StoreConfigurationUseCase } from '../usecase/steps/common/store_configuration_use_case';
-import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
+import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL } from '../utils/constants';
 import { logError } from '../utils/logger';
 import { startOpencodeServer, type ManagedOpencodeServer } from '../utils/opencode_server';
 import { mainRun } from './common_action';
@@ -53,7 +53,7 @@ export async function runGitHubAction(): Promise<void> {
      * AI (OpenCode)
      */
     let opencodeServerUrl = getInput(INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://127.0.0.1:4096';
-    const opencodeModel = getInput(INPUT_KEYS.OPENCODE_MODEL) || 'opencode/kimi-k2.5';
+    const opencodeModel = getInput(INPUT_KEYS.OPENCODE_MODEL) || OPENCODE_DEFAULT_MODEL;
     const opencodeStartServer = getInput(INPUT_KEYS.OPENCODE_START_SERVER) === 'true';
 
     let managedOpencodeServer: ManagedOpencodeServer | undefined;

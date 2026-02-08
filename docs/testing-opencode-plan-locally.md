@@ -159,6 +159,9 @@ No hay un comando tipo `update-pr-description -i <issue> -p <pr-number>` en la C
   2. Usar **`127.0.0.1`** en lugar de `localhost`: a veces `localhost` se resuelve a IPv6 (`::1`) y el servidor solo escucha en IPv4 (`127.0.0.1`). Ejemplo: `giik check-progress -i 279 --opencode-server-url http://127.0.0.1:4096`.
   3. Si usas otra máquina o túnel, asegúrate de que la URL sea accesible desde donde ejecutas la CLI.
 
+- **"Unexpected end of JSON input" / "empty response body" / "invalid JSON"**  
+  El servidor OpenCode ha respondido con cuerpo vacío o que no es JSON válido (p. ej. la API del agente puede devolver algo inesperado o cerrar la conexión antes de enviar el JSON completo). La CLI ahora muestra un mensaje más claro indicando en qué llamada falló (session.create o message) y un fragmento del cuerpo. Comprueba la versión del servidor OpenCode y que el endpoint `/session` y `/session/:id/message` devuelvan JSON. Si el servidor hace streaming, puede que no sea compatible con la forma en que la CLI espera la respuesta.
+
 - **"OpenCode session create failed" / "OpenCode message failed"**  
   Comprueba que el servidor esté levantado (`curl http://127.0.0.1:4096/global/health`) y que `OPENCODE_SERVER_URL` (o `--opencode-server-url`) apunte a esa URL. Revisa que el modelo esté bien configurado en OpenCode y que `OPENCODE_MODEL` coincida (ej. `opencode/kimi-k2.5`).
 

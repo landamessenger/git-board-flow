@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
-import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
+import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
 import { logInfo } from './utils/logger';
 import { Ai } from './data/model/ai';
 import { AiRepository, getSessionDiff, OpenCodeFileDiff } from './data/repository/ai_repository';
@@ -44,7 +44,7 @@ program
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('-q, --question <question...>', 'Question or prompt for analysis', '')
   .option('--opencode-server-url <url>', 'OpenCode server URL (e.g. http://127.0.0.1:4096)', '')
-  .option('--opencode-model <model>', 'OpenCode model (e.g. opencode/kimi-k2.5, openai/gpt-4o-mini)', '')
+  .option('--opencode-model <model>', `OpenCode model (e.g. ${OPENCODE_DEFAULT_MODEL}, openai/gpt-4o-mini)`, '')
   .option('--ai-ignore-files <ai-ignore-files>', 'AI ignore files', 'node_modules/*,build/*')
   .option('--include-reasoning <include-reasoning>', 'Include reasoning', 'false')
   .action(async (options) => {    
@@ -79,7 +79,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber) || 1,
       [INPUT_KEYS.TOKEN]: options?.token?.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.OPENCODE_SERVER_URL]: options?.opencodeServerUrl?.length > 0 ? options.opencodeServerUrl : process.env.OPENCODE_SERVER_URL,
-      [INPUT_KEYS.OPENCODE_MODEL]: options?.opencodeModel?.length > 0 ? options.opencodeModel : process.env.OPENCODE_MODEL,
+      [INPUT_KEYS.OPENCODE_MODEL]: options?.opencodeModel?.length > 0 ? options.opencodeModel : process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
       [INPUT_KEYS.AI_IGNORE_FILES]: options?.aiIgnoreFiles?.length > 0 ? options.aiIgnoreFiles : process.env.AI_IGNORE_FILES,
       [INPUT_KEYS.AI_INCLUDE_REASONING]: options?.includeReasoning?.length > 0 ? options.includeReasoning : process.env.AI_INCLUDE_REASONING,
       repo: {
@@ -169,7 +169,7 @@ program
     }
 
     const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096';
-    const model = cleanArg(options.opencodeModel) || process.env.OPENCODE_MODEL || 'opencode/kimi-k2.5';
+    const model = cleanArg(options.opencodeModel) || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL;
     const workingDir = cleanArg(options.workingDir) || process.cwd();
     // Handle subagents flag: default is true, can be disabled with --no-use-subagents
     // Commander.js sets useSubagents to false when --no-use-subagents is used
@@ -273,7 +273,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parsedIssueNumber,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
-      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
       [INPUT_KEYS.AI_IGNORE_FILES]: process.env.AI_IGNORE_FILES || 'build/*,dist/*,node_modules/*,*.d.ts',
       repo: {
         owner: gitInfo.owner,
@@ -328,7 +328,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
-      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
       repo: { owner: gitInfo.owner, repo: gitInfo.repo },
       issue: { number: parseInt(issueNumber) },
     };
@@ -366,7 +366,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
-      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
       repo: { owner: gitInfo.owner, repo: gitInfo.repo },
       issue: { number: parseInt(issueNumber) },
     };

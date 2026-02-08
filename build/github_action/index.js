@@ -42102,7 +42102,7 @@ async function runGitHubAction() {
      * AI (OpenCode)
      */
     let opencodeServerUrl = getInput(constants_1.INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://127.0.0.1:4096';
-    const opencodeModel = getInput(constants_1.INPUT_KEYS.OPENCODE_MODEL) || 'opencode/kimi-k2.5';
+    const opencodeModel = getInput(constants_1.INPUT_KEYS.OPENCODE_MODEL) || constants_1.OPENCODE_DEFAULT_MODEL;
     const opencodeStartServer = getInput(constants_1.INPUT_KEYS.OPENCODE_START_SERVER) === 'true';
     let managedOpencodeServer;
     if (opencodeStartServer) {
@@ -42484,12 +42484,13 @@ runGitHubAction();
 /***/ }),
 
 /***/ 4470:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Ai = void 0;
+const constants_1 = __nccwpck_require__(8593);
 /**
  * AI configuration for OpenCode-backed analysis.
  * OpenCode supports 75+ LLM providers (Anthropic, OpenAI, Gemini, local models, etc.).
@@ -42524,16 +42525,20 @@ class Ai {
     }
     /**
      * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
+     * Uses OPENCODE_DEFAULT_MODEL when no model is set (e.g. opencode/kimi-k2.5-free).
      */
     getOpencodeModelParts() {
-        const model = this.opencodeModel.trim();
-        const slash = model.indexOf('/');
+        const effective = (this.opencodeModel || constants_1.OPENCODE_DEFAULT_MODEL).trim();
+        const slash = effective.indexOf('/');
         if (slash <= 0) {
-            return { providerID: 'opencode', modelID: model || 'kimi-k2.5' };
+            return { providerID: 'opencode', modelID: effective || (constants_1.OPENCODE_DEFAULT_MODEL.split('/')[1] ?? 'kimi-k2.5-free') };
         }
+        const providerID = effective.slice(0, slash).trim();
+        const modelID = effective.slice(slash + 1).trim();
+        const defaultModelId = constants_1.OPENCODE_DEFAULT_MODEL.split('/')[1] ?? 'kimi-k2.5-free';
         return {
-            providerID: model.slice(0, slash).trim(),
-            modelID: model.slice(slash + 1).trim(),
+            providerID: providerID || 'opencode',
+            modelID: modelID || defaultModelId,
         };
     }
 }
@@ -44082,6 +44087,28 @@ const think_response_schema_1 = __nccwpck_require__(7057);
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, '') || url;
 }
+const OPENCODE_RESPONSE_LOG_MAX_LEN = 2000;
+/** Parse response as JSON; on empty or invalid body throw a clear error with context. */
+async function parseJsonResponse(res, context) {
+    const raw = await res.text();
+    const truncated = raw.length > OPENCODE_RESPONSE_LOG_MAX_LEN
+        ? `${raw.slice(0, OPENCODE_RESPONSE_LOG_MAX_LEN)}... [truncated, total ${raw.length} chars]`
+        : raw;
+    (0, logger_1.logDebugInfo)(`OpenCode response [${context}] status=${res.status} bodyLength=${raw.length}: ${truncated}`);
+    if (!raw || !raw.trim()) {
+        throw new Error(`${context}: empty response body (status ${res.status}). The server may have returned nothing or closed the connection early.`);
+    }
+    try {
+        return JSON.parse(raw);
+    }
+    catch (parseError) {
+        const snippet = raw.length > 200 ? `${raw.slice(0, 200)}...` : raw;
+        const err = new Error(`${context}: invalid JSON (status ${res.status}). Body snippet: ${snippet}`);
+        if (parseError instanceof Error && 'cause' in err)
+            err.cause = parseError;
+        throw err;
+    }
+}
 /**
  * Extract plain text from OpenCode message response parts.
  */
@@ -44112,7 +44139,7 @@ async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
         const err = await createRes.text();
         throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
     }
-    const session = (await createRes.json());
+    const session = await parseJsonResponse(createRes, 'OpenCode session.create');
     const sessionId = session?.id ?? session?.data?.id;
     if (!sessionId) {
         throw new Error('OpenCode session.create did not return session id');
@@ -44129,7 +44156,7 @@ async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
         const err = await messageRes.text();
         throw new Error(`OpenCode message failed: ${messageRes.status} ${err}`);
     }
-    const messageData = (await messageRes.json());
+    const messageData = await parseJsonResponse(messageRes, 'OpenCode message');
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     return extractTextFromParts(parts);
 }
@@ -44149,7 +44176,7 @@ async function opencodeMessageWithAgent(baseUrl, options) {
         const err = await createRes.text();
         throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
     }
-    const session = (await createRes.json());
+    const session = await parseJsonResponse(createRes, 'OpenCode session.create');
     const sessionId = session?.id ?? session?.data?.id;
     if (!sessionId) {
         throw new Error('OpenCode session.create did not return session id');
@@ -44168,7 +44195,7 @@ async function opencodeMessageWithAgent(baseUrl, options) {
         const err = await messageRes.text();
         throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
     }
-    const messageData = (await messageRes.json());
+    const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     const text = extractTextFromParts(parts);
     return { text, parts, sessionId };
@@ -44182,7 +44209,16 @@ async function getSessionDiff(baseUrl, sessionId) {
     const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET' });
     if (!res.ok)
         return [];
-    const data = (await res.json());
+    const raw = await res.text();
+    if (!raw?.trim())
+        return [];
+    let data;
+    try {
+        data = JSON.parse(raw);
+    }
+    catch {
+        return [];
+    }
     if (Array.isArray(data))
         return data;
     if (Array.isArray(data.data))
@@ -51546,10 +51582,12 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
+/** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
+exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
 exports.DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [

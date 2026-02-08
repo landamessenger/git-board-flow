@@ -1,10 +1,37 @@
-import { logError } from '../../utils/logger';
+import { logDebugInfo, logError } from '../../utils/logger';
 import { Ai } from '../model/ai';
 import { AI_RESPONSE_JSON_SCHEMA } from '../model/ai_response_schema';
 import { THINK_RESPONSE_JSON_SCHEMA } from '../model/think_response_schema';
 
 function ensureNoTrailingSlash(url: string): string {
     return url.replace(/\/+$/, '') || url;
+}
+
+const OPENCODE_RESPONSE_LOG_MAX_LEN = 2000;
+
+/** Parse response as JSON; on empty or invalid body throw a clear error with context. */
+async function parseJsonResponse<T>(res: Response, context: string): Promise<T> {
+    const raw = await res.text();
+    const truncated =
+        raw.length > OPENCODE_RESPONSE_LOG_MAX_LEN
+            ? `${raw.slice(0, OPENCODE_RESPONSE_LOG_MAX_LEN)}... [truncated, total ${raw.length} chars]`
+            : raw;
+    logDebugInfo(`OpenCode response [${context}] status=${res.status} bodyLength=${raw.length}: ${truncated}`);
+    if (!raw || !raw.trim()) {
+        throw new Error(
+            `${context}: empty response body (status ${res.status}). The server may have returned nothing or closed the connection early.`
+        );
+    }
+    try {
+        return JSON.parse(raw) as T;
+    } catch (parseError) {
+        const snippet = raw.length > 200 ? `${raw.slice(0, 200)}...` : raw;
+        const err = new Error(
+            `${context}: invalid JSON (status ${res.status}). Body snippet: ${snippet}`
+        );
+        if (parseError instanceof Error && 'cause' in err) (err as Error & { cause: unknown }).cause = parseError;
+        throw err;
+    }
 }
 
 /**
@@ -44,7 +71,10 @@ async function opencodePrompt(
         const err = await createRes.text();
         throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
     }
-    const session = (await createRes.json()) as { id?: string; data?: { id?: string } };
+    const session = await parseJsonResponse<{ id?: string; data?: { id?: string } }>(
+        createRes,
+        'OpenCode session.create'
+    );
     const sessionId = session?.id ?? session?.data?.id;
     if (!sessionId) {
         throw new Error('OpenCode session.create did not return session id');
@@ -61,7 +91,10 @@ async function opencodePrompt(
         const err = await messageRes.text();
         throw new Error(`OpenCode message failed: ${messageRes.status} ${err}`);
     }
-    const messageData = (await messageRes.json()) as { parts?: any[]; data?: { parts?: any[] } };
+    const messageData = await parseJsonResponse<{ parts?: any[]; data?: { parts?: any[] } }>(
+        messageRes,
+        'OpenCode message'
+    );
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     return extractTextFromParts(parts);
 }
@@ -104,7 +137,10 @@ async function opencodeMessageWithAgent(
         const err = await createRes.text();
         throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
     }
-    const session = (await createRes.json()) as { id?: string; data?: { id?: string } };
+    const session = await parseJsonResponse<{ id?: string; data?: { id?: string } }>(
+        createRes,
+        'OpenCode session.create'
+    );
     const sessionId = session?.id ?? session?.data?.id;
     if (!sessionId) {
         throw new Error('OpenCode session.create did not return session id');
@@ -123,7 +159,10 @@ async function opencodeMessageWithAgent(
         const err = await messageRes.text();
         throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
     }
-    const messageData = (await messageRes.json()) as { parts?: any[]; data?: { parts?: any[] } };
+    const messageData = await parseJsonResponse<{ parts?: any[]; data?: { parts?: any[] } }>(
+        messageRes,
+        `OpenCode agent "${options.agent}" message`
+    );
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     const text = extractTextFromParts(parts);
     return { text, parts, sessionId };
@@ -147,7 +186,14 @@ export async function getSessionDiff(
     const base = ensureNoTrailingSlash(baseUrl);
     const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET' });
     if (!res.ok) return [];
-    const data = (await res.json()) as OpenCodeFileDiff[] | { data?: OpenCodeFileDiff[] };
+    const raw = await res.text();
+    if (!raw?.trim()) return [];
+    let data: OpenCodeFileDiff[] | { data?: OpenCodeFileDiff[] };
+    try {
+        data = JSON.parse(raw) as OpenCodeFileDiff[] | { data?: OpenCodeFileDiff[] };
+    } catch {
+        return [];
+    }
     if (Array.isArray(data)) return data;
     if (Array.isArray((data as { data?: OpenCodeFileDiff[] }).data))
         return (data as { data: OpenCodeFileDiff[] }).data;

@@ -1,3 +1,5 @@
+import { OPENCODE_DEFAULT_MODEL } from '../../utils/constants';
+
 /**
  * AI configuration for OpenCode-backed analysis.
  * OpenCode supports 75+ LLM providers (Anthropic, OpenAI, Gemini, local models, etc.).
@@ -53,16 +55,20 @@ export class Ai {
 
     /**
      * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
+     * Uses OPENCODE_DEFAULT_MODEL when no model is set (e.g. opencode/kimi-k2.5-free).
      */
     getOpencodeModelParts(): { providerID: string; modelID: string } {
-        const model = this.opencodeModel.trim();
-        const slash = model.indexOf('/');
+        const effective = (this.opencodeModel || OPENCODE_DEFAULT_MODEL).trim();
+        const slash = effective.indexOf('/');
         if (slash <= 0) {
-            return { providerID: 'opencode', modelID: model || 'kimi-k2.5' };
+            return { providerID: 'opencode', modelID: effective || (OPENCODE_DEFAULT_MODEL.split('/')[1] ?? 'kimi-k2.5-free') };
         }
+        const providerID = effective.slice(0, slash).trim();
+        const modelID = effective.slice(slash + 1).trim();
+        const defaultModelId = OPENCODE_DEFAULT_MODEL.split('/')[1] ?? 'kimi-k2.5-free';
         return {
-            providerID: model.slice(0, slash).trim(),
-            modelID: model.slice(slash + 1).trim(),
+            providerID: providerID || 'opencode',
+            modelID: modelID || defaultModelId,
         };
     }
 }
