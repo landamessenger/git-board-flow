@@ -681,4 +681,10 @@ function setFirstErrorIfExists(results: Result[]): void {
     }
 }
 
-runGitHubAction();
+runGitHubAction()
+    .then(() => process.exit(0))
+    .catch((err: unknown) => {
+        logError(err);
+        core.setFailed(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+    });

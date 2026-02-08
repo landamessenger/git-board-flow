@@ -42483,7 +42483,13 @@ function setFirstErrorIfExists(results) {
         }
     }
 }
-runGitHubAction();
+runGitHubAction()
+    .then(() => process.exit(0))
+    .catch((err) => {
+    (0, logger_1.logError)(err);
+    core.setFailed(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+});
 
 
 /***/ }),
