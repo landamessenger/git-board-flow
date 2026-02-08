@@ -19,5 +19,6 @@ export declare function startOpencodeServer(options?: {
 }): Promise<ManagedOpencodeServer>;
 /**
  * Stop the OpenCode server process cleanly.
+ * Destroys stdio pipes first so the child can exit without blocking on write.
  */
 export declare function stopOpencodeServer(child: ChildProcess): Promise<void>;

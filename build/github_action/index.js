@@ -42439,14 +42439,18 @@ async function runGitHubAction() {
         await finishWithResults(execution, results);
     }
     finally {
-        if (managedOpencodeServer)
+        if (managedOpencodeServer) {
+            (0, logger_1.logInfo)('Stopping OpenCode server...');
             await managedOpencodeServer.stop();
+            (0, logger_1.logInfo)('OpenCode server stopped.');
+        }
     }
 }
 async function finishWithResults(execution, results) {
     execution.currentConfiguration.results = results;
     await new publish_resume_use_case_1.PublishResultUseCase().invoke(execution);
     await new store_configuration_use_case_1.StoreConfigurationUseCase().invoke(execution);
+    (0, logger_1.logInfo)('Configuration stored. Finishing.');
     /**
      * If a single action is executed and the last step failed, throw an error
      */
@@ -52060,12 +52064,25 @@ async function startOpencodeServer(options) {
 }
 /**
  * Stop the OpenCode server process cleanly.
+ * Destroys stdio pipes first so the child can exit without blocking on write.
  */
 async function stopOpencodeServer(child) {
     if (!child.pid)
         return;
+    (0, logger_1.logInfo)('Stopping OpenCode server process...');
+    const destroyIfPossible = (s) => {
+        if (s && typeof s.destroy === 'function')
+            s.destroy();
+    };
+    destroyIfPossible(child.stdout);
+    destroyIfPossible(child.stderr);
     return new Promise((resolve) => {
-        child.once('exit', () => resolve());
+        const onExit = () => {
+            clearTimeout(t);
+            (0, logger_1.logInfo)('OpenCode server process exited.');
+            resolve();
+        };
+        child.once('exit', onExit);
         child.kill('SIGTERM');
         const t = setTimeout(() => {
             try {
@@ -52074,9 +52091,9 @@ async function stopOpencodeServer(child) {
             catch {
                 // ignore
             }
+            (0, logger_1.logInfo)('OpenCode server stop timeout reached (SIGKILL sent).');
             resolve();
         }, 5000);
-        child.once('exit', () => clearTimeout(t));
     });
 }
 
