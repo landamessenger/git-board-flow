@@ -37,11 +37,11 @@ async function parseJsonResponse<T>(res: Response, context: string): Promise<T> 
 /**
  * Extract plain text from OpenCode message response parts.
  */
-function extractTextFromParts(parts: any): string {
+function extractTextFromParts(parts: unknown): string {
     if (!Array.isArray(parts)) return '';
-    return parts
-        .filter((p: any) => p?.type === 'text' && typeof p.text === 'string')
-        .map((p: any) => p.text)
+    return (parts as Array<{ type?: string; text?: string }>)
+        .filter((p) => p?.type === 'text' && typeof p.text === 'string')
+        .map((p) => p.text as string)
         .join('');
 }
 
@@ -91,7 +91,7 @@ async function opencodePrompt(
         const err = await messageRes.text();
         throw new Error(`OpenCode message failed: ${messageRes.status} ${err}`);
     }
-    const messageData = await parseJsonResponse<{ parts?: any[]; data?: { parts?: any[] } }>(
+    const messageData = await parseJsonResponse<{ parts?: unknown[]; data?: { parts?: unknown[] } }>(
         messageRes,
         'OpenCode message'
     );
@@ -109,7 +109,7 @@ export interface AskAgentOptions {
 
 export interface OpenCodeAgentMessageResult {
     text: string;
-    parts: any[];
+    parts: unknown[];
     sessionId: string;
 }
 
@@ -159,7 +159,7 @@ async function opencodeMessageWithAgent(
         const err = await messageRes.text();
         throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
     }
-    const messageData = await parseJsonResponse<{ parts?: any[]; data?: { parts?: any[] } }>(
+    const messageData = await parseJsonResponse<{ parts?: unknown[]; data?: { parts?: unknown[] } }>(
         messageRes,
         `OpenCode agent "${options.agent}" message`
     );
@@ -221,12 +221,12 @@ export class AiRepository {
     askJson = async (
         ai: Ai,
         prompt: string,
-        schema?: any,
+        schema?: Record<string, unknown>,
         schemaName: string = 'ai_response',
         streaming?: boolean,
         onChunk?: (chunk: string) => void,
         strict: boolean = true
-    ): Promise<any | undefined> => {
+    ): Promise<Record<string, unknown> | undefined> => {
         const serverUrl = ai.getOpencodeServerUrl();
         const model = ai.getOpencodeModel();
         if (!serverUrl || !model) {
@@ -253,7 +253,7 @@ export class AiRepository {
     askThinkJson = async (
         ai: Ai,
         messagesOrPrompt: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> | string
-    ): Promise<any | undefined> => {
+    ): Promise<Record<string, unknown> | undefined> => {
         const serverUrl = ai.getOpencodeServerUrl();
         const model = ai.getOpencodeModel();
         if (!serverUrl || !model) {

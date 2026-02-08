@@ -46488,7 +46488,8 @@ async function mainRun(execution) {
         return results;
     }
     catch (error) {
-        core.setFailed(error.message);
+        const msg = error instanceof Error ? error.message : String(error);
+        core.setFailed(msg);
         return [];
     }
 }
@@ -46532,7 +46533,9 @@ const logger_1 = __nccwpck_require__(8836);
 const yml_utils_1 = __nccwpck_require__(8198);
 const common_action_1 = __nccwpck_require__(3752);
 const boxen_1 = __importDefault(__nccwpck_require__(4506));
-async function runLocalAction(additionalParams) {
+async function runLocalAction(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Params shape is dynamic (CLI/action inputs)
+additionalParams) {
     const projectRepository = new project_repository_1.ProjectRepository();
     const actionInputs = (0, yml_utils_1.getActionInputsWithDefaults)();
     /**
@@ -46982,7 +46985,7 @@ function getGitInfo() {
             repo: match[2].replace('.git', '')
         };
     }
-    catch (error) {
+    catch {
         return { error: constants_1.ERRORS.GIT_REPOSITORY_NOT_FOUND };
     }
 }
@@ -47009,7 +47012,7 @@ program
     }
     // Helper function to clean CLI arguments that may have '=' prefix
     const cleanArg = (value) => {
-        if (!value)
+        if (value == null)
             return '';
         const str = String(value);
         return str.startsWith('=') ? str.substring(1) : str;
@@ -47022,6 +47025,7 @@ program
     }
     const branch = cleanArg(options.branch);
     const issueNumber = cleanArg(options.issue);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.THINK,
@@ -47093,7 +47097,7 @@ program
     }
     // Helper function to clean CLI arguments that may have '=' prefix
     const cleanArg = (value) => {
-        if (!value)
+        if (value == null)
             return '';
         const str = String(value);
         return str.startsWith('=') ? str.substring(1) : str;
@@ -47106,11 +47110,10 @@ program
     }
     const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096';
     const model = cleanArg(options.opencodeModel) || process.env.OPENCODE_MODEL || constants_1.OPENCODE_DEFAULT_MODEL;
-    const workingDir = cleanArg(options.workingDir) || process.cwd();
     // Handle subagents flag: default is true, can be disabled with --no-use-subagents
     // Commander.js sets useSubagents to false when --no-use-subagents is used
-    const useSubAgents = options.useSubagents !== false;
-    const maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
+    const _useSubAgents = options.useSubagents !== false;
+    const _maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
     const outputFormat = cleanArg(options.output) || 'text';
     if (!serverUrl) {
         console.log('❌ OpenCode server URL required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
@@ -47147,7 +47150,8 @@ program
         }
     }
     catch (error) {
-        console.error('❌ Error executing copilot:', error.message || error);
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error('❌ Error executing copilot:', err.message || error);
         if (options.debug) {
             console.error(error);
         }
@@ -47174,7 +47178,7 @@ program
     }
     // Helper function to clean CLI arguments that may have '=' prefix
     const cleanArg = (value) => {
-        if (!value)
+        if (value == null)
             return '';
         const str = String(value);
         return str.startsWith('=') ? str.substring(1) : str;
@@ -47190,6 +47194,7 @@ program
         return;
     }
     const branch = cleanArg(options.branch);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.CHECK_PROGRESS,
@@ -47235,12 +47240,13 @@ program
         console.log(gitInfo.error);
         return;
     }
-    const cleanArg = (v) => (v ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const cleanArg = (v) => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);
     if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
         console.log('❌ Provide a valid issue number with -i or --issue');
         return;
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.DETECT_ERRORS,
@@ -47272,12 +47278,13 @@ program
         console.log(gitInfo.error);
         return;
     }
-    const cleanArg = (v) => (v ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const cleanArg = (v) => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);
     if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
         console.log('❌ Provide a valid issue number with -i or --issue');
         return;
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.RECOMMEND_STEPS,
@@ -47445,6 +47452,7 @@ exports.AI_RESPONSE_JSON_SCHEMA = {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BranchConfiguration = void 0;
 class BranchConfiguration {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- branch config from API */
     constructor(data) {
         this.name = data['name'] ?? '';
         this.oid = data['oid'] ?? '';
@@ -47564,7 +47572,9 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Commit = void 0;
 const github = __importStar(__nccwpck_require__(5438));
 class Commit {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub context payload shape */
     constructor(inputs = undefined) {
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub context payload shape */
         this.inputs = undefined;
         this.inputs = inputs;
     }
@@ -47574,6 +47584,7 @@ class Commit {
     get branch() {
         return this.branchReference.replace('refs/heads/', '');
     }
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub payload.commits shape */
     get commits() {
         return github.context.payload.commits || [];
     }
@@ -47592,6 +47603,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Config = void 0;
 const branch_configuration_1 = __nccwpck_require__(2141);
 class Config {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- config from API */
     constructor(data) {
         this.results = [];
         this.branchType = data['branchType'] ?? '';
@@ -47745,7 +47757,9 @@ class Execution {
     get runnedByToken() {
         return this.tokenUser === this.actor;
     }
-    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, locale, sizeThresholds, branches, release, hotfix, workflows, project, welcome, inputs) {
+    constructor(debug, singleAction, commitPrefixBuilder, issue, pullRequest, emoji, giphy, tokens, ai, labels, issueTypes, locale, sizeThresholds, branches, release, hotfix, workflows, project, welcome, 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub context payload
+    inputs) {
         this.debug = false;
         /**
          * Every usage of this field should be checked.
@@ -48083,6 +48097,7 @@ class Issue {
         return this.inputs?.comment?.html_url ?? github.context.payload.comment?.html_url ?? '';
     }
     constructor(branchManagementAlways, reopenOnPush, desiredAssigneesCount, inputs = undefined) {
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub payload shape */
         this.inputs = undefined;
         this.branchManagementAlways = branchManagementAlways;
         this.reopenOnPush = reopenOnPush;
@@ -48375,6 +48390,7 @@ exports.Milestone = Milestone;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ProjectDetail = void 0;
 class ProjectDetail {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- project detail from API */
     constructor(data) {
         this.id = data[`id`] ?? '';
         this.title = data[`title`] ?? '';
@@ -48530,6 +48546,7 @@ class PullRequest {
         return this.inputs?.pull_request_review_comment?.html_url ?? github.context.payload.pull_request_review_comment?.html_url ?? '';
     }
     constructor(desiredAssigneesCount, desiredReviewersCount, mergeTimeout, inputs = undefined) {
+        /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub payload shape */
         this.inputs = undefined;
         this.desiredAssigneesCount = desiredAssigneesCount;
         this.desiredReviewersCount = desiredReviewersCount;
@@ -48567,6 +48584,7 @@ exports.Release = Release;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Result = void 0;
 class Result {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- result from use cases */
     constructor(data) {
         this.id = data['id'] ?? '';
         this.success = data['success'] ?? false;
@@ -49323,7 +49341,7 @@ class BranchRepository {
                 await exec.exec('git', ['tag', '--sort=-creatordate'], {
                     listeners: {
                         stdout: (data) => {
-                            tags.push(...data.toString().split('\n').map((v, i, a) => {
+                            tags.push(...data.toString().split('\n').map((v) => {
                                 return v.replace('v', '');
                             }));
                         },
@@ -50009,8 +50027,9 @@ class FileRepository {
                 return '';
             }
             catch (error) {
-                const errorMessage = error?.message || String(error);
-                const errorStatus = error?.status || 'unknown';
+                const err = error;
+                const errorMessage = err?.message || String(error);
+                const errorStatus = err?.status || 'unknown';
                 (0, logger_1.logError)(`Error getting file content for ${path}: ${errorMessage} (status: ${errorStatus}). Token length: ${token.length}`);
                 return '';
             }
@@ -50799,7 +50818,8 @@ class IssueRepository {
                     return { created: true, existed: false };
                 }
                 catch (error) {
-                    if (error.status === 422 && error.message?.includes('already exists')) {
+                    const err = error;
+                    if (err.status === 422 && err.message?.includes('already exists')) {
                         return { created: false, existed: true };
                     }
                     throw error;
@@ -50856,8 +50876,9 @@ class IssueRepository {
                     }
                 }
                 catch (error) {
+                    const err = error;
                     (0, logger_1.logError)(`Error ensuring label "${label.name}": ${error}`);
-                    errors.push(`Error creando label "${label.name}": ${error.message || error}`);
+                    errors.push(`Error creando label "${label.name}": ${err.message || error}`);
                 }
             }
             return { created, existing, errors };
@@ -50972,8 +50993,9 @@ class IssueRepository {
                     }
                 }
                 catch (error) {
+                    const err = error;
                     (0, logger_1.logError)(`Error ensuring issue type "${issueType.name}": ${error}`);
-                    errors.push(`Error creando tipo de Issue "${issueType.name}": ${error.message || error}`);
+                    errors.push(`Error creando tipo de Issue "${issueType.name}": ${err.message || error}`);
                 }
             }
             return { created, existing, errors };
@@ -51195,10 +51217,6 @@ class ProjectRepository {
       }
     }
   `;
-                // logDebugInfo(`Query: ${query}`);
-                // logDebugInfo(`Project ID: ${project.id}`);
-                // logDebugInfo(`Content ID: ${contentId}`);
-                // logDebugInfo(`After cursor: ${endCursor}`);
                 const result = await octokit.graphql(query, {
                     projectId: project.id,
                     after: endCursor,
@@ -51231,7 +51249,7 @@ class ProjectRepository {
                 projectId: project.id,
                 contentId: contentId,
             });
-            (0, logger_1.logDebugInfo)(`Linked ${contentId} with id ${linkResult.addProjectV2ItemById.item.id} to project ${project.id}`);
+            (0, logger_1.logDebugInfo)(`Linked ${contentId} with id ${linkResult.addProjectV2ItemById?.item?.id ?? ''} to project ${project.id}`);
             return true;
         };
         this.setSingleSelectFieldValue = async (project, owner, repo, issueOrPullRequestNumber, fieldName, fieldValue, token) => {
@@ -51297,7 +51315,7 @@ class ProjectRepository {
                 (0, logger_1.logError)(`Field '${fieldName}' not found or is not a single-select field.`);
                 throw new Error(`Field '${fieldName}' not found or is not a single-select field.`);
             }
-            const targetOption = targetField.options.find((opt) => opt.name === fieldValue);
+            const targetOption = targetField.options?.find((opt) => opt.name === fieldValue);
             (0, logger_1.logDebugInfo)(`Target option: ${JSON.stringify(targetOption, null, 2)}`);
             if (!targetOption) {
                 (0, logger_1.logError)(`Option '${fieldValue}' not found for field '${fieldName}'.`);
@@ -51311,10 +51329,10 @@ class ProjectRepository {
                 });
                 // logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
                 // Check current value in current page
-                currentItem = fieldResult.node.items.nodes.find((item) => item.id === contentId);
+                currentItem = fieldResult.node.items.nodes.find((item) => item.id === contentId) ?? null;
                 if (currentItem) {
                     // logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
-                    const currentFieldValue = currentItem.fieldValues.nodes.find((value) => value.field?.name === fieldName);
+                    const currentFieldValue = currentItem.fieldValues?.nodes.find((value) => value.field?.name === fieldName);
                     if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
                         (0, logger_1.logDebugInfo)(`Field '${fieldName}' is already set to '${fieldValue}'. No update needed.`);
                         return false;
@@ -51347,7 +51365,7 @@ class ProjectRepository {
                 fieldId: targetField.id,
                 optionId: targetOption.id
             });
-            return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
+            return !!mutationResult.updateProjectV2ItemFieldValue?.projectV2Item;
         };
         this.setTaskPriority = async (project, owner, repo, issueOrPullRequestNumber, priorityLabel, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, this.priorityLabel, priorityLabel, token);
         this.setTaskSize = async (project, owner, repo, issueOrPullRequestNumber, sizeLabel, token) => this.setSingleSelectFieldValue(project, owner, repo, issueOrPullRequestNumber, this.sizeLabel, sizeLabel, token);
@@ -51433,7 +51451,7 @@ class ProjectRepository {
                 });
                 return foundTag;
             }
-            catch (err) {
+            catch {
                 return undefined;
             }
         };
@@ -54124,10 +54142,10 @@ class ThinkUseCase {
             }
             // Get full repository content
             (0, logger_1.logInfo)(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);
-            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (fileName) => {
-                // logDebugInfo(`Loading: ${fileName}`)
-            }, (fileName) => {
-                // logDebugInfo(`Ignoring: ${fileName}`)
+            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (_fileName) => {
+                // logDebugInfo(`Loading: ${_fileName}`)
+            }, (_fileName) => {
+                // logDebugInfo(`Ignoring: ${_fileName}`)
             });
             (0, logger_1.logInfo)(`📚 Loaded ${repositoryFiles.size} files from repository`);
         }
@@ -56768,7 +56786,7 @@ function logWarning(message) {
     logWarn(message);
 }
 function logError(message, metadata) {
-    const errorMessage = message instanceof Error ? message.message : message.toString();
+    const errorMessage = message instanceof Error ? message.message : String(message);
     if (structuredLogging) {
         console.error(formatStructuredLog({
             level: 'error',
@@ -56989,7 +57007,7 @@ class ReasoningVisualizer {
     /**
      * Show completion summary
      */
-    showCompletion(finalAnalysis) {
+    showCompletion(_finalAnalysis) {
         (0, logger_1.logInfo)('');
         (0, logger_1.logInfo)(chalk_1.default.green.bold('╔═══════════════════════════════════════════════════════════════╗'));
         (0, logger_1.logInfo)(chalk_1.default.green.bold('║') + chalk_1.default.white.bold('  ✅ Reasoning Complete') + chalk_1.default.green.bold('                                         ║'));

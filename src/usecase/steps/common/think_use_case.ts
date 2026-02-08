@@ -2,7 +2,7 @@ import { Execution } from '../../../data/model/execution';
 import { Result } from '../../../data/model/result';
 import { FileRepository } from '../../../data/repository/file_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
-import { logDebugInfo, logError, logInfo } from '../../../utils/logger';
+import { logError, logInfo } from '../../../utils/logger';
 import { ReasoningVisualizer } from '../../../utils/reasoning_visualizer';
 import { ParamUseCase } from '../../base/param_usecase';
 
@@ -33,7 +33,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             } else if (param.singleAction.isThinkAction) {
                 // For CLI usage, get question from comment body if available
                 // This handles the case when think is called as single-action
-                const commentBody = param.issue.commentBody || param.inputs?.comment?.body || '';
+                const commentBody = param.issue.commentBody || (param.inputs?.comment as { body?: string } | undefined)?.body || '';
                 if (commentBody) {
                     question = commentBody;
                 } else {
@@ -92,11 +92,11 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 param.tokens.token,
                 param.commit.branch,
                 param.ai.getAiIgnoreFiles(),
-                (fileName: string) => {
-                    // logDebugInfo(`Loading: ${fileName}`)
+                (_fileName: string) => {
+                    // logDebugInfo(`Loading: ${_fileName}`)
                 },
-                (fileName: string) => {
-                    // logDebugInfo(`Ignoring: ${fileName}`)
+                (_fileName: string) => {
+                    // logDebugInfo(`Ignoring: ${_fileName}`)
                 }
             );
 

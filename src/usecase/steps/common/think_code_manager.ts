@@ -177,7 +177,7 @@ export class ThinkCodeManager {
             
             // Show modified file contents summary
             context.push(`\n## Modified Files Preview:`);
-            for (const [filePath, changes] of this.appliedChanges.entries()) {
+            for (const [filePath, _changes] of this.appliedChanges.entries()) {
                 const currentContent = this.virtualFiles.get(filePath);
                 if (currentContent) {
                     const preview = currentContent.substring(0, 500);

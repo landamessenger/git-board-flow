@@ -143,7 +143,7 @@ export class ReasoningVisualizer {
     /**
      * Show completion summary
      */
-    showCompletion(finalAnalysis?: string) {
+    showCompletion(_finalAnalysis?: string) {
         logInfo('');
         logInfo(chalk.green.bold('╔═══════════════════════════════════════════════════════════════╗'));
         logInfo(chalk.green.bold('║') + chalk.white.bold('  ✅ Reasoning Complete') + chalk.green.bold('                                         ║'));

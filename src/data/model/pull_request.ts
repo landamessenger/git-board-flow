@@ -4,6 +4,7 @@ export class PullRequest {
     desiredAssigneesCount: number;
     desiredReviewersCount: number;
     mergeTimeout: number;
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub payload shape */
     inputs: any | undefined = undefined;
 
     get action(): string {
@@ -92,7 +93,7 @@ export class PullRequest {
         desiredAssigneesCount: number,
         desiredReviewersCount: number,
         mergeTimeout: number,
-        inputs: any | undefined = undefined,
+        inputs: any | undefined = undefined, // eslint-disable-line @typescript-eslint/no-explicit-any
     ) {
         this.desiredAssigneesCount = desiredAssigneesCount;
         this.desiredReviewersCount = desiredReviewersCount;

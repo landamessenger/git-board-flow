@@ -1,7 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
-import { logError, logInfo } from "../../../utils/logger";
+import { logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Result[]> {

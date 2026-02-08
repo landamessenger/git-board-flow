@@ -25,7 +25,7 @@ export declare class BranchRepository {
     createLinkedBranch: (owner: string, repo: string, baseBranchName: string, newBranchName: string, issueNumber: number, oid: string | undefined, token: string) => Promise<Result[]>;
     removeBranch: (owner: string, repository: string, branch: string, token: string) => Promise<boolean>;
     getListOfBranches: (owner: string, repository: string, token: string) => Promise<string[]>;
-    executeWorkflow: (owner: string, repository: string, branch: string, workflow: string, inputs: any, token: string) => Promise<import("@octokit/plugin-paginate-rest/dist-types/types").OctokitResponse<never, 204>>;
+    executeWorkflow: (owner: string, repository: string, branch: string, workflow: string, inputs: Record<string, unknown>, token: string) => Promise<import("@octokit/plugin-paginate-rest/dist-types/types").OctokitResponse<never, 204>>;
     mergeBranch: (owner: string, repository: string, head: string, base: string, timeout: number, token: string) => Promise<Result[]>;
     getChanges: (owner: string, repository: string, head: string, base: string, token: string) => Promise<{
         aheadBy: number;

@@ -5,8 +5,7 @@ import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
-import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
-import { logInfo } from './utils/logger';
+import { ACTIONS, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
 import { Ai } from './data/model/ai';
 import { AiRepository, getSessionDiff, OpenCodeFileDiff } from './data/repository/ai_repository';
 
@@ -27,7 +26,7 @@ function getGitInfo() {
       owner: match[1],
       repo: match[2].replace('.git', '')
     };
-  } catch (error) {
+  } catch {
     return { error: ERRORS.GIT_REPOSITORY_NOT_FOUND };
   }
 }
@@ -56,8 +55,8 @@ program
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
-    const cleanArg = (value: any): string => {
-      if (!value) return '';
+    const cleanArg = (value: unknown): string => {
+      if (value == null) return '';
       const str = String(value);
       return str.startsWith('=') ? str.substring(1) : str;
     };
@@ -73,6 +72,7 @@ program
     const branch = cleanArg(options.branch);
     const issueNumber = cleanArg(options.issue);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.THINK,
@@ -154,8 +154,8 @@ program
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
-    const cleanArg = (value: any): string => {
-      if (!value) return '';
+    const cleanArg = (value: unknown): string => {
+      if (value == null) return '';
       const str = String(value);
       return str.startsWith('=') ? str.substring(1) : str;
     };
@@ -170,11 +170,10 @@ program
 
     const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096';
     const model = cleanArg(options.opencodeModel) || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL;
-    const workingDir = cleanArg(options.workingDir) || process.cwd();
     // Handle subagents flag: default is true, can be disabled with --no-use-subagents
     // Commander.js sets useSubagents to false when --no-use-subagents is used
-    const useSubAgents = options.useSubagents !== false;
-    const maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
+    const _useSubAgents = options.useSubagents !== false;
+    const _maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
     const outputFormat = cleanArg(options.output) || 'text';
 
     if (!serverUrl) {
@@ -216,8 +215,9 @@ program
         });
         console.log('');
       }
-    } catch (error: any) {
-      console.error('❌ Error executing copilot:', error.message || error);
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error('❌ Error executing copilot:', err.message || error);
       if (options.debug) {
         console.error(error);
       }
@@ -246,8 +246,8 @@ program
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
-    const cleanArg = (value: any): string => {
-      if (!value) return '';
+    const cleanArg = (value: unknown): string => {
+      if (value == null) return '';
       const str = String(value);
       return str.startsWith('=') ? str.substring(1) : str;
     };
@@ -267,6 +267,7 @@ program
 
     const branch = cleanArg(options.branch);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.CHECK_PROGRESS,
@@ -316,12 +317,13 @@ program
       console.log(gitInfo.error);
       return;
     }
-    const cleanArg = (v: any): string => (v ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const cleanArg = (v: unknown): string => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);
     if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
       console.log('❌ Provide a valid issue number with -i or --issue');
       return;
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.DETECT_ERRORS,
@@ -354,12 +356,13 @@ program
       console.log(gitInfo.error);
       return;
     }
-    const cleanArg = (v: any): string => (v ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const cleanArg = (v: unknown): string => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);
     if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
       console.log('❌ Provide a valid issue number with -i or --issue');
       return;
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.RECOMMEND_STEPS,
@@ -391,7 +394,7 @@ program
       return;
     }
     
-    const params: any = {
+    const params: any = { // eslint-disable-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.INITIAL_SETUP,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,

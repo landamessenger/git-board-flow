@@ -26,7 +26,10 @@ import { getActionInputsWithDefaults } from '../utils/yml_utils';
 import { mainRun } from './common_action';
 import boxen from 'boxen';
 
-export async function runLocalAction(additionalParams: any): Promise<void> {
+export async function runLocalAction(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Params shape is dynamic (CLI/action inputs)
+    additionalParams: any
+): Promise<void> {
     const projectRepository = new ProjectRepository();
 
     const actionInputs = getActionInputsWithDefaults();

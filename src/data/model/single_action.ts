@@ -1,5 +1,5 @@
 import { ACTIONS } from "../../utils/constants";
-import { logDebugInfo, logError } from "../../utils/logger";
+import { logError } from "../../utils/logger";
 
 export class SingleAction {
     currentSingleAction: string;

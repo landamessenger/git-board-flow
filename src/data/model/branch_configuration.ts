@@ -3,6 +3,7 @@ export class BranchConfiguration {
     oid: string;
     children: BranchConfiguration[];
 
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- branch config from API */
     constructor(data: any) {
         this.name = data['name'] ?? '';
         this.oid = data['oid'] ?? '';

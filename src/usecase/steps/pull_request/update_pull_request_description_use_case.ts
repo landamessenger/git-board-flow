@@ -1,4 +1,3 @@
-import { Ai } from "../../../data/model/ai";
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../data/repository/ai_repository";

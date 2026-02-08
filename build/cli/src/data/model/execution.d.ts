@@ -29,7 +29,7 @@ export declare class Execution {
     issueNumber: number;
     singleAction: SingleAction;
     commitPrefixBuilder: string;
-    commitPrefixBuilderParams: any;
+    commitPrefixBuilderParams: Record<string, unknown>;
     emoji: Emoji;
     images: Images;
     tokens: Tokens;

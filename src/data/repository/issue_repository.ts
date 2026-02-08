@@ -271,7 +271,7 @@ export class IssueRepository {
             }
           }
         `;
-        const issueResult: any = await octokit.graphql(issueQuery, {
+        const issueResult = await octokit.graphql<{ repository: { issue: { id: string } } }>(issueQuery, {
             owner: owner,
             repo: repository,
             issueNumber,
@@ -822,8 +822,9 @@ export class IssueRepository {
             try {
                 await this.createLabel(owner, repository, name, color, description, token);
                 return { created: true, existed: false };
-            } catch (error: any) {
-                if (error.status === 422 && error.message?.includes('already exists')) {
+            } catch (error: unknown) {
+                const err = error as { status?: number; message?: string };
+                if (err.status === 422 && err.message?.includes('already exists')) {
                     return { created: false, existed: true };
                 }
                 throw error;
@@ -884,9 +885,10 @@ export class IssueRepository {
                 } else if (result.existed) {
                     existing++;
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const err = error as { message?: string };
                 logError(`Error ensuring label "${label.name}": ${error}`);
-                errors.push(`Error creando label "${label.name}": ${error.message || error}`);
+                errors.push(`Error creando label "${label.name}": ${err.message || error}`);
             }
         }
 
@@ -1048,9 +1050,10 @@ export class IssueRepository {
                 } else {
                     existing++;
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const err = error as { message?: string };
                 logError(`Error ensuring issue type "${issueType.name}": ${error}`);
-                errors.push(`Error creando tipo de Issue "${issueType.name}": ${error.message || error}`);
+                errors.push(`Error creando tipo de Issue "${issueType.name}": ${err.message || error}`);
             }
         }
 

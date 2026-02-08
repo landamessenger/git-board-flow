@@ -1,8 +1,10 @@
 import * as github from "@actions/github";
 
 export class Commit {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub context payload shape */
     private inputs: any | undefined = undefined;
 
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub context payload shape */
     constructor(inputs: any | undefined = undefined) {
         this.inputs = inputs;
     }
@@ -15,6 +17,7 @@ export class Commit {
         return this.branchReference.replace('refs/heads/', '');
     }
 
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub payload.commits shape */
     get commits(): any[] {
         return github.context.payload.commits || [];
     }

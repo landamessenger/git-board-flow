@@ -1,4 +1,4 @@
-type LinkedBranchResponse = {
+export type LinkedBranchResponse = {
     createLinkedBranch: {
         linkedBranch: {
             id: string;

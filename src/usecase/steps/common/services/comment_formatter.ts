@@ -111,7 +111,6 @@ export class CommentFormatter {
         comment += `\n\n*This section contains the detailed step-by-step reasoning process. It's collapsed by default to keep the main analysis focused.*\n\n`;
         comment += `---\n\n`;
 
-        const proposalIndex = 0;
         const proposalShownFlags = new Set<number>();
 
         for (const step of steps) {
@@ -137,7 +136,7 @@ export class CommentFormatter {
                     step.files_involved?.includes(f.path)
                 );
                 
-                const stepAnalysis = (step as any).file_analysis_in_step as FileAnalysis[] | undefined;
+                const stepAnalysis = (step as { file_analysis_in_step?: FileAnalysis[] }).file_analysis_in_step;
                 const filesToShow = stepAnalysis || relevantFiles;
                 
                 if (filesToShow.length > 0) {
@@ -151,7 +150,7 @@ export class CommentFormatter {
             }
 
             // Show proposals (simplified reference)
-            const stepProposals = (step as any).proposals_in_step as ProposedChange[] | undefined;
+            const stepProposals = (step as { proposals_in_step?: ProposedChange[] }).proposals_in_step;
             if (stepProposals && stepProposals.length > 0) {
                 comment += `**Proposed Changes**: ${stepProposals.map(c => `${c.change_type} \`${c.file_path}\``).join(', ')}\n\n`;
                 

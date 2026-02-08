@@ -8,7 +8,7 @@ export class FileSearchService {
     buildFileIndex(files: Map<string, string>): Map<string, string[]> {
         const index = new Map<string, string[]>();
         
-        for (const [path, content] of files.entries()) {
+        for (const [path, _content] of files.entries()) {
             const pathParts = path.split('/');
             const fileName = pathParts[pathParts.length - 1];
             

@@ -1,4 +1,4 @@
-import { ThinkTodoItem, ThinkTodoList, TodoStatus } from '../../../data/model/think_response';
+import { ThinkTodoItem, TodoStatus } from '../../../data/model/think_response';
 import { ProposedChange } from '../../../data/model/think_response';
 import { logDebugInfo, logInfo } from '../../../utils/logger';
 

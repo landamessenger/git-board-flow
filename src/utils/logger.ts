@@ -8,7 +8,7 @@ export interface LogEntry {
     level: 'info' | 'warn' | 'error' | 'debug';
     message: string;
     timestamp: number;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
 
 export function setGlobalLoggerDebug(debug: boolean, isRemote: boolean = false) {
@@ -24,7 +24,7 @@ function formatStructuredLog(entry: LogEntry): string {
     return JSON.stringify(entry);
 }
 
-export function logInfo(message: string, previousWasSingleLine: boolean = false, metadata?: Record<string, any>) {
+export function logInfo(message: string, previousWasSingleLine: boolean = false, metadata?: Record<string, unknown>) {
     if (previousWasSingleLine && !loggerRemote) {
         console.log()
     }
@@ -41,7 +41,7 @@ export function logInfo(message: string, previousWasSingleLine: boolean = false,
     }
 }
 
-export function logWarn(message: string, metadata?: Record<string, any>) {
+export function logWarn(message: string, metadata?: Record<string, unknown>) {
     if (structuredLogging) {
         console.warn(formatStructuredLog({
             level: 'warn',
@@ -58,8 +58,8 @@ export function logWarning(message: string) {
     logWarn(message);
 }
 
-export function logError(message: any, metadata?: Record<string, any>) {
-    const errorMessage = message instanceof Error ? message.message : message.toString();
+export function logError(message: unknown, metadata?: Record<string, unknown>) {
+    const errorMessage = message instanceof Error ? message.message : String(message);
     
     if (structuredLogging) {
         console.error(formatStructuredLog({
@@ -76,7 +76,7 @@ export function logError(message: any, metadata?: Record<string, any>) {
     }
 }
 
-export function logDebugInfo(message: string, previousWasSingleLine: boolean = false, metadata?: Record<string, any>) {
+export function logDebugInfo(message: string, previousWasSingleLine: boolean = false, metadata?: Record<string, unknown>) {
     if (loggerDebug) {
         if (structuredLogging) {
             console.log(formatStructuredLog({
@@ -97,7 +97,7 @@ export function logDebugWarning(message: string) {
     }
 }
 
-export function logDebugError(message: any) {
+export function logDebugError(message: unknown) {
     if (loggerDebug) {
         logError(message);
     }
