@@ -1,7 +1,5 @@
 import { logDebugInfo, logError } from '../../utils/logger';
 import { Ai } from '../model/ai';
-import { AI_RESPONSE_JSON_SCHEMA } from '../model/ai_response_schema';
-import { THINK_RESPONSE_JSON_SCHEMA } from '../model/think_response_schema';
 
 function ensureNoTrailingSlash(url: string): string {
     return url.replace(/\/+$/, '') || url;
@@ -107,7 +105,7 @@ export interface AskAgentOptions {
     schemaName?: string;
 }
 
-export interface OpenCodeAgentMessageResult {
+interface OpenCodeAgentMessageResult {
     text: string;
     parts: unknown[];
     sessionId: string;
@@ -214,67 +212,6 @@ export class AiRepository {
             return text || undefined;
         } catch (error) {
             logError(`Error querying OpenCode (${model}): ${error}`);
-            return undefined;
-        }
-    };
-
-    askJson = async (
-        ai: Ai,
-        prompt: string,
-        schema?: Record<string, unknown>,
-        schemaName: string = 'ai_response',
-        streaming?: boolean,
-        onChunk?: (chunk: string) => void,
-        strict: boolean = true
-    ): Promise<Record<string, unknown> | undefined> => {
-        const serverUrl = ai.getOpencodeServerUrl();
-        const model = ai.getOpencodeModel();
-        if (!serverUrl || !model) {
-            logError('Missing required AI configuration: opencode-server-url and opencode-model');
-            return undefined;
-        }
-        const schemaRef = schema || AI_RESPONSE_JSON_SCHEMA;
-        const jsonInstruction = strict
-            ? `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.`
-            : `Respond with a single JSON object. No other text or markdown.`;
-        const fullPrompt = `${jsonInstruction}\n\nSchema (for reference): ${JSON.stringify(schemaRef)}\n\nUser request:\n${prompt}`;
-        try {
-            const { providerID, modelID } = ai.getOpencodeModelParts();
-            const text = await opencodePrompt(serverUrl, providerID, modelID, fullPrompt);
-            if (!text) return undefined;
-            if (streaming && onChunk) onChunk(text);
-            return JSON.parse(text);
-        } catch (error) {
-            logError(`Error querying OpenCode (${model}) for JSON: ${error}`);
-            return undefined;
-        }
-    };
-
-    askThinkJson = async (
-        ai: Ai,
-        messagesOrPrompt: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> | string
-    ): Promise<Record<string, unknown> | undefined> => {
-        const serverUrl = ai.getOpencodeServerUrl();
-        const model = ai.getOpencodeModel();
-        if (!serverUrl || !model) {
-            logError('Missing required AI configuration: opencode-server-url and opencode-model');
-            return undefined;
-        }
-        const messages = Array.isArray(messagesOrPrompt)
-            ? messagesOrPrompt
-            : [{ role: 'user' as const, content: messagesOrPrompt }];
-        const conversationText = messages
-            .map((m) => `${m.role}: ${m.content}`)
-            .join('\n\n');
-        const jsonInstruction = `Respond with a single JSON object that strictly conforms to the "think_response" schema. No other text or markdown.`;
-        const fullPrompt = `${jsonInstruction}\n\nSchema (for reference): ${JSON.stringify(THINK_RESPONSE_JSON_SCHEMA)}\n\nConversation:\n${conversationText}`;
-        try {
-            const { providerID, modelID } = ai.getOpencodeModelParts();
-            const text = await opencodePrompt(serverUrl, providerID, modelID, fullPrompt);
-            if (!text) return undefined;
-            return JSON.parse(text);
-        } catch (error) {
-            logError(`Error querying OpenCode (${model}) for think JSON: ${error}`);
             return undefined;
         }
     };

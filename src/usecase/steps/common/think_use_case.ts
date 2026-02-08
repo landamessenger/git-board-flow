@@ -117,19 +117,4 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         }
         return results;
     }
-
-    private async getIssueDescription(param: Execution): Promise<string | null> {
-        try {
-            const description = await this.issueRepository.getDescription(
-                param.owner,
-                param.repo,
-                param.issueNumber,
-                param.tokens.token
-            );
-            return description ?? null;
-        } catch (error) {
-            logError(`Error getting issue description: ${error}`);
-            return null;
-        }
-    }
 }

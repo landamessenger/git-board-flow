@@ -10,11 +10,6 @@ export interface AskAgentOptions {
     schema?: Record<string, unknown>;
     schemaName?: string;
 }
-export interface OpenCodeAgentMessageResult {
-    text: string;
-    parts: unknown[];
-    sessionId: string;
-}
 /** File diff from OpenCode GET /session/:id/diff */
 export interface OpenCodeFileDiff {
     path?: string;
@@ -28,11 +23,6 @@ export interface OpenCodeFileDiff {
 export declare function getSessionDiff(baseUrl: string, sessionId: string): Promise<OpenCodeFileDiff[]>;
 export declare class AiRepository {
     ask: (ai: Ai, prompt: string) => Promise<string | undefined>;
-    askJson: (ai: Ai, prompt: string, schema?: Record<string, unknown>, schemaName?: string, streaming?: boolean, onChunk?: (chunk: string) => void, strict?: boolean) => Promise<Record<string, unknown> | undefined>;
-    askThinkJson: (ai: Ai, messagesOrPrompt: Array<{
-        role: "system" | "user" | "assistant";
-        content: string;
-    }> | string) => Promise<Record<string, unknown> | undefined>;
     /**
      * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
      * Use for: PR description, progress, error detection, recommend steps.

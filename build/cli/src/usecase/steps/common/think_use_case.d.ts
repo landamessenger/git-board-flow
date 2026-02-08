@@ -6,5 +6,4 @@ export declare class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     private fileRepository;
     private issueRepository;
     invoke(param: Execution): Promise<Result[]>;
-    private getIssueDescription;
 }

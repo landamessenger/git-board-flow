@@ -42548,48 +42548,6 @@ exports.Ai = Ai;
 
 /***/ }),
 
-/***/ 5968:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AI_RESPONSE_JSON_SCHEMA = void 0;
-/**
- * JSON Schema for AiResponse interface
- * This schema is used to enforce structured JSON responses from the AI
- */
-exports.AI_RESPONSE_JSON_SCHEMA = {
-    type: "object",
-    properties: {
-        text_response: {
-            type: "string",
-            description: "The detailed analysis or answer to the user's question"
-        },
-        action: {
-            type: "string",
-            enum: ["none", "analyze_files"],
-            description: "The action to take: 'none' if no additional files are needed, 'analyze_files' if more files are required"
-        },
-        related_files: {
-            type: "array",
-            items: {
-                type: "string"
-            },
-            description: "List of file paths that need to be analyzed if action is 'analyze_files'"
-        },
-        complete: {
-            type: "boolean",
-            description: "Whether the response is complete and no further analysis is needed"
-        }
-    },
-    required: ["text_response", "action", "related_files", "complete"],
-    additionalProperties: false
-};
-
-
-/***/ }),
-
 /***/ 2141:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -43899,124 +43857,6 @@ exports.SizeThresholds = SizeThresholds;
 
 /***/ }),
 
-/***/ 7057:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.THINK_RESPONSE_JSON_SCHEMA = void 0;
-/**
- * JSON Schema for ThinkResponse interface
- * This schema is used for structured AI reasoning and analysis responses
- */
-exports.THINK_RESPONSE_JSON_SCHEMA = {
-    type: "object",
-    properties: {
-        reasoning: {
-            type: "string",
-            description: "Current reasoning step or analysis of the problem"
-        },
-        action: {
-            type: "string",
-            enum: ["search_files", "read_file", "analyze_code", "propose_changes", "complete", "update_todos"],
-            description: "Next action to take in the reasoning process"
-        },
-        files_to_search: {
-            type: "array",
-            items: {
-                type: "string"
-            },
-            description: "List of file paths or patterns to search for (when action is 'search_files')"
-        },
-        files_to_read: {
-            type: "array",
-            items: {
-                type: "string"
-            },
-            description: "List of specific file paths to read in full (when action is 'read_file')"
-        },
-        analyzed_files: {
-            type: "array",
-            items: {
-                type: "object",
-                properties: {
-                    path: { type: "string" },
-                    key_findings: { type: "string" },
-                    relevance: { type: "string", enum: ["high", "medium", "low"] }
-                },
-                required: ["path", "key_findings", "relevance"],
-                additionalProperties: false
-            },
-            description: "Files that have been analyzed with their findings (when action is 'analyze_code')"
-        },
-        proposed_changes: {
-            type: "array",
-            items: {
-                type: "object",
-                properties: {
-                    file_path: { type: "string" },
-                    change_type: { type: "string", enum: ["create", "modify", "delete", "refactor"] },
-                    description: { type: "string" },
-                    suggested_code: { type: "string" },
-                    reasoning: { type: "string" }
-                },
-                required: ["file_path", "change_type", "description", "suggested_code", "reasoning"],
-                additionalProperties: false
-            },
-            description: "Proposed changes to the codebase (when action is 'propose_changes')"
-        },
-        complete: {
-            type: "boolean",
-            description: "Whether the reasoning process is complete"
-        },
-        final_analysis: {
-            type: "string",
-            description: "Final comprehensive analysis and recommendations (when complete is true)"
-        },
-        todo_updates: {
-            type: "object",
-            description: "Updates to the TODO list (when action is 'update_todos' or alongside other actions). CRITICAL: 'create' can ONLY be used in iteration 1. After iteration 1, ONLY use 'update' to modify existing TODOs.",
-            properties: {
-                create: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            content: { type: "string" },
-                            status: { type: "string", enum: ["pending", "in_progress"] }
-                        },
-                        required: ["content", "status"],
-                        additionalProperties: false
-                    },
-                    description: "🚫 CRITICAL: New TODO items can ONLY be created in iteration 1 (the initial message). After iteration 1, this field must be an empty array [] or omitted. If you try to create TODOs after iteration 1, they will be BLOCKED."
-                },
-                update: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            id: { type: "string" },
-                            status: { type: "string", enum: ["pending", "in_progress", "completed", "cancelled"] },
-                            notes: { type: "string" }
-                        },
-                        required: ["id", "status", "notes"],
-                        additionalProperties: false
-                    },
-                    description: "Updates to existing TODO items. Use EXACT TODO IDs (e.g., 'todo_1', 'todo_2') from the TODO list shown in the conversation."
-                }
-            },
-            required: ["create", "update"],
-            additionalProperties: false
-        }
-    },
-    required: ["reasoning", "action", "complete", "files_to_search", "files_to_read", "analyzed_files", "proposed_changes", "final_analysis", "todo_updates"],
-    additionalProperties: false
-};
-
-
-/***/ }),
-
 /***/ 3421:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -44094,8 +43934,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AiRepository = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
 exports.getSessionDiff = getSessionDiff;
 const logger_1 = __nccwpck_require__(8836);
-const ai_response_schema_1 = __nccwpck_require__(5968);
-const think_response_schema_1 = __nccwpck_require__(7057);
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, '') || url;
 }
@@ -44253,59 +44091,6 @@ class AiRepository {
             }
             catch (error) {
                 (0, logger_1.logError)(`Error querying OpenCode (${model}): ${error}`);
-                return undefined;
-            }
-        };
-        this.askJson = async (ai, prompt, schema, schemaName = 'ai_response', streaming, onChunk, strict = true) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
-                return undefined;
-            }
-            const schemaRef = schema || ai_response_schema_1.AI_RESPONSE_JSON_SCHEMA;
-            const jsonInstruction = strict
-                ? `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.`
-                : `Respond with a single JSON object. No other text or markdown.`;
-            const fullPrompt = `${jsonInstruction}\n\nSchema (for reference): ${JSON.stringify(schemaRef)}\n\nUser request:\n${prompt}`;
-            try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
-                const text = await opencodePrompt(serverUrl, providerID, modelID, fullPrompt);
-                if (!text)
-                    return undefined;
-                if (streaming && onChunk)
-                    onChunk(text);
-                return JSON.parse(text);
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error querying OpenCode (${model}) for JSON: ${error}`);
-                return undefined;
-            }
-        };
-        this.askThinkJson = async (ai, messagesOrPrompt) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
-                return undefined;
-            }
-            const messages = Array.isArray(messagesOrPrompt)
-                ? messagesOrPrompt
-                : [{ role: 'user', content: messagesOrPrompt }];
-            const conversationText = messages
-                .map((m) => `${m.role}: ${m.content}`)
-                .join('\n\n');
-            const jsonInstruction = `Respond with a single JSON object that strictly conforms to the "think_response" schema. No other text or markdown.`;
-            const fullPrompt = `${jsonInstruction}\n\nSchema (for reference): ${JSON.stringify(think_response_schema_1.THINK_RESPONSE_JSON_SCHEMA)}\n\nConversation:\n${conversationText}`;
-            try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
-                const text = await opencodePrompt(serverUrl, providerID, modelID, fullPrompt);
-                if (!text)
-                    return undefined;
-                return JSON.parse(text);
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error querying OpenCode (${model}) for think JSON: ${error}`);
                 return undefined;
             }
         };
@@ -49501,16 +49286,6 @@ class ThinkUseCase {
             }));
         }
         return results;
-    }
-    async getIssueDescription(param) {
-        try {
-            const description = await this.issueRepository.getDescription(param.owner, param.repo, param.issueNumber, param.tokens.token);
-            return description ?? null;
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Error getting issue description: ${error}`);
-            return null;
-        }
     }
 }
 exports.ThinkUseCase = ThinkUseCase;

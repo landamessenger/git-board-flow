@@ -18,6 +18,25 @@ Tras eliminar el directorio del agent, se identificó y eliminó código que ya 
 | **think_response.ts** (modelo) | Solo usado por los archivos anteriores. Se mantiene **think_response_schema.ts** (usado por ai_repository). |
 | Tests de comment_formatter, file_import_analyzer, file_search_service | Eliminados al borrar las clases. |
 
+**Segunda revisión (código muerto adicional):**
+
+| Eliminado | Motivo |
+|-----------|--------|
+| **ai_response.ts** (modelo) | Interfaz `AiResponse` no importada en ningún sitio; solo se usa `ai_response_schema`. |
+| **ai_responses.ts** (graph) | Interfaz `PatchSummary` no usada. |
+| **add_project_item_response.ts** (graph) | Interfaz `AddProjectItemResponse` no importada; `project_repository` usa tipo inline. |
+| **think_use_case.getIssueDescription** | Método privado nunca llamado. |
+
+**Sistema clásico del agent eliminado (AI + Think JSON):**
+
+| Eliminado | Motivo |
+|-----------|--------|
+| **ai_response_schema.ts** | Solo lo usaba `askJson`; `askJson` no se llamaba. Eliminado. |
+| **askJson** en ai_repository | Obsoleto; eliminado. |
+| **think_response_schema.ts** | Solo lo usaba `askThinkJson`; `askThinkJson` no se llama en ningún sitio (era el loop think del agent). Eliminado. |
+| **askThinkJson** en ai_repository | Obsoleto; eliminado. |
+| **ai_response_schema.test.ts**, **think_response_schema.test.ts** | Eliminados al borrar los schemas. |
+
 ---
 
 ## 1. Utilidades puras (prioridad alta)
@@ -71,7 +90,11 @@ Tras eliminar el directorio del agent, se identificó y eliminó código que ya 
 
 | Módulo | Qué testear |
 |--------|-------------|
-| **Branches** | Getter `defaultBranch` con `github.context.payload.repository` mockeado (opcional). |
+| **Result** | Constructor con datos vacíos (defaults) y con campos asignados. ✅ |
+| **Config** | Constructor con datos vacíos, con branches, con `branchConfiguration`. ✅ |
+| **BranchConfiguration** | Constructor y children recursivos. ✅ |
+| *(AI_RESPONSE_JSON_SCHEMA y THINK_RESPONSE_JSON_SCHEMA eliminados como obsoletos; no hay flujo que los use.)* |
+| **Branches** | Getter `defaultBranch` con `github.context` mockeado (opcional). |
 | Resto de modelos | Principalmente DTOs/interfaces; sin lógica no añadir tests. |
 
 ---
