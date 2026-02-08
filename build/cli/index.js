@@ -7191,6 +7191,19 @@ const helpers_1 = __nccwpck_require__(4044);
 const types_1 = __nccwpck_require__(1852);
 const errors_1 = __nccwpck_require__(9938);
 class GoTrueAdminApi {
+    /**
+     * Creates an admin API client that can be used to manage users and OAuth clients.
+     *
+     * @example
+     * ```ts
+     * import { GoTrueAdminApi } from '@supabase/auth-js'
+     *
+     * const admin = new GoTrueAdminApi({
+     *   url: 'https://xyzcompany.supabase.co/auth/v1',
+     *   headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+     * })
+     * ```
+     */
     constructor({ url = '', headers = {}, fetch, }) {
         this.url = url;
         this.headers = headers;
@@ -7373,7 +7386,7 @@ class GoTrueAdminApi {
         }
     }
     /**
-     * Updates the user data.
+     * Updates the user data. Changes are applied directly without confirmation flows.
      *
      * @param attributes The data you want to update.
      *
@@ -7645,6 +7658,7 @@ const DEFAULT_OPTIONS = {
     debug: false,
     hasCustomAuthorizationHeader: false,
     throwOnError: false,
+    lockAcquireTimeout: 10000, // 10 seconds
 };
 async function lockNoOp(name, acquireTimeout, fn) {
     return await fn();
@@ -7678,6 +7692,17 @@ class GoTrueClient {
     }
     /**
      * Create a new client for use in the browser.
+     *
+     * @example
+     * ```ts
+     * import { GoTrueClient } from '@supabase/auth-js'
+     *
+     * const auth = new GoTrueClient({
+     *   url: 'https://xyzcompany.supabase.co/auth/v1',
+     *   headers: { apikey: 'public-anon-key' },
+     *   storageKey: 'supabase-auth',
+     * })
+     * ```
      */
     constructor(options) {
         var _a, _b, _c;
@@ -7688,6 +7713,7 @@ class GoTrueClient {
         this.memoryStorage = null;
         this.stateChangeEmitters = new Map();
         this.autoRefreshTicker = null;
+        this.autoRefreshTickTimeout = null;
         this.visibilityChangedCallback = null;
         this.refreshingDeferred = null;
         /**
@@ -7737,10 +7763,11 @@ class GoTrueClient {
         this.flowType = settings.flowType;
         this.hasCustomAuthorizationHeader = settings.hasCustomAuthorizationHeader;
         this.throwOnError = settings.throwOnError;
+        this.lockAcquireTimeout = settings.lockAcquireTimeout;
         if (settings.lock) {
             this.lock = settings.lock;
         }
-        else if ((0, helpers_1.isBrowser)() && ((_b = globalThis === null || globalThis === void 0 ? void 0 : globalThis.navigator) === null || _b === void 0 ? void 0 : _b.locks)) {
+        else if (this.persistSession && (0, helpers_1.isBrowser)() && ((_b = globalThis === null || globalThis === void 0 ? void 0 : globalThis.navigator) === null || _b === void 0 ? void 0 : _b.locks)) {
             this.lock = locks_1.navigatorLock;
         }
         else {
@@ -7764,6 +7791,8 @@ class GoTrueClient {
             getAuthorizationDetails: this._getAuthorizationDetails.bind(this),
             approveAuthorization: this._approveAuthorization.bind(this),
             denyAuthorization: this._denyAuthorization.bind(this),
+            listGrants: this._listOAuthGrants.bind(this),
+            revokeGrant: this._revokeOAuthGrant.bind(this),
         };
         if (this.persistSession) {
             if (settings.storage) {
@@ -7795,10 +7824,17 @@ class GoTrueClient {
             }
             (_c = this.broadcastChannel) === null || _c === void 0 ? void 0 : _c.addEventListener('message', async (event) => {
                 this._debug('received broadcast notification from other tab or client', event);
-                await this._notifyAllSubscribers(event.data.event, event.data.session, false); // broadcast = false so we don't get an endless loop of messages
+                try {
+                    await this._notifyAllSubscribers(event.data.event, event.data.session, false); // broadcast = false so we don't get an endless loop of messages
+                }
+                catch (error) {
+                    this._debug('#broadcastChannel', 'error', error);
+                }
             });
         }
-        this.initialize();
+        this.initialize().catch((error) => {
+            this._debug('#initialize()', 'error', error);
+        });
     }
     /**
      * Returns whether error throwing mode is enabled for this client.
@@ -7837,7 +7873,7 @@ class GoTrueClient {
             return await this.initializePromise;
         }
         this.initializePromise = (async () => {
-            return await this._acquireLock(-1, async () => {
+            return await this._acquireLock(this.lockAcquireTimeout, async () => {
                 return await this._initialize();
             });
         })();
@@ -7881,9 +7917,8 @@ class GoTrueClient {
                             return { error };
                         }
                     }
-                    // failed login attempt via url,
-                    // remove old session as in verifyOtp, signUp and signInWith*
-                    await this._removeSession();
+                    // Don't remove existing session on URL login failure.
+                    // A failed attempt (e.g. reused magic link) shouldn't invalidate a valid session.
                     return { error };
                 }
                 const { session, redirectType } = data;
@@ -8006,6 +8041,7 @@ class GoTrueClient {
             }
             const { data, error } = res;
             if (error || !data) {
+                await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
                 return this._returnResult({ data: { user: null, session: null }, error: error });
             }
             const session = data.session;
@@ -8017,6 +8053,7 @@ class GoTrueClient {
             return this._returnResult({ data: { user, session }, error: null });
         }
         catch (error) {
+            await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
             if ((0, errors_1.isAuthError)(error)) {
                 return this._returnResult({ data: { user: null, session: null }, error });
             }
@@ -8103,7 +8140,7 @@ class GoTrueClient {
      */
     async exchangeCodeForSession(authCode) {
         await this.initializePromise;
-        return this._acquireLock(-1, async () => {
+        return this._acquireLock(this.lockAcquireTimeout, async () => {
             return this._exchangeCodeForSession(authCode);
         });
     }
@@ -8370,6 +8407,9 @@ class GoTrueClient {
         const storageItem = await (0, helpers_1.getItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
         const [codeVerifier, redirectType] = (storageItem !== null && storageItem !== void 0 ? storageItem : '').split('/');
         try {
+            if (!codeVerifier && this.flowType === 'pkce') {
+                throw new errors_1.AuthPKCECodeVerifierMissingError();
+            }
             const { data, error } = await (0, fetch_1._request)(this.fetch, 'POST', `${this.url}/token?grant_type=pkce`, {
                 headers: this.headers,
                 body: {
@@ -8396,6 +8436,7 @@ class GoTrueClient {
             return this._returnResult({ data: Object.assign(Object.assign({}, data), { redirectType: redirectType !== null && redirectType !== void 0 ? redirectType : null }), error });
         }
         catch (error) {
+            await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
             if ((0, errors_1.isAuthError)(error)) {
                 return this._returnResult({
                     data: { user: null, session: null, redirectType: null },
@@ -8506,6 +8547,7 @@ class GoTrueClient {
             throw new errors_1.AuthInvalidCredentialsError('You must provide either an email or phone number.');
         }
         catch (error) {
+            await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
             if ((0, errors_1.isAuthError)(error)) {
                 return this._returnResult({ data: { user: null, session: null }, error });
             }
@@ -8589,6 +8631,7 @@ class GoTrueClient {
             return this._returnResult(result);
         }
         catch (error) {
+            await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
             if ((0, errors_1.isAuthError)(error)) {
                 return this._returnResult({ data: null, error });
             }
@@ -8601,7 +8644,7 @@ class GoTrueClient {
      */
     async reauthenticate() {
         await this.initializePromise;
-        return await this._acquireLock(-1, async () => {
+        return await this._acquireLock(this.lockAcquireTimeout, async () => {
             return await this._reauthenticate();
         });
     }
@@ -8683,7 +8726,7 @@ class GoTrueClient {
      */
     async getSession() {
         await this.initializePromise;
-        const result = await this._acquireLock(-1, async () => {
+        const result = await this._acquireLock(this.lockAcquireTimeout, async () => {
             return this._useSession(async (result) => {
                 return result;
             });
@@ -8844,9 +8887,12 @@ class GoTrueClient {
             return await this._getUser(jwt);
         }
         await this.initializePromise;
-        const result = await this._acquireLock(-1, async () => {
+        const result = await this._acquireLock(this.lockAcquireTimeout, async () => {
             return await this._getUser();
         });
+        if (result.data.user) {
+            this.suppressGetSessionWarning = true;
+        }
         return result;
     }
     async _getUser(jwt) {
@@ -8893,7 +8939,7 @@ class GoTrueClient {
      */
     async updateUser(attributes, options = {}) {
         await this.initializePromise;
-        return await this._acquireLock(-1, async () => {
+        return await this._acquireLock(this.lockAcquireTimeout, async () => {
             return await this._updateUser(attributes, options);
         });
     }
@@ -8931,6 +8977,7 @@ class GoTrueClient {
             });
         }
         catch (error) {
+            await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
             if ((0, errors_1.isAuthError)(error)) {
                 return this._returnResult({ data: { user: null }, error });
             }
@@ -8944,7 +8991,7 @@ class GoTrueClient {
      */
     async setSession(currentSession) {
         await this.initializePromise;
-        return await this._acquireLock(-1, async () => {
+        return await this._acquireLock(this.lockAcquireTimeout, async () => {
             return await this._setSession(currentSession);
         });
     }
@@ -8975,7 +9022,7 @@ class GoTrueClient {
             else {
                 const { data, error } = await this._getUser(currentSession.access_token);
                 if (error) {
-                    throw error;
+                    return this._returnResult({ data: { user: null, session: null }, error });
                 }
                 session = {
                     access_token: currentSession.access_token,
@@ -9005,7 +9052,7 @@ class GoTrueClient {
      */
     async refreshSession(currentSession) {
         await this.initializePromise;
-        return await this._acquireLock(-1, async () => {
+        return await this._acquireLock(this.lockAcquireTimeout, async () => {
             return await this._refreshSession(currentSession);
         });
     }
@@ -9132,8 +9179,15 @@ class GoTrueClient {
     }
     /**
      * Checks if the current URL contains parameters given by an implicit oauth grant flow (https://www.rfc-editor.org/rfc/rfc6749.html#section-4.2)
+     *
+     * If `detectSessionInUrl` is a function, it will be called with the URL and params to determine
+     * if the URL should be processed as a Supabase auth callback. This allows users to exclude
+     * URLs from other OAuth providers (e.g., Facebook Login) that also return access_token in the fragment.
      */
     _isImplicitGrantCallback(params) {
+        if (typeof this.detectSessionInUrl === 'function') {
+            return this.detectSessionInUrl(new URL(window.location.href), params);
+        }
         return Boolean(params.access_token || params.error_description);
     }
     /**
@@ -9153,7 +9207,7 @@ class GoTrueClient {
      */
     async signOut(options = { scope: 'global' }) {
         await this.initializePromise;
-        return await this._acquireLock(-1, async () => {
+        return await this._acquireLock(this.lockAcquireTimeout, async () => {
             return await this._signOut(options);
         });
     }
@@ -9161,7 +9215,7 @@ class GoTrueClient {
         return await this._useSession(async (result) => {
             var _a;
             const { data, error: sessionError } = result;
-            if (sessionError) {
+            if (sessionError && !(0, errors_1.isAuthSessionMissingError)(sessionError)) {
                 return this._returnResult({ error: sessionError });
             }
             const accessToken = (_a = data.session) === null || _a === void 0 ? void 0 : _a.access_token;
@@ -9170,8 +9224,9 @@ class GoTrueClient {
                 if (error) {
                     // ignore 404s since user might not exist anymore
                     // ignore 401s since an invalid or expired JWT should sign out the current session
-                    if (!((0, errors_1.isAuthApiError)(error) &&
-                        (error.status === 404 || error.status === 401 || error.status === 403))) {
+                    if (!(((0, errors_1.isAuthApiError)(error) &&
+                        (error.status === 404 || error.status === 401 || error.status === 403)) ||
+                        (0, errors_1.isAuthSessionMissingError)(error))) {
                         return this._returnResult({ error });
                     }
                 }
@@ -9197,7 +9252,7 @@ class GoTrueClient {
         this.stateChangeEmitters.set(id, subscription);
         (async () => {
             await this.initializePromise;
-            await this._acquireLock(-1, async () => {
+            await this._acquireLock(this.lockAcquireTimeout, async () => {
                 this._emitInitialSession(id);
             });
         })();
@@ -9248,6 +9303,7 @@ class GoTrueClient {
             });
         }
         catch (error) {
+            await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
             if ((0, errors_1.isAuthError)(error)) {
                 return this._returnResult({ data: null, error });
             }
@@ -9352,6 +9408,7 @@ class GoTrueClient {
                 return this._returnResult({ data, error });
             }
             catch (error) {
+                await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
                 if ((0, errors_1.isAuthError)(error)) {
                     return this._returnResult({ data: { user: null, session: null }, error });
                 }
@@ -9617,6 +9674,7 @@ class GoTrueClient {
         // _saveSession is always called whenever a new session has been acquired
         // so we can safely suppress the warning returned by future getSession calls
         this.suppressGetSessionWarning = true;
+        await (0, helpers_1.removeItemAsync)(this.storage, `${this.storageKey}-code-verifier`);
         // Create a shallow copy to work with, to avoid mutating the original session object if it's used elsewhere
         const sessionToProcess = Object.assign({}, session);
         const userIsProxy = sessionToProcess.user && sessionToProcess.user.__isUserNotAvailableProxy === true;
@@ -9650,6 +9708,7 @@ class GoTrueClient {
     }
     async _removeSession() {
         this._debug('#_removeSession()');
+        this.suppressGetSessionWarning = false;
         await (0, helpers_1.removeItemAsync)(this.storage, this.storageKey);
         await (0, helpers_1.removeItemAsync)(this.storage, this.storageKey + '-code-verifier');
         await (0, helpers_1.removeItemAsync)(this.storage, this.storageKey + '-user');
@@ -9705,10 +9764,19 @@ class GoTrueClient {
         // run the tick immediately, but in the next pass of the event loop so that
         // #_initialize can be allowed to complete without recursively waiting on
         // itself
-        setTimeout(async () => {
+        const timeout = setTimeout(async () => {
             await this.initializePromise;
             await this._autoRefreshTokenTick();
         }, 0);
+        this.autoRefreshTickTimeout = timeout;
+        if (timeout && typeof timeout === 'object' && typeof timeout.unref === 'function') {
+            timeout.unref();
+            // @ts-expect-error TS has no context of Deno
+        }
+        else if (typeof Deno !== 'undefined' && typeof Deno.unrefTimer === 'function') {
+            // @ts-expect-error TS has no context of Deno
+            Deno.unrefTimer(timeout);
+        }
     }
     /**
      * This is the private implementation of {@link #stopAutoRefresh}. Use this
@@ -9720,6 +9788,11 @@ class GoTrueClient {
         this.autoRefreshTicker = null;
         if (ticker) {
             clearInterval(ticker);
+        }
+        const timeout = this.autoRefreshTickTimeout;
+        this.autoRefreshTickTimeout = null;
+        if (timeout) {
+            clearTimeout(timeout);
         }
     }
     /**
@@ -9817,7 +9890,14 @@ class GoTrueClient {
             return false;
         }
         try {
-            this.visibilityChangedCallback = async () => await this._onVisibilityChanged(false);
+            this.visibilityChangedCallback = async () => {
+                try {
+                    await this._onVisibilityChanged(false);
+                }
+                catch (error) {
+                    this._debug('#visibilityChangedCallback', 'error', error);
+                }
+            };
             window === null || window === void 0 ? void 0 : window.addEventListener('visibilitychange', this.visibilityChangedCallback);
             // now immediately call the visbility changed callback to setup with the
             // current visbility state
@@ -9845,7 +9925,7 @@ class GoTrueClient {
                 // should be recovered immediately... but to do that we need to acquire
                 // the lock first asynchronously
                 await this.initializePromise;
-                await this._acquireLock(-1, async () => {
+                await this._acquireLock(this.lockAcquireTimeout, async () => {
                     if (document.visibilityState !== 'visible') {
                         this._debug(methodName, 'acquired the lock to recover the session, but the browser visibilityState is no longer visible, aborting');
                         // visibility has changed while waiting for the lock, abort
@@ -9949,7 +10029,7 @@ class GoTrueClient {
         }
     }
     async _verify(params) {
-        return this._acquireLock(-1, async () => {
+        return this._acquireLock(this.lockAcquireTimeout, async () => {
             try {
                 return await this._useSession(async (result) => {
                     var _a;
@@ -9986,7 +10066,7 @@ class GoTrueClient {
         });
     }
     async _challenge(params) {
-        return this._acquireLock(-1, async () => {
+        return this._acquireLock(this.lockAcquireTimeout, async () => {
             try {
                 return await this._useSession(async (result) => {
                     var _a;
@@ -10078,8 +10158,34 @@ class GoTrueClient {
     /**
      * {@see GoTrueMFAApi#getAuthenticatorAssuranceLevel}
      */
-    async _getAuthenticatorAssuranceLevel() {
-        var _a, _b;
+    async _getAuthenticatorAssuranceLevel(jwt) {
+        var _a, _b, _c, _d;
+        if (jwt) {
+            try {
+                const { payload } = (0, helpers_1.decodeJWT)(jwt);
+                let currentLevel = null;
+                if (payload.aal) {
+                    currentLevel = payload.aal;
+                }
+                let nextLevel = currentLevel;
+                const { data: { user }, error: userError, } = await this.getUser(jwt);
+                if (userError) {
+                    return this._returnResult({ data: null, error: userError });
+                }
+                const verifiedFactors = (_b = (_a = user === null || user === void 0 ? void 0 : user.factors) === null || _a === void 0 ? void 0 : _a.filter((factor) => factor.status === 'verified')) !== null && _b !== void 0 ? _b : [];
+                if (verifiedFactors.length > 0) {
+                    nextLevel = 'aal2';
+                }
+                const currentAuthenticationMethods = payload.amr || [];
+                return { data: { currentLevel, nextLevel, currentAuthenticationMethods }, error: null };
+            }
+            catch (error) {
+                if ((0, errors_1.isAuthError)(error)) {
+                    return this._returnResult({ data: null, error });
+                }
+                throw error;
+            }
+        }
         const { data: { session }, error: sessionError, } = await this.getSession();
         if (sessionError) {
             return this._returnResult({ data: null, error: sessionError });
@@ -10096,7 +10202,7 @@ class GoTrueClient {
             currentLevel = payload.aal;
         }
         let nextLevel = currentLevel;
-        const verifiedFactors = (_b = (_a = session.user.factors) === null || _a === void 0 ? void 0 : _a.filter((factor) => factor.status === 'verified')) !== null && _b !== void 0 ? _b : [];
+        const verifiedFactors = (_d = (_c = session.user.factors) === null || _c === void 0 ? void 0 : _c.filter((factor) => factor.status === 'verified')) !== null && _d !== void 0 ? _d : [];
         if (verifiedFactors.length > 0) {
             nextLevel = 'aal2';
         }
@@ -10108,7 +10214,7 @@ class GoTrueClient {
      * Only relevant when the OAuth 2.1 server is enabled in Supabase Auth.
      *
      * Returns authorization details including client info, scopes, and user information.
-     * If the API returns a redirect_uri, it means consent was already given - the caller
+     * If the response includes only a redirect_url field, it means consent was already given - the caller
      * should handle the redirect manually if needed.
      */
     async _getAuthorizationDetails(authorizationId) {
@@ -10198,6 +10304,64 @@ class GoTrueClient {
                     }
                 }
                 return response;
+            });
+        }
+        catch (error) {
+            if ((0, errors_1.isAuthError)(error)) {
+                return this._returnResult({ data: null, error });
+            }
+            throw error;
+        }
+    }
+    /**
+     * Lists all OAuth grants that the authenticated user has authorized.
+     * Only relevant when the OAuth 2.1 server is enabled in Supabase Auth.
+     */
+    async _listOAuthGrants() {
+        try {
+            return await this._useSession(async (result) => {
+                const { data: { session }, error: sessionError, } = result;
+                if (sessionError) {
+                    return this._returnResult({ data: null, error: sessionError });
+                }
+                if (!session) {
+                    return this._returnResult({ data: null, error: new errors_1.AuthSessionMissingError() });
+                }
+                return await (0, fetch_1._request)(this.fetch, 'GET', `${this.url}/user/oauth/grants`, {
+                    headers: this.headers,
+                    jwt: session.access_token,
+                    xform: (data) => ({ data, error: null }),
+                });
+            });
+        }
+        catch (error) {
+            if ((0, errors_1.isAuthError)(error)) {
+                return this._returnResult({ data: null, error });
+            }
+            throw error;
+        }
+    }
+    /**
+     * Revokes a user's OAuth grant for a specific client.
+     * Only relevant when the OAuth 2.1 server is enabled in Supabase Auth.
+     */
+    async _revokeOAuthGrant(options) {
+        try {
+            return await this._useSession(async (result) => {
+                const { data: { session }, error: sessionError, } = result;
+                if (sessionError) {
+                    return this._returnResult({ data: null, error: sessionError });
+                }
+                if (!session) {
+                    return this._returnResult({ data: null, error: new errors_1.AuthSessionMissingError() });
+                }
+                await (0, fetch_1._request)(this.fetch, 'DELETE', `${this.url}/user/oauth/grants`, {
+                    headers: this.headers,
+                    jwt: session.access_token,
+                    query: { client_id: options.clientId },
+                    noResolveJson: true,
+                });
+                return { data: {}, error: null };
             });
         }
         catch (error) {
@@ -10673,13 +10837,24 @@ exports.JWKS_TTL = 10 * 60 * 1000; // 10 minutes
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AuthInvalidJwtError = exports.AuthWeakPasswordError = exports.AuthRetryableFetchError = exports.AuthPKCEGrantCodeExchangeError = exports.AuthImplicitGrantRedirectError = exports.AuthInvalidCredentialsError = exports.AuthInvalidTokenResponseError = exports.AuthSessionMissingError = exports.CustomAuthError = exports.AuthUnknownError = exports.AuthApiError = exports.AuthError = void 0;
+exports.AuthInvalidJwtError = exports.AuthWeakPasswordError = exports.AuthRetryableFetchError = exports.AuthPKCECodeVerifierMissingError = exports.AuthPKCEGrantCodeExchangeError = exports.AuthImplicitGrantRedirectError = exports.AuthInvalidCredentialsError = exports.AuthInvalidTokenResponseError = exports.AuthSessionMissingError = exports.CustomAuthError = exports.AuthUnknownError = exports.AuthApiError = exports.AuthError = void 0;
 exports.isAuthError = isAuthError;
 exports.isAuthApiError = isAuthApiError;
 exports.isAuthSessionMissingError = isAuthSessionMissingError;
 exports.isAuthImplicitGrantRedirectError = isAuthImplicitGrantRedirectError;
+exports.isAuthPKCECodeVerifierMissingError = isAuthPKCECodeVerifierMissingError;
 exports.isAuthRetryableFetchError = isAuthRetryableFetchError;
 exports.isAuthWeakPasswordError = isAuthWeakPasswordError;
+/**
+ * Base error thrown by Supabase Auth helpers.
+ *
+ * @example
+ * ```ts
+ * import { AuthError } from '@supabase/auth-js'
+ *
+ * throw new AuthError('Unexpected auth error', 500, 'unexpected')
+ * ```
+ */
 class AuthError extends Error {
     constructor(message, status, code) {
         super(message);
@@ -10693,6 +10868,16 @@ exports.AuthError = AuthError;
 function isAuthError(error) {
     return typeof error === 'object' && error !== null && '__isAuthError' in error;
 }
+/**
+ * Error returned directly from the GoTrue REST API.
+ *
+ * @example
+ * ```ts
+ * import { AuthApiError } from '@supabase/auth-js'
+ *
+ * throw new AuthApiError('Invalid credentials', 400, 'invalid_credentials')
+ * ```
+ */
 class AuthApiError extends AuthError {
     constructor(message, status, code) {
         super(message, status, code);
@@ -10705,6 +10890,20 @@ exports.AuthApiError = AuthApiError;
 function isAuthApiError(error) {
     return isAuthError(error) && error.name === 'AuthApiError';
 }
+/**
+ * Wraps non-standard errors so callers can inspect the root cause.
+ *
+ * @example
+ * ```ts
+ * import { AuthUnknownError } from '@supabase/auth-js'
+ *
+ * try {
+ *   await someAuthCall()
+ * } catch (err) {
+ *   throw new AuthUnknownError('Auth failed', err)
+ * }
+ * ```
+ */
 class AuthUnknownError extends AuthError {
     constructor(message, originalError) {
         super(message);
@@ -10713,6 +10912,16 @@ class AuthUnknownError extends AuthError {
     }
 }
 exports.AuthUnknownError = AuthUnknownError;
+/**
+ * Flexible error class used to create named auth errors at runtime.
+ *
+ * @example
+ * ```ts
+ * import { CustomAuthError } from '@supabase/auth-js'
+ *
+ * throw new CustomAuthError('My custom auth error', 'MyAuthError', 400, 'custom_code')
+ * ```
+ */
 class CustomAuthError extends AuthError {
     constructor(message, name, status, code) {
         super(message, status, code);
@@ -10721,6 +10930,16 @@ class CustomAuthError extends AuthError {
     }
 }
 exports.CustomAuthError = CustomAuthError;
+/**
+ * Error thrown when an operation requires a session but none is present.
+ *
+ * @example
+ * ```ts
+ * import { AuthSessionMissingError } from '@supabase/auth-js'
+ *
+ * throw new AuthSessionMissingError()
+ * ```
+ */
 class AuthSessionMissingError extends CustomAuthError {
     constructor() {
         super('Auth session missing!', 'AuthSessionMissingError', 400, undefined);
@@ -10730,18 +10949,51 @@ exports.AuthSessionMissingError = AuthSessionMissingError;
 function isAuthSessionMissingError(error) {
     return isAuthError(error) && error.name === 'AuthSessionMissingError';
 }
+/**
+ * Error thrown when the token response is malformed.
+ *
+ * @example
+ * ```ts
+ * import { AuthInvalidTokenResponseError } from '@supabase/auth-js'
+ *
+ * throw new AuthInvalidTokenResponseError()
+ * ```
+ */
 class AuthInvalidTokenResponseError extends CustomAuthError {
     constructor() {
         super('Auth session or user missing', 'AuthInvalidTokenResponseError', 500, undefined);
     }
 }
 exports.AuthInvalidTokenResponseError = AuthInvalidTokenResponseError;
+/**
+ * Error thrown when email/password credentials are invalid.
+ *
+ * @example
+ * ```ts
+ * import { AuthInvalidCredentialsError } from '@supabase/auth-js'
+ *
+ * throw new AuthInvalidCredentialsError('Email or password is incorrect')
+ * ```
+ */
 class AuthInvalidCredentialsError extends CustomAuthError {
     constructor(message) {
         super(message, 'AuthInvalidCredentialsError', 400, undefined);
     }
 }
 exports.AuthInvalidCredentialsError = AuthInvalidCredentialsError;
+/**
+ * Error thrown when implicit grant redirects contain an error.
+ *
+ * @example
+ * ```ts
+ * import { AuthImplicitGrantRedirectError } from '@supabase/auth-js'
+ *
+ * throw new AuthImplicitGrantRedirectError('OAuth redirect failed', {
+ *   error: 'access_denied',
+ *   code: 'oauth_error',
+ * })
+ * ```
+ */
 class AuthImplicitGrantRedirectError extends CustomAuthError {
     constructor(message, details = null) {
         super(message, 'AuthImplicitGrantRedirectError', 500, undefined);
@@ -10761,6 +11013,16 @@ exports.AuthImplicitGrantRedirectError = AuthImplicitGrantRedirectError;
 function isAuthImplicitGrantRedirectError(error) {
     return isAuthError(error) && error.name === 'AuthImplicitGrantRedirectError';
 }
+/**
+ * Error thrown during PKCE code exchanges.
+ *
+ * @example
+ * ```ts
+ * import { AuthPKCEGrantCodeExchangeError } from '@supabase/auth-js'
+ *
+ * throw new AuthPKCEGrantCodeExchangeError('PKCE exchange failed')
+ * ```
+ */
 class AuthPKCEGrantCodeExchangeError extends CustomAuthError {
     constructor(message, details = null) {
         super(message, 'AuthPKCEGrantCodeExchangeError', 500, undefined);
@@ -10777,6 +11039,40 @@ class AuthPKCEGrantCodeExchangeError extends CustomAuthError {
     }
 }
 exports.AuthPKCEGrantCodeExchangeError = AuthPKCEGrantCodeExchangeError;
+/**
+ * Error thrown when the PKCE code verifier is not found in storage.
+ * This typically happens when the auth flow was initiated in a different
+ * browser, device, or the storage was cleared.
+ *
+ * @example
+ * ```ts
+ * import { AuthPKCECodeVerifierMissingError } from '@supabase/auth-js'
+ *
+ * throw new AuthPKCECodeVerifierMissingError()
+ * ```
+ */
+class AuthPKCECodeVerifierMissingError extends CustomAuthError {
+    constructor() {
+        super('PKCE code verifier not found in storage. ' +
+            'This can happen if the auth flow was initiated in a different browser or device, ' +
+            'or if the storage was cleared. For SSR frameworks (Next.js, SvelteKit, etc.), ' +
+            'use @supabase/ssr on both the server and client to store the code verifier in cookies.', 'AuthPKCECodeVerifierMissingError', 400, 'pkce_code_verifier_not_found');
+    }
+}
+exports.AuthPKCECodeVerifierMissingError = AuthPKCECodeVerifierMissingError;
+function isAuthPKCECodeVerifierMissingError(error) {
+    return isAuthError(error) && error.name === 'AuthPKCECodeVerifierMissingError';
+}
+/**
+ * Error thrown when a transient fetch issue occurs.
+ *
+ * @example
+ * ```ts
+ * import { AuthRetryableFetchError } from '@supabase/auth-js'
+ *
+ * throw new AuthRetryableFetchError('Service temporarily unavailable', 503)
+ * ```
+ */
 class AuthRetryableFetchError extends CustomAuthError {
     constructor(message, status) {
         super(message, 'AuthRetryableFetchError', status, undefined);
@@ -10791,6 +11087,16 @@ function isAuthRetryableFetchError(error) {
  * weak. Inspect the reasons to identify what password strength rules are
  * inadequate.
  */
+/**
+ * Error thrown when a supplied password is considered weak.
+ *
+ * @example
+ * ```ts
+ * import { AuthWeakPasswordError } from '@supabase/auth-js'
+ *
+ * throw new AuthWeakPasswordError('Password too short', 400, ['min_length'])
+ * ```
+ */
 class AuthWeakPasswordError extends CustomAuthError {
     constructor(message, status, reasons) {
         super(message, 'AuthWeakPasswordError', status, 'weak_password');
@@ -10801,6 +11107,16 @@ exports.AuthWeakPasswordError = AuthWeakPasswordError;
 function isAuthWeakPasswordError(error) {
     return isAuthError(error) && error.name === 'AuthWeakPasswordError';
 }
+/**
+ * Error thrown when a JWT cannot be verified or parsed.
+ *
+ * @example
+ * ```ts
+ * import { AuthInvalidJwtError } from '@supabase/auth-js'
+ *
+ * throw new AuthInvalidJwtError('Token signature is invalid')
+ * ```
+ */
 class AuthInvalidJwtError extends CustomAuthError {
     constructor(message) {
         super(message, 'AuthInvalidJwtError', 400, 'invalid_jwt');
@@ -11458,6 +11774,17 @@ exports.internals = {
  * An error thrown when a lock cannot be acquired after some amount of time.
  *
  * Use the {@link #isAcquireTimeout} property instead of checking with `instanceof`.
+ *
+ * @example
+ * ```ts
+ * import { LockAcquireTimeoutError } from '@supabase/auth-js'
+ *
+ * class CustomLockError extends LockAcquireTimeoutError {
+ *   constructor() {
+ *     super('Lock timed out')
+ *   }
+ * }
+ * ```
  */
 class LockAcquireTimeoutError extends Error {
     constructor(message) {
@@ -11466,9 +11793,29 @@ class LockAcquireTimeoutError extends Error {
     }
 }
 exports.LockAcquireTimeoutError = LockAcquireTimeoutError;
+/**
+ * Error thrown when the browser Navigator Lock API fails to acquire a lock.
+ *
+ * @example
+ * ```ts
+ * import { NavigatorLockAcquireTimeoutError } from '@supabase/auth-js'
+ *
+ * throw new NavigatorLockAcquireTimeoutError('Lock timed out')
+ * ```
+ */
 class NavigatorLockAcquireTimeoutError extends LockAcquireTimeoutError {
 }
 exports.NavigatorLockAcquireTimeoutError = NavigatorLockAcquireTimeoutError;
+/**
+ * Error thrown when the process-level lock helper cannot acquire a lock.
+ *
+ * @example
+ * ```ts
+ * import { ProcessLockAcquireTimeoutError } from '@supabase/auth-js'
+ *
+ * throw new ProcessLockAcquireTimeoutError('Lock timed out')
+ * ```
+ */
 class ProcessLockAcquireTimeoutError extends LockAcquireTimeoutError {
 }
 exports.ProcessLockAcquireTimeoutError = ProcessLockAcquireTimeoutError;
@@ -11496,6 +11843,12 @@ exports.ProcessLockAcquireTimeoutError = ProcessLockAcquireTimeoutError;
  *                       will time out after so many milliseconds. An error is
  *                       a timeout if it has `isAcquireTimeout` set to true.
  * @param fn The operation to run once the lock is acquired.
+ * @example
+ * ```ts
+ * await navigatorLock('sync-user', 1000, async () => {
+ *   await refreshSession()
+ * })
+ * ```
  */
 async function navigatorLock(name, acquireTimeout, fn) {
     if (exports.internals.debug) {
@@ -11581,6 +11934,12 @@ const PROCESS_LOCKS = {};
  *                       will time out after so many milliseconds. An error is
  *                       a timeout if it has `isAcquireTimeout` set to true.
  * @param fn The operation to run once the lock is acquired.
+ * @example
+ * ```ts
+ * await processLock('migrate', 5000, async () => {
+ *   await runMigration()
+ * })
+ * ```
  */
 async function processLock(name, acquireTimeout, fn) {
     var _a;
@@ -11593,7 +11952,10 @@ async function processLock(name, acquireTimeout, fn) {
         acquireTimeout >= 0
             ? new Promise((_, reject) => {
                 setTimeout(() => {
-                    reject(new ProcessLockAcquireTimeoutError(`Acquring process lock with name "${name}" timed out`));
+                    console.warn(`@supabase/gotrue-js: Lock "${name}" acquisition timed out after ${acquireTimeout}ms. ` +
+                        'This may be caused by another operation holding the lock. ' +
+                        'Consider increasing lockAcquireTimeout or checking for stuck operations.');
+                    reject(new ProcessLockAcquireTimeoutError(`Acquiring process lock with name "${name}" timed out`));
                 }, acquireTimeout);
             })
             : null,
@@ -11682,6 +12044,7 @@ const AMRMethods = (/* unused pure expression or super */ null && ([
     'sso/saml',
     'magiclink',
     'web3',
+    'oauth_provider/authorization_code',
 ]));
 const FactorTypes = (/* unused pure expression or super */ null && (['totp', 'phone', 'webauthn']));
 const FactorVerificationStatuses = (/* unused pure expression or super */ null && (['verified', 'unverified']));
@@ -11704,7 +12067,7 @@ exports.version = void 0;
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-exports.version = '2.81.1';
+exports.version = '2.95.3';
 //# sourceMappingURL=version.js.map
 
 /***/ }),
@@ -12517,6 +12880,7 @@ class WebAuthnApi {
      * @see {@link https://w3c.github.io/webauthn/#sctn-verifying-assertion W3C WebAuthn Spec - Verifying Assertion}
      */
     async _challenge({ factorId, webauthn, friendlyName, signal, }, overrides) {
+        var _a;
         try {
             // Get challenge from server using the client's MFA methods
             const { data: challengeResponse, error: challengeError } = await this.client.mfa.challenge({
@@ -12531,7 +12895,19 @@ class WebAuthnApi {
             if (challengeResponse.webauthn.type === 'create') {
                 const { user } = challengeResponse.webauthn.credential_options.publicKey;
                 if (!user.name) {
-                    user.name = `${user.id}:${friendlyName}`;
+                    // Preserve original format: use friendlyName if provided, otherwise fetch fallback
+                    // This maintains backward compatibility with the ${user.id}:${name} format
+                    const nameToUse = friendlyName;
+                    if (!nameToUse) {
+                        // Only fetch user data if friendlyName is not provided (bug fix for null friendlyName)
+                        const currentUser = await this.client.getUser();
+                        const userData = currentUser.data.user;
+                        const fallbackName = ((_a = userData === null || userData === void 0 ? void 0 : userData.user_metadata) === null || _a === void 0 ? void 0 : _a.name) || (userData === null || userData === void 0 ? void 0 : userData.email) || (userData === null || userData === void 0 ? void 0 : userData.id) || 'User';
+                        user.name = `${user.id}:${fallbackName}`;
+                    }
+                    else {
+                        user.name = `${user.id}:${nameToUse}`;
+                    }
                 }
                 if (!user.displayName) {
                     user.displayName = user.name;
@@ -12764,7 +13140,23 @@ exports.FunctionsClient = void 0;
 const tslib_1 = __nccwpck_require__(4351);
 const helper_1 = __nccwpck_require__(618);
 const types_1 = __nccwpck_require__(3136);
+/**
+ * Client for invoking Supabase Edge Functions.
+ */
 class FunctionsClient {
+    /**
+     * Creates a new Functions client bound to an Edge Functions URL.
+     *
+     * @example
+     * ```ts
+     * import { FunctionsClient, FunctionRegion } from '@supabase/functions-js'
+     *
+     * const functions = new FunctionsClient('https://xyzcompany.supabase.co/functions/v1', {
+     *   headers: { apikey: 'public-anon-key' },
+     *   region: FunctionRegion.UsEast1,
+     * })
+     * ```
+     */
     constructor(url, { headers = {}, customFetch, region = types_1.FunctionRegion.Any, } = {}) {
         this.url = url;
         this.headers = headers;
@@ -12774,6 +13166,10 @@ class FunctionsClient {
     /**
      * Updates the authorization header
      * @param token - the new jwt token sent in the authorisation header
+     * @example
+     * ```ts
+     * functions.setAuth(session.access_token)
+     * ```
      */
     setAuth(token) {
         this.headers.Authorization = `Bearer ${token}`;
@@ -12782,6 +13178,12 @@ class FunctionsClient {
      * Invokes a function
      * @param functionName - The name of the Function to invoke.
      * @param options - Options for invoking the Function.
+     * @example
+     * ```ts
+     * const { data, error } = await functions.invoke('hello-world', {
+     *   body: { name: 'Ada' },
+     * })
+     * ```
      */
     invoke(functionName_1) {
         return tslib_1.__awaiter(this, arguments, void 0, function* (functionName, options = {}) {
@@ -12828,8 +13230,16 @@ class FunctionsClient {
                     }
                 }
                 else {
-                    // if the Content-Type was supplied, simply set the body
-                    body = functionArgs;
+                    if (functionArgs &&
+                        typeof functionArgs !== 'string' &&
+                        !(typeof Blob !== 'undefined' && functionArgs instanceof Blob) &&
+                        !(functionArgs instanceof ArrayBuffer) &&
+                        !(typeof FormData !== 'undefined' && functionArgs instanceof FormData)) {
+                        body = JSON.stringify(functionArgs);
+                    }
+                    else {
+                        body = functionArgs;
+                    }
                 }
                 // Handle timeout by creating an AbortController
                 let effectiveSignal = signal;
@@ -12953,6 +13363,18 @@ Object.defineProperty(exports, "FunctionRegion", ({ enumerable: true, get: funct
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FunctionRegion = exports.FunctionsHttpError = exports.FunctionsRelayError = exports.FunctionsFetchError = exports.FunctionsError = void 0;
+/**
+ * Base error for Supabase Edge Function invocations.
+ *
+ * @example
+ * ```ts
+ * import { FunctionsError } from '@supabase/functions-js'
+ *
+ * throw new FunctionsError('Unexpected error invoking function', 'FunctionsError', {
+ *   requestId: 'abc123',
+ * })
+ * ```
+ */
 class FunctionsError extends Error {
     constructor(message, name = 'FunctionsError', context) {
         super(message);
@@ -12961,18 +13383,48 @@ class FunctionsError extends Error {
     }
 }
 exports.FunctionsError = FunctionsError;
+/**
+ * Error thrown when the network request to an Edge Function fails.
+ *
+ * @example
+ * ```ts
+ * import { FunctionsFetchError } from '@supabase/functions-js'
+ *
+ * throw new FunctionsFetchError({ requestId: 'abc123' })
+ * ```
+ */
 class FunctionsFetchError extends FunctionsError {
     constructor(context) {
         super('Failed to send a request to the Edge Function', 'FunctionsFetchError', context);
     }
 }
 exports.FunctionsFetchError = FunctionsFetchError;
+/**
+ * Error thrown when the Supabase relay cannot reach the Edge Function.
+ *
+ * @example
+ * ```ts
+ * import { FunctionsRelayError } from '@supabase/functions-js'
+ *
+ * throw new FunctionsRelayError({ region: 'us-east-1' })
+ * ```
+ */
 class FunctionsRelayError extends FunctionsError {
     constructor(context) {
         super('Relay Error invoking the Edge Function', 'FunctionsRelayError', context);
     }
 }
 exports.FunctionsRelayError = FunctionsRelayError;
+/**
+ * Error thrown when the Edge Function returns a non-2xx status code.
+ *
+ * @example
+ * ```ts
+ * import { FunctionsHttpError } from '@supabase/functions-js'
+ *
+ * throw new FunctionsHttpError({ status: 500 })
+ * ```
+ */
 class FunctionsHttpError extends FunctionsError {
     constructor(context) {
         super('Edge Function returned a non-2xx status code', 'FunctionsHttpError', context);
@@ -12999,1287 +13451,6 @@ var FunctionRegion;
     FunctionRegion["UsWest2"] = "us-west-2";
 })(FunctionRegion || (exports.FunctionRegion = FunctionRegion = {}));
 //# sourceMappingURL=types.js.map
-
-/***/ }),
-
-/***/ 1049:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const PostgrestError_1 = tslib_1.__importDefault(__nccwpck_require__(7317));
-class PostgrestBuilder {
-    constructor(builder) {
-        var _a, _b;
-        this.shouldThrowOnError = false;
-        this.method = builder.method;
-        this.url = builder.url;
-        this.headers = new Headers(builder.headers);
-        this.schema = builder.schema;
-        this.body = builder.body;
-        this.shouldThrowOnError = (_a = builder.shouldThrowOnError) !== null && _a !== void 0 ? _a : false;
-        this.signal = builder.signal;
-        this.isMaybeSingle = (_b = builder.isMaybeSingle) !== null && _b !== void 0 ? _b : false;
-        if (builder.fetch) {
-            this.fetch = builder.fetch;
-        }
-        else {
-            this.fetch = fetch;
-        }
-    }
-    /**
-     * If there's an error with the query, throwOnError will reject the promise by
-     * throwing the error instead of returning it as part of a successful response.
-     *
-     * {@link https://github.com/supabase/supabase-js/issues/92}
-     */
-    throwOnError() {
-        this.shouldThrowOnError = true;
-        return this;
-    }
-    /**
-     * Set an HTTP header for the request.
-     */
-    setHeader(name, value) {
-        this.headers = new Headers(this.headers);
-        this.headers.set(name, value);
-        return this;
-    }
-    then(onfulfilled, onrejected) {
-        // https://postgrest.org/en/stable/api.html#switching-schemas
-        if (this.schema === undefined) {
-            // skip
-        }
-        else if (['GET', 'HEAD'].includes(this.method)) {
-            this.headers.set('Accept-Profile', this.schema);
-        }
-        else {
-            this.headers.set('Content-Profile', this.schema);
-        }
-        if (this.method !== 'GET' && this.method !== 'HEAD') {
-            this.headers.set('Content-Type', 'application/json');
-        }
-        // NOTE: Invoke w/o `this` to avoid illegal invocation error.
-        // https://github.com/supabase/postgrest-js/pull/247
-        const _fetch = this.fetch;
-        let res = _fetch(this.url.toString(), {
-            method: this.method,
-            headers: this.headers,
-            body: JSON.stringify(this.body),
-            signal: this.signal,
-        }).then(async (res) => {
-            var _a, _b, _c, _d;
-            let error = null;
-            let data = null;
-            let count = null;
-            let status = res.status;
-            let statusText = res.statusText;
-            if (res.ok) {
-                if (this.method !== 'HEAD') {
-                    const body = await res.text();
-                    if (body === '') {
-                        // Prefer: return=minimal
-                    }
-                    else if (this.headers.get('Accept') === 'text/csv') {
-                        data = body;
-                    }
-                    else if (this.headers.get('Accept') &&
-                        ((_a = this.headers.get('Accept')) === null || _a === void 0 ? void 0 : _a.includes('application/vnd.pgrst.plan+text'))) {
-                        data = body;
-                    }
-                    else {
-                        data = JSON.parse(body);
-                    }
-                }
-                const countHeader = (_b = this.headers.get('Prefer')) === null || _b === void 0 ? void 0 : _b.match(/count=(exact|planned|estimated)/);
-                const contentRange = (_c = res.headers.get('content-range')) === null || _c === void 0 ? void 0 : _c.split('/');
-                if (countHeader && contentRange && contentRange.length > 1) {
-                    count = parseInt(contentRange[1]);
-                }
-                // Temporary partial fix for https://github.com/supabase/postgrest-js/issues/361
-                // Issue persists e.g. for `.insert([...]).select().maybeSingle()`
-                if (this.isMaybeSingle && this.method === 'GET' && Array.isArray(data)) {
-                    if (data.length > 1) {
-                        error = {
-                            // https://github.com/PostgREST/postgrest/blob/a867d79c42419af16c18c3fb019eba8df992626f/src/PostgREST/Error.hs#L553
-                            code: 'PGRST116',
-                            details: `Results contain ${data.length} rows, application/vnd.pgrst.object+json requires 1 row`,
-                            hint: null,
-                            message: 'JSON object requested, multiple (or no) rows returned',
-                        };
-                        data = null;
-                        count = null;
-                        status = 406;
-                        statusText = 'Not Acceptable';
-                    }
-                    else if (data.length === 1) {
-                        data = data[0];
-                    }
-                    else {
-                        data = null;
-                    }
-                }
-            }
-            else {
-                const body = await res.text();
-                try {
-                    error = JSON.parse(body);
-                    // Workaround for https://github.com/supabase/postgrest-js/issues/295
-                    if (Array.isArray(error) && res.status === 404) {
-                        data = [];
-                        error = null;
-                        status = 200;
-                        statusText = 'OK';
-                    }
-                }
-                catch (_e) {
-                    // Workaround for https://github.com/supabase/postgrest-js/issues/295
-                    if (res.status === 404 && body === '') {
-                        status = 204;
-                        statusText = 'No Content';
-                    }
-                    else {
-                        error = {
-                            message: body,
-                        };
-                    }
-                }
-                if (error && this.isMaybeSingle && ((_d = error === null || error === void 0 ? void 0 : error.details) === null || _d === void 0 ? void 0 : _d.includes('0 rows'))) {
-                    error = null;
-                    status = 200;
-                    statusText = 'OK';
-                }
-                if (error && this.shouldThrowOnError) {
-                    throw new PostgrestError_1.default(error);
-                }
-            }
-            const postgrestResponse = {
-                error,
-                data,
-                count,
-                status,
-                statusText,
-            };
-            return postgrestResponse;
-        });
-        if (!this.shouldThrowOnError) {
-            res = res.catch((fetchError) => {
-                var _a, _b, _c;
-                return ({
-                    error: {
-                        message: `${(_a = fetchError === null || fetchError === void 0 ? void 0 : fetchError.name) !== null && _a !== void 0 ? _a : 'FetchError'}: ${fetchError === null || fetchError === void 0 ? void 0 : fetchError.message}`,
-                        details: `${(_b = fetchError === null || fetchError === void 0 ? void 0 : fetchError.stack) !== null && _b !== void 0 ? _b : ''}`,
-                        hint: '',
-                        code: `${(_c = fetchError === null || fetchError === void 0 ? void 0 : fetchError.code) !== null && _c !== void 0 ? _c : ''}`,
-                    },
-                    data: null,
-                    count: null,
-                    status: 0,
-                    statusText: '',
-                });
-            });
-        }
-        return res.then(onfulfilled, onrejected);
-    }
-    /**
-     * Override the type of the returned `data`.
-     *
-     * @typeParam NewResult - The new result type to override with
-     * @deprecated Use overrideTypes<yourType, { merge: false }>() method at the end of your call chain instead
-     */
-    returns() {
-        /* istanbul ignore next */
-        return this;
-    }
-    /**
-     * Override the type of the returned `data` field in the response.
-     *
-     * @typeParam NewResult - The new type to cast the response data to
-     * @typeParam Options - Optional type configuration (defaults to { merge: true })
-     * @typeParam Options.merge - When true, merges the new type with existing return type. When false, replaces the existing types entirely (defaults to true)
-     * @example
-     * ```typescript
-     * // Merge with existing types (default behavior)
-     * const query = supabase
-     *   .from('users')
-     *   .select()
-     *   .overrideTypes<{ custom_field: string }>()
-     *
-     * // Replace existing types completely
-     * const replaceQuery = supabase
-     *   .from('users')
-     *   .select()
-     *   .overrideTypes<{ id: number; name: string }, { merge: false }>()
-     * ```
-     * @returns A PostgrestBuilder instance with the new type
-     */
-    overrideTypes() {
-        return this;
-    }
-}
-exports["default"] = PostgrestBuilder;
-//# sourceMappingURL=PostgrestBuilder.js.map
-
-/***/ }),
-
-/***/ 1526:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const PostgrestQueryBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(50));
-const PostgrestFilterBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(6671));
-/**
- * PostgREST client.
- *
- * @typeParam Database - Types for the schema from the [type
- * generator](https://supabase.com/docs/reference/javascript/next/typescript-support)
- *
- * @typeParam SchemaName - Postgres schema to switch to. Must be a string
- * literal, the same one passed to the constructor. If the schema is not
- * `"public"`, this must be supplied manually.
- */
-class PostgrestClient {
-    // TODO: Add back shouldThrowOnError once we figure out the typings
-    /**
-     * Creates a PostgREST client.
-     *
-     * @param url - URL of the PostgREST endpoint
-     * @param options - Named parameters
-     * @param options.headers - Custom headers
-     * @param options.schema - Postgres schema to switch to
-     * @param options.fetch - Custom fetch
-     */
-    constructor(url, { headers = {}, schema, fetch, } = {}) {
-        this.url = url;
-        this.headers = new Headers(headers);
-        this.schemaName = schema;
-        this.fetch = fetch;
-    }
-    /**
-     * Perform a query on a table or a view.
-     *
-     * @param relation - The table or view name to query
-     */
-    from(relation) {
-        const url = new URL(`${this.url}/${relation}`);
-        return new PostgrestQueryBuilder_1.default(url, {
-            headers: new Headers(this.headers),
-            schema: this.schemaName,
-            fetch: this.fetch,
-        });
-    }
-    /**
-     * Select a schema to query or perform an function (rpc) call.
-     *
-     * The schema needs to be on the list of exposed schemas inside Supabase.
-     *
-     * @param schema - The schema to query
-     */
-    schema(schema) {
-        return new PostgrestClient(this.url, {
-            headers: this.headers,
-            schema,
-            fetch: this.fetch,
-        });
-    }
-    /**
-     * Perform a function call.
-     *
-     * @param fn - The function name to call
-     * @param args - The arguments to pass to the function call
-     * @param options - Named parameters
-     * @param options.head - When set to `true`, `data` will not be returned.
-     * Useful if you only need the count.
-     * @param options.get - When set to `true`, the function will be called with
-     * read-only access mode.
-     * @param options.count - Count algorithm to use to count rows returned by the
-     * function. Only applicable for [set-returning
-     * functions](https://www.postgresql.org/docs/current/functions-srf.html).
-     *
-     * `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
-     * hood.
-     *
-     * `"planned"`: Approximated but fast count algorithm. Uses the Postgres
-     * statistics under the hood.
-     *
-     * `"estimated"`: Uses exact count for low numbers and planned count for high
-     * numbers.
-     */
-    rpc(fn, args = {}, { head = false, get = false, count, } = {}) {
-        var _a;
-        let method;
-        const url = new URL(`${this.url}/rpc/${fn}`);
-        let body;
-        if (head || get) {
-            method = head ? 'HEAD' : 'GET';
-            Object.entries(args)
-                // params with undefined value needs to be filtered out, otherwise it'll
-                // show up as `?param=undefined`
-                .filter(([_, value]) => value !== undefined)
-                // array values need special syntax
-                .map(([name, value]) => [name, Array.isArray(value) ? `{${value.join(',')}}` : `${value}`])
-                .forEach(([name, value]) => {
-                url.searchParams.append(name, value);
-            });
-        }
-        else {
-            method = 'POST';
-            body = args;
-        }
-        const headers = new Headers(this.headers);
-        if (count) {
-            headers.set('Prefer', `count=${count}`);
-        }
-        return new PostgrestFilterBuilder_1.default({
-            method,
-            url,
-            headers,
-            schema: this.schemaName,
-            body,
-            fetch: (_a = this.fetch) !== null && _a !== void 0 ? _a : fetch,
-        });
-    }
-}
-exports["default"] = PostgrestClient;
-//# sourceMappingURL=PostgrestClient.js.map
-
-/***/ }),
-
-/***/ 7317:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-/**
- * Error format
- *
- * {@link https://postgrest.org/en/stable/api.html?highlight=options#errors-and-http-status-codes}
- */
-class PostgrestError extends Error {
-    constructor(context) {
-        super(context.message);
-        this.name = 'PostgrestError';
-        this.details = context.details;
-        this.hint = context.hint;
-        this.code = context.code;
-    }
-}
-exports["default"] = PostgrestError;
-//# sourceMappingURL=PostgrestError.js.map
-
-/***/ }),
-
-/***/ 6671:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const PostgrestTransformBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(1566));
-const PostgrestReservedCharsRegexp = new RegExp('[,()]');
-class PostgrestFilterBuilder extends PostgrestTransformBuilder_1.default {
-    /**
-     * Match only rows where `column` is equal to `value`.
-     *
-     * To check if the value of `column` is NULL, you should use `.is()` instead.
-     *
-     * @param column - The column to filter on
-     * @param value - The value to filter with
-     */
-    eq(column, value) {
-        this.url.searchParams.append(column, `eq.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` is not equal to `value`.
-     *
-     * @param column - The column to filter on
-     * @param value - The value to filter with
-     */
-    neq(column, value) {
-        this.url.searchParams.append(column, `neq.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` is greater than `value`.
-     *
-     * @param column - The column to filter on
-     * @param value - The value to filter with
-     */
-    gt(column, value) {
-        this.url.searchParams.append(column, `gt.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` is greater than or equal to `value`.
-     *
-     * @param column - The column to filter on
-     * @param value - The value to filter with
-     */
-    gte(column, value) {
-        this.url.searchParams.append(column, `gte.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` is less than `value`.
-     *
-     * @param column - The column to filter on
-     * @param value - The value to filter with
-     */
-    lt(column, value) {
-        this.url.searchParams.append(column, `lt.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` is less than or equal to `value`.
-     *
-     * @param column - The column to filter on
-     * @param value - The value to filter with
-     */
-    lte(column, value) {
-        this.url.searchParams.append(column, `lte.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` matches `pattern` case-sensitively.
-     *
-     * @param column - The column to filter on
-     * @param pattern - The pattern to match with
-     */
-    like(column, pattern) {
-        this.url.searchParams.append(column, `like.${pattern}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` matches all of `patterns` case-sensitively.
-     *
-     * @param column - The column to filter on
-     * @param patterns - The patterns to match with
-     */
-    likeAllOf(column, patterns) {
-        this.url.searchParams.append(column, `like(all).{${patterns.join(',')}}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` matches any of `patterns` case-sensitively.
-     *
-     * @param column - The column to filter on
-     * @param patterns - The patterns to match with
-     */
-    likeAnyOf(column, patterns) {
-        this.url.searchParams.append(column, `like(any).{${patterns.join(',')}}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` matches `pattern` case-insensitively.
-     *
-     * @param column - The column to filter on
-     * @param pattern - The pattern to match with
-     */
-    ilike(column, pattern) {
-        this.url.searchParams.append(column, `ilike.${pattern}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` matches all of `patterns` case-insensitively.
-     *
-     * @param column - The column to filter on
-     * @param patterns - The patterns to match with
-     */
-    ilikeAllOf(column, patterns) {
-        this.url.searchParams.append(column, `ilike(all).{${patterns.join(',')}}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` matches any of `patterns` case-insensitively.
-     *
-     * @param column - The column to filter on
-     * @param patterns - The patterns to match with
-     */
-    ilikeAnyOf(column, patterns) {
-        this.url.searchParams.append(column, `ilike(any).{${patterns.join(',')}}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` IS `value`.
-     *
-     * For non-boolean columns, this is only relevant for checking if the value of
-     * `column` is NULL by setting `value` to `null`.
-     *
-     * For boolean columns, you can also set `value` to `true` or `false` and it
-     * will behave the same way as `.eq()`.
-     *
-     * @param column - The column to filter on
-     * @param value - The value to filter with
-     */
-    is(column, value) {
-        this.url.searchParams.append(column, `is.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows where `column` is included in the `values` array.
-     *
-     * @param column - The column to filter on
-     * @param values - The values array to filter with
-     */
-    in(column, values) {
-        const cleanedValues = Array.from(new Set(values))
-            .map((s) => {
-            // handle postgrest reserved characters
-            // https://postgrest.org/en/v7.0.0/api.html#reserved-characters
-            if (typeof s === 'string' && PostgrestReservedCharsRegexp.test(s))
-                return `"${s}"`;
-            else
-                return `${s}`;
-        })
-            .join(',');
-        this.url.searchParams.append(column, `in.(${cleanedValues})`);
-        return this;
-    }
-    /**
-     * Only relevant for jsonb, array, and range columns. Match only rows where
-     * `column` contains every element appearing in `value`.
-     *
-     * @param column - The jsonb, array, or range column to filter on
-     * @param value - The jsonb, array, or range value to filter with
-     */
-    contains(column, value) {
-        if (typeof value === 'string') {
-            // range types can be inclusive '[', ']' or exclusive '(', ')' so just
-            // keep it simple and accept a string
-            this.url.searchParams.append(column, `cs.${value}`);
-        }
-        else if (Array.isArray(value)) {
-            // array
-            this.url.searchParams.append(column, `cs.{${value.join(',')}}`);
-        }
-        else {
-            // json
-            this.url.searchParams.append(column, `cs.${JSON.stringify(value)}`);
-        }
-        return this;
-    }
-    /**
-     * Only relevant for jsonb, array, and range columns. Match only rows where
-     * every element appearing in `column` is contained by `value`.
-     *
-     * @param column - The jsonb, array, or range column to filter on
-     * @param value - The jsonb, array, or range value to filter with
-     */
-    containedBy(column, value) {
-        if (typeof value === 'string') {
-            // range
-            this.url.searchParams.append(column, `cd.${value}`);
-        }
-        else if (Array.isArray(value)) {
-            // array
-            this.url.searchParams.append(column, `cd.{${value.join(',')}}`);
-        }
-        else {
-            // json
-            this.url.searchParams.append(column, `cd.${JSON.stringify(value)}`);
-        }
-        return this;
-    }
-    /**
-     * Only relevant for range columns. Match only rows where every element in
-     * `column` is greater than any element in `range`.
-     *
-     * @param column - The range column to filter on
-     * @param range - The range to filter with
-     */
-    rangeGt(column, range) {
-        this.url.searchParams.append(column, `sr.${range}`);
-        return this;
-    }
-    /**
-     * Only relevant for range columns. Match only rows where every element in
-     * `column` is either contained in `range` or greater than any element in
-     * `range`.
-     *
-     * @param column - The range column to filter on
-     * @param range - The range to filter with
-     */
-    rangeGte(column, range) {
-        this.url.searchParams.append(column, `nxl.${range}`);
-        return this;
-    }
-    /**
-     * Only relevant for range columns. Match only rows where every element in
-     * `column` is less than any element in `range`.
-     *
-     * @param column - The range column to filter on
-     * @param range - The range to filter with
-     */
-    rangeLt(column, range) {
-        this.url.searchParams.append(column, `sl.${range}`);
-        return this;
-    }
-    /**
-     * Only relevant for range columns. Match only rows where every element in
-     * `column` is either contained in `range` or less than any element in
-     * `range`.
-     *
-     * @param column - The range column to filter on
-     * @param range - The range to filter with
-     */
-    rangeLte(column, range) {
-        this.url.searchParams.append(column, `nxr.${range}`);
-        return this;
-    }
-    /**
-     * Only relevant for range columns. Match only rows where `column` is
-     * mutually exclusive to `range` and there can be no element between the two
-     * ranges.
-     *
-     * @param column - The range column to filter on
-     * @param range - The range to filter with
-     */
-    rangeAdjacent(column, range) {
-        this.url.searchParams.append(column, `adj.${range}`);
-        return this;
-    }
-    /**
-     * Only relevant for array and range columns. Match only rows where
-     * `column` and `value` have an element in common.
-     *
-     * @param column - The array or range column to filter on
-     * @param value - The array or range value to filter with
-     */
-    overlaps(column, value) {
-        if (typeof value === 'string') {
-            // range
-            this.url.searchParams.append(column, `ov.${value}`);
-        }
-        else {
-            // array
-            this.url.searchParams.append(column, `ov.{${value.join(',')}}`);
-        }
-        return this;
-    }
-    /**
-     * Only relevant for text and tsvector columns. Match only rows where
-     * `column` matches the query string in `query`.
-     *
-     * @param column - The text or tsvector column to filter on
-     * @param query - The query text to match with
-     * @param options - Named parameters
-     * @param options.config - The text search configuration to use
-     * @param options.type - Change how the `query` text is interpreted
-     */
-    textSearch(column, query, { config, type } = {}) {
-        let typePart = '';
-        if (type === 'plain') {
-            typePart = 'pl';
-        }
-        else if (type === 'phrase') {
-            typePart = 'ph';
-        }
-        else if (type === 'websearch') {
-            typePart = 'w';
-        }
-        const configPart = config === undefined ? '' : `(${config})`;
-        this.url.searchParams.append(column, `${typePart}fts${configPart}.${query}`);
-        return this;
-    }
-    /**
-     * Match only rows where each column in `query` keys is equal to its
-     * associated value. Shorthand for multiple `.eq()`s.
-     *
-     * @param query - The object to filter with, with column names as keys mapped
-     * to their filter values
-     */
-    match(query) {
-        Object.entries(query).forEach(([column, value]) => {
-            this.url.searchParams.append(column, `eq.${value}`);
-        });
-        return this;
-    }
-    /**
-     * Match only rows which doesn't satisfy the filter.
-     *
-     * Unlike most filters, `opearator` and `value` are used as-is and need to
-     * follow [PostgREST
-     * syntax](https://postgrest.org/en/stable/api.html#operators). You also need
-     * to make sure they are properly sanitized.
-     *
-     * @param column - The column to filter on
-     * @param operator - The operator to be negated to filter with, following
-     * PostgREST syntax
-     * @param value - The value to filter with, following PostgREST syntax
-     */
-    not(column, operator, value) {
-        this.url.searchParams.append(column, `not.${operator}.${value}`);
-        return this;
-    }
-    /**
-     * Match only rows which satisfy at least one of the filters.
-     *
-     * Unlike most filters, `filters` is used as-is and needs to follow [PostgREST
-     * syntax](https://postgrest.org/en/stable/api.html#operators). You also need
-     * to make sure it's properly sanitized.
-     *
-     * It's currently not possible to do an `.or()` filter across multiple tables.
-     *
-     * @param filters - The filters to use, following PostgREST syntax
-     * @param options - Named parameters
-     * @param options.referencedTable - Set this to filter on referenced tables
-     * instead of the parent table
-     * @param options.foreignTable - Deprecated, use `referencedTable` instead
-     */
-    or(filters, { foreignTable, referencedTable = foreignTable, } = {}) {
-        const key = referencedTable ? `${referencedTable}.or` : 'or';
-        this.url.searchParams.append(key, `(${filters})`);
-        return this;
-    }
-    /**
-     * Match only rows which satisfy the filter. This is an escape hatch - you
-     * should use the specific filter methods wherever possible.
-     *
-     * Unlike most filters, `opearator` and `value` are used as-is and need to
-     * follow [PostgREST
-     * syntax](https://postgrest.org/en/stable/api.html#operators). You also need
-     * to make sure they are properly sanitized.
-     *
-     * @param column - The column to filter on
-     * @param operator - The operator to filter with, following PostgREST syntax
-     * @param value - The value to filter with, following PostgREST syntax
-     */
-    filter(column, operator, value) {
-        this.url.searchParams.append(column, `${operator}.${value}`);
-        return this;
-    }
-}
-exports["default"] = PostgrestFilterBuilder;
-//# sourceMappingURL=PostgrestFilterBuilder.js.map
-
-/***/ }),
-
-/***/ 50:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const PostgrestFilterBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(6671));
-class PostgrestQueryBuilder {
-    constructor(url, { headers = {}, schema, fetch, }) {
-        this.url = url;
-        this.headers = new Headers(headers);
-        this.schema = schema;
-        this.fetch = fetch;
-    }
-    /**
-     * Perform a SELECT query on the table or view.
-     *
-     * @param columns - The columns to retrieve, separated by commas. Columns can be renamed when returned with `customName:columnName`
-     *
-     * @param options - Named parameters
-     *
-     * @param options.head - When set to `true`, `data` will not be returned.
-     * Useful if you only need the count.
-     *
-     * @param options.count - Count algorithm to use to count rows in the table or view.
-     *
-     * `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
-     * hood.
-     *
-     * `"planned"`: Approximated but fast count algorithm. Uses the Postgres
-     * statistics under the hood.
-     *
-     * `"estimated"`: Uses exact count for low numbers and planned count for high
-     * numbers.
-     */
-    select(columns, options) {
-        const { head = false, count } = options !== null && options !== void 0 ? options : {};
-        const method = head ? 'HEAD' : 'GET';
-        // Remove whitespaces except when quoted
-        let quoted = false;
-        const cleanedColumns = (columns !== null && columns !== void 0 ? columns : '*')
-            .split('')
-            .map((c) => {
-            if (/\s/.test(c) && !quoted) {
-                return '';
-            }
-            if (c === '"') {
-                quoted = !quoted;
-            }
-            return c;
-        })
-            .join('');
-        this.url.searchParams.set('select', cleanedColumns);
-        if (count) {
-            this.headers.append('Prefer', `count=${count}`);
-        }
-        return new PostgrestFilterBuilder_1.default({
-            method,
-            url: this.url,
-            headers: this.headers,
-            schema: this.schema,
-            fetch: this.fetch,
-        });
-    }
-    /**
-     * Perform an INSERT into the table or view.
-     *
-     * By default, inserted rows are not returned. To return it, chain the call
-     * with `.select()`.
-     *
-     * @param values - The values to insert. Pass an object to insert a single row
-     * or an array to insert multiple rows.
-     *
-     * @param options - Named parameters
-     *
-     * @param options.count - Count algorithm to use to count inserted rows.
-     *
-     * `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
-     * hood.
-     *
-     * `"planned"`: Approximated but fast count algorithm. Uses the Postgres
-     * statistics under the hood.
-     *
-     * `"estimated"`: Uses exact count for low numbers and planned count for high
-     * numbers.
-     *
-     * @param options.defaultToNull - Make missing fields default to `null`.
-     * Otherwise, use the default value for the column. Only applies for bulk
-     * inserts.
-     */
-    insert(values, { count, defaultToNull = true, } = {}) {
-        var _a;
-        const method = 'POST';
-        if (count) {
-            this.headers.append('Prefer', `count=${count}`);
-        }
-        if (!defaultToNull) {
-            this.headers.append('Prefer', `missing=default`);
-        }
-        if (Array.isArray(values)) {
-            const columns = values.reduce((acc, x) => acc.concat(Object.keys(x)), []);
-            if (columns.length > 0) {
-                const uniqueColumns = [...new Set(columns)].map((column) => `"${column}"`);
-                this.url.searchParams.set('columns', uniqueColumns.join(','));
-            }
-        }
-        return new PostgrestFilterBuilder_1.default({
-            method,
-            url: this.url,
-            headers: this.headers,
-            schema: this.schema,
-            body: values,
-            fetch: (_a = this.fetch) !== null && _a !== void 0 ? _a : fetch,
-        });
-    }
-    /**
-     * Perform an UPSERT on the table or view. Depending on the column(s) passed
-     * to `onConflict`, `.upsert()` allows you to perform the equivalent of
-     * `.insert()` if a row with the corresponding `onConflict` columns doesn't
-     * exist, or if it does exist, perform an alternative action depending on
-     * `ignoreDuplicates`.
-     *
-     * By default, upserted rows are not returned. To return it, chain the call
-     * with `.select()`.
-     *
-     * @param values - The values to upsert with. Pass an object to upsert a
-     * single row or an array to upsert multiple rows.
-     *
-     * @param options - Named parameters
-     *
-     * @param options.onConflict - Comma-separated UNIQUE column(s) to specify how
-     * duplicate rows are determined. Two rows are duplicates if all the
-     * `onConflict` columns are equal.
-     *
-     * @param options.ignoreDuplicates - If `true`, duplicate rows are ignored. If
-     * `false`, duplicate rows are merged with existing rows.
-     *
-     * @param options.count - Count algorithm to use to count upserted rows.
-     *
-     * `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
-     * hood.
-     *
-     * `"planned"`: Approximated but fast count algorithm. Uses the Postgres
-     * statistics under the hood.
-     *
-     * `"estimated"`: Uses exact count for low numbers and planned count for high
-     * numbers.
-     *
-     * @param options.defaultToNull - Make missing fields default to `null`.
-     * Otherwise, use the default value for the column. This only applies when
-     * inserting new rows, not when merging with existing rows under
-     * `ignoreDuplicates: false`. This also only applies when doing bulk upserts.
-     */
-    upsert(values, { onConflict, ignoreDuplicates = false, count, defaultToNull = true, } = {}) {
-        var _a;
-        const method = 'POST';
-        this.headers.append('Prefer', `resolution=${ignoreDuplicates ? 'ignore' : 'merge'}-duplicates`);
-        if (onConflict !== undefined)
-            this.url.searchParams.set('on_conflict', onConflict);
-        if (count) {
-            this.headers.append('Prefer', `count=${count}`);
-        }
-        if (!defaultToNull) {
-            this.headers.append('Prefer', 'missing=default');
-        }
-        if (Array.isArray(values)) {
-            const columns = values.reduce((acc, x) => acc.concat(Object.keys(x)), []);
-            if (columns.length > 0) {
-                const uniqueColumns = [...new Set(columns)].map((column) => `"${column}"`);
-                this.url.searchParams.set('columns', uniqueColumns.join(','));
-            }
-        }
-        return new PostgrestFilterBuilder_1.default({
-            method,
-            url: this.url,
-            headers: this.headers,
-            schema: this.schema,
-            body: values,
-            fetch: (_a = this.fetch) !== null && _a !== void 0 ? _a : fetch,
-        });
-    }
-    /**
-     * Perform an UPDATE on the table or view.
-     *
-     * By default, updated rows are not returned. To return it, chain the call
-     * with `.select()` after filters.
-     *
-     * @param values - The values to update with
-     *
-     * @param options - Named parameters
-     *
-     * @param options.count - Count algorithm to use to count updated rows.
-     *
-     * `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
-     * hood.
-     *
-     * `"planned"`: Approximated but fast count algorithm. Uses the Postgres
-     * statistics under the hood.
-     *
-     * `"estimated"`: Uses exact count for low numbers and planned count for high
-     * numbers.
-     */
-    update(values, { count, } = {}) {
-        var _a;
-        const method = 'PATCH';
-        if (count) {
-            this.headers.append('Prefer', `count=${count}`);
-        }
-        return new PostgrestFilterBuilder_1.default({
-            method,
-            url: this.url,
-            headers: this.headers,
-            schema: this.schema,
-            body: values,
-            fetch: (_a = this.fetch) !== null && _a !== void 0 ? _a : fetch,
-        });
-    }
-    /**
-     * Perform a DELETE on the table or view.
-     *
-     * By default, deleted rows are not returned. To return it, chain the call
-     * with `.select()` after filters.
-     *
-     * @param options - Named parameters
-     *
-     * @param options.count - Count algorithm to use to count deleted rows.
-     *
-     * `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
-     * hood.
-     *
-     * `"planned"`: Approximated but fast count algorithm. Uses the Postgres
-     * statistics under the hood.
-     *
-     * `"estimated"`: Uses exact count for low numbers and planned count for high
-     * numbers.
-     */
-    delete({ count, } = {}) {
-        var _a;
-        const method = 'DELETE';
-        if (count) {
-            this.headers.append('Prefer', `count=${count}`);
-        }
-        return new PostgrestFilterBuilder_1.default({
-            method,
-            url: this.url,
-            headers: this.headers,
-            schema: this.schema,
-            fetch: (_a = this.fetch) !== null && _a !== void 0 ? _a : fetch,
-        });
-    }
-}
-exports["default"] = PostgrestQueryBuilder;
-//# sourceMappingURL=PostgrestQueryBuilder.js.map
-
-/***/ }),
-
-/***/ 1566:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const PostgrestBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(1049));
-class PostgrestTransformBuilder extends PostgrestBuilder_1.default {
-    /**
-     * Perform a SELECT on the query result.
-     *
-     * By default, `.insert()`, `.update()`, `.upsert()`, and `.delete()` do not
-     * return modified rows. By calling this method, modified rows are returned in
-     * `data`.
-     *
-     * @param columns - The columns to retrieve, separated by commas
-     */
-    select(columns) {
-        // Remove whitespaces except when quoted
-        let quoted = false;
-        const cleanedColumns = (columns !== null && columns !== void 0 ? columns : '*')
-            .split('')
-            .map((c) => {
-            if (/\s/.test(c) && !quoted) {
-                return '';
-            }
-            if (c === '"') {
-                quoted = !quoted;
-            }
-            return c;
-        })
-            .join('');
-        this.url.searchParams.set('select', cleanedColumns);
-        this.headers.append('Prefer', 'return=representation');
-        return this;
-    }
-    /**
-     * Order the query result by `column`.
-     *
-     * You can call this method multiple times to order by multiple columns.
-     *
-     * You can order referenced tables, but it only affects the ordering of the
-     * parent table if you use `!inner` in the query.
-     *
-     * @param column - The column to order by
-     * @param options - Named parameters
-     * @param options.ascending - If `true`, the result will be in ascending order
-     * @param options.nullsFirst - If `true`, `null`s appear first. If `false`,
-     * `null`s appear last.
-     * @param options.referencedTable - Set this to order a referenced table by
-     * its columns
-     * @param options.foreignTable - Deprecated, use `options.referencedTable`
-     * instead
-     */
-    order(column, { ascending = true, nullsFirst, foreignTable, referencedTable = foreignTable, } = {}) {
-        const key = referencedTable ? `${referencedTable}.order` : 'order';
-        const existingOrder = this.url.searchParams.get(key);
-        this.url.searchParams.set(key, `${existingOrder ? `${existingOrder},` : ''}${column}.${ascending ? 'asc' : 'desc'}${nullsFirst === undefined ? '' : nullsFirst ? '.nullsfirst' : '.nullslast'}`);
-        return this;
-    }
-    /**
-     * Limit the query result by `count`.
-     *
-     * @param count - The maximum number of rows to return
-     * @param options - Named parameters
-     * @param options.referencedTable - Set this to limit rows of referenced
-     * tables instead of the parent table
-     * @param options.foreignTable - Deprecated, use `options.referencedTable`
-     * instead
-     */
-    limit(count, { foreignTable, referencedTable = foreignTable, } = {}) {
-        const key = typeof referencedTable === 'undefined' ? 'limit' : `${referencedTable}.limit`;
-        this.url.searchParams.set(key, `${count}`);
-        return this;
-    }
-    /**
-     * Limit the query result by starting at an offset `from` and ending at the offset `to`.
-     * Only records within this range are returned.
-     * This respects the query order and if there is no order clause the range could behave unexpectedly.
-     * The `from` and `to` values are 0-based and inclusive: `range(1, 3)` will include the second, third
-     * and fourth rows of the query.
-     *
-     * @param from - The starting index from which to limit the result
-     * @param to - The last index to which to limit the result
-     * @param options - Named parameters
-     * @param options.referencedTable - Set this to limit rows of referenced
-     * tables instead of the parent table
-     * @param options.foreignTable - Deprecated, use `options.referencedTable`
-     * instead
-     */
-    range(from, to, { foreignTable, referencedTable = foreignTable, } = {}) {
-        const keyOffset = typeof referencedTable === 'undefined' ? 'offset' : `${referencedTable}.offset`;
-        const keyLimit = typeof referencedTable === 'undefined' ? 'limit' : `${referencedTable}.limit`;
-        this.url.searchParams.set(keyOffset, `${from}`);
-        // Range is inclusive, so add 1
-        this.url.searchParams.set(keyLimit, `${to - from + 1}`);
-        return this;
-    }
-    /**
-     * Set the AbortSignal for the fetch request.
-     *
-     * @param signal - The AbortSignal to use for the fetch request
-     */
-    abortSignal(signal) {
-        this.signal = signal;
-        return this;
-    }
-    /**
-     * Return `data` as a single object instead of an array of objects.
-     *
-     * Query result must be one row (e.g. using `.limit(1)`), otherwise this
-     * returns an error.
-     */
-    single() {
-        this.headers.set('Accept', 'application/vnd.pgrst.object+json');
-        return this;
-    }
-    /**
-     * Return `data` as a single object instead of an array of objects.
-     *
-     * Query result must be zero or one row (e.g. using `.limit(1)`), otherwise
-     * this returns an error.
-     */
-    maybeSingle() {
-        // Temporary partial fix for https://github.com/supabase/postgrest-js/issues/361
-        // Issue persists e.g. for `.insert([...]).select().maybeSingle()`
-        if (this.method === 'GET') {
-            this.headers.set('Accept', 'application/json');
-        }
-        else {
-            this.headers.set('Accept', 'application/vnd.pgrst.object+json');
-        }
-        this.isMaybeSingle = true;
-        return this;
-    }
-    /**
-     * Return `data` as a string in CSV format.
-     */
-    csv() {
-        this.headers.set('Accept', 'text/csv');
-        return this;
-    }
-    /**
-     * Return `data` as an object in [GeoJSON](https://geojson.org) format.
-     */
-    geojson() {
-        this.headers.set('Accept', 'application/geo+json');
-        return this;
-    }
-    /**
-     * Return `data` as the EXPLAIN plan for the query.
-     *
-     * You need to enable the
-     * [db_plan_enabled](https://supabase.com/docs/guides/database/debugging-performance#enabling-explain)
-     * setting before using this method.
-     *
-     * @param options - Named parameters
-     *
-     * @param options.analyze - If `true`, the query will be executed and the
-     * actual run time will be returned
-     *
-     * @param options.verbose - If `true`, the query identifier will be returned
-     * and `data` will include the output columns of the query
-     *
-     * @param options.settings - If `true`, include information on configuration
-     * parameters that affect query planning
-     *
-     * @param options.buffers - If `true`, include information on buffer usage
-     *
-     * @param options.wal - If `true`, include information on WAL record generation
-     *
-     * @param options.format - The format of the output, can be `"text"` (default)
-     * or `"json"`
-     */
-    explain({ analyze = false, verbose = false, settings = false, buffers = false, wal = false, format = 'text', } = {}) {
-        var _a;
-        const options = [
-            analyze ? 'analyze' : null,
-            verbose ? 'verbose' : null,
-            settings ? 'settings' : null,
-            buffers ? 'buffers' : null,
-            wal ? 'wal' : null,
-        ]
-            .filter(Boolean)
-            .join('|');
-        // An Accept header can carry multiple media types but postgrest-js always sends one
-        const forMediatype = (_a = this.headers.get('Accept')) !== null && _a !== void 0 ? _a : 'application/json';
-        this.headers.set('Accept', `application/vnd.pgrst.plan+${format}; for="${forMediatype}"; options=${options};`);
-        if (format === 'json') {
-            return this;
-        }
-        else {
-            return this;
-        }
-    }
-    /**
-     * Rollback the query.
-     *
-     * `data` will still be returned, but the query is not committed.
-     */
-    rollback() {
-        this.headers.append('Prefer', 'tx=rollback');
-        return this;
-    }
-    /**
-     * Override the type of the returned `data`.
-     *
-     * @typeParam NewResult - The new result type to override with
-     * @deprecated Use overrideTypes<yourType, { merge: false }>() method at the end of your call chain instead
-     */
-    returns() {
-        return this;
-    }
-    /**
-     * Set the maximum number of rows that can be affected by the query.
-     * Only available in PostgREST v13+ and only works with PATCH and DELETE methods.
-     *
-     * @param value - The maximum number of rows that can be affected
-     */
-    maxAffected(value) {
-        this.headers.append('Prefer', 'handling=strict');
-        this.headers.append('Prefer', `max-affected=${value}`);
-        return this;
-    }
-}
-exports["default"] = PostgrestTransformBuilder;
-//# sourceMappingURL=PostgrestTransformBuilder.js.map
-
-/***/ }),
-
-/***/ 1178:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PostgrestError = exports.PostgrestBuilder = exports.PostgrestTransformBuilder = exports.PostgrestFilterBuilder = exports.PostgrestQueryBuilder = exports.PostgrestClient = void 0;
-const tslib_1 = __nccwpck_require__(4351);
-// Always update wrapper.mjs when updating this file.
-const PostgrestClient_1 = tslib_1.__importDefault(__nccwpck_require__(1526));
-exports.PostgrestClient = PostgrestClient_1.default;
-const PostgrestQueryBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(50));
-exports.PostgrestQueryBuilder = PostgrestQueryBuilder_1.default;
-const PostgrestFilterBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(6671));
-exports.PostgrestFilterBuilder = PostgrestFilterBuilder_1.default;
-const PostgrestTransformBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(1566));
-exports.PostgrestTransformBuilder = PostgrestTransformBuilder_1.default;
-const PostgrestBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(1049));
-exports.PostgrestBuilder = PostgrestBuilder_1.default;
-const PostgrestError_1 = tslib_1.__importDefault(__nccwpck_require__(7317));
-exports.PostgrestError = PostgrestError_1.default;
-exports["default"] = {
-    PostgrestClient: PostgrestClient_1.default,
-    PostgrestQueryBuilder: PostgrestQueryBuilder_1.default,
-    PostgrestFilterBuilder: PostgrestFilterBuilder_1.default,
-    PostgrestTransformBuilder: PostgrestTransformBuilder_1.default,
-    PostgrestBuilder: PostgrestBuilder_1.default,
-    PostgrestError: PostgrestError_1.default,
-};
-//# sourceMappingURL=index.js.map
 
 /***/ }),
 
@@ -14325,6 +13496,22 @@ exports.REALTIME_CHANNEL_STATES = constants_1.CHANNEL_STATES;
  * and send and receive messages.
  */
 class RealtimeChannel {
+    /**
+     * Creates a channel that can broadcast messages, sync presence, and listen to Postgres changes.
+     *
+     * The topic determines which realtime stream you are subscribing to. Config options let you
+     * enable acknowledgement for broadcasts, presence tracking, or private channels.
+     *
+     * @example
+     * ```ts
+     * import RealtimeClient from '@supabase/realtime-js'
+     *
+     * const client = new RealtimeClient('https://xyzcompany.supabase.co/realtime/v1', {
+     *   params: { apikey: 'public-anon-key' },
+     * })
+     * const channel = new RealtimeChannel('realtime:public:messages', { config: {} }, client)
+     * ```
+     */
     constructor(
     /** Topic name can be any string. */
     topic, params = { config: {} }, socket) {
@@ -14421,7 +13608,10 @@ class RealtimeChannel {
             this.joinPush
                 .receive('ok', async ({ postgres_changes }) => {
                 var _a;
-                this.socket.setAuth();
+                // Only refresh auth if using callback-based tokens
+                if (!this.socket._isManualToken()) {
+                    this.socket.setAuth();
+                }
                 if (postgres_changes === undefined) {
                     callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
                     return;
@@ -14436,9 +13626,9 @@ class RealtimeChannel {
                         const serverPostgresFilter = postgres_changes && postgres_changes[i];
                         if (serverPostgresFilter &&
                             serverPostgresFilter.event === event &&
-                            serverPostgresFilter.schema === schema &&
-                            serverPostgresFilter.table === table &&
-                            serverPostgresFilter.filter === filter) {
+                            RealtimeChannel.isFilterValueEqual(serverPostgresFilter.schema, schema) &&
+                            RealtimeChannel.isFilterValueEqual(serverPostgresFilter.table, table) &&
+                            RealtimeChannel.isFilterValueEqual(serverPostgresFilter.filter, filter)) {
                             newPostgresBindings.push(Object.assign(Object.assign({}, clientPostgresBinding), { id: serverPostgresFilter.id }));
                         }
                         else {
@@ -14465,9 +13655,19 @@ class RealtimeChannel {
         }
         return this;
     }
+    /**
+     * Returns the current presence state for this channel.
+     *
+     * The shape is a map keyed by presence key (for example a user id) where each entry contains the
+     * tracked metadata for that user.
+     */
     presenceState() {
         return this.presence.state;
     }
+    /**
+     * Sends the supplied payload to the presence tracker so other subscribers can see that this
+     * client is online. Use `untrack` to stop broadcasting presence for the same key.
+     */
     async track(payload, opts = {}) {
         return await this.send({
             type: 'presence',
@@ -14475,6 +13675,9 @@ class RealtimeChannel {
             payload,
         }, opts.timeout || this.timeout);
     }
+    /**
+     * Removes the current presence state for this client.
+     */
     async untrack(opts = {}) {
         return await this.send({
             type: 'presence',
@@ -14484,7 +13687,7 @@ class RealtimeChannel {
     on(type, filter, callback) {
         if (this.state === constants_1.CHANNEL_STATES.joined && type === REALTIME_LISTEN_TYPES.PRESENCE) {
             this.socket.log('channel', `resubscribe to ${this.topic} due to change in presence callbacks on joined channel`);
-            this.unsubscribe().then(() => this.subscribe());
+            this.unsubscribe().then(async () => await this.subscribe());
         }
         return this._on(type, filter, callback);
     }
@@ -14501,19 +13704,19 @@ class RealtimeChannel {
      */
     async httpSend(event, payload, opts = {}) {
         var _a;
-        const authorization = this.socket.accessTokenValue
-            ? `Bearer ${this.socket.accessTokenValue}`
-            : '';
         if (payload === undefined || payload === null) {
             return Promise.reject('Payload is required for httpSend()');
         }
+        const headers = {
+            apikey: this.socket.apiKey ? this.socket.apiKey : '',
+            'Content-Type': 'application/json',
+        };
+        if (this.socket.accessTokenValue) {
+            headers['Authorization'] = `Bearer ${this.socket.accessTokenValue}`;
+        }
         const options = {
             method: 'POST',
-            headers: {
-                Authorization: authorization,
-                apikey: this.socket.apiKey ? this.socket.apiKey : '',
-                'Content-Type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({
                 messages: [
                     {
@@ -14553,16 +13756,16 @@ class RealtimeChannel {
                 'This behavior will be deprecated in the future. ' +
                 'Please use httpSend() explicitly for REST delivery.');
             const { event, payload: endpoint_payload } = args;
-            const authorization = this.socket.accessTokenValue
-                ? `Bearer ${this.socket.accessTokenValue}`
-                : '';
+            const headers = {
+                apikey: this.socket.apiKey ? this.socket.apiKey : '',
+                'Content-Type': 'application/json',
+            };
+            if (this.socket.accessTokenValue) {
+                headers['Authorization'] = `Bearer ${this.socket.accessTokenValue}`;
+            }
             const options = {
                 method: 'POST',
-                headers: {
-                    Authorization: authorization,
-                    apikey: this.socket.apiKey ? this.socket.apiKey : '',
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify({
                     messages: [
                         {
@@ -14601,6 +13804,10 @@ class RealtimeChannel {
             });
         }
     }
+    /**
+     * Updates the payload that will be sent the next time the channel joins (reconnects).
+     * Useful for rotating access tokens or updating config without re-creating the channel.
+     */
     updateJoinPayload(payload) {
         this.joinPush.updatePayload(payload);
     }
@@ -14828,6 +14035,16 @@ class RealtimeChannel {
         }
         return true;
     }
+    /**
+     * Compares two optional filter values for equality.
+     * Treats undefined, null, and empty string as equivalent empty values.
+     * @internal
+     */
+    static isFilterValueEqual(serverValue, clientValue) {
+        const normalizedServer = serverValue !== null && serverValue !== void 0 ? serverValue : undefined;
+        const normalizedClient = clientValue !== null && clientValue !== void 0 ? clientValue : undefined;
+        return normalizedServer === normalizedClient;
+    }
     /** @internal */
     _rejoinUntilConnected() {
         this.rejoinTimer.scheduleTimeout();
@@ -14927,7 +14144,7 @@ class RealtimeClient {
      * @param options.params The optional params to pass when connecting.
      * @param options.headers Deprecated: headers cannot be set on websocket connections and this option will be removed in the future.
      * @param options.heartbeatIntervalMs The millisec interval to send a heartbeat message.
-     * @param options.heartbeatCallback The optional function to handle heartbeat status.
+     * @param options.heartbeatCallback The optional function to handle heartbeat status and latency.
      * @param options.logger The optional function for specialized logging, ie: logger: (kind, msg, data) => { console.log(`${kind}: ${msg}`, data) }
      * @param options.logLevel Sets the log level for Realtime
      * @param options.encode The function to encode outgoing messages. Defaults to JSON: (payload, callback) => callback(JSON.stringify(payload))
@@ -14935,11 +14152,22 @@ class RealtimeClient {
      * @param options.reconnectAfterMs he optional function that returns the millsec reconnect interval. Defaults to stepped backoff off.
      * @param options.worker Use Web Worker to set a side flow. Defaults to false.
      * @param options.workerUrl The URL of the worker script. Defaults to https://realtime.supabase.com/worker.js that includes a heartbeat event call to keep the connection alive.
+     * @param options.vsn The protocol version to use when connecting. Supported versions are "1.0.0" and "2.0.0". Defaults to "2.0.0".
+     * @example
+     * ```ts
+     * import RealtimeClient from '@supabase/realtime-js'
+     *
+     * const client = new RealtimeClient('https://xyzcompany.supabase.co/realtime/v1', {
+     *   params: { apikey: 'public-anon-key' },
+     * })
+     * client.connect()
+     * ```
      */
     constructor(endPoint, options) {
         var _a;
         this.accessTokenValue = null;
         this.apiKey = null;
+        this._manuallySetToken = false;
         this.channels = new Array();
         this.endPoint = '';
         this.httpEndpoint = '';
@@ -14969,6 +14197,7 @@ class RealtimeClient {
         this._connectionState = 'disconnected';
         this._wasManualDisconnect = false;
         this._authPromise = null;
+        this._heartbeatSentAt = null;
         /**
          * Use either custom fetch, if provided, or default fetch to make HTTP requests
          *
@@ -15094,6 +14323,10 @@ class RealtimeClient {
      */
     async removeChannel(channel) {
         const status = await channel.unsubscribe();
+        // Only remove from channels list if unsubscribe was successful
+        if (status === 'ok') {
+            this._remove(channel);
+        }
         if (this.channels.length === 0) {
             this.disconnect();
         }
@@ -15149,6 +14382,13 @@ class RealtimeClient {
     isDisconnecting() {
         return this._connectionState === 'disconnecting';
     }
+    /**
+     * Creates (or reuses) a {@link RealtimeChannel} for the provided topic.
+     *
+     * Topics are automatically prefixed with `realtime:` to match the Realtime service.
+     * If a channel with the same topic already exists it will be returned instead of creating
+     * a duplicate connection.
+     */
     channel(topic, params = { config: {} }) {
         const realtimeTopic = `realtime:${topic}`;
         const exists = this.getChannels().find((c) => c.topic === realtimeTopic);
@@ -15189,7 +14429,18 @@ class RealtimeClient {
      *
      * On callback used, it will set the value of the token internal to the client.
      *
+     * When a token is explicitly provided, it will be preserved across channel operations
+     * (including removeChannel and resubscribe). The `accessToken` callback will not be
+     * invoked until `setAuth()` is called without arguments.
+     *
      * @param token A JWT string to override the token set on the client.
+     *
+     * @example
+     * // Use a manual token (preserved across resubscribes, ignores accessToken callback)
+     * client.realtime.setAuth('my-custom-jwt')
+     *
+     * // Switch back to using the accessToken callback
+     * client.realtime.setAuth()
      */
     async setAuth(token = null) {
         this._authPromise = this._performAuth(token);
@@ -15199,6 +14450,14 @@ class RealtimeClient {
         finally {
             this._authPromise = null;
         }
+    }
+    /**
+     * Returns true if the current access token was explicitly set via setAuth(token),
+     * false if it was obtained via the accessToken callback.
+     * @internal
+     */
+    _isManualToken() {
+        return this._manuallySetToken;
     }
     /**
      * Sends a heartbeat message if the socket is connected.
@@ -15217,6 +14476,7 @@ class RealtimeClient {
         // Handle heartbeat timeout and force reconnection if needed
         if (this.pendingHeartbeatRef) {
             this.pendingHeartbeatRef = null;
+            this._heartbeatSentAt = null;
             this.log('transport', 'heartbeat timeout. Attempting to re-establish connection');
             try {
                 this.heartbeatCallback('timeout');
@@ -15236,6 +14496,7 @@ class RealtimeClient {
             return;
         }
         // Send heartbeat message to server
+        this._heartbeatSentAt = Date.now();
         this.pendingHeartbeatRef = this._makeRef();
         this.push({
             topic: 'phoenix',
@@ -15251,6 +14512,10 @@ class RealtimeClient {
         }
         this._setAuthSafely('heartbeat');
     }
+    /**
+     * Sets a callback that receives lifecycle events for internal heartbeat messages.
+     * Useful for instrumenting connection health (e.g. sent/ok/timeout/disconnected).
+     */
     onHeartbeat(callback) {
         this.heartbeatCallback = callback;
     }
@@ -15304,16 +14569,18 @@ class RealtimeClient {
     _onConnMessage(rawMessage) {
         this.decode(rawMessage.data, (msg) => {
             // Handle heartbeat responses
-            if (msg.topic === 'phoenix' && msg.event === 'phx_reply') {
+            if (msg.topic === 'phoenix' &&
+                msg.event === 'phx_reply' &&
+                msg.ref &&
+                msg.ref === this.pendingHeartbeatRef) {
+                const latency = this._heartbeatSentAt ? Date.now() - this._heartbeatSentAt : undefined;
                 try {
-                    this.heartbeatCallback(msg.payload.status === 'ok' ? 'ok' : 'error');
+                    this.heartbeatCallback(msg.payload.status === 'ok' ? 'ok' : 'error', latency);
                 }
                 catch (e) {
                     this.log('error', 'error in heartbeat callback', e);
                 }
-            }
-            // Handle pending heartbeat reference cleanup
-            if (msg.ref && msg.ref === this.pendingHeartbeatRef) {
+                this._heartbeatSentAt = null;
                 this.pendingHeartbeatRef = null;
             }
             // Log incoming message
@@ -15366,6 +14633,9 @@ class RealtimeClient {
         this.conn.onerror = (error) => this._onConnError(error);
         this.conn.onmessage = (event) => this._onConnMessage(event);
         this.conn.onclose = (event) => this._onConnClose(event);
+        if (this.conn.readyState === constants_1.SOCKET_STATES.open) {
+            this._onConnOpen();
+        }
     }
     /**
      * Teardown connection and cleanup resources
@@ -15389,6 +14659,7 @@ class RealtimeClient {
             this.conn = null;
         }
         this._clearAllTimers();
+        this._terminateWorker();
         this.channels.forEach((channel) => channel.teardown());
     }
     /** @internal */
@@ -15436,7 +14707,7 @@ class RealtimeClient {
         this.workerRef = new Worker(objectUrl);
         this.workerRef.onerror = (error) => {
             this.log('worker', 'worker error', error.message);
-            this.workerRef.terminate();
+            this._terminateWorker();
         };
         this.workerRef.onmessage = (event) => {
             if (event.data.event === 'keepAlive') {
@@ -15447,6 +14718,17 @@ class RealtimeClient {
             event: 'start',
             interval: this.heartbeatIntervalMs,
         });
+    }
+    /**
+     * Terminate the Web Worker and clear the reference
+     * @internal
+     */
+    _terminateWorker() {
+        if (this.workerRef) {
+            this.log('worker', 'terminating worker');
+            this.workerRef.terminate();
+            this.workerRef = undefined;
+        }
     }
     /** @internal */
     _onConnClose(event) {
@@ -15467,6 +14749,12 @@ class RealtimeClient {
         this.log('transport', `${error}`);
         this._triggerChanError();
         this._triggerStateCallbacks('error', error);
+        try {
+            this.heartbeatCallback('error');
+        }
+        catch (e) {
+            this.log('error', 'error in heartbeat callback', e);
+        }
     }
     /** @internal */
     _triggerChanError() {
@@ -15511,15 +14799,33 @@ class RealtimeClient {
      */
     async _performAuth(token = null) {
         let tokenToSend;
+        let isManualToken = false;
         if (token) {
             tokenToSend = token;
+            // Track if this is a manually-provided token
+            isManualToken = true;
         }
         else if (this.accessToken) {
-            // Always call the accessToken callback to get fresh token
-            tokenToSend = await this.accessToken();
+            // Call the accessToken callback to get fresh token
+            try {
+                tokenToSend = await this.accessToken();
+            }
+            catch (e) {
+                this.log('error', 'Error fetching access token from callback', e);
+                // Fall back to cached value if callback fails
+                tokenToSend = this.accessTokenValue;
+            }
         }
         else {
             tokenToSend = this.accessTokenValue;
+        }
+        // Track whether this token was manually set or fetched via callback
+        if (isManualToken) {
+            this._manuallySetToken = true;
+        }
+        else if (this.accessToken) {
+            // If we used the callback, clear the manual flag
+            this._manuallySetToken = false;
         }
         if (this.accessTokenValue != tokenToSend) {
             this.accessTokenValue = tokenToSend;
@@ -15551,9 +14857,12 @@ class RealtimeClient {
      * @internal
      */
     _setAuthSafely(context = 'general') {
-        this.setAuth().catch((e) => {
-            this.log('error', `error setting auth in ${context}`, e);
-        });
+        // Only refresh auth if using callback-based tokens
+        if (!this._isManualToken()) {
+            this.setAuth().catch((e) => {
+                this.log('error', `Error setting auth in ${context}`, e);
+            });
+        }
     }
     /**
      * Trigger state change callbacks with proper error handling
@@ -15668,11 +14977,19 @@ var REALTIME_PRESENCE_LISTEN_EVENTS;
 })(REALTIME_PRESENCE_LISTEN_EVENTS || (exports.REALTIME_PRESENCE_LISTEN_EVENTS = REALTIME_PRESENCE_LISTEN_EVENTS = {}));
 class RealtimePresence {
     /**
-     * Initializes the Presence.
+     * Creates a Presence helper that keeps the local presence state in sync with the server.
      *
-     * @param channel - The RealtimeChannel
-     * @param opts - The options,
-     *        for example `{events: {state: 'state', diff: 'diff'}}`
+     * @param channel - The realtime channel to bind to.
+     * @param opts - Optional custom event names, e.g. `{ events: { state: 'state', diff: 'diff' } }`.
+     *
+     * @example
+     * ```ts
+     * const presence = new RealtimePresence(channel)
+     *
+     * channel.on('presence', ({ event, key }) => {
+     *   console.log(`Presence ${event} on ${key}`)
+     * })
+     * ```
      */
     constructor(channel, opts) {
         this.channel = channel;
@@ -15921,7 +15238,7 @@ const version_1 = __nccwpck_require__(318);
 exports.DEFAULT_VERSION = `realtime-js/${version_1.version}`;
 exports.VSN_1_0_0 = '1.0.0';
 exports.VSN_2_0_0 = '2.0.0';
-exports.DEFAULT_VSN = exports.VSN_1_0_0;
+exports.DEFAULT_VSN = exports.VSN_2_0_0;
 exports.VERSION = version_1.version;
 exports.DEFAULT_TIMEOUT = 10000;
 exports.WS_CLOSE_NORMAL = 1000;
@@ -16075,55 +15392,30 @@ exports["default"] = Push;
 /***/ }),
 
 /***/ 5360:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-// This file draws heavily from https://github.com/phoenixframework/phoenix/commit/cf098e9cf7a44ee6479d31d911a97d3c7430c6fe
-// License: https://github.com/phoenixframework/phoenix/blob/master/LICENSE.md
-const constants_1 = __nccwpck_require__(88);
 class Serializer {
-    constructor() {
+    constructor(allowedMetadataKeys) {
         this.HEADER_LENGTH = 1;
-        this.META_LENGTH = 4;
-        this.USER_BROADCAST_PUSH_META_LENGTH = 5;
-        this.KINDS = { push: 0, reply: 1, broadcast: 2, userBroadcastPush: 3, userBroadcast: 4 };
+        this.USER_BROADCAST_PUSH_META_LENGTH = 6;
+        this.KINDS = { userBroadcastPush: 3, userBroadcast: 4 };
         this.BINARY_ENCODING = 0;
         this.JSON_ENCODING = 1;
-        this.BROADCAST = 'broadcast';
+        this.BROADCAST_EVENT = 'broadcast';
+        this.allowedMetadataKeys = [];
+        this.allowedMetadataKeys = allowedMetadataKeys !== null && allowedMetadataKeys !== void 0 ? allowedMetadataKeys : [];
     }
     encode(msg, callback) {
-        if (this._isArrayBuffer(msg.payload)) {
-            return callback(this._binaryEncodePush(msg));
-        }
-        if (msg.event === this.BROADCAST &&
+        if (msg.event === this.BROADCAST_EVENT &&
             !(msg.payload instanceof ArrayBuffer) &&
             typeof msg.payload.event === 'string') {
             return callback(this._binaryEncodeUserBroadcastPush(msg));
         }
         let payload = [msg.join_ref, msg.ref, msg.topic, msg.event, msg.payload];
         return callback(JSON.stringify(payload));
-    }
-    _binaryEncodePush(message) {
-        const { join_ref, ref, event, topic, payload } = message;
-        const metaLength = this.META_LENGTH + join_ref.length + ref.length + topic.length + event.length;
-        const header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
-        let view = new DataView(header);
-        let offset = 0;
-        view.setUint8(offset++, this.KINDS.push); // kind
-        view.setUint8(offset++, join_ref.length);
-        view.setUint8(offset++, ref.length);
-        view.setUint8(offset++, topic.length);
-        view.setUint8(offset++, event.length);
-        Array.from(join_ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(event, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        var combined = new Uint8Array(header.byteLength + payload.byteLength);
-        combined.set(new Uint8Array(header), 0);
-        combined.set(new Uint8Array(payload), header.byteLength);
-        return combined.buffer;
     }
     _binaryEncodeUserBroadcastPush(message) {
         var _a;
@@ -16136,60 +15428,67 @@ class Serializer {
     }
     _encodeBinaryUserBroadcastPush(message) {
         var _a, _b;
-        const { join_ref, ref, topic } = message;
-        const userEvent = message.payload.event;
         const userPayload = (_b = (_a = message.payload) === null || _a === void 0 ? void 0 : _a.payload) !== null && _b !== void 0 ? _b : new ArrayBuffer(0);
-        const metaLength = this.USER_BROADCAST_PUSH_META_LENGTH +
-            join_ref.length +
-            ref.length +
-            topic.length +
-            userEvent.length;
-        const header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
-        let view = new DataView(header);
-        let offset = 0;
-        view.setUint8(offset++, this.KINDS.userBroadcastPush); // kind
-        view.setUint8(offset++, join_ref.length);
-        view.setUint8(offset++, ref.length);
-        view.setUint8(offset++, topic.length);
-        view.setUint8(offset++, userEvent.length);
-        view.setUint8(offset++, this.BINARY_ENCODING);
-        Array.from(join_ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        Array.from(userEvent, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        var combined = new Uint8Array(header.byteLength + userPayload.byteLength);
-        combined.set(new Uint8Array(header), 0);
-        combined.set(new Uint8Array(userPayload), header.byteLength);
-        return combined.buffer;
+        return this._encodeUserBroadcastPush(message, this.BINARY_ENCODING, userPayload);
     }
     _encodeJsonUserBroadcastPush(message) {
         var _a, _b;
-        const { join_ref, ref, topic } = message;
-        const userEvent = message.payload.event;
         const userPayload = (_b = (_a = message.payload) === null || _a === void 0 ? void 0 : _a.payload) !== null && _b !== void 0 ? _b : {};
-        const encoder = new TextEncoder(); // Encodes to UTF-8
+        const encoder = new TextEncoder();
         const encodedUserPayload = encoder.encode(JSON.stringify(userPayload)).buffer;
+        return this._encodeUserBroadcastPush(message, this.JSON_ENCODING, encodedUserPayload);
+    }
+    _encodeUserBroadcastPush(message, encodingType, encodedPayload) {
+        var _a, _b;
+        const topic = message.topic;
+        const ref = (_a = message.ref) !== null && _a !== void 0 ? _a : '';
+        const joinRef = (_b = message.join_ref) !== null && _b !== void 0 ? _b : '';
+        const userEvent = message.payload.event;
+        // Filter metadata based on allowed keys
+        const rest = this.allowedMetadataKeys
+            ? this._pick(message.payload, this.allowedMetadataKeys)
+            : {};
+        const metadata = Object.keys(rest).length === 0 ? '' : JSON.stringify(rest);
+        // Validate lengths don't exceed uint8 max value (255)
+        if (joinRef.length > 255) {
+            throw new Error(`joinRef length ${joinRef.length} exceeds maximum of 255`);
+        }
+        if (ref.length > 255) {
+            throw new Error(`ref length ${ref.length} exceeds maximum of 255`);
+        }
+        if (topic.length > 255) {
+            throw new Error(`topic length ${topic.length} exceeds maximum of 255`);
+        }
+        if (userEvent.length > 255) {
+            throw new Error(`userEvent length ${userEvent.length} exceeds maximum of 255`);
+        }
+        if (metadata.length > 255) {
+            throw new Error(`metadata length ${metadata.length} exceeds maximum of 255`);
+        }
         const metaLength = this.USER_BROADCAST_PUSH_META_LENGTH +
-            join_ref.length +
+            joinRef.length +
             ref.length +
             topic.length +
-            userEvent.length;
+            userEvent.length +
+            metadata.length;
         const header = new ArrayBuffer(this.HEADER_LENGTH + metaLength);
         let view = new DataView(header);
         let offset = 0;
         view.setUint8(offset++, this.KINDS.userBroadcastPush); // kind
-        view.setUint8(offset++, join_ref.length);
+        view.setUint8(offset++, joinRef.length);
         view.setUint8(offset++, ref.length);
         view.setUint8(offset++, topic.length);
         view.setUint8(offset++, userEvent.length);
-        view.setUint8(offset++, this.JSON_ENCODING);
-        Array.from(join_ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        view.setUint8(offset++, metadata.length);
+        view.setUint8(offset++, encodingType);
+        Array.from(joinRef, (char) => view.setUint8(offset++, char.charCodeAt(0)));
         Array.from(ref, (char) => view.setUint8(offset++, char.charCodeAt(0)));
         Array.from(topic, (char) => view.setUint8(offset++, char.charCodeAt(0)));
         Array.from(userEvent, (char) => view.setUint8(offset++, char.charCodeAt(0)));
-        var combined = new Uint8Array(header.byteLength + encodedUserPayload.byteLength);
+        Array.from(metadata, (char) => view.setUint8(offset++, char.charCodeAt(0)));
+        var combined = new Uint8Array(header.byteLength + encodedPayload.byteLength);
         combined.set(new Uint8Array(header), 0);
-        combined.set(new Uint8Array(encodedUserPayload), header.byteLength);
+        combined.set(new Uint8Array(encodedPayload), header.byteLength);
         return combined.buffer;
     }
     decode(rawPayload, callback) {
@@ -16209,70 +15508,9 @@ class Serializer {
         const kind = view.getUint8(0);
         const decoder = new TextDecoder();
         switch (kind) {
-            case this.KINDS.push:
-                return this._decodePush(buffer, view, decoder);
-            case this.KINDS.reply:
-                return this._decodeReply(buffer, view, decoder);
-            case this.KINDS.broadcast:
-                return this._decodeBroadcast(buffer, view, decoder);
             case this.KINDS.userBroadcast:
                 return this._decodeUserBroadcast(buffer, view, decoder);
         }
-    }
-    _decodePush(buffer, view, decoder) {
-        const joinRefSize = view.getUint8(1);
-        const topicSize = view.getUint8(2);
-        const eventSize = view.getUint8(3);
-        let offset = this.HEADER_LENGTH + this.META_LENGTH - 1; // pushes have no ref
-        const joinRef = decoder.decode(buffer.slice(offset, offset + joinRefSize));
-        offset = offset + joinRefSize;
-        const topic = decoder.decode(buffer.slice(offset, offset + topicSize));
-        offset = offset + topicSize;
-        const event = decoder.decode(buffer.slice(offset, offset + eventSize));
-        offset = offset + eventSize;
-        const data = JSON.parse(decoder.decode(buffer.slice(offset, buffer.byteLength)));
-        return {
-            join_ref: joinRef,
-            ref: null,
-            topic: topic,
-            event: event,
-            payload: data,
-        };
-    }
-    _decodeReply(buffer, view, decoder) {
-        const joinRefSize = view.getUint8(1);
-        const refSize = view.getUint8(2);
-        const topicSize = view.getUint8(3);
-        const eventSize = view.getUint8(4);
-        let offset = this.HEADER_LENGTH + this.META_LENGTH;
-        const joinRef = decoder.decode(buffer.slice(offset, offset + joinRefSize));
-        offset = offset + joinRefSize;
-        const ref = decoder.decode(buffer.slice(offset, offset + refSize));
-        offset = offset + refSize;
-        const topic = decoder.decode(buffer.slice(offset, offset + topicSize));
-        offset = offset + topicSize;
-        const event = decoder.decode(buffer.slice(offset, offset + eventSize));
-        offset = offset + eventSize;
-        const data = JSON.parse(decoder.decode(buffer.slice(offset, buffer.byteLength)));
-        const payload = { status: event, response: data };
-        return {
-            join_ref: joinRef,
-            ref: ref,
-            topic: topic,
-            event: constants_1.CHANNEL_EVENTS.reply,
-            payload: payload,
-        };
-    }
-    _decodeBroadcast(buffer, view, decoder) {
-        const topicSize = view.getUint8(1);
-        const eventSize = view.getUint8(2);
-        let offset = this.HEADER_LENGTH + 2;
-        const topic = decoder.decode(buffer.slice(offset, offset + topicSize));
-        offset = offset + topicSize;
-        const event = decoder.decode(buffer.slice(offset, offset + eventSize));
-        offset = offset + eventSize;
-        const data = JSON.parse(decoder.decode(buffer.slice(offset, buffer.byteLength)));
-        return { join_ref: null, ref: null, topic: topic, event: event, payload: data };
     }
     _decodeUserBroadcast(buffer, view, decoder) {
         const topicSize = view.getUint8(1);
@@ -16289,7 +15527,7 @@ class Serializer {
         const payload = buffer.slice(offset, buffer.byteLength);
         const parsedPayload = payloadEncoding === this.JSON_ENCODING ? JSON.parse(decoder.decode(payload)) : payload;
         const data = {
-            type: this.BROADCAST,
+            type: this.BROADCAST_EVENT,
             event: userEvent,
             payload: parsedPayload,
         };
@@ -16297,11 +15535,17 @@ class Serializer {
         if (metadataSize > 0) {
             data['meta'] = JSON.parse(metadata);
         }
-        return { join_ref: null, ref: null, topic: topic, event: this.BROADCAST, payload: data };
+        return { join_ref: null, ref: null, topic: topic, event: this.BROADCAST_EVENT, payload: data };
     }
     _isArrayBuffer(buffer) {
         var _a;
         return buffer instanceof ArrayBuffer || ((_a = buffer === null || buffer === void 0 ? void 0 : buffer.constructor) === null || _a === void 0 ? void 0 : _a.name) === 'ArrayBuffer';
+    }
+    _pick(obj, keys) {
+        if (!obj || typeof obj !== 'object') {
+            return {};
+        }
+        return Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)));
     }
 }
 exports["default"] = Serializer;
@@ -16527,8 +15771,7 @@ const toJson = (value) => {
         try {
             return JSON.parse(value);
         }
-        catch (error) {
-            console.log(`JSON parse error: ${error}`);
+        catch (_a) {
             return value;
         }
     }
@@ -16617,7 +15860,7 @@ exports.version = void 0;
 // - Debugging and support (identifying which version is running)
 // - Telemetry and logging (version reporting in errors/analytics)
 // - Ensuring build artifacts match the published package version
-exports.version = '2.81.1';
+exports.version = '2.95.3';
 //# sourceMappingURL=version.js.map
 
 /***/ }),
@@ -16629,7 +15872,14 @@ exports.version = '2.81.1';
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.WebSocketFactory = void 0;
+/**
+ * Utilities for creating WebSocket instances across runtimes.
+ */
 class WebSocketFactory {
+    /**
+     * Static-only utility – prevent instantiation.
+     */
+    constructor() { }
     static detectEnvironment() {
         var _a;
         if (typeof WebSocket !== 'undefined') {
@@ -16658,9 +15908,10 @@ class WebSocketFactory {
                 workaround: 'Use serverless functions or a different deployment target for WebSocket functionality.',
             };
         }
-        if (typeof process !== 'undefined') {
-            // Use dynamic property access to avoid Next.js Edge Runtime static analysis warnings
-            const processVersions = process['versions'];
+        // Use dynamic property access to avoid Next.js Edge Runtime static analysis warnings
+        const _process = globalThis['process'];
+        if (_process) {
+            const processVersions = _process['versions'];
             if (processVersions && processVersions['node']) {
                 // Remove 'v' prefix if present and parse the major version
                 const versionString = processVersions['node'];
@@ -16694,6 +15945,15 @@ class WebSocketFactory {
             workaround: "Ensure you're running in a supported environment (browser, Node.js, Deno) or provide a custom WebSocket implementation.",
         };
     }
+    /**
+     * Returns the best available WebSocket constructor for the current runtime.
+     *
+     * @example
+     * ```ts
+     * const WS = WebSocketFactory.getWebSocketConstructor()
+     * const socket = new WS('wss://realtime.supabase.co/socket')
+     * ```
+     */
     static getWebSocketConstructor() {
         const env = this.detectEnvironment();
         if (env.constructor) {
@@ -16705,10 +15965,28 @@ class WebSocketFactory {
         }
         throw new Error(errorMessage);
     }
+    /**
+     * Creates a WebSocket using the detected constructor.
+     *
+     * @example
+     * ```ts
+     * const socket = WebSocketFactory.createWebSocket('wss://realtime.supabase.co/socket')
+     * ```
+     */
     static createWebSocket(url, protocols) {
         const WS = this.getWebSocketConstructor();
         return new WS(url, protocols);
     }
+    /**
+     * Detects whether the runtime can establish WebSocket connections.
+     *
+     * @example
+     * ```ts
+     * if (!WebSocketFactory.isWebSocketSupported()) {
+     *   console.warn('Falling back to long polling')
+     * }
+     * ```
+     */
     static isWebSocketSupported() {
         try {
             const env = this.detectEnvironment();
@@ -16722,3469 +16000,6 @@ class WebSocketFactory {
 exports.WebSocketFactory = WebSocketFactory;
 exports["default"] = WebSocketFactory;
 //# sourceMappingURL=websocket-factory.js.map
-
-/***/ }),
-
-/***/ 4249:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.StorageClient = void 0;
-const tslib_1 = __nccwpck_require__(4351);
-const StorageFileApi_1 = tslib_1.__importDefault(__nccwpck_require__(710));
-const StorageBucketApi_1 = tslib_1.__importDefault(__nccwpck_require__(3528));
-const StorageAnalyticsApi_1 = tslib_1.__importDefault(__nccwpck_require__(7339));
-const vectors_1 = __nccwpck_require__(9380);
-class StorageClient extends StorageBucketApi_1.default {
-    constructor(url, headers = {}, fetch, opts) {
-        super(url, headers, fetch, opts);
-    }
-    /**
-     * Perform file operation in a bucket.
-     *
-     * @param id The bucket id to operate on.
-     */
-    from(id) {
-        return new StorageFileApi_1.default(this.url, this.headers, id, this.fetch);
-    }
-    /**
-     * Access vector storage operations.
-     *
-     * @returns A StorageVectorsClient instance configured with the current storage settings.
-     */
-    get vectors() {
-        return new vectors_1.StorageVectorsClient(this.url + '/vector', {
-            headers: this.headers,
-            fetch: this.fetch,
-        });
-    }
-    /**
-     * Access analytics storage operations using Iceberg tables.
-     *
-     * @returns A StorageAnalyticsApi instance configured with the current storage settings.
-     * @example
-     * ```typescript
-     * const client = createClient(url, key)
-     * const analytics = client.storage.analytics
-     *
-     * // Create an analytics bucket
-     * await analytics.createBucket('my-analytics-bucket')
-     *
-     * // List all analytics buckets
-     * const { data: buckets } = await analytics.listBuckets()
-     *
-     * // Delete an analytics bucket
-     * await analytics.deleteBucket('old-analytics-bucket')
-     * ```
-     */
-    get analytics() {
-        return new StorageAnalyticsApi_1.default(this.url + '/iceberg', this.headers, this.fetch);
-    }
-}
-exports.StorageClient = StorageClient;
-//# sourceMappingURL=StorageClient.js.map
-
-/***/ }),
-
-/***/ 5852:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.StorageAnalyticsApi = exports.StorageClient = void 0;
-const tslib_1 = __nccwpck_require__(4351);
-var StorageClient_1 = __nccwpck_require__(4249);
-Object.defineProperty(exports, "StorageClient", ({ enumerable: true, get: function () { return StorageClient_1.StorageClient; } }));
-var StorageAnalyticsApi_1 = __nccwpck_require__(7339);
-Object.defineProperty(exports, "StorageAnalyticsApi", ({ enumerable: true, get: function () { return tslib_1.__importDefault(StorageAnalyticsApi_1).default; } }));
-tslib_1.__exportStar(__nccwpck_require__(7222), exports);
-tslib_1.__exportStar(__nccwpck_require__(2758), exports);
-tslib_1.__exportStar(__nccwpck_require__(9380), exports);
-//# sourceMappingURL=index.js.map
-
-/***/ }),
-
-/***/ 9754:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DEFAULT_HEADERS = void 0;
-const version_1 = __nccwpck_require__(4499);
-exports.DEFAULT_HEADERS = {
-    'X-Client-Info': `storage-js/${version_1.version}`,
-};
-//# sourceMappingURL=constants.js.map
-
-/***/ }),
-
-/***/ 2758:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.StorageUnknownError = exports.StorageApiError = exports.StorageError = void 0;
-exports.isStorageError = isStorageError;
-class StorageError extends Error {
-    constructor(message) {
-        super(message);
-        this.__isStorageError = true;
-        this.name = 'StorageError';
-    }
-}
-exports.StorageError = StorageError;
-function isStorageError(error) {
-    return typeof error === 'object' && error !== null && '__isStorageError' in error;
-}
-class StorageApiError extends StorageError {
-    constructor(message, status, statusCode) {
-        super(message);
-        this.name = 'StorageApiError';
-        this.status = status;
-        this.statusCode = statusCode;
-    }
-    toJSON() {
-        return {
-            name: this.name,
-            message: this.message,
-            status: this.status,
-            statusCode: this.statusCode,
-        };
-    }
-}
-exports.StorageApiError = StorageApiError;
-class StorageUnknownError extends StorageError {
-    constructor(message, originalError) {
-        super(message);
-        this.name = 'StorageUnknownError';
-        this.originalError = originalError;
-    }
-}
-exports.StorageUnknownError = StorageUnknownError;
-//# sourceMappingURL=errors.js.map
-
-/***/ }),
-
-/***/ 3146:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.get = get;
-exports.post = post;
-exports.put = put;
-exports.head = head;
-exports.remove = remove;
-const tslib_1 = __nccwpck_require__(4351);
-const errors_1 = __nccwpck_require__(2758);
-const helpers_1 = __nccwpck_require__(5430);
-const _getErrorMessage = (err) => {
-    var _a;
-    return err.msg ||
-        err.message ||
-        err.error_description ||
-        (typeof err.error === 'string' ? err.error : (_a = err.error) === null || _a === void 0 ? void 0 : _a.message) ||
-        JSON.stringify(err);
-};
-const handleError = (error, reject, options) => tslib_1.__awaiter(void 0, void 0, void 0, function* () {
-    const Res = yield (0, helpers_1.resolveResponse)();
-    if (error instanceof Res && !(options === null || options === void 0 ? void 0 : options.noResolveJson)) {
-        error
-            .json()
-            .then((err) => {
-            const status = error.status || 500;
-            const statusCode = (err === null || err === void 0 ? void 0 : err.statusCode) || status + '';
-            reject(new errors_1.StorageApiError(_getErrorMessage(err), status, statusCode));
-        })
-            .catch((err) => {
-            reject(new errors_1.StorageUnknownError(_getErrorMessage(err), err));
-        });
-    }
-    else {
-        reject(new errors_1.StorageUnknownError(_getErrorMessage(error), error));
-    }
-});
-const _getRequestParams = (method, options, parameters, body) => {
-    const params = { method, headers: (options === null || options === void 0 ? void 0 : options.headers) || {} };
-    if (method === 'GET' || !body) {
-        return params;
-    }
-    if ((0, helpers_1.isPlainObject)(body)) {
-        params.headers = Object.assign({ 'Content-Type': 'application/json' }, options === null || options === void 0 ? void 0 : options.headers);
-        params.body = JSON.stringify(body);
-    }
-    else {
-        params.body = body;
-    }
-    if (options === null || options === void 0 ? void 0 : options.duplex) {
-        params.duplex = options.duplex;
-    }
-    return Object.assign(Object.assign({}, params), parameters);
-};
-function _handleRequest(fetcher, method, url, options, parameters, body) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return new Promise((resolve, reject) => {
-            fetcher(url, _getRequestParams(method, options, parameters, body))
-                .then((result) => {
-                if (!result.ok)
-                    throw result;
-                if (options === null || options === void 0 ? void 0 : options.noResolveJson)
-                    return result;
-                return result.json();
-            })
-                .then((data) => resolve(data))
-                .catch((error) => handleError(error, reject, options));
-        });
-    });
-}
-function get(fetcher, url, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'GET', url, options, parameters);
-    });
-}
-function post(fetcher, url, body, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'POST', url, options, parameters, body);
-    });
-}
-function put(fetcher, url, body, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'PUT', url, options, parameters, body);
-    });
-}
-function head(fetcher, url, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'HEAD', url, Object.assign(Object.assign({}, options), { noResolveJson: true }), parameters);
-    });
-}
-function remove(fetcher, url, body, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'DELETE', url, options, parameters, body);
-    });
-}
-//# sourceMappingURL=fetch.js.map
-
-/***/ }),
-
-/***/ 5430:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isPlainObject = exports.recursiveToCamel = exports.resolveResponse = exports.resolveFetch = void 0;
-const resolveFetch = (customFetch) => {
-    if (customFetch) {
-        return (...args) => customFetch(...args);
-    }
-    return (...args) => fetch(...args);
-};
-exports.resolveFetch = resolveFetch;
-const resolveResponse = () => {
-    return Response;
-};
-exports.resolveResponse = resolveResponse;
-const recursiveToCamel = (item) => {
-    if (Array.isArray(item)) {
-        return item.map((el) => (0, exports.recursiveToCamel)(el));
-    }
-    else if (typeof item === 'function' || item !== Object(item)) {
-        return item;
-    }
-    const result = {};
-    Object.entries(item).forEach(([key, value]) => {
-        const newKey = key.replace(/([-_][a-z])/gi, (c) => c.toUpperCase().replace(/[-_]/g, ''));
-        result[newKey] = (0, exports.recursiveToCamel)(value);
-    });
-    return result;
-};
-exports.recursiveToCamel = recursiveToCamel;
-/**
- * Determine if input is a plain object
- * An object is plain if it's created by either {}, new Object(), or Object.create(null)
- * source: https://github.com/sindresorhus/is-plain-obj
- */
-const isPlainObject = (value) => {
-    if (typeof value !== 'object' || value === null) {
-        return false;
-    }
-    const prototype = Object.getPrototypeOf(value);
-    return ((prototype === null ||
-        prototype === Object.prototype ||
-        Object.getPrototypeOf(prototype) === null) &&
-        !(Symbol.toStringTag in value) &&
-        !(Symbol.iterator in value));
-};
-exports.isPlainObject = isPlainObject;
-//# sourceMappingURL=helpers.js.map
-
-/***/ }),
-
-/***/ 7222:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-//# sourceMappingURL=types.js.map
-
-/***/ }),
-
-/***/ 9403:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.VectorIndexScope = exports.VectorBucketScope = exports.StorageVectorsClient = void 0;
-const tslib_1 = __nccwpck_require__(4351);
-const VectorIndexApi_1 = tslib_1.__importDefault(__nccwpck_require__(9623));
-const VectorDataApi_1 = tslib_1.__importDefault(__nccwpck_require__(3073));
-const VectorBucketApi_1 = tslib_1.__importDefault(__nccwpck_require__(4268));
-/**
- * Main client for interacting with S3 Vectors API
- * Provides access to bucket, index, and vector data operations
- *
- * **Usage Patterns:**
- *
- * 1. **Via StorageClient (recommended for most use cases):**
- * ```typescript
- * import { StorageClient } from '@supabase/storage-js'
- *
- * const storageClient = new StorageClient(url, headers)
- * const vectors = storageClient.vectors
- *
- * // Use vector operations
- * await vectors.createBucket('embeddings-prod')
- * const bucket = vectors.from('embeddings-prod')
- * await bucket.createIndex({ ... })
- * ```
- *
- * 2. **Standalone (for vector-only applications):**
- * ```typescript
- * import { StorageVectorsClient } from '@supabase/storage-js'
- *
- * const vectorsClient = new StorageVectorsClient('https://api.example.com', {
- *   headers: { 'Authorization': 'Bearer token' }
- * })
- *
- * // Access bucket operations
- * await vectorsClient.createBucket('embeddings-prod')
- *
- * // Access index operations via buckets
- * const bucket = vectorsClient.from('embeddings-prod')
- * await bucket.createIndex({
- *   indexName: 'documents',
- *   dataType: 'float32',
- *   dimension: 1536,
- *   distanceMetric: 'cosine'
- * })
- *
- * // Access vector operations via index
- * const index = bucket.index('documents')
- * await index.putVectors({
- *   vectors: [
- *     { key: 'doc-1', data: { float32: [...] }, metadata: { title: 'Intro' } }
- *   ]
- * })
- *
- * // Query similar vectors
- * const { data } = await index.queryVectors({
- *   queryVector: { float32: [...] },
- *   topK: 5,
- *   returnDistance: true
- * })
- * ```
- */
-class StorageVectorsClient extends VectorBucketApi_1.default {
-    constructor(url, options = {}) {
-        super(url, options.headers || {}, options.fetch);
-    }
-    /**
-     * Access operations for a specific vector bucket
-     * Returns a scoped client for index and vector operations within the bucket
-     *
-     * @param vectorBucketName - Name of the vector bucket
-     * @returns Bucket-scoped client with index and vector operations
-     *
-     * @example
-     * ```typescript
-     * const bucket = client.bucket('embeddings-prod')
-     *
-     * // Create an index in this bucket
-     * await bucket.createIndex({
-     *   indexName: 'documents-openai',
-     *   dataType: 'float32',
-     *   dimension: 1536,
-     *   distanceMetric: 'cosine'
-     * })
-     *
-     * // List indexes in this bucket
-     * const { data } = await bucket.listIndexes()
-     * ```
-     */
-    from(vectorBucketName) {
-        return new VectorBucketScope(this.url, this.headers, vectorBucketName, this.fetch);
-    }
-}
-exports.StorageVectorsClient = StorageVectorsClient;
-/**
- * Scoped client for operations within a specific vector bucket
- * Provides index management and access to vector operations
- */
-class VectorBucketScope extends VectorIndexApi_1.default {
-    constructor(url, headers, vectorBucketName, fetch) {
-        super(url, headers, fetch);
-        this.vectorBucketName = vectorBucketName;
-    }
-    /**
-     * Creates a new vector index in this bucket
-     * Convenience method that automatically includes the bucket name
-     *
-     * @param options - Index configuration (vectorBucketName is automatically set)
-     * @returns Promise with empty response on success or error
-     *
-     * @example
-     * ```typescript
-     * const bucket = client.bucket('embeddings-prod')
-     * await bucket.createIndex({
-     *   indexName: 'documents-openai',
-     *   dataType: 'float32',
-     *   dimension: 1536,
-     *   distanceMetric: 'cosine',
-     *   metadataConfiguration: {
-     *     nonFilterableMetadataKeys: ['raw_text']
-     *   }
-     * })
-     * ```
-     */
-    createIndex(options) {
-        const _super = Object.create(null, {
-            createIndex: { get: () => super.createIndex }
-        });
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return _super.createIndex.call(this, Object.assign(Object.assign({}, options), { vectorBucketName: this.vectorBucketName }));
-        });
-    }
-    /**
-     * Lists indexes in this bucket
-     * Convenience method that automatically includes the bucket name
-     *
-     * @param options - Listing options (vectorBucketName is automatically set)
-     * @returns Promise with list of indexes or error
-     *
-     * @example
-     * ```typescript
-     * const bucket = client.bucket('embeddings-prod')
-     * const { data } = await bucket.listIndexes({ prefix: 'documents-' })
-     * ```
-     */
-    listIndexes() {
-        const _super = Object.create(null, {
-            listIndexes: { get: () => super.listIndexes }
-        });
-        return tslib_1.__awaiter(this, arguments, void 0, function* (options = {}) {
-            return _super.listIndexes.call(this, Object.assign(Object.assign({}, options), { vectorBucketName: this.vectorBucketName }));
-        });
-    }
-    /**
-     * Retrieves metadata for a specific index in this bucket
-     * Convenience method that automatically includes the bucket name
-     *
-     * @param indexName - Name of the index to retrieve
-     * @returns Promise with index metadata or error
-     *
-     * @example
-     * ```typescript
-     * const bucket = client.bucket('embeddings-prod')
-     * const { data } = await bucket.getIndex('documents-openai')
-     * console.log('Dimension:', data?.index.dimension)
-     * ```
-     */
-    getIndex(indexName) {
-        const _super = Object.create(null, {
-            getIndex: { get: () => super.getIndex }
-        });
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return _super.getIndex.call(this, this.vectorBucketName, indexName);
-        });
-    }
-    /**
-     * Deletes an index from this bucket
-     * Convenience method that automatically includes the bucket name
-     *
-     * @param indexName - Name of the index to delete
-     * @returns Promise with empty response on success or error
-     *
-     * @example
-     * ```typescript
-     * const bucket = client.bucket('embeddings-prod')
-     * await bucket.deleteIndex('old-index')
-     * ```
-     */
-    deleteIndex(indexName) {
-        const _super = Object.create(null, {
-            deleteIndex: { get: () => super.deleteIndex }
-        });
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return _super.deleteIndex.call(this, this.vectorBucketName, indexName);
-        });
-    }
-    /**
-     * Access operations for a specific index within this bucket
-     * Returns a scoped client for vector data operations
-     *
-     * @param indexName - Name of the index
-     * @returns Index-scoped client with vector data operations
-     *
-     * @example
-     * ```typescript
-     * const index = client.bucket('embeddings-prod').index('documents-openai')
-     *
-     * // Insert vectors
-     * await index.putVectors({
-     *   vectors: [
-     *     { key: 'doc-1', data: { float32: [...] }, metadata: { title: 'Intro' } }
-     *   ]
-     * })
-     *
-     * // Query similar vectors
-     * const { data } = await index.queryVectors({
-     *   queryVector: { float32: [...] },
-     *   topK: 5
-     * })
-     * ```
-     */
-    index(indexName) {
-        return new VectorIndexScope(this.url, this.headers, this.vectorBucketName, indexName, this.fetch);
-    }
-}
-exports.VectorBucketScope = VectorBucketScope;
-/**
- * Scoped client for operations within a specific vector index
- * Provides vector data operations (put, get, list, query, delete)
- */
-class VectorIndexScope extends VectorDataApi_1.default {
-    constructor(url, headers, vectorBucketName, indexName, fetch) {
-        super(url, headers, fetch);
-        this.vectorBucketName = vectorBucketName;
-        this.indexName = indexName;
-    }
-    /**
-     * Inserts or updates vectors in this index
-     * Convenience method that automatically includes bucket and index names
-     *
-     * @param options - Vector insertion options (bucket and index names automatically set)
-     * @returns Promise with empty response on success or error
-     *
-     * @example
-     * ```typescript
-     * const index = client.bucket('embeddings-prod').index('documents-openai')
-     * await index.putVectors({
-     *   vectors: [
-     *     {
-     *       key: 'doc-1',
-     *       data: { float32: [0.1, 0.2, ...] },
-     *       metadata: { title: 'Introduction', page: 1 }
-     *     }
-     *   ]
-     * })
-     * ```
-     */
-    putVectors(options) {
-        const _super = Object.create(null, {
-            putVectors: { get: () => super.putVectors }
-        });
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return _super.putVectors.call(this, Object.assign(Object.assign({}, options), { vectorBucketName: this.vectorBucketName, indexName: this.indexName }));
-        });
-    }
-    /**
-     * Retrieves vectors by keys from this index
-     * Convenience method that automatically includes bucket and index names
-     *
-     * @param options - Vector retrieval options (bucket and index names automatically set)
-     * @returns Promise with array of vectors or error
-     *
-     * @example
-     * ```typescript
-     * const index = client.bucket('embeddings-prod').index('documents-openai')
-     * const { data } = await index.getVectors({
-     *   keys: ['doc-1', 'doc-2'],
-     *   returnMetadata: true
-     * })
-     * ```
-     */
-    getVectors(options) {
-        const _super = Object.create(null, {
-            getVectors: { get: () => super.getVectors }
-        });
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return _super.getVectors.call(this, Object.assign(Object.assign({}, options), { vectorBucketName: this.vectorBucketName, indexName: this.indexName }));
-        });
-    }
-    /**
-     * Lists vectors in this index with pagination
-     * Convenience method that automatically includes bucket and index names
-     *
-     * @param options - Listing options (bucket and index names automatically set)
-     * @returns Promise with array of vectors and pagination token
-     *
-     * @example
-     * ```typescript
-     * const index = client.bucket('embeddings-prod').index('documents-openai')
-     * const { data } = await index.listVectors({
-     *   maxResults: 500,
-     *   returnMetadata: true
-     * })
-     * ```
-     */
-    listVectors() {
-        const _super = Object.create(null, {
-            listVectors: { get: () => super.listVectors }
-        });
-        return tslib_1.__awaiter(this, arguments, void 0, function* (options = {}) {
-            return _super.listVectors.call(this, Object.assign(Object.assign({}, options), { vectorBucketName: this.vectorBucketName, indexName: this.indexName }));
-        });
-    }
-    /**
-     * Queries for similar vectors in this index
-     * Convenience method that automatically includes bucket and index names
-     *
-     * @param options - Query options (bucket and index names automatically set)
-     * @returns Promise with array of similar vectors ordered by distance
-     *
-     * @example
-     * ```typescript
-     * const index = client.bucket('embeddings-prod').index('documents-openai')
-     * const { data } = await index.queryVectors({
-     *   queryVector: { float32: [0.1, 0.2, ...] },
-     *   topK: 5,
-     *   filter: { category: 'technical' },
-     *   returnDistance: true,
-     *   returnMetadata: true
-     * })
-     * ```
-     */
-    queryVectors(options) {
-        const _super = Object.create(null, {
-            queryVectors: { get: () => super.queryVectors }
-        });
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return _super.queryVectors.call(this, Object.assign(Object.assign({}, options), { vectorBucketName: this.vectorBucketName, indexName: this.indexName }));
-        });
-    }
-    /**
-     * Deletes vectors by keys from this index
-     * Convenience method that automatically includes bucket and index names
-     *
-     * @param options - Deletion options (bucket and index names automatically set)
-     * @returns Promise with empty response on success or error
-     *
-     * @example
-     * ```typescript
-     * const index = client.bucket('embeddings-prod').index('documents-openai')
-     * await index.deleteVectors({
-     *   keys: ['doc-1', 'doc-2', 'doc-3']
-     * })
-     * ```
-     */
-    deleteVectors(options) {
-        const _super = Object.create(null, {
-            deleteVectors: { get: () => super.deleteVectors }
-        });
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return _super.deleteVectors.call(this, Object.assign(Object.assign({}, options), { vectorBucketName: this.vectorBucketName, indexName: this.indexName }));
-        });
-    }
-}
-exports.VectorIndexScope = VectorIndexScope;
-//# sourceMappingURL=StorageVectorsClient.js.map
-
-/***/ }),
-
-/***/ 4268:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const constants_1 = __nccwpck_require__(6876);
-const errors_1 = __nccwpck_require__(3071);
-const fetch_1 = __nccwpck_require__(2593);
-const helpers_1 = __nccwpck_require__(1176);
-/**
- * API class for managing Vector Buckets
- * Provides methods for creating, reading, listing, and deleting vector buckets
- */
-class VectorBucketApi {
-    /**
-     * Creates a new VectorBucketApi instance
-     * @param url - The base URL for the storage vectors API
-     * @param headers - HTTP headers to include in requests
-     * @param fetch - Optional custom fetch implementation
-     */
-    constructor(url, headers = {}, fetch) {
-        this.shouldThrowOnError = false;
-        this.url = url.replace(/\/$/, '');
-        this.headers = Object.assign(Object.assign({}, constants_1.DEFAULT_HEADERS), headers);
-        this.fetch = (0, helpers_1.resolveFetch)(fetch);
-    }
-    /**
-     * Enable throwing errors instead of returning them in the response
-     * When enabled, failed operations will throw instead of returning { data: null, error }
-     *
-     * @returns This instance for method chaining
-     * @example
-     * ```typescript
-     * const client = new VectorBucketApi(url, headers)
-     * client.throwOnError()
-     * const { data } = await client.createBucket('my-bucket') // throws on error
-     * ```
-     */
-    throwOnError() {
-        this.shouldThrowOnError = true;
-        return this;
-    }
-    /**
-     * Creates a new vector bucket
-     * Vector buckets are containers for vector indexes and their data
-     *
-     * @param vectorBucketName - Unique name for the vector bucket
-     * @returns Promise with empty response on success or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorConflictException` if bucket already exists (HTTP 409)
-     * - `S3VectorMaxBucketsExceeded` if quota exceeded (HTTP 400)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await client.createBucket('embeddings-prod')
-     * if (error) {
-     *   console.error('Failed to create bucket:', error.message)
-     * }
-     * ```
-     */
-    createBucket(vectorBucketName) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/CreateVectorBucket`, { vectorBucketName }, { headers: this.headers });
-                return { data: data || {}, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Retrieves metadata for a specific vector bucket
-     * Returns bucket configuration including encryption settings and creation time
-     *
-     * @param vectorBucketName - Name of the vector bucket to retrieve
-     * @returns Promise with bucket metadata or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if bucket doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await client.getBucket('embeddings-prod')
-     * if (data) {
-     *   console.log('Bucket created at:', new Date(data.vectorBucket.creationTime! * 1000))
-     * }
-     * ```
-     */
-    getBucket(vectorBucketName) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/GetVectorBucket`, { vectorBucketName }, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Lists vector buckets with optional filtering and pagination
-     * Supports prefix-based filtering and paginated results
-     *
-     * @param options - Listing options
-     * @param options.prefix - Filter buckets by name prefix
-     * @param options.maxResults - Maximum results per page (default: 100)
-     * @param options.nextToken - Pagination token from previous response
-     * @returns Promise with list of buckets and pagination token
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * // List all buckets with prefix 'prod-'
-     * const { data, error } = await client.listBuckets({ prefix: 'prod-' })
-     * if (data) {
-     *   console.log('Found buckets:', data.buckets.length)
-     *   // Fetch next page if available
-     *   if (data.nextToken) {
-     *     const next = await client.listBuckets({ nextToken: data.nextToken })
-     *   }
-     * }
-     * ```
-     */
-    listBuckets() {
-        return tslib_1.__awaiter(this, arguments, void 0, function* (options = {}) {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/ListVectorBuckets`, options, {
-                    headers: this.headers,
-                });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Deletes a vector bucket
-     * Bucket must be empty before deletion (all indexes must be removed first)
-     *
-     * @param vectorBucketName - Name of the vector bucket to delete
-     * @returns Promise with empty response on success or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorBucketNotEmpty` if bucket contains indexes (HTTP 400)
-     * - `S3VectorNotFoundException` if bucket doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * // Delete all indexes first, then delete bucket
-     * const { error } = await client.deleteBucket('old-bucket')
-     * if (error?.statusCode === 'S3VectorBucketNotEmpty') {
-     *   console.error('Must delete all indexes first')
-     * }
-     * ```
-     */
-    deleteBucket(vectorBucketName) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/DeleteVectorBucket`, { vectorBucketName }, { headers: this.headers });
-                return { data: data || {}, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-}
-exports["default"] = VectorBucketApi;
-//# sourceMappingURL=VectorBucketApi.js.map
-
-/***/ }),
-
-/***/ 3073:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const constants_1 = __nccwpck_require__(6876);
-const errors_1 = __nccwpck_require__(3071);
-const fetch_1 = __nccwpck_require__(2593);
-const helpers_1 = __nccwpck_require__(1176);
-/**
- * API class for managing Vector Data within Vector Indexes
- * Provides methods for inserting, querying, listing, and deleting vector embeddings
- */
-class VectorDataApi {
-    constructor(url, headers = {}, fetch) {
-        this.shouldThrowOnError = false;
-        this.url = url.replace(/\/$/, '');
-        this.headers = Object.assign(Object.assign({}, constants_1.DEFAULT_HEADERS), headers);
-        this.fetch = (0, helpers_1.resolveFetch)(fetch);
-    }
-    /**
-     * Enable throwing errors instead of returning them in the response
-     * When enabled, failed operations will throw instead of returning { data: null, error }
-     *
-     * @returns This instance for method chaining
-     * @example
-     * ```typescript
-     * const client = new VectorDataApi(url, headers)
-     * client.throwOnError()
-     * const { data } = await client.putVectors(options) // throws on error
-     * ```
-     */
-    throwOnError() {
-        this.shouldThrowOnError = true;
-        return this;
-    }
-    /**
-     * Inserts or updates vectors in batch (upsert operation)
-     * Accepts 1-500 vectors per request. Larger batches should be split
-     *
-     * @param options - Vector insertion options
-     * @param options.vectorBucketName - Name of the parent vector bucket
-     * @param options.indexName - Name of the target index
-     * @param options.vectors - Array of vectors to insert/update (1-500 items)
-     * @returns Promise with empty response on success or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorConflictException` if duplicate key conflict occurs (HTTP 409)
-     * - `S3VectorNotFoundException` if bucket or index doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await client.putVectors({
-     *   vectorBucketName: 'embeddings-prod',
-     *   indexName: 'documents-openai-small',
-     *   vectors: [
-     *     {
-     *       key: 'doc-1',
-     *       data: { float32: [0.1, 0.2, 0.3, ...] }, // 1536 dimensions
-     *       metadata: { title: 'Introduction', page: 1 }
-     *     },
-     *     {
-     *       key: 'doc-2',
-     *       data: { float32: [0.4, 0.5, 0.6, ...] },
-     *       metadata: { title: 'Conclusion', page: 42 }
-     *     }
-     *   ]
-     * })
-     * ```
-     */
-    putVectors(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                // Validate batch size
-                if (options.vectors.length < 1 || options.vectors.length > 500) {
-                    throw new Error('Vector batch size must be between 1 and 500 items');
-                }
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/PutVectors`, options, {
-                    headers: this.headers,
-                });
-                return { data: data || {}, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Retrieves vectors by their keys in batch
-     * Optionally includes vector data and/or metadata in response
-     * Additional permissions required when returning data or metadata
-     *
-     * @param options - Vector retrieval options
-     * @param options.vectorBucketName - Name of the parent vector bucket
-     * @param options.indexName - Name of the index
-     * @param options.keys - Array of vector keys to retrieve
-     * @param options.returnData - Whether to include vector embeddings (requires permission)
-     * @param options.returnMetadata - Whether to include metadata (requires permission)
-     * @returns Promise with array of vectors or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if bucket or index doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await client.getVectors({
-     *   vectorBucketName: 'embeddings-prod',
-     *   indexName: 'documents-openai-small',
-     *   keys: ['doc-1', 'doc-2', 'doc-3'],
-     *   returnData: false,     // Don't return embeddings
-     *   returnMetadata: true   // Return metadata only
-     * })
-     * if (data) {
-     *   data.vectors.forEach(v => console.log(v.key, v.metadata))
-     * }
-     * ```
-     */
-    getVectors(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/GetVectors`, options, {
-                    headers: this.headers,
-                });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Lists/scans vectors in an index with pagination
-     * Supports parallel scanning via segment configuration for high-throughput scenarios
-     * Additional permissions required when returning data or metadata
-     *
-     * @param options - Vector listing options
-     * @param options.vectorBucketName - Name of the parent vector bucket
-     * @param options.indexName - Name of the index
-     * @param options.maxResults - Maximum results per page (default: 500, max: 1000)
-     * @param options.nextToken - Pagination token from previous response
-     * @param options.returnData - Whether to include vector embeddings (requires permission)
-     * @param options.returnMetadata - Whether to include metadata (requires permission)
-     * @param options.segmentCount - Total parallel segments (1-16) for distributed scanning
-     * @param options.segmentIndex - Zero-based segment index (0 to segmentCount-1)
-     * @returns Promise with array of vectors, pagination token, or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if bucket or index doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * // Simple pagination
-     * let nextToken: string | undefined
-     * do {
-     *   const { data, error } = await client.listVectors({
-     *     vectorBucketName: 'embeddings-prod',
-     *     indexName: 'documents-openai-small',
-     *     maxResults: 500,
-     *     nextToken,
-     *     returnMetadata: true
-     *   })
-     *   if (error) break
-     *   console.log('Batch:', data.vectors.length)
-     *   nextToken = data.nextToken
-     * } while (nextToken)
-     *
-     * // Parallel scanning (4 concurrent workers)
-     * const workers = [0, 1, 2, 3].map(async (segmentIndex) => {
-     *   const { data } = await client.listVectors({
-     *     vectorBucketName: 'embeddings-prod',
-     *     indexName: 'documents-openai-small',
-     *     segmentCount: 4,
-     *     segmentIndex,
-     *     returnMetadata: true
-     *   })
-     *   return data?.vectors || []
-     * })
-     * const results = await Promise.all(workers)
-     * ```
-     */
-    listVectors(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                // Validate segment configuration
-                if (options.segmentCount !== undefined) {
-                    if (options.segmentCount < 1 || options.segmentCount > 16) {
-                        throw new Error('segmentCount must be between 1 and 16');
-                    }
-                    if (options.segmentIndex !== undefined) {
-                        if (options.segmentIndex < 0 || options.segmentIndex >= options.segmentCount) {
-                            throw new Error(`segmentIndex must be between 0 and ${options.segmentCount - 1}`);
-                        }
-                    }
-                }
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/ListVectors`, options, {
-                    headers: this.headers,
-                });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Queries for similar vectors using approximate nearest neighbor (ANN) search
-     * Returns top-K most similar vectors based on the configured distance metric
-     * Supports optional metadata filtering (requires GetVectors permission)
-     *
-     * @param options - Query options
-     * @param options.vectorBucketName - Name of the parent vector bucket
-     * @param options.indexName - Name of the index
-     * @param options.queryVector - Query embedding to find similar vectors
-     * @param options.topK - Number of nearest neighbors to return (default: 10)
-     * @param options.filter - Optional JSON filter for metadata (requires GetVectors permission)
-     * @param options.returnDistance - Whether to include similarity distances
-     * @param options.returnMetadata - Whether to include metadata (requires GetVectors permission)
-     * @returns Promise with array of similar vectors ordered by distance
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if bucket or index doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * // Semantic search with filtering
-     * const { data, error } = await client.queryVectors({
-     *   vectorBucketName: 'embeddings-prod',
-     *   indexName: 'documents-openai-small',
-     *   queryVector: { float32: [0.1, 0.2, 0.3, ...] }, // 1536 dimensions
-     *   topK: 5,
-     *   filter: {
-     *     category: 'technical',
-     *     published: true
-     *   },
-     *   returnDistance: true,
-     *   returnMetadata: true
-     * })
-     * if (data) {
-     *   data.matches.forEach(match => {
-     *     console.log(`${match.key}: distance=${match.distance}`)
-     *     console.log('Metadata:', match.metadata)
-     *   })
-     * }
-     * ```
-     */
-    queryVectors(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/QueryVectors`, options, {
-                    headers: this.headers,
-                });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Deletes vectors by their keys in batch
-     * Accepts 1-500 keys per request
-     *
-     * @param options - Vector deletion options
-     * @param options.vectorBucketName - Name of the parent vector bucket
-     * @param options.indexName - Name of the index
-     * @param options.keys - Array of vector keys to delete (1-500 items)
-     * @returns Promise with empty response on success or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if bucket or index doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * const { error } = await client.deleteVectors({
-     *   vectorBucketName: 'embeddings-prod',
-     *   indexName: 'documents-openai-small',
-     *   keys: ['doc-1', 'doc-2', 'doc-3']
-     * })
-     * if (!error) {
-     *   console.log('Vectors deleted successfully')
-     * }
-     * ```
-     */
-    deleteVectors(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                // Validate batch size
-                if (options.keys.length < 1 || options.keys.length > 500) {
-                    throw new Error('Keys batch size must be between 1 and 500 items');
-                }
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/DeleteVectors`, options, {
-                    headers: this.headers,
-                });
-                return { data: data || {}, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-}
-exports["default"] = VectorDataApi;
-//# sourceMappingURL=VectorDataApi.js.map
-
-/***/ }),
-
-/***/ 9623:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const constants_1 = __nccwpck_require__(6876);
-const errors_1 = __nccwpck_require__(3071);
-const fetch_1 = __nccwpck_require__(2593);
-const helpers_1 = __nccwpck_require__(1176);
-/**
- * API class for managing Vector Indexes within Vector Buckets
- * Provides methods for creating, reading, listing, and deleting vector indexes
- */
-class VectorIndexApi {
-    constructor(url, headers = {}, fetch) {
-        this.shouldThrowOnError = false;
-        this.url = url.replace(/\/$/, '');
-        this.headers = Object.assign(Object.assign({}, constants_1.DEFAULT_HEADERS), headers);
-        this.fetch = (0, helpers_1.resolveFetch)(fetch);
-    }
-    /**
-     * Enable throwing errors instead of returning them in the response
-     * When enabled, failed operations will throw instead of returning { data: null, error }
-     *
-     * @returns This instance for method chaining
-     * @example
-     * ```typescript
-     * const client = new VectorIndexApi(url, headers)
-     * client.throwOnError()
-     * const { data } = await client.createIndex(options) // throws on error
-     * ```
-     */
-    throwOnError() {
-        this.shouldThrowOnError = true;
-        return this;
-    }
-    /**
-     * Creates a new vector index within a bucket
-     * Defines the schema for vectors including dimensionality, distance metric, and metadata config
-     *
-     * @param options - Index configuration
-     * @param options.vectorBucketName - Name of the parent vector bucket
-     * @param options.indexName - Unique name for the index within the bucket
-     * @param options.dataType - Data type for vector components (currently only 'float32')
-     * @param options.dimension - Dimensionality of vectors (e.g., 384, 768, 1536)
-     * @param options.distanceMetric - Similarity metric ('cosine', 'euclidean', 'dotproduct')
-     * @param options.metadataConfiguration - Optional config for non-filterable metadata keys
-     * @returns Promise with empty response on success or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorConflictException` if index already exists (HTTP 409)
-     * - `S3VectorMaxIndexesExceeded` if quota exceeded (HTTP 400)
-     * - `S3VectorNotFoundException` if bucket doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await client.createIndex({
-     *   vectorBucketName: 'embeddings-prod',
-     *   indexName: 'documents-openai-small',
-     *   dataType: 'float32',
-     *   dimension: 1536,
-     *   distanceMetric: 'cosine',
-     *   metadataConfiguration: {
-     *     nonFilterableMetadataKeys: ['raw_text', 'internal_id']
-     *   }
-     * })
-     * ```
-     */
-    createIndex(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/CreateIndex`, options, {
-                    headers: this.headers,
-                });
-                return { data: data || {}, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Retrieves metadata for a specific vector index
-     * Returns index configuration including dimension, distance metric, and metadata settings
-     *
-     * @param vectorBucketName - Name of the parent vector bucket
-     * @param indexName - Name of the index to retrieve
-     * @returns Promise with index metadata or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if index or bucket doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await client.getIndex('embeddings-prod', 'documents-openai-small')
-     * if (data) {
-     *   console.log('Index dimension:', data.index.dimension)
-     *   console.log('Distance metric:', data.index.distanceMetric)
-     * }
-     * ```
-     */
-    getIndex(vectorBucketName, indexName) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/GetIndex`, { vectorBucketName, indexName }, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Lists vector indexes within a bucket with optional filtering and pagination
-     * Supports prefix-based filtering and paginated results
-     *
-     * @param options - Listing options
-     * @param options.vectorBucketName - Name of the parent vector bucket
-     * @param options.prefix - Filter indexes by name prefix
-     * @param options.maxResults - Maximum results per page (default: 100)
-     * @param options.nextToken - Pagination token from previous response
-     * @returns Promise with list of indexes and pagination token
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if bucket doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * // List all indexes in a bucket
-     * const { data, error } = await client.listIndexes({
-     *   vectorBucketName: 'embeddings-prod',
-     *   prefix: 'documents-'
-     * })
-     * if (data) {
-     *   console.log('Found indexes:', data.indexes.map(i => i.indexName))
-     *   // Fetch next page if available
-     *   if (data.nextToken) {
-     *     const next = await client.listIndexes({
-     *       vectorBucketName: 'embeddings-prod',
-     *       nextToken: data.nextToken
-     *     })
-     *   }
-     * }
-     * ```
-     */
-    listIndexes(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/ListIndexes`, options, {
-                    headers: this.headers,
-                });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Deletes a vector index and all its data
-     * This operation removes the index schema and all vectors stored in the index
-     *
-     * @param vectorBucketName - Name of the parent vector bucket
-     * @param indexName - Name of the index to delete
-     * @returns Promise with empty response on success or error
-     *
-     * @throws {StorageVectorsApiError} With code:
-     * - `S3VectorNotFoundException` if index or bucket doesn't exist (HTTP 404)
-     * - `InternalError` for server errors (HTTP 500)
-     *
-     * @example
-     * ```typescript
-     * // Delete an index and all its vectors
-     * const { error } = await client.deleteIndex('embeddings-prod', 'old-index')
-     * if (!error) {
-     *   console.log('Index deleted successfully')
-     * }
-     * ```
-     */
-    deleteIndex(vectorBucketName, indexName) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/DeleteIndex`, { vectorBucketName, indexName }, { headers: this.headers });
-                return { data: data || {}, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageVectorsError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-}
-exports["default"] = VectorIndexApi;
-//# sourceMappingURL=VectorIndexApi.js.map
-
-/***/ }),
-
-/***/ 6876:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DEFAULT_HEADERS = void 0;
-const version_1 = __nccwpck_require__(4499);
-exports.DEFAULT_HEADERS = {
-    'X-Client-Info': `storage-js/${version_1.version}`,
-    'Content-Type': 'application/json',
-};
-//# sourceMappingURL=constants.js.map
-
-/***/ }),
-
-/***/ 3071:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.StorageVectorsErrorCode = exports.StorageVectorsUnknownError = exports.StorageVectorsApiError = exports.StorageVectorsError = void 0;
-exports.isStorageVectorsError = isStorageVectorsError;
-/**
- * Base error class for all Storage Vectors errors
- */
-class StorageVectorsError extends Error {
-    constructor(message) {
-        super(message);
-        this.__isStorageVectorsError = true;
-        this.name = 'StorageVectorsError';
-    }
-}
-exports.StorageVectorsError = StorageVectorsError;
-/**
- * Type guard to check if an error is a StorageVectorsError
- * @param error - The error to check
- * @returns True if the error is a StorageVectorsError
- */
-function isStorageVectorsError(error) {
-    return typeof error === 'object' && error !== null && '__isStorageVectorsError' in error;
-}
-/**
- * API error returned from S3 Vectors service
- * Includes HTTP status code and service-specific error code
- */
-class StorageVectorsApiError extends StorageVectorsError {
-    constructor(message, status, statusCode) {
-        super(message);
-        this.name = 'StorageVectorsApiError';
-        this.status = status;
-        this.statusCode = statusCode;
-    }
-    toJSON() {
-        return {
-            name: this.name,
-            message: this.message,
-            status: this.status,
-            statusCode: this.statusCode,
-        };
-    }
-}
-exports.StorageVectorsApiError = StorageVectorsApiError;
-/**
- * Unknown error that doesn't match expected error patterns
- * Wraps the original error for debugging
- */
-class StorageVectorsUnknownError extends StorageVectorsError {
-    constructor(message, originalError) {
-        super(message);
-        this.name = 'StorageVectorsUnknownError';
-        this.originalError = originalError;
-    }
-}
-exports.StorageVectorsUnknownError = StorageVectorsUnknownError;
-/**
- * Error codes specific to S3 Vectors API
- * Maps AWS service errors to application-friendly error codes
- */
-var StorageVectorsErrorCode;
-(function (StorageVectorsErrorCode) {
-    /** Internal server fault (HTTP 500) */
-    StorageVectorsErrorCode["InternalError"] = "InternalError";
-    /** Resource already exists / conflict (HTTP 409) */
-    StorageVectorsErrorCode["S3VectorConflictException"] = "S3VectorConflictException";
-    /** Resource not found (HTTP 404) */
-    StorageVectorsErrorCode["S3VectorNotFoundException"] = "S3VectorNotFoundException";
-    /** Delete bucket while not empty (HTTP 400) */
-    StorageVectorsErrorCode["S3VectorBucketNotEmpty"] = "S3VectorBucketNotEmpty";
-    /** Exceeds bucket quota/limit (HTTP 400) */
-    StorageVectorsErrorCode["S3VectorMaxBucketsExceeded"] = "S3VectorMaxBucketsExceeded";
-    /** Exceeds index quota/limit (HTTP 400) */
-    StorageVectorsErrorCode["S3VectorMaxIndexesExceeded"] = "S3VectorMaxIndexesExceeded";
-})(StorageVectorsErrorCode || (exports.StorageVectorsErrorCode = StorageVectorsErrorCode = {}));
-//# sourceMappingURL=errors.js.map
-
-/***/ }),
-
-/***/ 2593:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.get = get;
-exports.post = post;
-exports.put = put;
-exports.remove = remove;
-const tslib_1 = __nccwpck_require__(4351);
-const errors_1 = __nccwpck_require__(3071);
-const helpers_1 = __nccwpck_require__(1176);
-/**
- * Extracts error message from various error response formats
- * @param err - Error object from API
- * @returns Human-readable error message
- */
-const _getErrorMessage = (err) => err.msg || err.message || err.error_description || err.error || JSON.stringify(err);
-/**
- * Handles fetch errors and converts them to StorageVectors error types
- * @param error - The error caught from fetch
- * @param reject - Promise rejection function
- * @param options - Fetch options that may affect error handling
- */
-const handleError = (error, reject, options) => tslib_1.__awaiter(void 0, void 0, void 0, function* () {
-    // Check if error is a Response-like object (has status and ok properties)
-    // This is more reliable than instanceof which can fail across realms
-    const isResponseLike = error &&
-        typeof error === 'object' &&
-        'status' in error &&
-        'ok' in error &&
-        typeof error.status === 'number';
-    if (isResponseLike && !(options === null || options === void 0 ? void 0 : options.noResolveJson)) {
-        const status = error.status || 500;
-        const responseError = error;
-        // Try to parse JSON body if available
-        if (typeof responseError.json === 'function') {
-            responseError
-                .json()
-                .then((err) => {
-                const statusCode = (err === null || err === void 0 ? void 0 : err.statusCode) || (err === null || err === void 0 ? void 0 : err.code) || status + '';
-                reject(new errors_1.StorageVectorsApiError(_getErrorMessage(err), status, statusCode));
-            })
-                .catch(() => {
-                // If JSON parsing fails, create an ApiError with the HTTP status code
-                const statusCode = status + '';
-                const message = responseError.statusText || `HTTP ${status} error`;
-                reject(new errors_1.StorageVectorsApiError(message, status, statusCode));
-            });
-        }
-        else {
-            // No json() method available, create error from status
-            const statusCode = status + '';
-            const message = responseError.statusText || `HTTP ${status} error`;
-            reject(new errors_1.StorageVectorsApiError(message, status, statusCode));
-        }
-    }
-    else {
-        reject(new errors_1.StorageVectorsUnknownError(_getErrorMessage(error), error));
-    }
-});
-/**
- * Builds request parameters for fetch calls
- * @param method - HTTP method
- * @param options - Custom fetch options
- * @param parameters - Additional fetch parameters like AbortSignal
- * @param body - Request body (will be JSON stringified if plain object)
- * @returns Complete fetch request parameters
- */
-const _getRequestParams = (method, options, parameters, body) => {
-    const params = { method, headers: (options === null || options === void 0 ? void 0 : options.headers) || {} };
-    if (method === 'GET' || !body) {
-        return params;
-    }
-    if ((0, helpers_1.isPlainObject)(body)) {
-        params.headers = Object.assign({ 'Content-Type': 'application/json' }, options === null || options === void 0 ? void 0 : options.headers);
-        params.body = JSON.stringify(body);
-    }
-    else {
-        params.body = body;
-    }
-    return Object.assign(Object.assign({}, params), parameters);
-};
-/**
- * Internal request handler that wraps fetch with error handling
- * @param fetcher - Fetch function to use
- * @param method - HTTP method
- * @param url - Request URL
- * @param options - Custom fetch options
- * @param parameters - Additional fetch parameters
- * @param body - Request body
- * @returns Promise with parsed response or error
- */
-function _handleRequest(fetcher, method, url, options, parameters, body) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return new Promise((resolve, reject) => {
-            fetcher(url, _getRequestParams(method, options, parameters, body))
-                .then((result) => {
-                if (!result.ok)
-                    throw result;
-                if (options === null || options === void 0 ? void 0 : options.noResolveJson)
-                    return result;
-                // Handle empty responses (204, empty body)
-                const contentType = result.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    return {};
-                }
-                return result.json();
-            })
-                .then((data) => resolve(data))
-                .catch((error) => handleError(error, reject, options));
-        });
-    });
-}
-/**
- * Performs a GET request
- * @param fetcher - Fetch function to use
- * @param url - Request URL
- * @param options - Custom fetch options
- * @param parameters - Additional fetch parameters
- * @returns Promise with parsed response
- */
-function get(fetcher, url, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'GET', url, options, parameters);
-    });
-}
-/**
- * Performs a POST request
- * @param fetcher - Fetch function to use
- * @param url - Request URL
- * @param body - Request body to be JSON stringified
- * @param options - Custom fetch options
- * @param parameters - Additional fetch parameters
- * @returns Promise with parsed response
- */
-function post(fetcher, url, body, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'POST', url, options, parameters, body);
-    });
-}
-/**
- * Performs a PUT request
- * @param fetcher - Fetch function to use
- * @param url - Request URL
- * @param body - Request body to be JSON stringified
- * @param options - Custom fetch options
- * @param parameters - Additional fetch parameters
- * @returns Promise with parsed response
- */
-function put(fetcher, url, body, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'PUT', url, options, parameters, body);
-    });
-}
-/**
- * Performs a DELETE request
- * @param fetcher - Fetch function to use
- * @param url - Request URL
- * @param body - Request body to be JSON stringified
- * @param options - Custom fetch options
- * @param parameters - Additional fetch parameters
- * @returns Promise with parsed response
- */
-function remove(fetcher, url, body, options, parameters) {
-    return tslib_1.__awaiter(this, void 0, void 0, function* () {
-        return _handleRequest(fetcher, 'DELETE', url, options, parameters, body);
-    });
-}
-//# sourceMappingURL=fetch.js.map
-
-/***/ }),
-
-/***/ 1176:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.validateVectorDimension = exports.normalizeToFloat32 = exports.isPlainObject = exports.resolveResponse = exports.resolveFetch = void 0;
-/**
- * Resolves the fetch implementation to use
- * Uses custom fetch if provided, otherwise uses native fetch
- *
- * @param customFetch - Optional custom fetch implementation
- * @returns Resolved fetch function
- */
-const resolveFetch = (customFetch) => {
-    if (customFetch) {
-        return (...args) => customFetch(...args);
-    }
-    return (...args) => fetch(...args);
-};
-exports.resolveFetch = resolveFetch;
-/**
- * Resolves the Response constructor to use
- * Returns native Response constructor
- *
- * @returns Response constructor
- */
-const resolveResponse = () => {
-    return Response;
-};
-exports.resolveResponse = resolveResponse;
-/**
- * Determine if input is a plain object
- * An object is plain if it's created by either {}, new Object(), or Object.create(null)
- *
- * @param value - Value to check
- * @returns True if value is a plain object
- * @source https://github.com/sindresorhus/is-plain-obj
- */
-const isPlainObject = (value) => {
-    if (typeof value !== 'object' || value === null) {
-        return false;
-    }
-    const prototype = Object.getPrototypeOf(value);
-    return ((prototype === null ||
-        prototype === Object.prototype ||
-        Object.getPrototypeOf(prototype) === null) &&
-        !(Symbol.toStringTag in value) &&
-        !(Symbol.iterator in value));
-};
-exports.isPlainObject = isPlainObject;
-/**
- * Normalizes a number array to float32 format
- * Ensures all vector values are valid 32-bit floats
- *
- * @param values - Array of numbers to normalize
- * @returns Normalized float32 array
- */
-const normalizeToFloat32 = (values) => {
-    // Use Float32Array to ensure proper precision
-    return Array.from(new Float32Array(values));
-};
-exports.normalizeToFloat32 = normalizeToFloat32;
-/**
- * Validates vector dimensions match expected dimension
- * Throws error if dimensions don't match
- *
- * @param vector - Vector data to validate
- * @param expectedDimension - Expected vector dimension
- * @throws Error if dimensions don't match
- */
-const validateVectorDimension = (vector, expectedDimension) => {
-    if (expectedDimension !== undefined && vector.float32.length !== expectedDimension) {
-        throw new Error(`Vector dimension mismatch: expected ${expectedDimension}, got ${vector.float32.length}`);
-    }
-};
-exports.validateVectorDimension = validateVectorDimension;
-//# sourceMappingURL=helpers.js.map
-
-/***/ }),
-
-/***/ 9380:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.validateVectorDimension = exports.normalizeToFloat32 = exports.isPlainObject = exports.resolveResponse = exports.resolveFetch = exports.isStorageVectorsError = exports.StorageVectorsErrorCode = exports.StorageVectorsUnknownError = exports.StorageVectorsApiError = exports.StorageVectorsError = exports.VectorDataApi = exports.VectorIndexApi = exports.VectorBucketApi = exports.VectorIndexScope = exports.VectorBucketScope = exports.StorageVectorsClient = void 0;
-const tslib_1 = __nccwpck_require__(4351);
-// Main client
-var StorageVectorsClient_1 = __nccwpck_require__(9403);
-Object.defineProperty(exports, "StorageVectorsClient", ({ enumerable: true, get: function () { return StorageVectorsClient_1.StorageVectorsClient; } }));
-Object.defineProperty(exports, "VectorBucketScope", ({ enumerable: true, get: function () { return StorageVectorsClient_1.VectorBucketScope; } }));
-Object.defineProperty(exports, "VectorIndexScope", ({ enumerable: true, get: function () { return StorageVectorsClient_1.VectorIndexScope; } }));
-// API classes (for advanced usage)
-var VectorBucketApi_1 = __nccwpck_require__(4268);
-Object.defineProperty(exports, "VectorBucketApi", ({ enumerable: true, get: function () { return tslib_1.__importDefault(VectorBucketApi_1).default; } }));
-var VectorIndexApi_1 = __nccwpck_require__(9623);
-Object.defineProperty(exports, "VectorIndexApi", ({ enumerable: true, get: function () { return tslib_1.__importDefault(VectorIndexApi_1).default; } }));
-var VectorDataApi_1 = __nccwpck_require__(3073);
-Object.defineProperty(exports, "VectorDataApi", ({ enumerable: true, get: function () { return tslib_1.__importDefault(VectorDataApi_1).default; } }));
-// Errors
-var errors_1 = __nccwpck_require__(3071);
-Object.defineProperty(exports, "StorageVectorsError", ({ enumerable: true, get: function () { return errors_1.StorageVectorsError; } }));
-Object.defineProperty(exports, "StorageVectorsApiError", ({ enumerable: true, get: function () { return errors_1.StorageVectorsApiError; } }));
-Object.defineProperty(exports, "StorageVectorsUnknownError", ({ enumerable: true, get: function () { return errors_1.StorageVectorsUnknownError; } }));
-Object.defineProperty(exports, "StorageVectorsErrorCode", ({ enumerable: true, get: function () { return errors_1.StorageVectorsErrorCode; } }));
-Object.defineProperty(exports, "isStorageVectorsError", ({ enumerable: true, get: function () { return errors_1.isStorageVectorsError; } }));
-// Helper utilities
-var helpers_1 = __nccwpck_require__(1176);
-Object.defineProperty(exports, "resolveFetch", ({ enumerable: true, get: function () { return helpers_1.resolveFetch; } }));
-Object.defineProperty(exports, "resolveResponse", ({ enumerable: true, get: function () { return helpers_1.resolveResponse; } }));
-Object.defineProperty(exports, "isPlainObject", ({ enumerable: true, get: function () { return helpers_1.isPlainObject; } }));
-Object.defineProperty(exports, "normalizeToFloat32", ({ enumerable: true, get: function () { return helpers_1.normalizeToFloat32; } }));
-Object.defineProperty(exports, "validateVectorDimension", ({ enumerable: true, get: function () { return helpers_1.validateVectorDimension; } }));
-//# sourceMappingURL=index.js.map
-
-/***/ }),
-
-/***/ 4499:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.version = void 0;
-// Generated automatically during releases by scripts/update-version-files.ts
-// This file provides runtime access to the package version for:
-// - HTTP request headers (e.g., X-Client-Info header for API requests)
-// - Debugging and support (identifying which version is running)
-// - Telemetry and logging (version reporting in errors/analytics)
-// - Ensuring build artifacts match the published package version
-exports.version = '2.81.1';
-//# sourceMappingURL=version.js.map
-
-/***/ }),
-
-/***/ 8475:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-var _a;
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const errors_1 = __nccwpck_require__(2758);
-const StreamDownloadBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(7023));
-class BlobDownloadBuilder {
-    constructor(downloadFn, shouldThrowOnError) {
-        this.downloadFn = downloadFn;
-        this.shouldThrowOnError = shouldThrowOnError;
-        this[_a] = 'BlobDownloadBuilder';
-        this.promise = null;
-    }
-    asStream() {
-        return new StreamDownloadBuilder_1.default(this.downloadFn, this.shouldThrowOnError);
-    }
-    then(onfulfilled, onrejected) {
-        return this.getPromise().then(onfulfilled, onrejected);
-    }
-    catch(onrejected) {
-        return this.getPromise().catch(onrejected);
-    }
-    finally(onfinally) {
-        return this.getPromise().finally(onfinally);
-    }
-    getPromise() {
-        if (!this.promise) {
-            this.promise = this.execute();
-        }
-        return this.promise;
-    }
-    execute() {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const result = yield this.downloadFn();
-                return {
-                    data: yield result.blob(),
-                    error: null,
-                };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-}
-_a = Symbol.toStringTag;
-exports["default"] = BlobDownloadBuilder;
-//# sourceMappingURL=BlobDownloadBuilder.js.map
-
-/***/ }),
-
-/***/ 7339:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const constants_1 = __nccwpck_require__(9754);
-const errors_1 = __nccwpck_require__(2758);
-const fetch_1 = __nccwpck_require__(3146);
-const helpers_1 = __nccwpck_require__(5430);
-/**
- * API class for managing Analytics Buckets using Iceberg tables
- * Provides methods for creating, listing, and deleting analytics buckets
- */
-class StorageAnalyticsApi {
-    /**
-     * Creates a new StorageAnalyticsApi instance
-     * @param url - The base URL for the storage API
-     * @param headers - HTTP headers to include in requests
-     * @param fetch - Optional custom fetch implementation
-     */
-    constructor(url, headers = {}, fetch) {
-        this.shouldThrowOnError = false;
-        this.url = url.replace(/\/$/, '');
-        this.headers = Object.assign(Object.assign({}, constants_1.DEFAULT_HEADERS), headers);
-        this.fetch = (0, helpers_1.resolveFetch)(fetch);
-    }
-    /**
-     * Enable throwing errors instead of returning them in the response
-     * When enabled, failed operations will throw instead of returning { data: null, error }
-     *
-     * @returns This instance for method chaining
-     */
-    throwOnError() {
-        this.shouldThrowOnError = true;
-        return this;
-    }
-    /**
-     * Creates a new analytics bucket using Iceberg tables
-     * Analytics buckets are optimized for analytical queries and data processing
-     *
-     * @param name A unique name for the bucket you are creating
-     * @returns Promise with newly created bucket name or error
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await storage.analytics.createBucket('analytics-data')
-     * if (error) {
-     *   console.error('Failed to create analytics bucket:', error.message)
-     * } else {
-     *   console.log('Created bucket:', data.name)
-     * }
-     * ```
-     */
-    createBucket(name) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/bucket`, { name }, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Retrieves the details of all Analytics Storage buckets within an existing project
-     * Only returns buckets of type 'ANALYTICS'
-     *
-     * @param options Query parameters for listing buckets
-     * @param options.limit Maximum number of buckets to return
-     * @param options.offset Number of buckets to skip
-     * @param options.sortColumn Column to sort by ('id', 'name', 'created_at', 'updated_at')
-     * @param options.sortOrder Sort order ('asc' or 'desc')
-     * @param options.search Search term to filter bucket names
-     * @returns Promise with list of analytics buckets or error
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await storage.analytics.listBuckets({
-     *   limit: 10,
-     *   offset: 0,
-     *   sortColumn: 'created_at',
-     *   sortOrder: 'desc',
-     *   search: 'analytics'
-     * })
-     * if (data) {
-     *   console.log('Found analytics buckets:', data.length)
-     *   data.forEach(bucket => console.log(`- ${bucket.name}`))
-     * }
-     * ```
-     */
-    listBuckets(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                // Build query string from options
-                const queryParams = new URLSearchParams();
-                if ((options === null || options === void 0 ? void 0 : options.limit) !== undefined)
-                    queryParams.set('limit', options.limit.toString());
-                if ((options === null || options === void 0 ? void 0 : options.offset) !== undefined)
-                    queryParams.set('offset', options.offset.toString());
-                if (options === null || options === void 0 ? void 0 : options.sortColumn)
-                    queryParams.set('sortColumn', options.sortColumn);
-                if (options === null || options === void 0 ? void 0 : options.sortOrder)
-                    queryParams.set('sortOrder', options.sortOrder);
-                if (options === null || options === void 0 ? void 0 : options.search)
-                    queryParams.set('search', options.search);
-                const queryString = queryParams.toString();
-                const url = queryString ? `${this.url}/bucket?${queryString}` : `${this.url}/bucket`;
-                const data = yield (0, fetch_1.get)(this.fetch, url, { headers: this.headers });
-                return { data: data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Deletes an existing analytics bucket
-     * A bucket can't be deleted with existing objects inside it
-     * You must first empty the bucket before deletion
-     *
-     * @param bucketId The unique identifier of the bucket you would like to delete
-     * @returns Promise with success message or error
-     *
-     * @example
-     * ```typescript
-     * const { data, error } = await analyticsApi.deleteBucket('old-analytics-bucket')
-     * if (error) {
-     *   console.error('Failed to delete bucket:', error.message)
-     * } else {
-     *   console.log('Bucket deleted successfully:', data.message)
-     * }
-     * ```
-     */
-    deleteBucket(bucketId) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.remove)(this.fetch, `${this.url}/bucket/${bucketId}`, {}, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-}
-exports["default"] = StorageAnalyticsApi;
-//# sourceMappingURL=StorageAnalyticsApi.js.map
-
-/***/ }),
-
-/***/ 3528:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const constants_1 = __nccwpck_require__(9754);
-const errors_1 = __nccwpck_require__(2758);
-const fetch_1 = __nccwpck_require__(3146);
-const helpers_1 = __nccwpck_require__(5430);
-class StorageBucketApi {
-    constructor(url, headers = {}, fetch, opts) {
-        this.shouldThrowOnError = false;
-        const baseUrl = new URL(url);
-        // if legacy uri is used, replace with new storage host (disables request buffering to allow > 50GB uploads)
-        // "project-ref.supabase.co" becomes "project-ref.storage.supabase.co"
-        if (opts === null || opts === void 0 ? void 0 : opts.useNewHostname) {
-            const isSupabaseHost = /supabase\.(co|in|red)$/.test(baseUrl.hostname);
-            if (isSupabaseHost && !baseUrl.hostname.includes('storage.supabase.')) {
-                baseUrl.hostname = baseUrl.hostname.replace('supabase.', 'storage.supabase.');
-            }
-        }
-        this.url = baseUrl.href.replace(/\/$/, '');
-        this.headers = Object.assign(Object.assign({}, constants_1.DEFAULT_HEADERS), headers);
-        this.fetch = (0, helpers_1.resolveFetch)(fetch);
-    }
-    /**
-     * Enable throwing errors instead of returning them.
-     */
-    throwOnError() {
-        this.shouldThrowOnError = true;
-        return this;
-    }
-    /**
-     * Retrieves the details of all Storage buckets within an existing project.
-     */
-    listBuckets(options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const queryString = this.listBucketOptionsToQueryString(options);
-                const data = yield (0, fetch_1.get)(this.fetch, `${this.url}/bucket${queryString}`, {
-                    headers: this.headers,
-                });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Retrieves the details of an existing Storage bucket.
-     *
-     * @param id The unique identifier of the bucket you would like to retrieve.
-     */
-    getBucket(id) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.get)(this.fetch, `${this.url}/bucket/${id}`, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Creates a new Storage bucket
-     *
-     * @param id A unique identifier for the bucket you are creating.
-     * @param options.public The visibility of the bucket. Public buckets don't require an authorization token to download objects, but still require a valid token for all other operations. By default, buckets are private.
-     * @param options.fileSizeLimit specifies the max file size in bytes that can be uploaded to this bucket.
-     * The global file size limit takes precedence over this value.
-     * The default value is null, which doesn't set a per bucket file size limit.
-     * @param options.allowedMimeTypes specifies the allowed mime types that this bucket can accept during upload.
-     * The default value is null, which allows files with all mime types to be uploaded.
-     * Each mime type specified can be a wildcard, e.g. image/*, or a specific mime type, e.g. image/png.
-     * @returns newly created bucket id
-     * @param options.type (private-beta) specifies the bucket type. see `BucketType` for more details.
-     *   - default bucket type is `STANDARD`
-     */
-    createBucket(id_1) {
-        return tslib_1.__awaiter(this, arguments, void 0, function* (id, options = {
-            public: false,
-        }) {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/bucket`, {
-                    id,
-                    name: id,
-                    type: options.type,
-                    public: options.public,
-                    file_size_limit: options.fileSizeLimit,
-                    allowed_mime_types: options.allowedMimeTypes,
-                }, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Updates a Storage bucket
-     *
-     * @param id A unique identifier for the bucket you are updating.
-     * @param options.public The visibility of the bucket. Public buckets don't require an authorization token to download objects, but still require a valid token for all other operations.
-     * @param options.fileSizeLimit specifies the max file size in bytes that can be uploaded to this bucket.
-     * The global file size limit takes precedence over this value.
-     * The default value is null, which doesn't set a per bucket file size limit.
-     * @param options.allowedMimeTypes specifies the allowed mime types that this bucket can accept during upload.
-     * The default value is null, which allows files with all mime types to be uploaded.
-     * Each mime type specified can be a wildcard, e.g. image/*, or a specific mime type, e.g. image/png.
-     */
-    updateBucket(id, options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.put)(this.fetch, `${this.url}/bucket/${id}`, {
-                    id,
-                    name: id,
-                    public: options.public,
-                    file_size_limit: options.fileSizeLimit,
-                    allowed_mime_types: options.allowedMimeTypes,
-                }, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Removes all objects inside a single bucket.
-     *
-     * @param id The unique identifier of the bucket you would like to empty.
-     */
-    emptyBucket(id) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/bucket/${id}/empty`, {}, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Deletes an existing bucket. A bucket can't be deleted with existing objects inside it.
-     * You must first `empty()` the bucket.
-     *
-     * @param id The unique identifier of the bucket you would like to delete.
-     */
-    deleteBucket(id) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.remove)(this.fetch, `${this.url}/bucket/${id}`, {}, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    listBucketOptionsToQueryString(options) {
-        const params = {};
-        if (options) {
-            if ('limit' in options) {
-                params.limit = String(options.limit);
-            }
-            if ('offset' in options) {
-                params.offset = String(options.offset);
-            }
-            if (options.search) {
-                params.search = options.search;
-            }
-            if (options.sortColumn) {
-                params.sortColumn = options.sortColumn;
-            }
-            if (options.sortOrder) {
-                params.sortOrder = options.sortOrder;
-            }
-        }
-        return Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : '';
-    }
-}
-exports["default"] = StorageBucketApi;
-//# sourceMappingURL=StorageBucketApi.js.map
-
-/***/ }),
-
-/***/ 710:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const errors_1 = __nccwpck_require__(2758);
-const fetch_1 = __nccwpck_require__(3146);
-const helpers_1 = __nccwpck_require__(5430);
-const BlobDownloadBuilder_1 = tslib_1.__importDefault(__nccwpck_require__(8475));
-const DEFAULT_SEARCH_OPTIONS = {
-    limit: 100,
-    offset: 0,
-    sortBy: {
-        column: 'name',
-        order: 'asc',
-    },
-};
-const DEFAULT_FILE_OPTIONS = {
-    cacheControl: '3600',
-    contentType: 'text/plain;charset=UTF-8',
-    upsert: false,
-};
-class StorageFileApi {
-    constructor(url, headers = {}, bucketId, fetch) {
-        this.shouldThrowOnError = false;
-        this.url = url;
-        this.headers = headers;
-        this.bucketId = bucketId;
-        this.fetch = (0, helpers_1.resolveFetch)(fetch);
-    }
-    /**
-     * Enable throwing errors instead of returning them.
-     */
-    throwOnError() {
-        this.shouldThrowOnError = true;
-        return this;
-    }
-    /**
-     * Uploads a file to an existing bucket or replaces an existing file at the specified path with a new one.
-     *
-     * @param method HTTP method.
-     * @param path The relative file path. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
-     * @param fileBody The body of the file to be stored in the bucket.
-     */
-    uploadOrUpdate(method, path, fileBody, fileOptions) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                let body;
-                const options = Object.assign(Object.assign({}, DEFAULT_FILE_OPTIONS), fileOptions);
-                let headers = Object.assign(Object.assign({}, this.headers), (method === 'POST' && { 'x-upsert': String(options.upsert) }));
-                const metadata = options.metadata;
-                if (typeof Blob !== 'undefined' && fileBody instanceof Blob) {
-                    body = new FormData();
-                    body.append('cacheControl', options.cacheControl);
-                    if (metadata) {
-                        body.append('metadata', this.encodeMetadata(metadata));
-                    }
-                    body.append('', fileBody);
-                }
-                else if (typeof FormData !== 'undefined' && fileBody instanceof FormData) {
-                    body = fileBody;
-                    // Only append if not already present
-                    if (!body.has('cacheControl')) {
-                        body.append('cacheControl', options.cacheControl);
-                    }
-                    if (metadata && !body.has('metadata')) {
-                        body.append('metadata', this.encodeMetadata(metadata));
-                    }
-                }
-                else {
-                    body = fileBody;
-                    headers['cache-control'] = `max-age=${options.cacheControl}`;
-                    headers['content-type'] = options.contentType;
-                    if (metadata) {
-                        headers['x-metadata'] = this.toBase64(this.encodeMetadata(metadata));
-                    }
-                    // Node.js streams require duplex option for fetch in Node 20+
-                    // Check for both web ReadableStream and Node.js streams
-                    const isStream = (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) ||
-                        (body && typeof body === 'object' && 'pipe' in body && typeof body.pipe === 'function');
-                    if (isStream && !options.duplex) {
-                        options.duplex = 'half';
-                    }
-                }
-                if (fileOptions === null || fileOptions === void 0 ? void 0 : fileOptions.headers) {
-                    headers = Object.assign(Object.assign({}, headers), fileOptions.headers);
-                }
-                const cleanPath = this._removeEmptyFolders(path);
-                const _path = this._getFinalPath(cleanPath);
-                const data = yield (method == 'PUT' ? fetch_1.put : fetch_1.post)(this.fetch, `${this.url}/object/${_path}`, body, Object.assign({ headers }, ((options === null || options === void 0 ? void 0 : options.duplex) ? { duplex: options.duplex } : {})));
-                return {
-                    data: { path: cleanPath, id: data.Id, fullPath: data.Key },
-                    error: null,
-                };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Uploads a file to an existing bucket.
-     *
-     * @param path The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
-     * @param fileBody The body of the file to be stored in the bucket.
-     */
-    upload(path, fileBody, fileOptions) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return this.uploadOrUpdate('POST', path, fileBody, fileOptions);
-        });
-    }
-    /**
-     * Upload a file with a token generated from `createSignedUploadUrl`.
-     * @param path The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
-     * @param token The token generated from `createSignedUploadUrl`
-     * @param fileBody The body of the file to be stored in the bucket.
-     */
-    uploadToSignedUrl(path, token, fileBody, fileOptions) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            const cleanPath = this._removeEmptyFolders(path);
-            const _path = this._getFinalPath(cleanPath);
-            const url = new URL(this.url + `/object/upload/sign/${_path}`);
-            url.searchParams.set('token', token);
-            try {
-                let body;
-                const options = Object.assign({ upsert: DEFAULT_FILE_OPTIONS.upsert }, fileOptions);
-                const headers = Object.assign(Object.assign({}, this.headers), { 'x-upsert': String(options.upsert) });
-                if (typeof Blob !== 'undefined' && fileBody instanceof Blob) {
-                    body = new FormData();
-                    body.append('cacheControl', options.cacheControl);
-                    body.append('', fileBody);
-                }
-                else if (typeof FormData !== 'undefined' && fileBody instanceof FormData) {
-                    body = fileBody;
-                    body.append('cacheControl', options.cacheControl);
-                }
-                else {
-                    body = fileBody;
-                    headers['cache-control'] = `max-age=${options.cacheControl}`;
-                    headers['content-type'] = options.contentType;
-                }
-                const data = yield (0, fetch_1.put)(this.fetch, url.toString(), body, { headers });
-                return {
-                    data: { path: cleanPath, fullPath: data.Key },
-                    error: null,
-                };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Creates a signed upload URL.
-     * Signed upload URLs can be used to upload files to the bucket without further authentication.
-     * They are valid for 2 hours.
-     * @param path The file path, including the current file name. For example `folder/image.png`.
-     * @param options.upsert If set to true, allows the file to be overwritten if it already exists.
-     */
-    createSignedUploadUrl(path, options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                let _path = this._getFinalPath(path);
-                const headers = Object.assign({}, this.headers);
-                if (options === null || options === void 0 ? void 0 : options.upsert) {
-                    headers['x-upsert'] = 'true';
-                }
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/object/upload/sign/${_path}`, {}, { headers });
-                const url = new URL(this.url + data.url);
-                const token = url.searchParams.get('token');
-                if (!token) {
-                    throw new errors_1.StorageError('No token returned by API');
-                }
-                return { data: { signedUrl: url.toString(), path, token }, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Replaces an existing file at the specified path with a new one.
-     *
-     * @param path The relative file path. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to update.
-     * @param fileBody The body of the file to be stored in the bucket.
-     */
-    update(path, fileBody, fileOptions) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            return this.uploadOrUpdate('PUT', path, fileBody, fileOptions);
-        });
-    }
-    /**
-     * Moves an existing file to a new path in the same bucket.
-     *
-     * @param fromPath The original file path, including the current file name. For example `folder/image.png`.
-     * @param toPath The new file path, including the new file name. For example `folder/image-new.png`.
-     * @param options The destination options.
-     */
-    move(fromPath, toPath, options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/object/move`, {
-                    bucketId: this.bucketId,
-                    sourceKey: fromPath,
-                    destinationKey: toPath,
-                    destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket,
-                }, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Copies an existing file to a new path in the same bucket.
-     *
-     * @param fromPath The original file path, including the current file name. For example `folder/image.png`.
-     * @param toPath The new file path, including the new file name. For example `folder/image-copy.png`.
-     * @param options The destination options.
-     */
-    copy(fromPath, toPath, options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/object/copy`, {
-                    bucketId: this.bucketId,
-                    sourceKey: fromPath,
-                    destinationKey: toPath,
-                    destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket,
-                }, { headers: this.headers });
-                return { data: { path: data.Key }, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Creates a signed URL. Use a signed URL to share a file for a fixed amount of time.
-     *
-     * @param path The file path, including the current file name. For example `folder/image.png`.
-     * @param expiresIn The number of seconds until the signed URL expires. For example, `60` for a URL which is valid for one minute.
-     * @param options.download triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
-     * @param options.transform Transform the asset before serving it to the client.
-     */
-    createSignedUrl(path, expiresIn, options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                let _path = this._getFinalPath(path);
-                let data = yield (0, fetch_1.post)(this.fetch, `${this.url}/object/sign/${_path}`, Object.assign({ expiresIn }, ((options === null || options === void 0 ? void 0 : options.transform) ? { transform: options.transform } : {})), { headers: this.headers });
-                const downloadQueryParam = (options === null || options === void 0 ? void 0 : options.download)
-                    ? `&download=${options.download === true ? '' : options.download}`
-                    : '';
-                const signedUrl = encodeURI(`${this.url}${data.signedURL}${downloadQueryParam}`);
-                data = { signedUrl };
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Creates multiple signed URLs. Use a signed URL to share a file for a fixed amount of time.
-     *
-     * @param paths The file paths to be downloaded, including the current file names. For example `['folder/image.png', 'folder2/image2.png']`.
-     * @param expiresIn The number of seconds until the signed URLs expire. For example, `60` for URLs which are valid for one minute.
-     * @param options.download triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
-     */
-    createSignedUrls(paths, expiresIn, options) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/object/sign/${this.bucketId}`, { expiresIn, paths }, { headers: this.headers });
-                const downloadQueryParam = (options === null || options === void 0 ? void 0 : options.download)
-                    ? `&download=${options.download === true ? '' : options.download}`
-                    : '';
-                return {
-                    data: data.map((datum) => (Object.assign(Object.assign({}, datum), { signedUrl: datum.signedURL
-                            ? encodeURI(`${this.url}${datum.signedURL}${downloadQueryParam}`)
-                            : null }))),
-                    error: null,
-                };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Downloads a file from a private bucket. For public buckets, make a request to the URL returned from `getPublicUrl` instead.
-     *
-     * @param path The full path and file name of the file to be downloaded. For example `folder/image.png`.
-     * @param options.transform Transform the asset before serving it to the client.
-     */
-    download(path, options) {
-        const wantsTransformation = typeof (options === null || options === void 0 ? void 0 : options.transform) !== 'undefined';
-        const renderPath = wantsTransformation ? 'render/image/authenticated' : 'object';
-        const transformationQuery = this.transformOptsToQueryString((options === null || options === void 0 ? void 0 : options.transform) || {});
-        const queryString = transformationQuery ? `?${transformationQuery}` : '';
-        const _path = this._getFinalPath(path);
-        const downloadFn = () => (0, fetch_1.get)(this.fetch, `${this.url}/${renderPath}/${_path}${queryString}`, {
-            headers: this.headers,
-            noResolveJson: true,
-        });
-        return new BlobDownloadBuilder_1.default(downloadFn, this.shouldThrowOnError);
-    }
-    /**
-     * Retrieves the details of an existing file.
-     * @param path
-     */
-    info(path) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            const _path = this._getFinalPath(path);
-            try {
-                const data = yield (0, fetch_1.get)(this.fetch, `${this.url}/object/info/${_path}`, {
-                    headers: this.headers,
-                });
-                return { data: (0, helpers_1.recursiveToCamel)(data), error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Checks the existence of a file.
-     * @param path
-     */
-    exists(path) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            const _path = this._getFinalPath(path);
-            try {
-                yield (0, fetch_1.head)(this.fetch, `${this.url}/object/${_path}`, {
-                    headers: this.headers,
-                });
-                return { data: true, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error) && error instanceof errors_1.StorageUnknownError) {
-                    const originalError = error.originalError;
-                    if ([400, 404].includes(originalError === null || originalError === void 0 ? void 0 : originalError.status)) {
-                        return { data: false, error };
-                    }
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * A simple convenience function to get the URL for an asset in a public bucket. If you do not want to use this function, you can construct the public URL by concatenating the bucket URL with the path to the asset.
-     * This function does not verify if the bucket is public. If a public URL is created for a bucket which is not public, you will not be able to download the asset.
-     *
-     * @param path The path and name of the file to generate the public URL for. For example `folder/image.png`.
-     * @param options.download Triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
-     * @param options.transform Transform the asset before serving it to the client.
-     */
-    getPublicUrl(path, options) {
-        const _path = this._getFinalPath(path);
-        const _queryString = [];
-        const downloadQueryParam = (options === null || options === void 0 ? void 0 : options.download)
-            ? `download=${options.download === true ? '' : options.download}`
-            : '';
-        if (downloadQueryParam !== '') {
-            _queryString.push(downloadQueryParam);
-        }
-        const wantsTransformation = typeof (options === null || options === void 0 ? void 0 : options.transform) !== 'undefined';
-        const renderPath = wantsTransformation ? 'render/image' : 'object';
-        const transformationQuery = this.transformOptsToQueryString((options === null || options === void 0 ? void 0 : options.transform) || {});
-        if (transformationQuery !== '') {
-            _queryString.push(transformationQuery);
-        }
-        let queryString = _queryString.join('&');
-        if (queryString !== '') {
-            queryString = `?${queryString}`;
-        }
-        return {
-            data: { publicUrl: encodeURI(`${this.url}/${renderPath}/public/${_path}${queryString}`) },
-        };
-    }
-    /**
-     * Deletes files within the same bucket
-     *
-     * @param paths An array of files to delete, including the path and file name. For example [`'folder/image.png'`].
-     */
-    remove(paths) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const data = yield (0, fetch_1.remove)(this.fetch, `${this.url}/object/${this.bucketId}`, { prefixes: paths }, { headers: this.headers });
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * Get file metadata
-     * @param id the file id to retrieve metadata
-     */
-    // async getMetadata(
-    //   id: string
-    // ): Promise<
-    //   | {
-    //       data: Metadata
-    //       error: null
-    //     }
-    //   | {
-    //       data: null
-    //       error: StorageError
-    //     }
-    // > {
-    //   try {
-    //     const data = await get(this.fetch, `${this.url}/metadata/${id}`, { headers: this.headers })
-    //     return { data, error: null }
-    //   } catch (error) {
-    //     if (isStorageError(error)) {
-    //       return { data: null, error }
-    //     }
-    //     throw error
-    //   }
-    // }
-    /**
-     * Update file metadata
-     * @param id the file id to update metadata
-     * @param meta the new file metadata
-     */
-    // async updateMetadata(
-    //   id: string,
-    //   meta: Metadata
-    // ): Promise<
-    //   | {
-    //       data: Metadata
-    //       error: null
-    //     }
-    //   | {
-    //       data: null
-    //       error: StorageError
-    //     }
-    // > {
-    //   try {
-    //     const data = await post(
-    //       this.fetch,
-    //       `${this.url}/metadata/${id}`,
-    //       { ...meta },
-    //       { headers: this.headers }
-    //     )
-    //     return { data, error: null }
-    //   } catch (error) {
-    //     if (isStorageError(error)) {
-    //       return { data: null, error }
-    //     }
-    //     throw error
-    //   }
-    // }
-    /**
-     * Lists all the files and folders within a path of the bucket.
-     * @param path The folder path.
-     * @param options Search options including limit (defaults to 100), offset, sortBy, and search
-     */
-    list(path, options, parameters) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const body = Object.assign(Object.assign(Object.assign({}, DEFAULT_SEARCH_OPTIONS), options), { prefix: path || '' });
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/object/list/${this.bucketId}`, body, { headers: this.headers }, parameters);
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    /**
-     * @experimental this method signature might change in the future
-     * @param options search options
-     * @param parameters
-     */
-    listV2(options, parameters) {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const body = Object.assign({}, options);
-                const data = yield (0, fetch_1.post)(this.fetch, `${this.url}/object/list-v2/${this.bucketId}`, body, { headers: this.headers }, parameters);
-                return { data, error: null };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-    encodeMetadata(metadata) {
-        return JSON.stringify(metadata);
-    }
-    toBase64(data) {
-        if (typeof Buffer !== 'undefined') {
-            return Buffer.from(data).toString('base64');
-        }
-        return btoa(data);
-    }
-    _getFinalPath(path) {
-        return `${this.bucketId}/${path.replace(/^\/+/, '')}`;
-    }
-    _removeEmptyFolders(path) {
-        return path.replace(/^\/|\/$/g, '').replace(/\/+/g, '/');
-    }
-    transformOptsToQueryString(transform) {
-        const params = [];
-        if (transform.width) {
-            params.push(`width=${transform.width}`);
-        }
-        if (transform.height) {
-            params.push(`height=${transform.height}`);
-        }
-        if (transform.resize) {
-            params.push(`resize=${transform.resize}`);
-        }
-        if (transform.format) {
-            params.push(`format=${transform.format}`);
-        }
-        if (transform.quality) {
-            params.push(`quality=${transform.quality}`);
-        }
-        return params.join('&');
-    }
-}
-exports["default"] = StorageFileApi;
-//# sourceMappingURL=StorageFileApi.js.map
-
-/***/ }),
-
-/***/ 7023:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const tslib_1 = __nccwpck_require__(4351);
-const errors_1 = __nccwpck_require__(2758);
-class StreamDownloadBuilder {
-    constructor(downloadFn, shouldThrowOnError) {
-        this.downloadFn = downloadFn;
-        this.shouldThrowOnError = shouldThrowOnError;
-    }
-    then(onfulfilled, onrejected) {
-        return this.execute().then(onfulfilled, onrejected);
-    }
-    execute() {
-        return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            try {
-                const result = yield this.downloadFn();
-                return {
-                    data: result.body,
-                    error: null,
-                };
-            }
-            catch (error) {
-                if (this.shouldThrowOnError) {
-                    throw error;
-                }
-                if ((0, errors_1.isStorageError)(error)) {
-                    return { data: null, error };
-                }
-                throw error;
-            }
-        });
-    }
-}
-exports["default"] = StreamDownloadBuilder;
-//# sourceMappingURL=StreamDownloadBuilder.js.map
-
-/***/ }),
-
-/***/ 1807:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const functions_js_1 = __nccwpck_require__(8519);
-const postgrest_js_1 = __nccwpck_require__(1178);
-const realtime_js_1 = __nccwpck_require__(442);
-const storage_js_1 = __nccwpck_require__(5852);
-const constants_1 = __nccwpck_require__(4868);
-const fetch_1 = __nccwpck_require__(785);
-const helpers_1 = __nccwpck_require__(3575);
-const SupabaseAuthClient_1 = __nccwpck_require__(7620);
-/**
- * Supabase Client.
- *
- * An isomorphic Javascript client for interacting with Postgres.
- */
-class SupabaseClient {
-    /**
-     * Create a new client for use in the browser.
-     * @param supabaseUrl The unique Supabase URL which is supplied when you create a new project in your project dashboard.
-     * @param supabaseKey The unique Supabase Key which is supplied when you create a new project in your project dashboard.
-     * @param options.db.schema You can switch in between schemas. The schema needs to be on the list of exposed schemas inside Supabase.
-     * @param options.auth.autoRefreshToken Set to "true" if you want to automatically refresh the token before expiring.
-     * @param options.auth.persistSession Set to "true" if you want to automatically save the user session into local storage.
-     * @param options.auth.detectSessionInUrl Set to "true" if you want to automatically detects OAuth grants in the URL and signs in the user.
-     * @param options.realtime Options passed along to realtime-js constructor.
-     * @param options.storage Options passed along to the storage-js constructor.
-     * @param options.global.fetch A custom fetch implementation.
-     * @param options.global.headers Any additional headers to send with each network request.
-     */
-    constructor(supabaseUrl, supabaseKey, options) {
-        var _a, _b, _c;
-        this.supabaseUrl = supabaseUrl;
-        this.supabaseKey = supabaseKey;
-        const baseUrl = (0, helpers_1.validateSupabaseUrl)(supabaseUrl);
-        if (!supabaseKey)
-            throw new Error('supabaseKey is required.');
-        this.realtimeUrl = new URL('realtime/v1', baseUrl);
-        this.realtimeUrl.protocol = this.realtimeUrl.protocol.replace('http', 'ws');
-        this.authUrl = new URL('auth/v1', baseUrl);
-        this.storageUrl = new URL('storage/v1', baseUrl);
-        this.functionsUrl = new URL('functions/v1', baseUrl);
-        // default storage key uses the supabase project ref as a namespace
-        const defaultStorageKey = `sb-${baseUrl.hostname.split('.')[0]}-auth-token`;
-        const DEFAULTS = {
-            db: constants_1.DEFAULT_DB_OPTIONS,
-            realtime: constants_1.DEFAULT_REALTIME_OPTIONS,
-            auth: Object.assign(Object.assign({}, constants_1.DEFAULT_AUTH_OPTIONS), { storageKey: defaultStorageKey }),
-            global: constants_1.DEFAULT_GLOBAL_OPTIONS,
-        };
-        const settings = (0, helpers_1.applySettingDefaults)(options !== null && options !== void 0 ? options : {}, DEFAULTS);
-        this.storageKey = (_a = settings.auth.storageKey) !== null && _a !== void 0 ? _a : '';
-        this.headers = (_b = settings.global.headers) !== null && _b !== void 0 ? _b : {};
-        if (!settings.accessToken) {
-            this.auth = this._initSupabaseAuthClient((_c = settings.auth) !== null && _c !== void 0 ? _c : {}, this.headers, settings.global.fetch);
-        }
-        else {
-            this.accessToken = settings.accessToken;
-            this.auth = new Proxy({}, {
-                get: (_, prop) => {
-                    throw new Error(`@supabase/supabase-js: Supabase Client is configured with the accessToken option, accessing supabase.auth.${String(prop)} is not possible`);
-                },
-            });
-        }
-        this.fetch = (0, fetch_1.fetchWithAuth)(supabaseKey, this._getAccessToken.bind(this), settings.global.fetch);
-        this.realtime = this._initRealtimeClient(Object.assign({ headers: this.headers, accessToken: this._getAccessToken.bind(this) }, settings.realtime));
-        if (this.accessToken) {
-            // Start auth immediately to avoid race condition with channel subscriptions
-            this.accessToken()
-                .then((token) => this.realtime.setAuth(token))
-                .catch((e) => console.warn('Failed to set initial Realtime auth token:', e));
-        }
-        this.rest = new postgrest_js_1.PostgrestClient(new URL('rest/v1', baseUrl).href, {
-            headers: this.headers,
-            schema: settings.db.schema,
-            fetch: this.fetch,
-        });
-        this.storage = new storage_js_1.StorageClient(this.storageUrl.href, this.headers, this.fetch, options === null || options === void 0 ? void 0 : options.storage);
-        if (!settings.accessToken) {
-            this._listenForAuthEvents();
-        }
-    }
-    /**
-     * Supabase Functions allows you to deploy and invoke edge functions.
-     */
-    get functions() {
-        return new functions_js_1.FunctionsClient(this.functionsUrl.href, {
-            headers: this.headers,
-            customFetch: this.fetch,
-        });
-    }
-    /**
-     * Perform a query on a table or a view.
-     *
-     * @param relation - The table or view name to query
-     */
-    from(relation) {
-        return this.rest.from(relation);
-    }
-    // NOTE: signatures must be kept in sync with PostgrestClient.schema
-    /**
-     * Select a schema to query or perform an function (rpc) call.
-     *
-     * The schema needs to be on the list of exposed schemas inside Supabase.
-     *
-     * @param schema - The schema to query
-     */
-    schema(schema) {
-        return this.rest.schema(schema);
-    }
-    // NOTE: signatures must be kept in sync with PostgrestClient.rpc
-    /**
-     * Perform a function call.
-     *
-     * @param fn - The function name to call
-     * @param args - The arguments to pass to the function call
-     * @param options - Named parameters
-     * @param options.head - When set to `true`, `data` will not be returned.
-     * Useful if you only need the count.
-     * @param options.get - When set to `true`, the function will be called with
-     * read-only access mode.
-     * @param options.count - Count algorithm to use to count rows returned by the
-     * function. Only applicable for [set-returning
-     * functions](https://www.postgresql.org/docs/current/functions-srf.html).
-     *
-     * `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
-     * hood.
-     *
-     * `"planned"`: Approximated but fast count algorithm. Uses the Postgres
-     * statistics under the hood.
-     *
-     * `"estimated"`: Uses exact count for low numbers and planned count for high
-     * numbers.
-     */
-    rpc(fn, args = {}, options = {
-        head: false,
-        get: false,
-        count: undefined,
-    }) {
-        return this.rest.rpc(fn, args, options);
-    }
-    /**
-     * Creates a Realtime channel with Broadcast, Presence, and Postgres Changes.
-     *
-     * @param {string} name - The name of the Realtime channel.
-     * @param {Object} opts - The options to pass to the Realtime channel.
-     *
-     */
-    channel(name, opts = { config: {} }) {
-        return this.realtime.channel(name, opts);
-    }
-    /**
-     * Returns all Realtime channels.
-     */
-    getChannels() {
-        return this.realtime.getChannels();
-    }
-    /**
-     * Unsubscribes and removes Realtime channel from Realtime client.
-     *
-     * @param {RealtimeChannel} channel - The name of the Realtime channel.
-     *
-     */
-    removeChannel(channel) {
-        return this.realtime.removeChannel(channel);
-    }
-    /**
-     * Unsubscribes and removes all Realtime channels from Realtime client.
-     */
-    removeAllChannels() {
-        return this.realtime.removeAllChannels();
-    }
-    async _getAccessToken() {
-        var _a, _b;
-        if (this.accessToken) {
-            return await this.accessToken();
-        }
-        const { data } = await this.auth.getSession();
-        return (_b = (_a = data.session) === null || _a === void 0 ? void 0 : _a.access_token) !== null && _b !== void 0 ? _b : this.supabaseKey;
-    }
-    _initSupabaseAuthClient({ autoRefreshToken, persistSession, detectSessionInUrl, storage, userStorage, storageKey, flowType, lock, debug, throwOnError, }, headers, fetch) {
-        const authHeaders = {
-            Authorization: `Bearer ${this.supabaseKey}`,
-            apikey: `${this.supabaseKey}`,
-        };
-        return new SupabaseAuthClient_1.SupabaseAuthClient({
-            url: this.authUrl.href,
-            headers: Object.assign(Object.assign({}, authHeaders), headers),
-            storageKey: storageKey,
-            autoRefreshToken,
-            persistSession,
-            detectSessionInUrl,
-            storage,
-            userStorage,
-            flowType,
-            lock,
-            debug,
-            throwOnError,
-            fetch,
-            // auth checks if there is a custom authorizaiton header using this flag
-            // so it knows whether to return an error when getUser is called with no session
-            hasCustomAuthorizationHeader: Object.keys(this.headers).some((key) => key.toLowerCase() === 'authorization'),
-        });
-    }
-    _initRealtimeClient(options) {
-        return new realtime_js_1.RealtimeClient(this.realtimeUrl.href, Object.assign(Object.assign({}, options), { params: Object.assign({ apikey: this.supabaseKey }, options === null || options === void 0 ? void 0 : options.params) }));
-    }
-    _listenForAuthEvents() {
-        const data = this.auth.onAuthStateChange((event, session) => {
-            this._handleTokenChanged(event, 'CLIENT', session === null || session === void 0 ? void 0 : session.access_token);
-        });
-        return data;
-    }
-    _handleTokenChanged(event, source, token) {
-        if ((event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') &&
-            this.changedAccessToken !== token) {
-            this.changedAccessToken = token;
-            this.realtime.setAuth(token);
-        }
-        else if (event === 'SIGNED_OUT') {
-            this.realtime.setAuth();
-            if (source == 'STORAGE')
-                this.auth.signOut();
-            this.changedAccessToken = undefined;
-        }
-    }
-}
-exports["default"] = SupabaseClient;
-//# sourceMappingURL=SupabaseClient.js.map
-
-/***/ }),
-
-/***/ 1206:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createClient = exports.SupabaseClient = exports.FunctionRegion = exports.FunctionsError = exports.FunctionsRelayError = exports.FunctionsFetchError = exports.FunctionsHttpError = exports.PostgrestError = void 0;
-const SupabaseClient_1 = __importDefault(__nccwpck_require__(1807));
-__exportStar(__nccwpck_require__(6748), exports);
-var postgrest_js_1 = __nccwpck_require__(1178);
-Object.defineProperty(exports, "PostgrestError", ({ enumerable: true, get: function () { return postgrest_js_1.PostgrestError; } }));
-var functions_js_1 = __nccwpck_require__(8519);
-Object.defineProperty(exports, "FunctionsHttpError", ({ enumerable: true, get: function () { return functions_js_1.FunctionsHttpError; } }));
-Object.defineProperty(exports, "FunctionsFetchError", ({ enumerable: true, get: function () { return functions_js_1.FunctionsFetchError; } }));
-Object.defineProperty(exports, "FunctionsRelayError", ({ enumerable: true, get: function () { return functions_js_1.FunctionsRelayError; } }));
-Object.defineProperty(exports, "FunctionsError", ({ enumerable: true, get: function () { return functions_js_1.FunctionsError; } }));
-Object.defineProperty(exports, "FunctionRegion", ({ enumerable: true, get: function () { return functions_js_1.FunctionRegion; } }));
-__exportStar(__nccwpck_require__(442), exports);
-var SupabaseClient_2 = __nccwpck_require__(1807);
-Object.defineProperty(exports, "SupabaseClient", ({ enumerable: true, get: function () { return __importDefault(SupabaseClient_2).default; } }));
-/**
- * Creates a new Supabase Client.
- */
-const createClient = (supabaseUrl, supabaseKey, options) => {
-    return new SupabaseClient_1.default(supabaseUrl, supabaseKey, options);
-};
-exports.createClient = createClient;
-// Check for Node.js <= 18 deprecation
-function shouldShowDeprecationWarning() {
-    // Skip in browser environments
-    if (typeof window !== 'undefined') {
-        return false;
-    }
-    // Skip if process is not available (e.g., Edge Runtime)
-    if (typeof process === 'undefined') {
-        return false;
-    }
-    // Use dynamic property access to avoid Next.js Edge Runtime static analysis warnings
-    const processVersion = process['version'];
-    if (processVersion === undefined || processVersion === null) {
-        return false;
-    }
-    const versionMatch = processVersion.match(/^v(\d+)\./);
-    if (!versionMatch) {
-        return false;
-    }
-    const majorVersion = parseInt(versionMatch[1], 10);
-    return majorVersion <= 18;
-}
-if (shouldShowDeprecationWarning()) {
-    console.warn(`⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. ` +
-        `Please upgrade to Node.js 20 or later. ` +
-        `For more information, visit: https://github.com/orgs/supabase/discussions/37217`);
-}
-//# sourceMappingURL=index.js.map
-
-/***/ }),
-
-/***/ 7620:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SupabaseAuthClient = void 0;
-const auth_js_1 = __nccwpck_require__(6748);
-class SupabaseAuthClient extends auth_js_1.AuthClient {
-    constructor(options) {
-        super(options);
-    }
-}
-exports.SupabaseAuthClient = SupabaseAuthClient;
-//# sourceMappingURL=SupabaseAuthClient.js.map
-
-/***/ }),
-
-/***/ 4868:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DEFAULT_REALTIME_OPTIONS = exports.DEFAULT_AUTH_OPTIONS = exports.DEFAULT_DB_OPTIONS = exports.DEFAULT_GLOBAL_OPTIONS = exports.DEFAULT_HEADERS = void 0;
-const version_1 = __nccwpck_require__(6136);
-let JS_ENV = '';
-// @ts-ignore
-if (typeof Deno !== 'undefined') {
-    JS_ENV = 'deno';
-}
-else if (typeof document !== 'undefined') {
-    JS_ENV = 'web';
-}
-else if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
-    JS_ENV = 'react-native';
-}
-else {
-    JS_ENV = 'node';
-}
-exports.DEFAULT_HEADERS = { 'X-Client-Info': `supabase-js-${JS_ENV}/${version_1.version}` };
-exports.DEFAULT_GLOBAL_OPTIONS = {
-    headers: exports.DEFAULT_HEADERS,
-};
-exports.DEFAULT_DB_OPTIONS = {
-    schema: 'public',
-};
-exports.DEFAULT_AUTH_OPTIONS = {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'implicit',
-};
-exports.DEFAULT_REALTIME_OPTIONS = {};
-//# sourceMappingURL=constants.js.map
-
-/***/ }),
-
-/***/ 785:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.fetchWithAuth = exports.resolveHeadersConstructor = exports.resolveFetch = void 0;
-const resolveFetch = (customFetch) => {
-    if (customFetch) {
-        return (...args) => customFetch(...args);
-    }
-    return (...args) => fetch(...args);
-};
-exports.resolveFetch = resolveFetch;
-const resolveHeadersConstructor = () => {
-    return Headers;
-};
-exports.resolveHeadersConstructor = resolveHeadersConstructor;
-const fetchWithAuth = (supabaseKey, getAccessToken, customFetch) => {
-    const fetch = (0, exports.resolveFetch)(customFetch);
-    const HeadersConstructor = (0, exports.resolveHeadersConstructor)();
-    return async (input, init) => {
-        var _a;
-        const accessToken = (_a = (await getAccessToken())) !== null && _a !== void 0 ? _a : supabaseKey;
-        let headers = new HeadersConstructor(init === null || init === void 0 ? void 0 : init.headers);
-        if (!headers.has('apikey')) {
-            headers.set('apikey', supabaseKey);
-        }
-        if (!headers.has('Authorization')) {
-            headers.set('Authorization', `Bearer ${accessToken}`);
-        }
-        return fetch(input, Object.assign(Object.assign({}, init), { headers }));
-    };
-};
-exports.fetchWithAuth = fetchWithAuth;
-//# sourceMappingURL=fetch.js.map
-
-/***/ }),
-
-/***/ 3575:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.isBrowser = void 0;
-exports.uuid = uuid;
-exports.ensureTrailingSlash = ensureTrailingSlash;
-exports.applySettingDefaults = applySettingDefaults;
-exports.validateSupabaseUrl = validateSupabaseUrl;
-function uuid() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        var r = (Math.random() * 16) | 0, v = c == 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-    });
-}
-function ensureTrailingSlash(url) {
-    return url.endsWith('/') ? url : url + '/';
-}
-const isBrowser = () => typeof window !== 'undefined';
-exports.isBrowser = isBrowser;
-function applySettingDefaults(options, defaults) {
-    var _a, _b;
-    const { db: dbOptions, auth: authOptions, realtime: realtimeOptions, global: globalOptions, } = options;
-    const { db: DEFAULT_DB_OPTIONS, auth: DEFAULT_AUTH_OPTIONS, realtime: DEFAULT_REALTIME_OPTIONS, global: DEFAULT_GLOBAL_OPTIONS, } = defaults;
-    const result = {
-        db: Object.assign(Object.assign({}, DEFAULT_DB_OPTIONS), dbOptions),
-        auth: Object.assign(Object.assign({}, DEFAULT_AUTH_OPTIONS), authOptions),
-        realtime: Object.assign(Object.assign({}, DEFAULT_REALTIME_OPTIONS), realtimeOptions),
-        storage: {},
-        global: Object.assign(Object.assign(Object.assign({}, DEFAULT_GLOBAL_OPTIONS), globalOptions), { headers: Object.assign(Object.assign({}, ((_a = DEFAULT_GLOBAL_OPTIONS === null || DEFAULT_GLOBAL_OPTIONS === void 0 ? void 0 : DEFAULT_GLOBAL_OPTIONS.headers) !== null && _a !== void 0 ? _a : {})), ((_b = globalOptions === null || globalOptions === void 0 ? void 0 : globalOptions.headers) !== null && _b !== void 0 ? _b : {})) }),
-        accessToken: async () => '',
-    };
-    if (options.accessToken) {
-        result.accessToken = options.accessToken;
-    }
-    else {
-        // hack around Required<>
-        delete result.accessToken;
-    }
-    return result;
-}
-/**
- * Validates a Supabase client URL
- *
- * @param {string} supabaseUrl - The Supabase client URL string.
- * @returns {URL} - The validated base URL.
- * @throws {Error}
- */
-function validateSupabaseUrl(supabaseUrl) {
-    const trimmedUrl = supabaseUrl === null || supabaseUrl === void 0 ? void 0 : supabaseUrl.trim();
-    if (!trimmedUrl) {
-        throw new Error('supabaseUrl is required.');
-    }
-    if (!trimmedUrl.match(/^https?:\/\//i)) {
-        throw new Error('Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL.');
-    }
-    try {
-        return new URL(ensureTrailingSlash(trimmedUrl));
-    }
-    catch (_a) {
-        throw Error('Invalid supabaseUrl: Provided URL is malformed.');
-    }
-}
-//# sourceMappingURL=helpers.js.map
-
-/***/ }),
-
-/***/ 6136:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.version = void 0;
-// Generated automatically during releases by scripts/update-version-files.ts
-// This file provides runtime access to the package version for:
-// - HTTP request headers (e.g., X-Client-Info header for API requests)
-// - Debugging and support (identifying which version is running)
-// - Telemetry and logging (version reporting in errors/analytics)
-// - Ensuring build artifacts match the published package version
-exports.version = '2.81.1';
-//# sourceMappingURL=version.js.map
 
 /***/ }),
 
@@ -63063,9 +58878,9 @@ class AgentInitializer {
                     (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
                     const fileRepository = new file_repository_1.FileRepository();
                     const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
-                        (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
+                        // logDebugInfo(`   📄 Loaded: ${fileName}`);
                     }, (fileName) => {
-                        (0, logger_1.logDebugInfo)(`   ⏭️  Ignored: ${fileName}`);
+                        // logDebugInfo(`   ⏭️  Ignored: ${fileName}`);
                     });
                     files.forEach((content, path) => {
                         repositoryFiles.set(path, content);
@@ -63746,11 +59561,16 @@ const manage_todos_tool_1 = __nccwpck_require__(7645);
 const logger_1 = __nccwpck_require__(8836);
 const file_partitioner_1 = __nccwpck_require__(8951);
 const system_prompt_builder_1 = __nccwpck_require__(6995);
+const agent_initializer_1 = __nccwpck_require__(990);
 const fs = __importStar(__nccwpck_require__(7147));
 const path = __importStar(__nccwpck_require__(1017));
 class SubagentHandler {
     /**
      * Process prompt using subagents for parallel processing
+     *
+     * Uses a two-phase approach:
+     * Phase 1: Subagents work in parallel (READ-ONLY) - analyze and propose changes
+     * Phase 2: Coordinator agent executes changes sequentially
      */
     static async processPromptWithSubAgents(agent, repositoryFiles, options, userPrompt, shouldApplyChanges) {
         const allFiles = Array.from(repositoryFiles.keys());
@@ -63768,9 +59588,13 @@ class SubagentHandler {
         // Group files by directory to keep related files together
         const fileGroups = file_partitioner_1.FilePartitioner.partitionFilesByDirectory(allFiles, numSubagents);
         (0, logger_1.logInfo)(`📁 Created ${fileGroups.length} file groups for parallel processing`);
-        // Create tools for subagents (all files available through tools)
-        const tools = await this.createSubagentTools(repositoryFiles, options);
-        // Create tasks for each subagent
+        // ============================================
+        // PHASE 1: PARALLEL ANALYSIS (READ-ONLY)
+        // ============================================
+        (0, logger_1.logInfo)(`\n📖 PHASE 1: Parallel analysis (read-only mode)`);
+        // Create READ-ONLY tools for subagents (no propose_change, no apply_changes, no execute_command)
+        const readOnlyTools = await this.createReadOnlySubagentTools(repositoryFiles, options);
+        // Create tasks for each subagent (read-only phase)
         const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
         const tasks = fileGroups.map((files, index) => {
             const totalFiles = files.length;
@@ -63784,30 +59608,330 @@ class SubagentHandler {
                     fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
                 }
             }
-            // Add explicit instruction for subagents about applying changes
-            const subagentInstruction = `\n\n**CRITICAL INSTRUCTION FOR SUBAGENTS**: 
-When the user gives orders to CREATE, WRITE, MAKE, BUILD, SET UP, or MODIFY files:
-1. Call propose_change to prepare changes
-2. **IMMEDIATELY** call apply_changes to write files to disk
-3. **DO NOT** stop after propose_change - you MUST call apply_changes
-4. **DO NOT** execute commands until files are on disk
+            // Instructions for read-only phase
+            const readOnlyInstruction = `\n\n**PHASE 1 - READ-ONLY ANALYSIS MODE**:
+You are in READ-ONLY mode. Your task is to:
+1. Read and analyze files using read_file and search_files
+2. Understand the context and requirements
+3. Propose changes using propose_change (changes will be stored in memory, NOT written to disk)
+4. **DO NOT** call apply_changes or execute_command - these are disabled in this phase
+5. Focus on understanding what needs to be changed and propose those changes
 
-If you only propose changes without applying them, you have FAILED your task. Files must exist on disk!`;
+After you propose changes, a coordinator agent will execute them sequentially to avoid conflicts.`;
             return {
                 name: `copilot-${index + 1}`,
-                prompt: `${userPrompt}${fileListSection}${subagentInstruction}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
+                prompt: `${userPrompt}${fileListSection}${readOnlyInstruction}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
                 systemPrompt,
-                tools
+                tools: readOnlyTools
             };
         });
-        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} subagents in parallel...`);
-        const results = await agent.executeParallel(tasks);
-        (0, logger_1.logInfo)(`✅ All ${results.length} subagents completed`);
-        // Combine results from all subagents
-        return this.combineSubagentResults(results);
+        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} subagents in parallel (read-only)...`);
+        const analysisResults = await agent.executeParallel(tasks);
+        (0, logger_1.logInfo)(`✅ All ${analysisResults.length} subagents completed analysis`);
+        // Extract change plans from subagent results
+        const changePlans = this.extractChangePlans(analysisResults);
+        (0, logger_1.logInfo)(`📋 Extracted ${changePlans.length} change plan(s) from subagents`);
+        // ============================================
+        // PHASE 2: SEQUENTIAL EXECUTION (COORDINATOR)
+        // ============================================
+        if (changePlans.length === 0) {
+            (0, logger_1.logInfo)(`\n📝 PHASE 2: No changes to execute, skipping coordinator phase`);
+            // Combine analysis results only
+            return this.combineSubagentResults(analysisResults);
+        }
+        (0, logger_1.logInfo)(`\n✏️  PHASE 2: Sequential execution (coordinator)`);
+        const coordinatorResult = await this.executeChangesSequentially(agent, repositoryFiles, options, userPrompt, changePlans, shouldApplyChanges);
+        // Combine results from both phases
+        return this.combinePhasesResults(analysisResults, coordinatorResult);
     }
     /**
-     * Create tools for subagents
+     * Create READ-ONLY tools for subagents (Phase 1)
+     * Only allows reading files, searching, and proposing changes (in memory)
+     * Does NOT allow applying changes or executing commands
+     */
+    static async createReadOnlySubagentTools(repositoryFiles, options) {
+        const virtualCodebase = new Map(repositoryFiles);
+        const workingDir = options.workingDirectory || process.cwd();
+        const readFileTool = new read_file_tool_1.ReadFileTool({
+            getFileContent: (filePath) => {
+                // First check virtual codebase
+                if (virtualCodebase.has(filePath)) {
+                    return virtualCodebase.get(filePath);
+                }
+                // Then check if file exists on disk (for working directory files)
+                const normalizedWorkingDir = path.resolve(workingDir);
+                let normalizedFilePath;
+                if (path.isAbsolute(filePath)) {
+                    normalizedFilePath = path.resolve(filePath);
+                }
+                else {
+                    normalizedFilePath = path.resolve(normalizedWorkingDir, filePath);
+                }
+                const isInWorkingDir = normalizedFilePath.startsWith(normalizedWorkingDir + path.sep) ||
+                    normalizedFilePath === normalizedWorkingDir;
+                if (isInWorkingDir && fs.existsSync(normalizedFilePath)) {
+                    try {
+                        return fs.readFileSync(normalizedFilePath, 'utf8');
+                    }
+                    catch (error) {
+                        // Ignore read errors
+                    }
+                }
+                // Finally check repository files
+                return repositoryFiles.get(filePath);
+            },
+            repositoryFiles: virtualCodebase
+        });
+        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
+            searchFiles: (query) => {
+                return this.searchFiles(repositoryFiles, query);
+            },
+            getAllFiles: () => {
+                return this.getAllFiles(repositoryFiles);
+            }
+        });
+        // Propose change tool - ONLY updates virtual codebase (memory), NO auto-apply
+        const proposeChangeTool = new propose_change_tool_1.ProposeChangeTool({
+            applyChange: (change) => {
+                try {
+                    if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
+                        virtualCodebase.set(change.file_path, change.suggested_code);
+                        (0, logger_1.logInfo)(`📝 Proposed change (memory only): ${change.file_path} (${change.description || 'no description'})`);
+                        return true;
+                    }
+                    else if (change.change_type === 'delete') {
+                        virtualCodebase.delete(change.file_path);
+                        (0, logger_1.logInfo)(`📝 Proposed deletion (memory only): ${change.file_path}`);
+                        return true;
+                    }
+                }
+                catch (error) {
+                    (0, logger_1.logError)(`❌ Error proposing change to ${change.file_path}: ${error.message}`);
+                    return false;
+                }
+                return false;
+            },
+            onChangeApplied: (change) => {
+                (0, logger_1.logInfo)(`✅ Change proposed (memory only): ${change.file_path}`);
+            },
+            getUserPrompt: () => options.userPrompt,
+            getShouldApplyChanges: () => false, // Always false in read-only phase
+            // Disable auto-apply in read-only phase
+            autoApplyToDisk: async () => {
+                (0, logger_1.logWarn)(`⚠️  Auto-apply disabled in read-only phase`);
+                return false;
+            }
+        });
+        // Initialize TODO manager for tracking tasks
+        const manageTodosTool = await this.createManageTodosTool();
+        // Return only read-only tools (NO apply_changes, NO execute_command)
+        return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+    }
+    /**
+     * Extract change plans from subagent results
+     */
+    static extractChangePlans(results) {
+        const changePlans = [];
+        for (const { task, result } of results) {
+            // Create a map of toolCallId -> toolResult for quick lookup
+            const toolResultMap = new Map();
+            for (const turn of result.turns) {
+                if (turn.toolResults) {
+                    for (const toolResult of turn.toolResults) {
+                        toolResultMap.set(toolResult.toolCallId, toolResult);
+                    }
+                }
+            }
+            // Look for propose_change tool calls
+            for (const toolCall of result.toolCalls) {
+                if (toolCall.name === 'propose_change') {
+                    const toolResult = toolResultMap.get(toolCall.id);
+                    if (toolResult && !toolResult.isError) {
+                        try {
+                            const changeData = toolCall.input;
+                            if (changeData && changeData.file_path) {
+                                changePlans.push({
+                                    file: changeData.file_path,
+                                    changeType: changeData.change_type || 'modify',
+                                    description: changeData.description || 'no description',
+                                    suggestedCode: changeData.suggested_code || '',
+                                    reasoning: changeData.reasoning || '',
+                                    proposedBy: task
+                                });
+                            }
+                        }
+                        catch (error) {
+                            (0, logger_1.logWarn)(`⚠️  Error extracting change plan from ${task}: ${error}`);
+                        }
+                    }
+                }
+            }
+        }
+        return changePlans;
+    }
+    /**
+     * Execute changes sequentially using coordinator agent (Phase 2)
+     */
+    static async executeChangesSequentially(agent, repositoryFiles, options, userPrompt, changePlans, shouldApplyChanges) {
+        // Initialize coordinator agent with full tools
+        const optionsWithPrompt = { ...options, userPrompt, shouldApplyChanges };
+        const { agent: coordinatorAgent } = await agent_initializer_1.AgentInitializer.initialize(optionsWithPrompt);
+        // Build prompt for coordinator with all change plans
+        const changePlansSummary = changePlans.map((plan, index) => `${index + 1}. ${plan.file} (${plan.changeType}) - ${plan.description} [proposed by ${plan.proposedBy}]`).join('\n');
+        const coordinatorPrompt = `You are the coordinator agent. Your task is to execute the following changes sequentially:
+
+**Change Plans to Execute (${changePlans.length} total):**
+${changePlansSummary}
+
+**Instructions:**
+1. Execute changes ONE BY ONE in the order listed above
+2. For each change:
+   - Call propose_change with the file_path, change_type, description, suggested_code, and reasoning
+   - Then IMMEDIATELY call apply_changes to write to disk
+   - Verify the change was applied correctly
+3. After all changes are applied, you may run tests or commands to verify everything works
+4. Report any errors or issues you encounter
+
+**Original User Request:**
+${userPrompt}
+
+**Important:** Execute changes sequentially to avoid conflicts. Do not skip any changes.`;
+        (0, logger_1.logInfo)(`🎯 Coordinator executing ${changePlans.length} change(s) sequentially...`);
+        const result = await coordinatorAgent.query(coordinatorPrompt);
+        (0, logger_1.logInfo)(`✅ Coordinator completed execution`);
+        return result;
+    }
+    /**
+     * Combine results from both phases
+     */
+    static combinePhasesResults(analysisResults, coordinatorResult) {
+        // Combine all tool calls and turns
+        const allToolCalls = [];
+        const allTurns = [];
+        const allResponses = [];
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let maxDuration = 0;
+        // Add analysis phase results
+        for (const { result } of analysisResults) {
+            if (result.finalResponse) {
+                allResponses.push(`[Analysis Phase] ${result.finalResponse}`);
+            }
+            allToolCalls.push(...result.toolCalls);
+            allTurns.push(...result.turns);
+            if (result.metrics) {
+                totalInputTokens += result.metrics.totalTokens.input;
+                totalOutputTokens += result.metrics.totalTokens.output;
+                maxDuration = Math.max(maxDuration, result.metrics.totalDuration);
+            }
+        }
+        // Add coordinator phase results
+        if (coordinatorResult.finalResponse) {
+            allResponses.push(`[Execution Phase] ${coordinatorResult.finalResponse}`);
+        }
+        allToolCalls.push(...coordinatorResult.toolCalls);
+        allTurns.push(...coordinatorResult.turns);
+        if (coordinatorResult.metrics) {
+            totalInputTokens += coordinatorResult.metrics.totalTokens.input;
+            totalOutputTokens += coordinatorResult.metrics.totalTokens.output;
+            maxDuration = Math.max(maxDuration, coordinatorResult.metrics.totalDuration);
+        }
+        // Extract changes from coordinator result (these are the actual applied changes)
+        const changes = this.extractChangesFromResult(coordinatorResult);
+        // Combine responses
+        const combinedResponse = allResponses.length > 0
+            ? allResponses.join('\n\n---\n\n')
+            : 'Analysis and execution completed.';
+        // Create combined agent result
+        const combinedResult = {
+            finalResponse: combinedResponse,
+            turns: allTurns,
+            toolCalls: allToolCalls,
+            messages: [...analysisResults.flatMap(r => r.result.messages), ...coordinatorResult.messages],
+            metrics: {
+                totalTokens: {
+                    input: totalInputTokens,
+                    output: totalOutputTokens
+                },
+                totalDuration: maxDuration,
+                apiCalls: analysisResults.reduce((sum, r) => sum + (r.result.metrics?.apiCalls || 0), 0) + (coordinatorResult.metrics?.apiCalls || 0),
+                toolCalls: allToolCalls.length,
+                errors: analysisResults.reduce((sum, r) => sum + (r.result.metrics?.errors || 0), 0) + (coordinatorResult.metrics?.errors || 0),
+                averageLatency: maxDuration / (allToolCalls.length || 1)
+            }
+        };
+        return {
+            response: combinedResponse,
+            agentResult: combinedResult,
+            changes: changes.length > 0 ? changes : undefined
+        };
+    }
+    /**
+     * Extract changes from agent result
+     */
+    static extractChangesFromResult(result) {
+        const changes = [];
+        // Create a map of toolCallId -> toolResult for quick lookup
+        const toolResultMap = new Map();
+        for (const turn of result.turns) {
+            if (turn.toolResults) {
+                for (const toolResult of turn.toolResults) {
+                    toolResultMap.set(toolResult.toolCallId, toolResult);
+                }
+            }
+        }
+        // Look for apply_changes tool calls (these are the ones actually written to disk)
+        for (const toolCall of result.toolCalls) {
+            if (toolCall.name === 'apply_changes') {
+                const toolResult = toolResultMap.get(toolCall.id);
+                if (toolResult && !toolResult.isError) {
+                    try {
+                        const resultContent = toolResult.content || '';
+                        const lines = resultContent.split('\n');
+                        for (const line of lines) {
+                            const match = line.match(/^\s*-\s*(.+?)\s*\((\w+)\)/);
+                            if (match) {
+                                const changeType = match[2];
+                                if (Object.values(think_response_1.ChangeType).includes(changeType)) {
+                                    changes.push({
+                                        file: match[1].trim(),
+                                        changeType,
+                                        description: `Applied ${match[2]}`
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    catch (error) {
+                        // Ignore parsing errors
+                    }
+                }
+            }
+            else if (toolCall.name === 'propose_change') {
+                // Also track proposed changes
+                const toolResult = toolResultMap.get(toolCall.id);
+                if (toolResult && !toolResult.isError) {
+                    try {
+                        const changeData = toolCall.input;
+                        if (changeData && changeData.file_path) {
+                            changes.push({
+                                file: changeData.file_path,
+                                changeType: changeData.change_type || 'modify',
+                                description: `Proposed: ${changeData.description || 'no description'}`
+                            });
+                        }
+                    }
+                    catch (error) {
+                        // Ignore parsing errors
+                    }
+                }
+            }
+        }
+        return changes;
+    }
+    /**
+     * Create tools for subagents (DEPRECATED - kept for backward compatibility)
+     * @deprecated Use createReadOnlySubagentTools for Phase 1 instead
      */
     static async createSubagentTools(repositoryFiles, options) {
         // Virtual codebase for proposed changes (must be declared first)
@@ -64348,9 +60472,9 @@ class AgentInitializer {
                     (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
                     const fileRepository = new file_repository_1.FileRepository();
                     const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
-                        (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
+                        // logDebugInfo(`   📄 Loaded: ${fileName}`);
                     }, (fileName) => {
-                        (0, logger_1.logDebugInfo)(`   ⏭️  Ignored: ${fileName}`);
+                        // logDebugInfo(`   ⏭️  Ignored: ${fileName}`);
                     });
                     files.forEach((content, path) => {
                         repositoryFiles.set(path, content);
@@ -66017,9 +62141,9 @@ class AgentInitializer {
                     else {
                         // Load all files from the branch
                         const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
-                            (0, logger_1.logDebugInfo)(`   📄 Loaded: ${fileName}`);
+                            // logDebugInfo(`   📄 Loaded: ${fileName}`);
                         }, (fileName) => {
-                            (0, logger_1.logDebugInfo)(`   ⏭️  Ignored: ${fileName}`);
+                            // logDebugInfo(`   ⏭️  Ignored: ${fileName}`);
                         });
                         files.forEach((content, path) => {
                             repositoryFiles.set(path, content);
@@ -75102,7 +71226,7 @@ exports.PullRequestRepository = PullRequestRepository;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SupabaseRepository = void 0;
-const supabase_js_1 = __nccwpck_require__(1206);
+const supabase_js_1 = __nccwpck_require__(91);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
 class SupabaseRepository {
@@ -89591,6 +85715,5109 @@ function suggestSimilar(word, candidates) {
 
 exports.suggestSimilar = suggestSimilar;
 
+
+/***/ }),
+
+/***/ 2155:
+/***/ ((__unused_webpack_module, exports) => {
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+//#region src/PostgrestError.ts
+/**
+* Error format
+*
+* {@link https://postgrest.org/en/stable/api.html?highlight=options#errors-and-http-status-codes}
+*/
+var PostgrestError = class extends Error {
+	/**
+	* @example
+	* ```ts
+	* import PostgrestError from '@supabase/postgrest-js'
+	*
+	* throw new PostgrestError({
+	*   message: 'Row level security prevented the request',
+	*   details: 'RLS denied the insert',
+	*   hint: 'Check your policies',
+	*   code: 'PGRST301',
+	* })
+	* ```
+	*/
+	constructor(context) {
+		super(context.message);
+		this.name = "PostgrestError";
+		this.details = context.details;
+		this.hint = context.hint;
+		this.code = context.code;
+	}
+};
+
+//#endregion
+//#region src/PostgrestBuilder.ts
+var PostgrestBuilder = class {
+	/**
+	* Creates a builder configured for a specific PostgREST request.
+	*
+	* @example
+	* ```ts
+	* import PostgrestQueryBuilder from '@supabase/postgrest-js'
+	*
+	* const builder = new PostgrestQueryBuilder(
+	*   new URL('https://xyzcompany.supabase.co/rest/v1/users'),
+	*   { headers: new Headers({ apikey: 'public-anon-key' }) }
+	* )
+	* ```
+	*/
+	constructor(builder) {
+		var _builder$shouldThrowO, _builder$isMaybeSingl, _builder$urlLengthLim;
+		this.shouldThrowOnError = false;
+		this.method = builder.method;
+		this.url = builder.url;
+		this.headers = new Headers(builder.headers);
+		this.schema = builder.schema;
+		this.body = builder.body;
+		this.shouldThrowOnError = (_builder$shouldThrowO = builder.shouldThrowOnError) !== null && _builder$shouldThrowO !== void 0 ? _builder$shouldThrowO : false;
+		this.signal = builder.signal;
+		this.isMaybeSingle = (_builder$isMaybeSingl = builder.isMaybeSingle) !== null && _builder$isMaybeSingl !== void 0 ? _builder$isMaybeSingl : false;
+		this.urlLengthLimit = (_builder$urlLengthLim = builder.urlLengthLimit) !== null && _builder$urlLengthLim !== void 0 ? _builder$urlLengthLim : 8e3;
+		if (builder.fetch) this.fetch = builder.fetch;
+		else this.fetch = fetch;
+	}
+	/**
+	* If there's an error with the query, throwOnError will reject the promise by
+	* throwing the error instead of returning it as part of a successful response.
+	*
+	* {@link https://github.com/supabase/supabase-js/issues/92}
+	*/
+	throwOnError() {
+		this.shouldThrowOnError = true;
+		return this;
+	}
+	/**
+	* Set an HTTP header for the request.
+	*/
+	setHeader(name, value) {
+		this.headers = new Headers(this.headers);
+		this.headers.set(name, value);
+		return this;
+	}
+	then(onfulfilled, onrejected) {
+		var _this = this;
+		if (this.schema === void 0) {} else if (["GET", "HEAD"].includes(this.method)) this.headers.set("Accept-Profile", this.schema);
+		else this.headers.set("Content-Profile", this.schema);
+		if (this.method !== "GET" && this.method !== "HEAD") this.headers.set("Content-Type", "application/json");
+		const _fetch = this.fetch;
+		let res = _fetch(this.url.toString(), {
+			method: this.method,
+			headers: this.headers,
+			body: JSON.stringify(this.body),
+			signal: this.signal
+		}).then(async (res$1) => {
+			let error = null;
+			let data = null;
+			let count = null;
+			let status = res$1.status;
+			let statusText = res$1.statusText;
+			if (res$1.ok) {
+				var _this$headers$get2, _res$headers$get;
+				if (_this.method !== "HEAD") {
+					var _this$headers$get;
+					const body = await res$1.text();
+					if (body === "") {} else if (_this.headers.get("Accept") === "text/csv") data = body;
+					else if (_this.headers.get("Accept") && ((_this$headers$get = _this.headers.get("Accept")) === null || _this$headers$get === void 0 ? void 0 : _this$headers$get.includes("application/vnd.pgrst.plan+text"))) data = body;
+					else data = JSON.parse(body);
+				}
+				const countHeader = (_this$headers$get2 = _this.headers.get("Prefer")) === null || _this$headers$get2 === void 0 ? void 0 : _this$headers$get2.match(/count=(exact|planned|estimated)/);
+				const contentRange = (_res$headers$get = res$1.headers.get("content-range")) === null || _res$headers$get === void 0 ? void 0 : _res$headers$get.split("/");
+				if (countHeader && contentRange && contentRange.length > 1) count = parseInt(contentRange[1]);
+				if (_this.isMaybeSingle && _this.method === "GET" && Array.isArray(data)) if (data.length > 1) {
+					error = {
+						code: "PGRST116",
+						details: `Results contain ${data.length} rows, application/vnd.pgrst.object+json requires 1 row`,
+						hint: null,
+						message: "JSON object requested, multiple (or no) rows returned"
+					};
+					data = null;
+					count = null;
+					status = 406;
+					statusText = "Not Acceptable";
+				} else if (data.length === 1) data = data[0];
+				else data = null;
+			} else {
+				var _error$details;
+				const body = await res$1.text();
+				try {
+					error = JSON.parse(body);
+					if (Array.isArray(error) && res$1.status === 404) {
+						data = [];
+						error = null;
+						status = 200;
+						statusText = "OK";
+					}
+				} catch (_unused) {
+					if (res$1.status === 404 && body === "") {
+						status = 204;
+						statusText = "No Content";
+					} else error = { message: body };
+				}
+				if (error && _this.isMaybeSingle && (error === null || error === void 0 || (_error$details = error.details) === null || _error$details === void 0 ? void 0 : _error$details.includes("0 rows"))) {
+					error = null;
+					status = 200;
+					statusText = "OK";
+				}
+				if (error && _this.shouldThrowOnError) throw new PostgrestError(error);
+			}
+			return {
+				error,
+				data,
+				count,
+				status,
+				statusText
+			};
+		});
+		if (!this.shouldThrowOnError) res = res.catch((fetchError) => {
+			var _fetchError$name2;
+			let errorDetails = "";
+			let hint = "";
+			let code = "";
+			const cause = fetchError === null || fetchError === void 0 ? void 0 : fetchError.cause;
+			if (cause) {
+				var _cause$message, _cause$code, _fetchError$name, _cause$name;
+				const causeMessage = (_cause$message = cause === null || cause === void 0 ? void 0 : cause.message) !== null && _cause$message !== void 0 ? _cause$message : "";
+				const causeCode = (_cause$code = cause === null || cause === void 0 ? void 0 : cause.code) !== null && _cause$code !== void 0 ? _cause$code : "";
+				errorDetails = `${(_fetchError$name = fetchError === null || fetchError === void 0 ? void 0 : fetchError.name) !== null && _fetchError$name !== void 0 ? _fetchError$name : "FetchError"}: ${fetchError === null || fetchError === void 0 ? void 0 : fetchError.message}`;
+				errorDetails += `\n\nCaused by: ${(_cause$name = cause === null || cause === void 0 ? void 0 : cause.name) !== null && _cause$name !== void 0 ? _cause$name : "Error"}: ${causeMessage}`;
+				if (causeCode) errorDetails += ` (${causeCode})`;
+				if (cause === null || cause === void 0 ? void 0 : cause.stack) errorDetails += `\n${cause.stack}`;
+			} else {
+				var _fetchError$stack;
+				errorDetails = (_fetchError$stack = fetchError === null || fetchError === void 0 ? void 0 : fetchError.stack) !== null && _fetchError$stack !== void 0 ? _fetchError$stack : "";
+			}
+			const urlLength = this.url.toString().length;
+			if ((fetchError === null || fetchError === void 0 ? void 0 : fetchError.name) === "AbortError" || (fetchError === null || fetchError === void 0 ? void 0 : fetchError.code) === "ABORT_ERR") {
+				code = "";
+				hint = "Request was aborted (timeout or manual cancellation)";
+				if (urlLength > this.urlLengthLimit) hint += `. Note: Your request URL is ${urlLength} characters, which may exceed server limits. If selecting many fields, consider using views. If filtering with large arrays (e.g., .in('id', [many IDs])), consider using an RPC function to pass values server-side.`;
+			} else if ((cause === null || cause === void 0 ? void 0 : cause.name) === "HeadersOverflowError" || (cause === null || cause === void 0 ? void 0 : cause.code) === "UND_ERR_HEADERS_OVERFLOW") {
+				code = "";
+				hint = "HTTP headers exceeded server limits (typically 16KB)";
+				if (urlLength > this.urlLengthLimit) hint += `. Your request URL is ${urlLength} characters. If selecting many fields, consider using views. If filtering with large arrays (e.g., .in('id', [200+ IDs])), consider using an RPC function instead.`;
+			}
+			return {
+				error: {
+					message: `${(_fetchError$name2 = fetchError === null || fetchError === void 0 ? void 0 : fetchError.name) !== null && _fetchError$name2 !== void 0 ? _fetchError$name2 : "FetchError"}: ${fetchError === null || fetchError === void 0 ? void 0 : fetchError.message}`,
+					details: errorDetails,
+					hint,
+					code
+				},
+				data: null,
+				count: null,
+				status: 0,
+				statusText: ""
+			};
+		});
+		return res.then(onfulfilled, onrejected);
+	}
+	/**
+	* Override the type of the returned `data`.
+	*
+	* @typeParam NewResult - The new result type to override with
+	* @deprecated Use overrideTypes<yourType, { merge: false }>() method at the end of your call chain instead
+	*/
+	returns() {
+		/* istanbul ignore next */
+		return this;
+	}
+	/**
+	* Override the type of the returned `data` field in the response.
+	*
+	* @typeParam NewResult - The new type to cast the response data to
+	* @typeParam Options - Optional type configuration (defaults to { merge: true })
+	* @typeParam Options.merge - When true, merges the new type with existing return type. When false, replaces the existing types entirely (defaults to true)
+	* @example
+	* ```typescript
+	* // Merge with existing types (default behavior)
+	* const query = supabase
+	*   .from('users')
+	*   .select()
+	*   .overrideTypes<{ custom_field: string }>()
+	*
+	* // Replace existing types completely
+	* const replaceQuery = supabase
+	*   .from('users')
+	*   .select()
+	*   .overrideTypes<{ id: number; name: string }, { merge: false }>()
+	* ```
+	* @returns A PostgrestBuilder instance with the new type
+	*/
+	overrideTypes() {
+		return this;
+	}
+};
+
+//#endregion
+//#region src/PostgrestTransformBuilder.ts
+var PostgrestTransformBuilder = class extends PostgrestBuilder {
+	/**
+	* Perform a SELECT on the query result.
+	*
+	* By default, `.insert()`, `.update()`, `.upsert()`, and `.delete()` do not
+	* return modified rows. By calling this method, modified rows are returned in
+	* `data`.
+	*
+	* @param columns - The columns to retrieve, separated by commas
+	*/
+	select(columns) {
+		let quoted = false;
+		const cleanedColumns = (columns !== null && columns !== void 0 ? columns : "*").split("").map((c) => {
+			if (/\s/.test(c) && !quoted) return "";
+			if (c === "\"") quoted = !quoted;
+			return c;
+		}).join("");
+		this.url.searchParams.set("select", cleanedColumns);
+		this.headers.append("Prefer", "return=representation");
+		return this;
+	}
+	/**
+	* Order the query result by `column`.
+	*
+	* You can call this method multiple times to order by multiple columns.
+	*
+	* You can order referenced tables, but it only affects the ordering of the
+	* parent table if you use `!inner` in the query.
+	*
+	* @param column - The column to order by
+	* @param options - Named parameters
+	* @param options.ascending - If `true`, the result will be in ascending order
+	* @param options.nullsFirst - If `true`, `null`s appear first. If `false`,
+	* `null`s appear last.
+	* @param options.referencedTable - Set this to order a referenced table by
+	* its columns
+	* @param options.foreignTable - Deprecated, use `options.referencedTable`
+	* instead
+	*/
+	order(column, { ascending = true, nullsFirst, foreignTable, referencedTable = foreignTable } = {}) {
+		const key = referencedTable ? `${referencedTable}.order` : "order";
+		const existingOrder = this.url.searchParams.get(key);
+		this.url.searchParams.set(key, `${existingOrder ? `${existingOrder},` : ""}${column}.${ascending ? "asc" : "desc"}${nullsFirst === void 0 ? "" : nullsFirst ? ".nullsfirst" : ".nullslast"}`);
+		return this;
+	}
+	/**
+	* Limit the query result by `count`.
+	*
+	* @param count - The maximum number of rows to return
+	* @param options - Named parameters
+	* @param options.referencedTable - Set this to limit rows of referenced
+	* tables instead of the parent table
+	* @param options.foreignTable - Deprecated, use `options.referencedTable`
+	* instead
+	*/
+	limit(count, { foreignTable, referencedTable = foreignTable } = {}) {
+		const key = typeof referencedTable === "undefined" ? "limit" : `${referencedTable}.limit`;
+		this.url.searchParams.set(key, `${count}`);
+		return this;
+	}
+	/**
+	* Limit the query result by starting at an offset `from` and ending at the offset `to`.
+	* Only records within this range are returned.
+	* This respects the query order and if there is no order clause the range could behave unexpectedly.
+	* The `from` and `to` values are 0-based and inclusive: `range(1, 3)` will include the second, third
+	* and fourth rows of the query.
+	*
+	* @param from - The starting index from which to limit the result
+	* @param to - The last index to which to limit the result
+	* @param options - Named parameters
+	* @param options.referencedTable - Set this to limit rows of referenced
+	* tables instead of the parent table
+	* @param options.foreignTable - Deprecated, use `options.referencedTable`
+	* instead
+	*/
+	range(from, to, { foreignTable, referencedTable = foreignTable } = {}) {
+		const keyOffset = typeof referencedTable === "undefined" ? "offset" : `${referencedTable}.offset`;
+		const keyLimit = typeof referencedTable === "undefined" ? "limit" : `${referencedTable}.limit`;
+		this.url.searchParams.set(keyOffset, `${from}`);
+		this.url.searchParams.set(keyLimit, `${to - from + 1}`);
+		return this;
+	}
+	/**
+	* Set the AbortSignal for the fetch request.
+	*
+	* @param signal - The AbortSignal to use for the fetch request
+	*/
+	abortSignal(signal) {
+		this.signal = signal;
+		return this;
+	}
+	/**
+	* Return `data` as a single object instead of an array of objects.
+	*
+	* Query result must be one row (e.g. using `.limit(1)`), otherwise this
+	* returns an error.
+	*/
+	single() {
+		this.headers.set("Accept", "application/vnd.pgrst.object+json");
+		return this;
+	}
+	/**
+	* Return `data` as a single object instead of an array of objects.
+	*
+	* Query result must be zero or one row (e.g. using `.limit(1)`), otherwise
+	* this returns an error.
+	*/
+	maybeSingle() {
+		if (this.method === "GET") this.headers.set("Accept", "application/json");
+		else this.headers.set("Accept", "application/vnd.pgrst.object+json");
+		this.isMaybeSingle = true;
+		return this;
+	}
+	/**
+	* Return `data` as a string in CSV format.
+	*/
+	csv() {
+		this.headers.set("Accept", "text/csv");
+		return this;
+	}
+	/**
+	* Return `data` as an object in [GeoJSON](https://geojson.org) format.
+	*/
+	geojson() {
+		this.headers.set("Accept", "application/geo+json");
+		return this;
+	}
+	/**
+	* Return `data` as the EXPLAIN plan for the query.
+	*
+	* You need to enable the
+	* [db_plan_enabled](https://supabase.com/docs/guides/database/debugging-performance#enabling-explain)
+	* setting before using this method.
+	*
+	* @param options - Named parameters
+	*
+	* @param options.analyze - If `true`, the query will be executed and the
+	* actual run time will be returned
+	*
+	* @param options.verbose - If `true`, the query identifier will be returned
+	* and `data` will include the output columns of the query
+	*
+	* @param options.settings - If `true`, include information on configuration
+	* parameters that affect query planning
+	*
+	* @param options.buffers - If `true`, include information on buffer usage
+	*
+	* @param options.wal - If `true`, include information on WAL record generation
+	*
+	* @param options.format - The format of the output, can be `"text"` (default)
+	* or `"json"`
+	*/
+	explain({ analyze = false, verbose = false, settings = false, buffers = false, wal = false, format = "text" } = {}) {
+		var _this$headers$get;
+		const options = [
+			analyze ? "analyze" : null,
+			verbose ? "verbose" : null,
+			settings ? "settings" : null,
+			buffers ? "buffers" : null,
+			wal ? "wal" : null
+		].filter(Boolean).join("|");
+		const forMediatype = (_this$headers$get = this.headers.get("Accept")) !== null && _this$headers$get !== void 0 ? _this$headers$get : "application/json";
+		this.headers.set("Accept", `application/vnd.pgrst.plan+${format}; for="${forMediatype}"; options=${options};`);
+		if (format === "json") return this;
+		else return this;
+	}
+	/**
+	* Rollback the query.
+	*
+	* `data` will still be returned, but the query is not committed.
+	*/
+	rollback() {
+		this.headers.append("Prefer", "tx=rollback");
+		return this;
+	}
+	/**
+	* Override the type of the returned `data`.
+	*
+	* @typeParam NewResult - The new result type to override with
+	* @deprecated Use overrideTypes<yourType, { merge: false }>() method at the end of your call chain instead
+	*/
+	returns() {
+		return this;
+	}
+	/**
+	* Set the maximum number of rows that can be affected by the query.
+	* Only available in PostgREST v13+ and only works with PATCH and DELETE methods.
+	*
+	* @param value - The maximum number of rows that can be affected
+	*/
+	maxAffected(value) {
+		this.headers.append("Prefer", "handling=strict");
+		this.headers.append("Prefer", `max-affected=${value}`);
+		return this;
+	}
+};
+
+//#endregion
+//#region src/PostgrestFilterBuilder.ts
+const PostgrestReservedCharsRegexp = /* @__PURE__ */ new RegExp("[,()]");
+var PostgrestFilterBuilder = class extends PostgrestTransformBuilder {
+	/**
+	* Match only rows where `column` is equal to `value`.
+	*
+	* To check if the value of `column` is NULL, you should use `.is()` instead.
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	eq(column, value) {
+		this.url.searchParams.append(column, `eq.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` is not equal to `value`.
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	neq(column, value) {
+		this.url.searchParams.append(column, `neq.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` is greater than `value`.
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	gt(column, value) {
+		this.url.searchParams.append(column, `gt.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` is greater than or equal to `value`.
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	gte(column, value) {
+		this.url.searchParams.append(column, `gte.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` is less than `value`.
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	lt(column, value) {
+		this.url.searchParams.append(column, `lt.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` is less than or equal to `value`.
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	lte(column, value) {
+		this.url.searchParams.append(column, `lte.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches `pattern` case-sensitively.
+	*
+	* @param column - The column to filter on
+	* @param pattern - The pattern to match with
+	*/
+	like(column, pattern) {
+		this.url.searchParams.append(column, `like.${pattern}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches all of `patterns` case-sensitively.
+	*
+	* @param column - The column to filter on
+	* @param patterns - The patterns to match with
+	*/
+	likeAllOf(column, patterns) {
+		this.url.searchParams.append(column, `like(all).{${patterns.join(",")}}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches any of `patterns` case-sensitively.
+	*
+	* @param column - The column to filter on
+	* @param patterns - The patterns to match with
+	*/
+	likeAnyOf(column, patterns) {
+		this.url.searchParams.append(column, `like(any).{${patterns.join(",")}}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches `pattern` case-insensitively.
+	*
+	* @param column - The column to filter on
+	* @param pattern - The pattern to match with
+	*/
+	ilike(column, pattern) {
+		this.url.searchParams.append(column, `ilike.${pattern}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches all of `patterns` case-insensitively.
+	*
+	* @param column - The column to filter on
+	* @param patterns - The patterns to match with
+	*/
+	ilikeAllOf(column, patterns) {
+		this.url.searchParams.append(column, `ilike(all).{${patterns.join(",")}}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches any of `patterns` case-insensitively.
+	*
+	* @param column - The column to filter on
+	* @param patterns - The patterns to match with
+	*/
+	ilikeAnyOf(column, patterns) {
+		this.url.searchParams.append(column, `ilike(any).{${patterns.join(",")}}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches the PostgreSQL regex `pattern`
+	* case-sensitively (using the `~` operator).
+	*
+	* @param column - The column to filter on
+	* @param pattern - The PostgreSQL regular expression pattern to match with
+	*/
+	regexMatch(column, pattern) {
+		this.url.searchParams.append(column, `match.${pattern}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` matches the PostgreSQL regex `pattern`
+	* case-insensitively (using the `~*` operator).
+	*
+	* @param column - The column to filter on
+	* @param pattern - The PostgreSQL regular expression pattern to match with
+	*/
+	regexIMatch(column, pattern) {
+		this.url.searchParams.append(column, `imatch.${pattern}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` IS `value`.
+	*
+	* For non-boolean columns, this is only relevant for checking if the value of
+	* `column` is NULL by setting `value` to `null`.
+	*
+	* For boolean columns, you can also set `value` to `true` or `false` and it
+	* will behave the same way as `.eq()`.
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	is(column, value) {
+		this.url.searchParams.append(column, `is.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` IS DISTINCT FROM `value`.
+	*
+	* Unlike `.neq()`, this treats `NULL` as a comparable value. Two `NULL` values
+	* are considered equal (not distinct), and comparing `NULL` with any non-NULL
+	* value returns true (distinct).
+	*
+	* @param column - The column to filter on
+	* @param value - The value to filter with
+	*/
+	isDistinct(column, value) {
+		this.url.searchParams.append(column, `isdistinct.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` is included in the `values` array.
+	*
+	* @param column - The column to filter on
+	* @param values - The values array to filter with
+	*/
+	in(column, values) {
+		const cleanedValues = Array.from(new Set(values)).map((s) => {
+			if (typeof s === "string" && PostgrestReservedCharsRegexp.test(s)) return `"${s}"`;
+			else return `${s}`;
+		}).join(",");
+		this.url.searchParams.append(column, `in.(${cleanedValues})`);
+		return this;
+	}
+	/**
+	* Match only rows where `column` is NOT included in the `values` array.
+	*
+	* @param column - The column to filter on
+	* @param values - The values array to filter with
+	*/
+	notIn(column, values) {
+		const cleanedValues = Array.from(new Set(values)).map((s) => {
+			if (typeof s === "string" && PostgrestReservedCharsRegexp.test(s)) return `"${s}"`;
+			else return `${s}`;
+		}).join(",");
+		this.url.searchParams.append(column, `not.in.(${cleanedValues})`);
+		return this;
+	}
+	/**
+	* Only relevant for jsonb, array, and range columns. Match only rows where
+	* `column` contains every element appearing in `value`.
+	*
+	* @param column - The jsonb, array, or range column to filter on
+	* @param value - The jsonb, array, or range value to filter with
+	*/
+	contains(column, value) {
+		if (typeof value === "string") this.url.searchParams.append(column, `cs.${value}`);
+		else if (Array.isArray(value)) this.url.searchParams.append(column, `cs.{${value.join(",")}}`);
+		else this.url.searchParams.append(column, `cs.${JSON.stringify(value)}`);
+		return this;
+	}
+	/**
+	* Only relevant for jsonb, array, and range columns. Match only rows where
+	* every element appearing in `column` is contained by `value`.
+	*
+	* @param column - The jsonb, array, or range column to filter on
+	* @param value - The jsonb, array, or range value to filter with
+	*/
+	containedBy(column, value) {
+		if (typeof value === "string") this.url.searchParams.append(column, `cd.${value}`);
+		else if (Array.isArray(value)) this.url.searchParams.append(column, `cd.{${value.join(",")}}`);
+		else this.url.searchParams.append(column, `cd.${JSON.stringify(value)}`);
+		return this;
+	}
+	/**
+	* Only relevant for range columns. Match only rows where every element in
+	* `column` is greater than any element in `range`.
+	*
+	* @param column - The range column to filter on
+	* @param range - The range to filter with
+	*/
+	rangeGt(column, range) {
+		this.url.searchParams.append(column, `sr.${range}`);
+		return this;
+	}
+	/**
+	* Only relevant for range columns. Match only rows where every element in
+	* `column` is either contained in `range` or greater than any element in
+	* `range`.
+	*
+	* @param column - The range column to filter on
+	* @param range - The range to filter with
+	*/
+	rangeGte(column, range) {
+		this.url.searchParams.append(column, `nxl.${range}`);
+		return this;
+	}
+	/**
+	* Only relevant for range columns. Match only rows where every element in
+	* `column` is less than any element in `range`.
+	*
+	* @param column - The range column to filter on
+	* @param range - The range to filter with
+	*/
+	rangeLt(column, range) {
+		this.url.searchParams.append(column, `sl.${range}`);
+		return this;
+	}
+	/**
+	* Only relevant for range columns. Match only rows where every element in
+	* `column` is either contained in `range` or less than any element in
+	* `range`.
+	*
+	* @param column - The range column to filter on
+	* @param range - The range to filter with
+	*/
+	rangeLte(column, range) {
+		this.url.searchParams.append(column, `nxr.${range}`);
+		return this;
+	}
+	/**
+	* Only relevant for range columns. Match only rows where `column` is
+	* mutually exclusive to `range` and there can be no element between the two
+	* ranges.
+	*
+	* @param column - The range column to filter on
+	* @param range - The range to filter with
+	*/
+	rangeAdjacent(column, range) {
+		this.url.searchParams.append(column, `adj.${range}`);
+		return this;
+	}
+	/**
+	* Only relevant for array and range columns. Match only rows where
+	* `column` and `value` have an element in common.
+	*
+	* @param column - The array or range column to filter on
+	* @param value - The array or range value to filter with
+	*/
+	overlaps(column, value) {
+		if (typeof value === "string") this.url.searchParams.append(column, `ov.${value}`);
+		else this.url.searchParams.append(column, `ov.{${value.join(",")}}`);
+		return this;
+	}
+	/**
+	* Only relevant for text and tsvector columns. Match only rows where
+	* `column` matches the query string in `query`.
+	*
+	* @param column - The text or tsvector column to filter on
+	* @param query - The query text to match with
+	* @param options - Named parameters
+	* @param options.config - The text search configuration to use
+	* @param options.type - Change how the `query` text is interpreted
+	*/
+	textSearch(column, query, { config, type } = {}) {
+		let typePart = "";
+		if (type === "plain") typePart = "pl";
+		else if (type === "phrase") typePart = "ph";
+		else if (type === "websearch") typePart = "w";
+		const configPart = config === void 0 ? "" : `(${config})`;
+		this.url.searchParams.append(column, `${typePart}fts${configPart}.${query}`);
+		return this;
+	}
+	/**
+	* Match only rows where each column in `query` keys is equal to its
+	* associated value. Shorthand for multiple `.eq()`s.
+	*
+	* @param query - The object to filter with, with column names as keys mapped
+	* to their filter values
+	*/
+	match(query) {
+		Object.entries(query).forEach(([column, value]) => {
+			this.url.searchParams.append(column, `eq.${value}`);
+		});
+		return this;
+	}
+	/**
+	* Match only rows which doesn't satisfy the filter.
+	*
+	* Unlike most filters, `opearator` and `value` are used as-is and need to
+	* follow [PostgREST
+	* syntax](https://postgrest.org/en/stable/api.html#operators). You also need
+	* to make sure they are properly sanitized.
+	*
+	* @param column - The column to filter on
+	* @param operator - The operator to be negated to filter with, following
+	* PostgREST syntax
+	* @param value - The value to filter with, following PostgREST syntax
+	*/
+	not(column, operator, value) {
+		this.url.searchParams.append(column, `not.${operator}.${value}`);
+		return this;
+	}
+	/**
+	* Match only rows which satisfy at least one of the filters.
+	*
+	* Unlike most filters, `filters` is used as-is and needs to follow [PostgREST
+	* syntax](https://postgrest.org/en/stable/api.html#operators). You also need
+	* to make sure it's properly sanitized.
+	*
+	* It's currently not possible to do an `.or()` filter across multiple tables.
+	*
+	* @param filters - The filters to use, following PostgREST syntax
+	* @param options - Named parameters
+	* @param options.referencedTable - Set this to filter on referenced tables
+	* instead of the parent table
+	* @param options.foreignTable - Deprecated, use `referencedTable` instead
+	*/
+	or(filters, { foreignTable, referencedTable = foreignTable } = {}) {
+		const key = referencedTable ? `${referencedTable}.or` : "or";
+		this.url.searchParams.append(key, `(${filters})`);
+		return this;
+	}
+	/**
+	* Match only rows which satisfy the filter. This is an escape hatch - you
+	* should use the specific filter methods wherever possible.
+	*
+	* Unlike most filters, `opearator` and `value` are used as-is and need to
+	* follow [PostgREST
+	* syntax](https://postgrest.org/en/stable/api.html#operators). You also need
+	* to make sure they are properly sanitized.
+	*
+	* @param column - The column to filter on
+	* @param operator - The operator to filter with, following PostgREST syntax
+	* @param value - The value to filter with, following PostgREST syntax
+	*/
+	filter(column, operator, value) {
+		this.url.searchParams.append(column, `${operator}.${value}`);
+		return this;
+	}
+};
+
+//#endregion
+//#region src/PostgrestQueryBuilder.ts
+var PostgrestQueryBuilder = class {
+	/**
+	* Creates a query builder scoped to a Postgres table or view.
+	*
+	* @example
+	* ```ts
+	* import PostgrestQueryBuilder from '@supabase/postgrest-js'
+	*
+	* const query = new PostgrestQueryBuilder(
+	*   new URL('https://xyzcompany.supabase.co/rest/v1/users'),
+	*   { headers: { apikey: 'public-anon-key' } }
+	* )
+	* ```
+	*/
+	constructor(url, { headers = {}, schema, fetch: fetch$1, urlLengthLimit = 8e3 }) {
+		this.url = url;
+		this.headers = new Headers(headers);
+		this.schema = schema;
+		this.fetch = fetch$1;
+		this.urlLengthLimit = urlLengthLimit;
+	}
+	/**
+	* Clone URL and headers to prevent shared state between operations.
+	*/
+	cloneRequestState() {
+		return {
+			url: new URL(this.url.toString()),
+			headers: new Headers(this.headers)
+		};
+	}
+	/**
+	* Perform a SELECT query on the table or view.
+	*
+	* @param columns - The columns to retrieve, separated by commas. Columns can be renamed when returned with `customName:columnName`
+	*
+	* @param options - Named parameters
+	*
+	* @param options.head - When set to `true`, `data` will not be returned.
+	* Useful if you only need the count.
+	*
+	* @param options.count - Count algorithm to use to count rows in the table or view.
+	*
+	* `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
+	* hood.
+	*
+	* `"planned"`: Approximated but fast count algorithm. Uses the Postgres
+	* statistics under the hood.
+	*
+	* `"estimated"`: Uses exact count for low numbers and planned count for high
+	* numbers.
+	*
+	* @remarks
+	* When using `count` with `.range()` or `.limit()`, the returned `count` is the total number of rows
+	* that match your filters, not the number of rows in the current page. Use this to build pagination UI.
+	*/
+	select(columns, options) {
+		const { head = false, count } = options !== null && options !== void 0 ? options : {};
+		const method = head ? "HEAD" : "GET";
+		let quoted = false;
+		const cleanedColumns = (columns !== null && columns !== void 0 ? columns : "*").split("").map((c) => {
+			if (/\s/.test(c) && !quoted) return "";
+			if (c === "\"") quoted = !quoted;
+			return c;
+		}).join("");
+		const { url, headers } = this.cloneRequestState();
+		url.searchParams.set("select", cleanedColumns);
+		if (count) headers.append("Prefer", `count=${count}`);
+		return new PostgrestFilterBuilder({
+			method,
+			url,
+			headers,
+			schema: this.schema,
+			fetch: this.fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+	/**
+	* Perform an INSERT into the table or view.
+	*
+	* By default, inserted rows are not returned. To return it, chain the call
+	* with `.select()`.
+	*
+	* @param values - The values to insert. Pass an object to insert a single row
+	* or an array to insert multiple rows.
+	*
+	* @param options - Named parameters
+	*
+	* @param options.count - Count algorithm to use to count inserted rows.
+	*
+	* `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
+	* hood.
+	*
+	* `"planned"`: Approximated but fast count algorithm. Uses the Postgres
+	* statistics under the hood.
+	*
+	* `"estimated"`: Uses exact count for low numbers and planned count for high
+	* numbers.
+	*
+	* @param options.defaultToNull - Make missing fields default to `null`.
+	* Otherwise, use the default value for the column. Only applies for bulk
+	* inserts.
+	*/
+	insert(values, { count, defaultToNull = true } = {}) {
+		var _this$fetch;
+		const method = "POST";
+		const { url, headers } = this.cloneRequestState();
+		if (count) headers.append("Prefer", `count=${count}`);
+		if (!defaultToNull) headers.append("Prefer", `missing=default`);
+		if (Array.isArray(values)) {
+			const columns = values.reduce((acc, x) => acc.concat(Object.keys(x)), []);
+			if (columns.length > 0) {
+				const uniqueColumns = [...new Set(columns)].map((column) => `"${column}"`);
+				url.searchParams.set("columns", uniqueColumns.join(","));
+			}
+		}
+		return new PostgrestFilterBuilder({
+			method,
+			url,
+			headers,
+			schema: this.schema,
+			body: values,
+			fetch: (_this$fetch = this.fetch) !== null && _this$fetch !== void 0 ? _this$fetch : fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+	/**
+	* Perform an UPSERT on the table or view. Depending on the column(s) passed
+	* to `onConflict`, `.upsert()` allows you to perform the equivalent of
+	* `.insert()` if a row with the corresponding `onConflict` columns doesn't
+	* exist, or if it does exist, perform an alternative action depending on
+	* `ignoreDuplicates`.
+	*
+	* By default, upserted rows are not returned. To return it, chain the call
+	* with `.select()`.
+	*
+	* @param values - The values to upsert with. Pass an object to upsert a
+	* single row or an array to upsert multiple rows.
+	*
+	* @param options - Named parameters
+	*
+	* @param options.onConflict - Comma-separated UNIQUE column(s) to specify how
+	* duplicate rows are determined. Two rows are duplicates if all the
+	* `onConflict` columns are equal.
+	*
+	* @param options.ignoreDuplicates - If `true`, duplicate rows are ignored. If
+	* `false`, duplicate rows are merged with existing rows.
+	*
+	* @param options.count - Count algorithm to use to count upserted rows.
+	*
+	* `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
+	* hood.
+	*
+	* `"planned"`: Approximated but fast count algorithm. Uses the Postgres
+	* statistics under the hood.
+	*
+	* `"estimated"`: Uses exact count for low numbers and planned count for high
+	* numbers.
+	*
+	* @param options.defaultToNull - Make missing fields default to `null`.
+	* Otherwise, use the default value for the column. This only applies when
+	* inserting new rows, not when merging with existing rows under
+	* `ignoreDuplicates: false`. This also only applies when doing bulk upserts.
+	*
+	* @example Upsert a single row using a unique key
+	* ```ts
+	* // Upserting a single row, overwriting based on the 'username' unique column
+	* const { data, error } = await supabase
+	*   .from('users')
+	*   .upsert({ username: 'supabot' }, { onConflict: 'username' })
+	*
+	* // Example response:
+	* // {
+	* //   data: [
+	* //     { id: 4, message: 'bar', username: 'supabot' }
+	* //   ],
+	* //   error: null
+	* // }
+	* ```
+	*
+	* @example Upsert with conflict resolution and exact row counting
+	* ```ts
+	* // Upserting and returning exact count
+	* const { data, error, count } = await supabase
+	*   .from('users')
+	*   .upsert(
+	*     {
+	*       id: 3,
+	*       message: 'foo',
+	*       username: 'supabot'
+	*     },
+	*     {
+	*       onConflict: 'username',
+	*       count: 'exact'
+	*     }
+	*   )
+	*
+	* // Example response:
+	* // {
+	* //   data: [
+	* //     {
+	* //       id: 42,
+	* //       handle: "saoirse",
+	* //       display_name: "Saoirse"
+	* //     }
+	* //   ],
+	* //   count: 1,
+	* //   error: null
+	* // }
+	* ```
+	*/
+	upsert(values, { onConflict, ignoreDuplicates = false, count, defaultToNull = true } = {}) {
+		var _this$fetch2;
+		const method = "POST";
+		const { url, headers } = this.cloneRequestState();
+		headers.append("Prefer", `resolution=${ignoreDuplicates ? "ignore" : "merge"}-duplicates`);
+		if (onConflict !== void 0) url.searchParams.set("on_conflict", onConflict);
+		if (count) headers.append("Prefer", `count=${count}`);
+		if (!defaultToNull) headers.append("Prefer", "missing=default");
+		if (Array.isArray(values)) {
+			const columns = values.reduce((acc, x) => acc.concat(Object.keys(x)), []);
+			if (columns.length > 0) {
+				const uniqueColumns = [...new Set(columns)].map((column) => `"${column}"`);
+				url.searchParams.set("columns", uniqueColumns.join(","));
+			}
+		}
+		return new PostgrestFilterBuilder({
+			method,
+			url,
+			headers,
+			schema: this.schema,
+			body: values,
+			fetch: (_this$fetch2 = this.fetch) !== null && _this$fetch2 !== void 0 ? _this$fetch2 : fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+	/**
+	* Perform an UPDATE on the table or view.
+	*
+	* By default, updated rows are not returned. To return it, chain the call
+	* with `.select()` after filters.
+	*
+	* @param values - The values to update with
+	*
+	* @param options - Named parameters
+	*
+	* @param options.count - Count algorithm to use to count updated rows.
+	*
+	* `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
+	* hood.
+	*
+	* `"planned"`: Approximated but fast count algorithm. Uses the Postgres
+	* statistics under the hood.
+	*
+	* `"estimated"`: Uses exact count for low numbers and planned count for high
+	* numbers.
+	*/
+	update(values, { count } = {}) {
+		var _this$fetch3;
+		const method = "PATCH";
+		const { url, headers } = this.cloneRequestState();
+		if (count) headers.append("Prefer", `count=${count}`);
+		return new PostgrestFilterBuilder({
+			method,
+			url,
+			headers,
+			schema: this.schema,
+			body: values,
+			fetch: (_this$fetch3 = this.fetch) !== null && _this$fetch3 !== void 0 ? _this$fetch3 : fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+	/**
+	* Perform a DELETE on the table or view.
+	*
+	* By default, deleted rows are not returned. To return it, chain the call
+	* with `.select()` after filters.
+	*
+	* @param options - Named parameters
+	*
+	* @param options.count - Count algorithm to use to count deleted rows.
+	*
+	* `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
+	* hood.
+	*
+	* `"planned"`: Approximated but fast count algorithm. Uses the Postgres
+	* statistics under the hood.
+	*
+	* `"estimated"`: Uses exact count for low numbers and planned count for high
+	* numbers.
+	*/
+	delete({ count } = {}) {
+		var _this$fetch4;
+		const method = "DELETE";
+		const { url, headers } = this.cloneRequestState();
+		if (count) headers.append("Prefer", `count=${count}`);
+		return new PostgrestFilterBuilder({
+			method,
+			url,
+			headers,
+			schema: this.schema,
+			fetch: (_this$fetch4 = this.fetch) !== null && _this$fetch4 !== void 0 ? _this$fetch4 : fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+};
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/typeof.js
+function _typeof(o) {
+	"@babel/helpers - typeof";
+	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o$1) {
+		return typeof o$1;
+	} : function(o$1) {
+		return o$1 && "function" == typeof Symbol && o$1.constructor === Symbol && o$1 !== Symbol.prototype ? "symbol" : typeof o$1;
+	}, _typeof(o);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/toPrimitive.js
+function toPrimitive(t, r) {
+	if ("object" != _typeof(t) || !t) return t;
+	var e = t[Symbol.toPrimitive];
+	if (void 0 !== e) {
+		var i = e.call(t, r || "default");
+		if ("object" != _typeof(i)) return i;
+		throw new TypeError("@@toPrimitive must return a primitive value.");
+	}
+	return ("string" === r ? String : Number)(t);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/toPropertyKey.js
+function toPropertyKey(t) {
+	var i = toPrimitive(t, "string");
+	return "symbol" == _typeof(i) ? i : i + "";
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/defineProperty.js
+function _defineProperty(e, r, t) {
+	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+		value: t,
+		enumerable: !0,
+		configurable: !0,
+		writable: !0
+	}) : e[r] = t, e;
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/objectSpread2.js
+function ownKeys(e, r) {
+	var t = Object.keys(e);
+	if (Object.getOwnPropertySymbols) {
+		var o = Object.getOwnPropertySymbols(e);
+		r && (o = o.filter(function(r$1) {
+			return Object.getOwnPropertyDescriptor(e, r$1).enumerable;
+		})), t.push.apply(t, o);
+	}
+	return t;
+}
+function _objectSpread2(e) {
+	for (var r = 1; r < arguments.length; r++) {
+		var t = null != arguments[r] ? arguments[r] : {};
+		r % 2 ? ownKeys(Object(t), !0).forEach(function(r$1) {
+			_defineProperty(e, r$1, t[r$1]);
+		}) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function(r$1) {
+			Object.defineProperty(e, r$1, Object.getOwnPropertyDescriptor(t, r$1));
+		});
+	}
+	return e;
+}
+
+//#endregion
+//#region src/PostgrestClient.ts
+/**
+* PostgREST client.
+*
+* @typeParam Database - Types for the schema from the [type
+* generator](https://supabase.com/docs/reference/javascript/next/typescript-support)
+*
+* @typeParam SchemaName - Postgres schema to switch to. Must be a string
+* literal, the same one passed to the constructor. If the schema is not
+* `"public"`, this must be supplied manually.
+*/
+var PostgrestClient = class PostgrestClient {
+	/**
+	* Creates a PostgREST client.
+	*
+	* @param url - URL of the PostgREST endpoint
+	* @param options - Named parameters
+	* @param options.headers - Custom headers
+	* @param options.schema - Postgres schema to switch to
+	* @param options.fetch - Custom fetch
+	* @param options.timeout - Optional timeout in milliseconds for all requests. When set, requests will automatically abort after this duration to prevent indefinite hangs.
+	* @param options.urlLengthLimit - Maximum URL length in characters before warnings/errors are triggered. Defaults to 8000.
+	* @example
+	* ```ts
+	* import PostgrestClient from '@supabase/postgrest-js'
+	*
+	* const postgrest = new PostgrestClient('https://xyzcompany.supabase.co/rest/v1', {
+	*   headers: { apikey: 'public-anon-key' },
+	*   schema: 'public',
+	*   timeout: 30000, // 30 second timeout
+	* })
+	* ```
+	*/
+	constructor(url, { headers = {}, schema, fetch: fetch$1, timeout, urlLengthLimit = 8e3 } = {}) {
+		this.url = url;
+		this.headers = new Headers(headers);
+		this.schemaName = schema;
+		this.urlLengthLimit = urlLengthLimit;
+		const originalFetch = fetch$1 !== null && fetch$1 !== void 0 ? fetch$1 : globalThis.fetch;
+		if (timeout !== void 0 && timeout > 0) this.fetch = (input, init) => {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), timeout);
+			const existingSignal = init === null || init === void 0 ? void 0 : init.signal;
+			if (existingSignal) {
+				if (existingSignal.aborted) {
+					clearTimeout(timeoutId);
+					return originalFetch(input, init);
+				}
+				const abortHandler = () => {
+					clearTimeout(timeoutId);
+					controller.abort();
+				};
+				existingSignal.addEventListener("abort", abortHandler, { once: true });
+				return originalFetch(input, _objectSpread2(_objectSpread2({}, init), {}, { signal: controller.signal })).finally(() => {
+					clearTimeout(timeoutId);
+					existingSignal.removeEventListener("abort", abortHandler);
+				});
+			}
+			return originalFetch(input, _objectSpread2(_objectSpread2({}, init), {}, { signal: controller.signal })).finally(() => clearTimeout(timeoutId));
+		};
+		else this.fetch = originalFetch;
+	}
+	/**
+	* Perform a query on a table or a view.
+	*
+	* @param relation - The table or view name to query
+	*/
+	from(relation) {
+		if (!relation || typeof relation !== "string" || relation.trim() === "") throw new Error("Invalid relation name: relation must be a non-empty string.");
+		return new PostgrestQueryBuilder(new URL(`${this.url}/${relation}`), {
+			headers: new Headers(this.headers),
+			schema: this.schemaName,
+			fetch: this.fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+	/**
+	* Select a schema to query or perform an function (rpc) call.
+	*
+	* The schema needs to be on the list of exposed schemas inside Supabase.
+	*
+	* @param schema - The schema to query
+	*/
+	schema(schema) {
+		return new PostgrestClient(this.url, {
+			headers: this.headers,
+			schema,
+			fetch: this.fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+	/**
+	* Perform a function call.
+	*
+	* @param fn - The function name to call
+	* @param args - The arguments to pass to the function call
+	* @param options - Named parameters
+	* @param options.head - When set to `true`, `data` will not be returned.
+	* Useful if you only need the count.
+	* @param options.get - When set to `true`, the function will be called with
+	* read-only access mode.
+	* @param options.count - Count algorithm to use to count rows returned by the
+	* function. Only applicable for [set-returning
+	* functions](https://www.postgresql.org/docs/current/functions-srf.html).
+	*
+	* `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
+	* hood.
+	*
+	* `"planned"`: Approximated but fast count algorithm. Uses the Postgres
+	* statistics under the hood.
+	*
+	* `"estimated"`: Uses exact count for low numbers and planned count for high
+	* numbers.
+	*
+	* @example
+	* ```ts
+	* // For cross-schema functions where type inference fails, use overrideTypes:
+	* const { data } = await supabase
+	*   .schema('schema_b')
+	*   .rpc('function_a', {})
+	*   .overrideTypes<{ id: string; user_id: string }[]>()
+	* ```
+	*/
+	rpc(fn, args = {}, { head = false, get = false, count } = {}) {
+		var _this$fetch;
+		let method;
+		const url = new URL(`${this.url}/rpc/${fn}`);
+		let body;
+		const _isObject = (v) => v !== null && typeof v === "object" && (!Array.isArray(v) || v.some(_isObject));
+		const _hasObjectArg = head && Object.values(args).some(_isObject);
+		if (_hasObjectArg) {
+			method = "POST";
+			body = args;
+		} else if (head || get) {
+			method = head ? "HEAD" : "GET";
+			Object.entries(args).filter(([_, value]) => value !== void 0).map(([name, value]) => [name, Array.isArray(value) ? `{${value.join(",")}}` : `${value}`]).forEach(([name, value]) => {
+				url.searchParams.append(name, value);
+			});
+		} else {
+			method = "POST";
+			body = args;
+		}
+		const headers = new Headers(this.headers);
+		if (_hasObjectArg) headers.set("Prefer", count ? `count=${count},return=minimal` : "return=minimal");
+		else if (count) headers.set("Prefer", `count=${count}`);
+		return new PostgrestFilterBuilder({
+			method,
+			url,
+			headers,
+			schema: this.schemaName,
+			body,
+			fetch: (_this$fetch = this.fetch) !== null && _this$fetch !== void 0 ? _this$fetch : fetch,
+			urlLengthLimit: this.urlLengthLimit
+		});
+	}
+};
+
+//#endregion
+//#region src/index.ts
+var src_default = {
+	PostgrestClient,
+	PostgrestQueryBuilder,
+	PostgrestFilterBuilder,
+	PostgrestTransformBuilder,
+	PostgrestBuilder,
+	PostgrestError
+};
+
+//#endregion
+exports.PostgrestBuilder = PostgrestBuilder;
+exports.PostgrestClient = PostgrestClient;
+exports.PostgrestError = PostgrestError;
+exports.PostgrestFilterBuilder = PostgrestFilterBuilder;
+exports.PostgrestQueryBuilder = PostgrestQueryBuilder;
+exports.PostgrestTransformBuilder = PostgrestTransformBuilder;
+exports["default"] = src_default;
+//# sourceMappingURL=index.cjs.map
+
+/***/ }),
+
+/***/ 1066:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+let iceberg_js = __nccwpck_require__(1797);
+
+//#region src/lib/common/errors.ts
+/**
+* Base error class for all Storage errors
+* Supports both 'storage' and 'vectors' namespaces
+*/
+var StorageError = class extends Error {
+	constructor(message, namespace = "storage", status, statusCode) {
+		super(message);
+		this.__isStorageError = true;
+		this.namespace = namespace;
+		this.name = namespace === "vectors" ? "StorageVectorsError" : "StorageError";
+		this.status = status;
+		this.statusCode = statusCode;
+	}
+};
+/**
+* Type guard to check if an error is a StorageError
+* @param error - The error to check
+* @returns True if the error is a StorageError
+*/
+function isStorageError(error) {
+	return typeof error === "object" && error !== null && "__isStorageError" in error;
+}
+/**
+* API error returned from Storage service
+* Includes HTTP status code and service-specific error code
+*/
+var StorageApiError = class extends StorageError {
+	constructor(message, status, statusCode, namespace = "storage") {
+		super(message, namespace, status, statusCode);
+		this.name = namespace === "vectors" ? "StorageVectorsApiError" : "StorageApiError";
+		this.status = status;
+		this.statusCode = statusCode;
+	}
+	toJSON() {
+		return {
+			name: this.name,
+			message: this.message,
+			status: this.status,
+			statusCode: this.statusCode
+		};
+	}
+};
+/**
+* Unknown error that doesn't match expected error patterns
+* Wraps the original error for debugging
+*/
+var StorageUnknownError = class extends StorageError {
+	constructor(message, originalError, namespace = "storage") {
+		super(message, namespace);
+		this.name = namespace === "vectors" ? "StorageVectorsUnknownError" : "StorageUnknownError";
+		this.originalError = originalError;
+	}
+};
+/**
+* @deprecated Use StorageError with namespace='vectors' instead
+* Alias for backward compatibility with existing vector storage code
+*/
+var StorageVectorsError = class extends StorageError {
+	constructor(message) {
+		super(message, "vectors");
+	}
+};
+/**
+* Type guard to check if an error is a StorageVectorsError
+* @param error - The error to check
+* @returns True if the error is a StorageVectorsError
+*/
+function isStorageVectorsError(error) {
+	return isStorageError(error) && error["namespace"] === "vectors";
+}
+/**
+* @deprecated Use StorageApiError with namespace='vectors' instead
+* Alias for backward compatibility with existing vector storage code
+*/
+var StorageVectorsApiError = class extends StorageApiError {
+	constructor(message, status, statusCode) {
+		super(message, status, statusCode, "vectors");
+	}
+};
+/**
+* @deprecated Use StorageUnknownError with namespace='vectors' instead
+* Alias for backward compatibility with existing vector storage code
+*/
+var StorageVectorsUnknownError = class extends StorageUnknownError {
+	constructor(message, originalError) {
+		super(message, originalError, "vectors");
+	}
+};
+/**
+* Error codes specific to S3 Vectors API
+* Maps AWS service errors to application-friendly error codes
+*/
+let StorageVectorsErrorCode = /* @__PURE__ */ function(StorageVectorsErrorCode$1) {
+	/** Internal server fault (HTTP 500) */
+	StorageVectorsErrorCode$1["InternalError"] = "InternalError";
+	/** Resource already exists / conflict (HTTP 409) */
+	StorageVectorsErrorCode$1["S3VectorConflictException"] = "S3VectorConflictException";
+	/** Resource not found (HTTP 404) */
+	StorageVectorsErrorCode$1["S3VectorNotFoundException"] = "S3VectorNotFoundException";
+	/** Delete bucket while not empty (HTTP 400) */
+	StorageVectorsErrorCode$1["S3VectorBucketNotEmpty"] = "S3VectorBucketNotEmpty";
+	/** Exceeds bucket quota/limit (HTTP 400) */
+	StorageVectorsErrorCode$1["S3VectorMaxBucketsExceeded"] = "S3VectorMaxBucketsExceeded";
+	/** Exceeds index quota/limit (HTTP 400) */
+	StorageVectorsErrorCode$1["S3VectorMaxIndexesExceeded"] = "S3VectorMaxIndexesExceeded";
+	return StorageVectorsErrorCode$1;
+}({});
+
+//#endregion
+//#region src/lib/common/helpers.ts
+/**
+* Resolves the fetch implementation to use
+* Uses custom fetch if provided, otherwise uses native fetch
+*
+* @param customFetch - Optional custom fetch implementation
+* @returns Resolved fetch function
+*/
+const resolveFetch = (customFetch) => {
+	if (customFetch) return (...args) => customFetch(...args);
+	return (...args) => fetch(...args);
+};
+/**
+* Determine if input is a plain object
+* An object is plain if it's created by either {}, new Object(), or Object.create(null)
+*
+* @param value - Value to check
+* @returns True if value is a plain object
+* @source https://github.com/sindresorhus/is-plain-obj
+*/
+const isPlainObject = (value) => {
+	if (typeof value !== "object" || value === null) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in value) && !(Symbol.iterator in value);
+};
+/**
+* Recursively converts object keys from snake_case to camelCase
+* Used for normalizing API responses
+*
+* @param item - Object to convert
+* @returns Converted object with camelCase keys
+*/
+const recursiveToCamel = (item) => {
+	if (Array.isArray(item)) return item.map((el) => recursiveToCamel(el));
+	else if (typeof item === "function" || item !== Object(item)) return item;
+	const result = {};
+	Object.entries(item).forEach(([key, value]) => {
+		const newKey = key.replace(/([-_][a-z])/gi, (c) => c.toUpperCase().replace(/[-_]/g, ""));
+		result[newKey] = recursiveToCamel(value);
+	});
+	return result;
+};
+/**
+* Validates if a given bucket name is valid according to Supabase Storage API rules
+* Mirrors backend validation from: storage/src/storage/limits.ts:isValidBucketName()
+*
+* Rules:
+* - Length: 1-100 characters
+* - Allowed characters: alphanumeric (a-z, A-Z, 0-9), underscore (_), and safe special characters
+* - Safe special characters: ! - . * ' ( ) space & $ @ = ; : + , ?
+* - Forbidden: path separators (/, \), path traversal (..), leading/trailing whitespace
+*
+* AWS S3 Reference: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+*
+* @param bucketName - The bucket name to validate
+* @returns true if valid, false otherwise
+*/
+const isValidBucketName = (bucketName) => {
+	if (!bucketName || typeof bucketName !== "string") return false;
+	if (bucketName.length === 0 || bucketName.length > 100) return false;
+	if (bucketName.trim() !== bucketName) return false;
+	if (bucketName.includes("/") || bucketName.includes("\\")) return false;
+	return /^[\w!.\*'() &$@=;:+,?-]+$/.test(bucketName);
+};
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/typeof.js
+function _typeof(o) {
+	"@babel/helpers - typeof";
+	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o$1) {
+		return typeof o$1;
+	} : function(o$1) {
+		return o$1 && "function" == typeof Symbol && o$1.constructor === Symbol && o$1 !== Symbol.prototype ? "symbol" : typeof o$1;
+	}, _typeof(o);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/toPrimitive.js
+function toPrimitive(t, r) {
+	if ("object" != _typeof(t) || !t) return t;
+	var e = t[Symbol.toPrimitive];
+	if (void 0 !== e) {
+		var i = e.call(t, r || "default");
+		if ("object" != _typeof(i)) return i;
+		throw new TypeError("@@toPrimitive must return a primitive value.");
+	}
+	return ("string" === r ? String : Number)(t);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/toPropertyKey.js
+function toPropertyKey(t) {
+	var i = toPrimitive(t, "string");
+	return "symbol" == _typeof(i) ? i : i + "";
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/defineProperty.js
+function _defineProperty(e, r, t) {
+	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+		value: t,
+		enumerable: !0,
+		configurable: !0,
+		writable: !0
+	}) : e[r] = t, e;
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/objectSpread2.js
+function ownKeys(e, r) {
+	var t = Object.keys(e);
+	if (Object.getOwnPropertySymbols) {
+		var o = Object.getOwnPropertySymbols(e);
+		r && (o = o.filter(function(r$1) {
+			return Object.getOwnPropertyDescriptor(e, r$1).enumerable;
+		})), t.push.apply(t, o);
+	}
+	return t;
+}
+function _objectSpread2(e) {
+	for (var r = 1; r < arguments.length; r++) {
+		var t = null != arguments[r] ? arguments[r] : {};
+		r % 2 ? ownKeys(Object(t), !0).forEach(function(r$1) {
+			_defineProperty(e, r$1, t[r$1]);
+		}) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function(r$1) {
+			Object.defineProperty(e, r$1, Object.getOwnPropertyDescriptor(t, r$1));
+		});
+	}
+	return e;
+}
+
+//#endregion
+//#region src/lib/common/fetch.ts
+/**
+* Extracts error message from various error response formats
+* @param err - Error object from API
+* @returns Human-readable error message
+*/
+const _getErrorMessage = (err) => {
+	var _err$error;
+	return err.msg || err.message || err.error_description || (typeof err.error === "string" ? err.error : (_err$error = err.error) === null || _err$error === void 0 ? void 0 : _err$error.message) || JSON.stringify(err);
+};
+/**
+* Handles fetch errors and converts them to Storage error types
+* @param error - The error caught from fetch
+* @param reject - Promise rejection function
+* @param options - Fetch options that may affect error handling
+* @param namespace - Error namespace ('storage' or 'vectors')
+*/
+const handleError = async (error, reject, options, namespace) => {
+	if (error && typeof error === "object" && "status" in error && "ok" in error && typeof error.status === "number" && !(options === null || options === void 0 ? void 0 : options.noResolveJson)) {
+		const responseError = error;
+		const status = responseError.status || 500;
+		if (typeof responseError.json === "function") responseError.json().then((err) => {
+			const statusCode = (err === null || err === void 0 ? void 0 : err.statusCode) || (err === null || err === void 0 ? void 0 : err.code) || status + "";
+			reject(new StorageApiError(_getErrorMessage(err), status, statusCode, namespace));
+		}).catch(() => {
+			if (namespace === "vectors") {
+				const statusCode = status + "";
+				reject(new StorageApiError(responseError.statusText || `HTTP ${status} error`, status, statusCode, namespace));
+			} else {
+				const statusCode = status + "";
+				reject(new StorageApiError(responseError.statusText || `HTTP ${status} error`, status, statusCode, namespace));
+			}
+		});
+		else {
+			const statusCode = status + "";
+			reject(new StorageApiError(responseError.statusText || `HTTP ${status} error`, status, statusCode, namespace));
+		}
+	} else reject(new StorageUnknownError(_getErrorMessage(error), error, namespace));
+};
+/**
+* Builds request parameters for fetch calls
+* @param method - HTTP method
+* @param options - Custom fetch options
+* @param parameters - Additional fetch parameters like AbortSignal
+* @param body - Request body (will be JSON stringified if plain object)
+* @returns Complete fetch request parameters
+*/
+const _getRequestParams = (method, options, parameters, body) => {
+	const params = {
+		method,
+		headers: (options === null || options === void 0 ? void 0 : options.headers) || {}
+	};
+	if (method === "GET" || method === "HEAD" || !body) return _objectSpread2(_objectSpread2({}, params), parameters);
+	if (isPlainObject(body)) {
+		params.headers = _objectSpread2({ "Content-Type": "application/json" }, options === null || options === void 0 ? void 0 : options.headers);
+		params.body = JSON.stringify(body);
+	} else params.body = body;
+	if (options === null || options === void 0 ? void 0 : options.duplex) params.duplex = options.duplex;
+	return _objectSpread2(_objectSpread2({}, params), parameters);
+};
+/**
+* Internal request handler that wraps fetch with error handling
+* @param fetcher - Fetch function to use
+* @param method - HTTP method
+* @param url - Request URL
+* @param options - Custom fetch options
+* @param parameters - Additional fetch parameters
+* @param body - Request body
+* @param namespace - Error namespace ('storage' or 'vectors')
+* @returns Promise with parsed response or error
+*/
+async function _handleRequest(fetcher, method, url, options, parameters, body, namespace) {
+	return new Promise((resolve, reject) => {
+		fetcher(url, _getRequestParams(method, options, parameters, body)).then((result) => {
+			if (!result.ok) throw result;
+			if (options === null || options === void 0 ? void 0 : options.noResolveJson) return result;
+			if (namespace === "vectors") {
+				const contentType = result.headers.get("content-type");
+				if (result.headers.get("content-length") === "0" || result.status === 204) return {};
+				if (!contentType || !contentType.includes("application/json")) return {};
+			}
+			return result.json();
+		}).then((data) => resolve(data)).catch((error) => handleError(error, reject, options, namespace));
+	});
+}
+/**
+* Creates a fetch API with the specified namespace
+* @param namespace - Error namespace ('storage' or 'vectors')
+* @returns Object with HTTP method functions
+*/
+function createFetchApi(namespace = "storage") {
+	return {
+		get: async (fetcher, url, options, parameters) => {
+			return _handleRequest(fetcher, "GET", url, options, parameters, void 0, namespace);
+		},
+		post: async (fetcher, url, body, options, parameters) => {
+			return _handleRequest(fetcher, "POST", url, options, parameters, body, namespace);
+		},
+		put: async (fetcher, url, body, options, parameters) => {
+			return _handleRequest(fetcher, "PUT", url, options, parameters, body, namespace);
+		},
+		head: async (fetcher, url, options, parameters) => {
+			return _handleRequest(fetcher, "HEAD", url, _objectSpread2(_objectSpread2({}, options), {}, { noResolveJson: true }), parameters, void 0, namespace);
+		},
+		remove: async (fetcher, url, body, options, parameters) => {
+			return _handleRequest(fetcher, "DELETE", url, options, parameters, body, namespace);
+		}
+	};
+}
+const defaultApi = createFetchApi("storage");
+const { get, post, put, head, remove } = defaultApi;
+const vectorsApi = createFetchApi("vectors");
+
+//#endregion
+//#region src/lib/common/BaseApiClient.ts
+/**
+* @ignore
+* Base API client class for all Storage API classes
+* Provides common infrastructure for error handling and configuration
+*
+* @typeParam TError - The error type (StorageError or subclass)
+*/
+var BaseApiClient = class {
+	/**
+	* Creates a new BaseApiClient instance
+	* @param url - Base URL for API requests
+	* @param headers - Default headers for API requests
+	* @param fetch - Optional custom fetch implementation
+	* @param namespace - Error namespace ('storage' or 'vectors')
+	*/
+	constructor(url, headers = {}, fetch$1, namespace = "storage") {
+		this.shouldThrowOnError = false;
+		this.url = url;
+		this.headers = headers;
+		this.fetch = resolveFetch(fetch$1);
+		this.namespace = namespace;
+	}
+	/**
+	* Enable throwing errors instead of returning them.
+	* When enabled, errors are thrown instead of returned in { data, error } format.
+	*
+	* @returns this - For method chaining
+	*/
+	throwOnError() {
+		this.shouldThrowOnError = true;
+		return this;
+	}
+	/**
+	* Handles API operation with standardized error handling
+	* Eliminates repetitive try-catch blocks across all API methods
+	*
+	* This wrapper:
+	* 1. Executes the operation
+	* 2. Returns { data, error: null } on success
+	* 3. Returns { data: null, error } on failure (if shouldThrowOnError is false)
+	* 4. Throws error on failure (if shouldThrowOnError is true)
+	*
+	* @typeParam T - The expected data type from the operation
+	* @param operation - Async function that performs the API call
+	* @returns Promise with { data, error } tuple
+	*
+	* @example
+	* ```typescript
+	* async listBuckets() {
+	*   return this.handleOperation(async () => {
+	*     return await get(this.fetch, `${this.url}/bucket`, {
+	*       headers: this.headers,
+	*     })
+	*   })
+	* }
+	* ```
+	*/
+	async handleOperation(operation) {
+		var _this = this;
+		try {
+			return {
+				data: await operation(),
+				error: null
+			};
+		} catch (error) {
+			if (_this.shouldThrowOnError) throw error;
+			if (isStorageError(error)) return {
+				data: null,
+				error
+			};
+			throw error;
+		}
+	}
+};
+
+//#endregion
+//#region src/packages/StreamDownloadBuilder.ts
+var StreamDownloadBuilder = class {
+	constructor(downloadFn, shouldThrowOnError) {
+		this.downloadFn = downloadFn;
+		this.shouldThrowOnError = shouldThrowOnError;
+	}
+	then(onfulfilled, onrejected) {
+		return this.execute().then(onfulfilled, onrejected);
+	}
+	async execute() {
+		var _this = this;
+		try {
+			return {
+				data: (await _this.downloadFn()).body,
+				error: null
+			};
+		} catch (error) {
+			if (_this.shouldThrowOnError) throw error;
+			if (isStorageError(error)) return {
+				data: null,
+				error
+			};
+			throw error;
+		}
+	}
+};
+
+//#endregion
+//#region src/packages/BlobDownloadBuilder.ts
+let _Symbol$toStringTag;
+_Symbol$toStringTag = Symbol.toStringTag;
+var BlobDownloadBuilder = class {
+	constructor(downloadFn, shouldThrowOnError) {
+		this.downloadFn = downloadFn;
+		this.shouldThrowOnError = shouldThrowOnError;
+		this[_Symbol$toStringTag] = "BlobDownloadBuilder";
+		this.promise = null;
+	}
+	asStream() {
+		return new StreamDownloadBuilder(this.downloadFn, this.shouldThrowOnError);
+	}
+	then(onfulfilled, onrejected) {
+		return this.getPromise().then(onfulfilled, onrejected);
+	}
+	catch(onrejected) {
+		return this.getPromise().catch(onrejected);
+	}
+	finally(onfinally) {
+		return this.getPromise().finally(onfinally);
+	}
+	getPromise() {
+		if (!this.promise) this.promise = this.execute();
+		return this.promise;
+	}
+	async execute() {
+		var _this = this;
+		try {
+			return {
+				data: await (await _this.downloadFn()).blob(),
+				error: null
+			};
+		} catch (error) {
+			if (_this.shouldThrowOnError) throw error;
+			if (isStorageError(error)) return {
+				data: null,
+				error
+			};
+			throw error;
+		}
+	}
+};
+
+//#endregion
+//#region src/packages/StorageFileApi.ts
+const DEFAULT_SEARCH_OPTIONS = {
+	limit: 100,
+	offset: 0,
+	sortBy: {
+		column: "name",
+		order: "asc"
+	}
+};
+const DEFAULT_FILE_OPTIONS = {
+	cacheControl: "3600",
+	contentType: "text/plain;charset=UTF-8",
+	upsert: false
+};
+var StorageFileApi = class extends BaseApiClient {
+	constructor(url, headers = {}, bucketId, fetch$1) {
+		super(url, headers, fetch$1, "storage");
+		this.bucketId = bucketId;
+	}
+	/**
+	* Uploads a file to an existing bucket or replaces an existing file at the specified path with a new one.
+	*
+	* @param method HTTP method.
+	* @param path The relative file path. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
+	* @param fileBody The body of the file to be stored in the bucket.
+	*/
+	async uploadOrUpdate(method, path, fileBody, fileOptions) {
+		var _this = this;
+		return _this.handleOperation(async () => {
+			let body;
+			const options = _objectSpread2(_objectSpread2({}, DEFAULT_FILE_OPTIONS), fileOptions);
+			let headers = _objectSpread2(_objectSpread2({}, _this.headers), method === "POST" && { "x-upsert": String(options.upsert) });
+			const metadata = options.metadata;
+			if (typeof Blob !== "undefined" && fileBody instanceof Blob) {
+				body = new FormData();
+				body.append("cacheControl", options.cacheControl);
+				if (metadata) body.append("metadata", _this.encodeMetadata(metadata));
+				body.append("", fileBody);
+			} else if (typeof FormData !== "undefined" && fileBody instanceof FormData) {
+				body = fileBody;
+				if (!body.has("cacheControl")) body.append("cacheControl", options.cacheControl);
+				if (metadata && !body.has("metadata")) body.append("metadata", _this.encodeMetadata(metadata));
+			} else {
+				body = fileBody;
+				headers["cache-control"] = `max-age=${options.cacheControl}`;
+				headers["content-type"] = options.contentType;
+				if (metadata) headers["x-metadata"] = _this.toBase64(_this.encodeMetadata(metadata));
+				if ((typeof ReadableStream !== "undefined" && body instanceof ReadableStream || body && typeof body === "object" && "pipe" in body && typeof body.pipe === "function") && !options.duplex) options.duplex = "half";
+			}
+			if (fileOptions === null || fileOptions === void 0 ? void 0 : fileOptions.headers) headers = _objectSpread2(_objectSpread2({}, headers), fileOptions.headers);
+			const cleanPath = _this._removeEmptyFolders(path);
+			const _path = _this._getFinalPath(cleanPath);
+			const data = await (method == "PUT" ? put : post)(_this.fetch, `${_this.url}/object/${_path}`, body, _objectSpread2({ headers }, (options === null || options === void 0 ? void 0 : options.duplex) ? { duplex: options.duplex } : {}));
+			return {
+				path: cleanPath,
+				id: data.Id,
+				fullPath: data.Key
+			};
+		});
+	}
+	/**
+	* Uploads a file to an existing bucket.
+	*
+	* @category File Buckets
+	* @param path The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
+	* @param fileBody The body of the file to be stored in the bucket.
+	* @param fileOptions Optional file upload options including cacheControl, contentType, upsert, and metadata.
+	* @returns Promise with response containing file path, id, and fullPath or error
+	*
+	* @example Upload file
+	* ```js
+	* const avatarFile = event.target.files[0]
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .upload('public/avatar1.png', avatarFile, {
+	*     cacheControl: '3600',
+	*     upsert: false
+	*   })
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "path": "public/avatar1.png",
+	*     "fullPath": "avatars/public/avatar1.png"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*
+	* @example Upload file using `ArrayBuffer` from base64 file data
+	* ```js
+	* import { decode } from 'base64-arraybuffer'
+	*
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .upload('public/avatar1.png', decode('base64FileData'), {
+	*     contentType: 'image/png'
+	*   })
+	* ```
+	*/
+	async upload(path, fileBody, fileOptions) {
+		return this.uploadOrUpdate("POST", path, fileBody, fileOptions);
+	}
+	/**
+	* Upload a file with a token generated from `createSignedUploadUrl`.
+	*
+	* @category File Buckets
+	* @param path The file path, including the file name. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to upload.
+	* @param token The token generated from `createSignedUploadUrl`
+	* @param fileBody The body of the file to be stored in the bucket.
+	* @param fileOptions HTTP headers (cacheControl, contentType, etc.).
+	* **Note:** The `upsert` option has no effect here. To enable upsert behavior,
+	* pass `{ upsert: true }` when calling `createSignedUploadUrl()` instead.
+	* @returns Promise with response containing file path and fullPath or error
+	*
+	* @example Upload to a signed URL
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .uploadToSignedUrl('folder/cat.jpg', 'token-from-createSignedUploadUrl', file)
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "path": "folder/cat.jpg",
+	*     "fullPath": "avatars/folder/cat.jpg"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async uploadToSignedUrl(path, token, fileBody, fileOptions) {
+		var _this3 = this;
+		const cleanPath = _this3._removeEmptyFolders(path);
+		const _path = _this3._getFinalPath(cleanPath);
+		const url = new URL(_this3.url + `/object/upload/sign/${_path}`);
+		url.searchParams.set("token", token);
+		return _this3.handleOperation(async () => {
+			let body;
+			const options = _objectSpread2({ upsert: DEFAULT_FILE_OPTIONS.upsert }, fileOptions);
+			const headers = _objectSpread2(_objectSpread2({}, _this3.headers), { "x-upsert": String(options.upsert) });
+			if (typeof Blob !== "undefined" && fileBody instanceof Blob) {
+				body = new FormData();
+				body.append("cacheControl", options.cacheControl);
+				body.append("", fileBody);
+			} else if (typeof FormData !== "undefined" && fileBody instanceof FormData) {
+				body = fileBody;
+				body.append("cacheControl", options.cacheControl);
+			} else {
+				body = fileBody;
+				headers["cache-control"] = `max-age=${options.cacheControl}`;
+				headers["content-type"] = options.contentType;
+			}
+			return {
+				path: cleanPath,
+				fullPath: (await put(_this3.fetch, url.toString(), body, { headers })).Key
+			};
+		});
+	}
+	/**
+	* Creates a signed upload URL.
+	* Signed upload URLs can be used to upload files to the bucket without further authentication.
+	* They are valid for 2 hours.
+	*
+	* @category File Buckets
+	* @param path The file path, including the current file name. For example `folder/image.png`.
+	* @param options.upsert If set to true, allows the file to be overwritten if it already exists.
+	* @returns Promise with response containing signed upload URL, token, and path or error
+	*
+	* @example Create Signed Upload URL
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .createSignedUploadUrl('folder/cat.jpg')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "signedUrl": "https://example.supabase.co/storage/v1/object/upload/sign/avatars/folder/cat.jpg?token=<TOKEN>",
+	*     "path": "folder/cat.jpg",
+	*     "token": "<TOKEN>"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async createSignedUploadUrl(path, options) {
+		var _this4 = this;
+		return _this4.handleOperation(async () => {
+			let _path = _this4._getFinalPath(path);
+			const headers = _objectSpread2({}, _this4.headers);
+			if (options === null || options === void 0 ? void 0 : options.upsert) headers["x-upsert"] = "true";
+			const data = await post(_this4.fetch, `${_this4.url}/object/upload/sign/${_path}`, {}, { headers });
+			const url = new URL(_this4.url + data.url);
+			const token = url.searchParams.get("token");
+			if (!token) throw new StorageError("No token returned by API");
+			return {
+				signedUrl: url.toString(),
+				path,
+				token
+			};
+		});
+	}
+	/**
+	* Replaces an existing file at the specified path with a new one.
+	*
+	* @category File Buckets
+	* @param path The relative file path. Should be of the format `folder/subfolder/filename.png`. The bucket must already exist before attempting to update.
+	* @param fileBody The body of the file to be stored in the bucket.
+	* @param fileOptions Optional file upload options including cacheControl, contentType, upsert, and metadata.
+	* @returns Promise with response containing file path, id, and fullPath or error
+	*
+	* @example Update file
+	* ```js
+	* const avatarFile = event.target.files[0]
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .update('public/avatar1.png', avatarFile, {
+	*     cacheControl: '3600',
+	*     upsert: true
+	*   })
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "path": "public/avatar1.png",
+	*     "fullPath": "avatars/public/avatar1.png"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*
+	* @example Update file using `ArrayBuffer` from base64 file data
+	* ```js
+	* import {decode} from 'base64-arraybuffer'
+	*
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .update('public/avatar1.png', decode('base64FileData'), {
+	*     contentType: 'image/png'
+	*   })
+	* ```
+	*/
+	async update(path, fileBody, fileOptions) {
+		return this.uploadOrUpdate("PUT", path, fileBody, fileOptions);
+	}
+	/**
+	* Moves an existing file to a new path in the same bucket.
+	*
+	* @category File Buckets
+	* @param fromPath The original file path, including the current file name. For example `folder/image.png`.
+	* @param toPath The new file path, including the new file name. For example `folder/image-new.png`.
+	* @param options The destination options.
+	* @returns Promise with response containing success message or error
+	*
+	* @example Move file
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .move('public/avatar1.png', 'private/avatar2.png')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "message": "Successfully moved"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async move(fromPath, toPath, options) {
+		var _this6 = this;
+		return _this6.handleOperation(async () => {
+			return await post(_this6.fetch, `${_this6.url}/object/move`, {
+				bucketId: _this6.bucketId,
+				sourceKey: fromPath,
+				destinationKey: toPath,
+				destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket
+			}, { headers: _this6.headers });
+		});
+	}
+	/**
+	* Copies an existing file to a new path in the same bucket.
+	*
+	* @category File Buckets
+	* @param fromPath The original file path, including the current file name. For example `folder/image.png`.
+	* @param toPath The new file path, including the new file name. For example `folder/image-copy.png`.
+	* @param options The destination options.
+	* @returns Promise with response containing copied file path or error
+	*
+	* @example Copy file
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .copy('public/avatar1.png', 'private/avatar2.png')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "path": "avatars/private/avatar2.png"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async copy(fromPath, toPath, options) {
+		var _this7 = this;
+		return _this7.handleOperation(async () => {
+			return { path: (await post(_this7.fetch, `${_this7.url}/object/copy`, {
+				bucketId: _this7.bucketId,
+				sourceKey: fromPath,
+				destinationKey: toPath,
+				destinationBucket: options === null || options === void 0 ? void 0 : options.destinationBucket
+			}, { headers: _this7.headers })).Key };
+		});
+	}
+	/**
+	* Creates a signed URL. Use a signed URL to share a file for a fixed amount of time.
+	*
+	* @category File Buckets
+	* @param path The file path, including the current file name. For example `folder/image.png`.
+	* @param expiresIn The number of seconds until the signed URL expires. For example, `60` for a URL which is valid for one minute.
+	* @param options.download triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
+	* @param options.transform Transform the asset before serving it to the client.
+	* @returns Promise with response containing signed URL or error
+	*
+	* @example Create Signed URL
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .createSignedUrl('folder/avatar1.png', 60)
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "signedUrl": "https://example.supabase.co/storage/v1/object/sign/avatars/folder/avatar1.png?token=<TOKEN>"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*
+	* @example Create a signed URL for an asset with transformations
+	* ```js
+	* const { data } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .createSignedUrl('folder/avatar1.png', 60, {
+	*     transform: {
+	*       width: 100,
+	*       height: 100,
+	*     }
+	*   })
+	* ```
+	*
+	* @example Create a signed URL which triggers the download of the asset
+	* ```js
+	* const { data } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .createSignedUrl('folder/avatar1.png', 60, {
+	*     download: true,
+	*   })
+	* ```
+	*/
+	async createSignedUrl(path, expiresIn, options) {
+		var _this8 = this;
+		return _this8.handleOperation(async () => {
+			let _path = _this8._getFinalPath(path);
+			let data = await post(_this8.fetch, `${_this8.url}/object/sign/${_path}`, _objectSpread2({ expiresIn }, (options === null || options === void 0 ? void 0 : options.transform) ? { transform: options.transform } : {}), { headers: _this8.headers });
+			const downloadQueryParam = (options === null || options === void 0 ? void 0 : options.download) ? `&download=${options.download === true ? "" : options.download}` : "";
+			return { signedUrl: encodeURI(`${_this8.url}${data.signedURL}${downloadQueryParam}`) };
+		});
+	}
+	/**
+	* Creates multiple signed URLs. Use a signed URL to share a file for a fixed amount of time.
+	*
+	* @category File Buckets
+	* @param paths The file paths to be downloaded, including the current file names. For example `['folder/image.png', 'folder2/image2.png']`.
+	* @param expiresIn The number of seconds until the signed URLs expire. For example, `60` for URLs which are valid for one minute.
+	* @param options.download triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
+	* @returns Promise with response containing array of objects with signedUrl, path, and error or error
+	*
+	* @example Create Signed URLs
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .createSignedUrls(['folder/avatar1.png', 'folder/avatar2.png'], 60)
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": [
+	*     {
+	*       "error": null,
+	*       "path": "folder/avatar1.png",
+	*       "signedURL": "/object/sign/avatars/folder/avatar1.png?token=<TOKEN>",
+	*       "signedUrl": "https://example.supabase.co/storage/v1/object/sign/avatars/folder/avatar1.png?token=<TOKEN>"
+	*     },
+	*     {
+	*       "error": null,
+	*       "path": "folder/avatar2.png",
+	*       "signedURL": "/object/sign/avatars/folder/avatar2.png?token=<TOKEN>",
+	*       "signedUrl": "https://example.supabase.co/storage/v1/object/sign/avatars/folder/avatar2.png?token=<TOKEN>"
+	*     }
+	*   ],
+	*   "error": null
+	* }
+	* ```
+	*/
+	async createSignedUrls(paths, expiresIn, options) {
+		var _this9 = this;
+		return _this9.handleOperation(async () => {
+			const data = await post(_this9.fetch, `${_this9.url}/object/sign/${_this9.bucketId}`, {
+				expiresIn,
+				paths
+			}, { headers: _this9.headers });
+			const downloadQueryParam = (options === null || options === void 0 ? void 0 : options.download) ? `&download=${options.download === true ? "" : options.download}` : "";
+			return data.map((datum) => _objectSpread2(_objectSpread2({}, datum), {}, { signedUrl: datum.signedURL ? encodeURI(`${_this9.url}${datum.signedURL}${downloadQueryParam}`) : null }));
+		});
+	}
+	/**
+	* Downloads a file from a private bucket. For public buckets, make a request to the URL returned from `getPublicUrl` instead.
+	*
+	* @category File Buckets
+	* @param path The full path and file name of the file to be downloaded. For example `folder/image.png`.
+	* @param options.transform Transform the asset before serving it to the client.
+	* @param parameters Additional fetch parameters like signal for cancellation. Supports standard fetch options including cache control.
+	* @returns BlobDownloadBuilder instance for downloading the file
+	*
+	* @example Download file
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .download('folder/avatar1.png')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": <BLOB>,
+	*   "error": null
+	* }
+	* ```
+	*
+	* @example Download file with transformations
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .download('folder/avatar1.png', {
+	*     transform: {
+	*       width: 100,
+	*       height: 100,
+	*       quality: 80
+	*     }
+	*   })
+	* ```
+	*
+	* @example Download with cache control (useful in Edge Functions)
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .download('folder/avatar1.png', {}, { cache: 'no-store' })
+	* ```
+	*
+	* @example Download with abort signal
+	* ```js
+	* const controller = new AbortController()
+	* setTimeout(() => controller.abort(), 5000)
+	*
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .download('folder/avatar1.png', {}, { signal: controller.signal })
+	* ```
+	*/
+	download(path, options, parameters) {
+		const renderPath = typeof (options === null || options === void 0 ? void 0 : options.transform) !== "undefined" ? "render/image/authenticated" : "object";
+		const transformationQuery = this.transformOptsToQueryString((options === null || options === void 0 ? void 0 : options.transform) || {});
+		const queryString = transformationQuery ? `?${transformationQuery}` : "";
+		const _path = this._getFinalPath(path);
+		const downloadFn = () => get(this.fetch, `${this.url}/${renderPath}/${_path}${queryString}`, {
+			headers: this.headers,
+			noResolveJson: true
+		}, parameters);
+		return new BlobDownloadBuilder(downloadFn, this.shouldThrowOnError);
+	}
+	/**
+	* Retrieves the details of an existing file.
+	*
+	* @category File Buckets
+	* @param path The file path, including the file name. For example `folder/image.png`.
+	* @returns Promise with response containing file metadata or error
+	*
+	* @example Get file info
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .info('folder/avatar1.png')
+	* ```
+	*/
+	async info(path) {
+		var _this10 = this;
+		const _path = _this10._getFinalPath(path);
+		return _this10.handleOperation(async () => {
+			return recursiveToCamel(await get(_this10.fetch, `${_this10.url}/object/info/${_path}`, { headers: _this10.headers }));
+		});
+	}
+	/**
+	* Checks the existence of a file.
+	*
+	* @category File Buckets
+	* @param path The file path, including the file name. For example `folder/image.png`.
+	* @returns Promise with response containing boolean indicating file existence or error
+	*
+	* @example Check file existence
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .exists('folder/avatar1.png')
+	* ```
+	*/
+	async exists(path) {
+		var _this11 = this;
+		const _path = _this11._getFinalPath(path);
+		try {
+			await head(_this11.fetch, `${_this11.url}/object/${_path}`, { headers: _this11.headers });
+			return {
+				data: true,
+				error: null
+			};
+		} catch (error) {
+			if (_this11.shouldThrowOnError) throw error;
+			if (isStorageError(error) && error instanceof StorageUnknownError) {
+				const originalError = error.originalError;
+				if ([400, 404].includes(originalError === null || originalError === void 0 ? void 0 : originalError.status)) return {
+					data: false,
+					error
+				};
+			}
+			throw error;
+		}
+	}
+	/**
+	* A simple convenience function to get the URL for an asset in a public bucket. If you do not want to use this function, you can construct the public URL by concatenating the bucket URL with the path to the asset.
+	* This function does not verify if the bucket is public. If a public URL is created for a bucket which is not public, you will not be able to download the asset.
+	*
+	* @category File Buckets
+	* @param path The path and name of the file to generate the public URL for. For example `folder/image.png`.
+	* @param options.download Triggers the file as a download if set to true. Set this parameter as the name of the file if you want to trigger the download with a different filename.
+	* @param options.transform Transform the asset before serving it to the client.
+	* @returns Object with public URL
+	*
+	* @example Returns the URL for an asset in a public bucket
+	* ```js
+	* const { data } = supabase
+	*   .storage
+	*   .from('public-bucket')
+	*   .getPublicUrl('folder/avatar1.png')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "publicUrl": "https://example.supabase.co/storage/v1/object/public/public-bucket/folder/avatar1.png"
+	*   }
+	* }
+	* ```
+	*
+	* @example Returns the URL for an asset in a public bucket with transformations
+	* ```js
+	* const { data } = supabase
+	*   .storage
+	*   .from('public-bucket')
+	*   .getPublicUrl('folder/avatar1.png', {
+	*     transform: {
+	*       width: 100,
+	*       height: 100,
+	*     }
+	*   })
+	* ```
+	*
+	* @example Returns the URL which triggers the download of an asset in a public bucket
+	* ```js
+	* const { data } = supabase
+	*   .storage
+	*   .from('public-bucket')
+	*   .getPublicUrl('folder/avatar1.png', {
+	*     download: true,
+	*   })
+	* ```
+	*/
+	getPublicUrl(path, options) {
+		const _path = this._getFinalPath(path);
+		const _queryString = [];
+		const downloadQueryParam = (options === null || options === void 0 ? void 0 : options.download) ? `download=${options.download === true ? "" : options.download}` : "";
+		if (downloadQueryParam !== "") _queryString.push(downloadQueryParam);
+		const renderPath = typeof (options === null || options === void 0 ? void 0 : options.transform) !== "undefined" ? "render/image" : "object";
+		const transformationQuery = this.transformOptsToQueryString((options === null || options === void 0 ? void 0 : options.transform) || {});
+		if (transformationQuery !== "") _queryString.push(transformationQuery);
+		let queryString = _queryString.join("&");
+		if (queryString !== "") queryString = `?${queryString}`;
+		return { data: { publicUrl: encodeURI(`${this.url}/${renderPath}/public/${_path}${queryString}`) } };
+	}
+	/**
+	* Deletes files within the same bucket
+	*
+	* @category File Buckets
+	* @param paths An array of files to delete, including the path and file name. For example [`'folder/image.png'`].
+	* @returns Promise with response containing array of deleted file objects or error
+	*
+	* @example Delete file
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .remove(['folder/avatar1.png'])
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": [],
+	*   "error": null
+	* }
+	* ```
+	*/
+	async remove(paths) {
+		var _this12 = this;
+		return _this12.handleOperation(async () => {
+			return await remove(_this12.fetch, `${_this12.url}/object/${_this12.bucketId}`, { prefixes: paths }, { headers: _this12.headers });
+		});
+	}
+	/**
+	* Get file metadata
+	* @param id the file id to retrieve metadata
+	*/
+	/**
+	* Update file metadata
+	* @param id the file id to update metadata
+	* @param meta the new file metadata
+	*/
+	/**
+	* Lists all the files and folders within a path of the bucket.
+	*
+	* @category File Buckets
+	* @param path The folder path.
+	* @param options Search options including limit (defaults to 100), offset, sortBy, and search
+	* @param parameters Optional fetch parameters including signal for cancellation
+	* @returns Promise with response containing array of files or error
+	*
+	* @example List files in a bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .list('folder', {
+	*     limit: 100,
+	*     offset: 0,
+	*     sortBy: { column: 'name', order: 'asc' },
+	*   })
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": [
+	*     {
+	*       "name": "avatar1.png",
+	*       "id": "e668cf7f-821b-4a2f-9dce-7dfa5dd1cfd2",
+	*       "updated_at": "2024-05-22T23:06:05.580Z",
+	*       "created_at": "2024-05-22T23:04:34.443Z",
+	*       "last_accessed_at": "2024-05-22T23:04:34.443Z",
+	*       "metadata": {
+	*         "eTag": "\"c5e8c553235d9af30ef4f6e280790b92\"",
+	*         "size": 32175,
+	*         "mimetype": "image/png",
+	*         "cacheControl": "max-age=3600",
+	*         "lastModified": "2024-05-22T23:06:05.574Z",
+	*         "contentLength": 32175,
+	*         "httpStatusCode": 200
+	*       }
+	*     }
+	*   ],
+	*   "error": null
+	* }
+	* ```
+	*
+	* @example Search files in a bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .from('avatars')
+	*   .list('folder', {
+	*     limit: 100,
+	*     offset: 0,
+	*     sortBy: { column: 'name', order: 'asc' },
+	*     search: 'jon'
+	*   })
+	* ```
+	*/
+	async list(path, options, parameters) {
+		var _this13 = this;
+		return _this13.handleOperation(async () => {
+			const body = _objectSpread2(_objectSpread2(_objectSpread2({}, DEFAULT_SEARCH_OPTIONS), options), {}, { prefix: path || "" });
+			return await post(_this13.fetch, `${_this13.url}/object/list/${_this13.bucketId}`, body, { headers: _this13.headers }, parameters);
+		});
+	}
+	/**
+	* @experimental this method signature might change in the future
+	*
+	* @category File Buckets
+	* @param options search options
+	* @param parameters
+	*/
+	async listV2(options, parameters) {
+		var _this14 = this;
+		return _this14.handleOperation(async () => {
+			const body = _objectSpread2({}, options);
+			return await post(_this14.fetch, `${_this14.url}/object/list-v2/${_this14.bucketId}`, body, { headers: _this14.headers }, parameters);
+		});
+	}
+	encodeMetadata(metadata) {
+		return JSON.stringify(metadata);
+	}
+	toBase64(data) {
+		if (typeof Buffer !== "undefined") return Buffer.from(data).toString("base64");
+		return btoa(data);
+	}
+	_getFinalPath(path) {
+		return `${this.bucketId}/${path.replace(/^\/+/, "")}`;
+	}
+	_removeEmptyFolders(path) {
+		return path.replace(/^\/|\/$/g, "").replace(/\/+/g, "/");
+	}
+	transformOptsToQueryString(transform) {
+		const params = [];
+		if (transform.width) params.push(`width=${transform.width}`);
+		if (transform.height) params.push(`height=${transform.height}`);
+		if (transform.resize) params.push(`resize=${transform.resize}`);
+		if (transform.format) params.push(`format=${transform.format}`);
+		if (transform.quality) params.push(`quality=${transform.quality}`);
+		return params.join("&");
+	}
+};
+
+//#endregion
+//#region src/lib/version.ts
+const version = "2.95.3";
+
+//#endregion
+//#region src/lib/constants.ts
+const DEFAULT_HEADERS = { "X-Client-Info": `storage-js/${version}` };
+
+//#endregion
+//#region src/packages/StorageBucketApi.ts
+var StorageBucketApi = class extends BaseApiClient {
+	constructor(url, headers = {}, fetch$1, opts) {
+		const baseUrl = new URL(url);
+		if (opts === null || opts === void 0 ? void 0 : opts.useNewHostname) {
+			if (/supabase\.(co|in|red)$/.test(baseUrl.hostname) && !baseUrl.hostname.includes("storage.supabase.")) baseUrl.hostname = baseUrl.hostname.replace("supabase.", "storage.supabase.");
+		}
+		const finalUrl = baseUrl.href.replace(/\/$/, "");
+		const finalHeaders = _objectSpread2(_objectSpread2({}, DEFAULT_HEADERS), headers);
+		super(finalUrl, finalHeaders, fetch$1, "storage");
+	}
+	/**
+	* Retrieves the details of all Storage buckets within an existing project.
+	*
+	* @category File Buckets
+	* @param options Query parameters for listing buckets
+	* @param options.limit Maximum number of buckets to return
+	* @param options.offset Number of buckets to skip
+	* @param options.sortColumn Column to sort by ('id', 'name', 'created_at', 'updated_at')
+	* @param options.sortOrder Sort order ('asc' or 'desc')
+	* @param options.search Search term to filter bucket names
+	* @returns Promise with response containing array of buckets or error
+	*
+	* @example List buckets
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .listBuckets()
+	* ```
+	*
+	* @example List buckets with options
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .listBuckets({
+	*     limit: 10,
+	*     offset: 0,
+	*     sortColumn: 'created_at',
+	*     sortOrder: 'desc',
+	*     search: 'prod'
+	*   })
+	* ```
+	*/
+	async listBuckets(options) {
+		var _this = this;
+		return _this.handleOperation(async () => {
+			const queryString = _this.listBucketOptionsToQueryString(options);
+			return await get(_this.fetch, `${_this.url}/bucket${queryString}`, { headers: _this.headers });
+		});
+	}
+	/**
+	* Retrieves the details of an existing Storage bucket.
+	*
+	* @category File Buckets
+	* @param id The unique identifier of the bucket you would like to retrieve.
+	* @returns Promise with response containing bucket details or error
+	*
+	* @example Get bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .getBucket('avatars')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "id": "avatars",
+	*     "name": "avatars",
+	*     "owner": "",
+	*     "public": false,
+	*     "file_size_limit": 1024,
+	*     "allowed_mime_types": [
+	*       "image/png"
+	*     ],
+	*     "created_at": "2024-05-22T22:26:05.100Z",
+	*     "updated_at": "2024-05-22T22:26:05.100Z"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async getBucket(id) {
+		var _this2 = this;
+		return _this2.handleOperation(async () => {
+			return await get(_this2.fetch, `${_this2.url}/bucket/${id}`, { headers: _this2.headers });
+		});
+	}
+	/**
+	* Creates a new Storage bucket
+	*
+	* @category File Buckets
+	* @param id A unique identifier for the bucket you are creating.
+	* @param options.public The visibility of the bucket. Public buckets don't require an authorization token to download objects, but still require a valid token for all other operations. By default, buckets are private.
+	* @param options.fileSizeLimit specifies the max file size in bytes that can be uploaded to this bucket.
+	* The global file size limit takes precedence over this value.
+	* The default value is null, which doesn't set a per bucket file size limit.
+	* @param options.allowedMimeTypes specifies the allowed mime types that this bucket can accept during upload.
+	* The default value is null, which allows files with all mime types to be uploaded.
+	* Each mime type specified can be a wildcard, e.g. image/*, or a specific mime type, e.g. image/png.
+	* @param options.type (private-beta) specifies the bucket type. see `BucketType` for more details.
+	*   - default bucket type is `STANDARD`
+	* @returns Promise with response containing newly created bucket name or error
+	*
+	* @example Create bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .createBucket('avatars', {
+	*     public: false,
+	*     allowedMimeTypes: ['image/png'],
+	*     fileSizeLimit: 1024
+	*   })
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "name": "avatars"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async createBucket(id, options = { public: false }) {
+		var _this3 = this;
+		return _this3.handleOperation(async () => {
+			return await post(_this3.fetch, `${_this3.url}/bucket`, {
+				id,
+				name: id,
+				type: options.type,
+				public: options.public,
+				file_size_limit: options.fileSizeLimit,
+				allowed_mime_types: options.allowedMimeTypes
+			}, { headers: _this3.headers });
+		});
+	}
+	/**
+	* Updates a Storage bucket
+	*
+	* @category File Buckets
+	* @param id A unique identifier for the bucket you are updating.
+	* @param options.public The visibility of the bucket. Public buckets don't require an authorization token to download objects, but still require a valid token for all other operations.
+	* @param options.fileSizeLimit specifies the max file size in bytes that can be uploaded to this bucket.
+	* The global file size limit takes precedence over this value.
+	* The default value is null, which doesn't set a per bucket file size limit.
+	* @param options.allowedMimeTypes specifies the allowed mime types that this bucket can accept during upload.
+	* The default value is null, which allows files with all mime types to be uploaded.
+	* Each mime type specified can be a wildcard, e.g. image/*, or a specific mime type, e.g. image/png.
+	* @returns Promise with response containing success message or error
+	*
+	* @example Update bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .updateBucket('avatars', {
+	*     public: false,
+	*     allowedMimeTypes: ['image/png'],
+	*     fileSizeLimit: 1024
+	*   })
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "message": "Successfully updated"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async updateBucket(id, options) {
+		var _this4 = this;
+		return _this4.handleOperation(async () => {
+			return await put(_this4.fetch, `${_this4.url}/bucket/${id}`, {
+				id,
+				name: id,
+				public: options.public,
+				file_size_limit: options.fileSizeLimit,
+				allowed_mime_types: options.allowedMimeTypes
+			}, { headers: _this4.headers });
+		});
+	}
+	/**
+	* Removes all objects inside a single bucket.
+	*
+	* @category File Buckets
+	* @param id The unique identifier of the bucket you would like to empty.
+	* @returns Promise with success message or error
+	*
+	* @example Empty bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .emptyBucket('avatars')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "message": "Successfully emptied"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async emptyBucket(id) {
+		var _this5 = this;
+		return _this5.handleOperation(async () => {
+			return await post(_this5.fetch, `${_this5.url}/bucket/${id}/empty`, {}, { headers: _this5.headers });
+		});
+	}
+	/**
+	* Deletes an existing bucket. A bucket can't be deleted with existing objects inside it.
+	* You must first `empty()` the bucket.
+	*
+	* @category File Buckets
+	* @param id The unique identifier of the bucket you would like to delete.
+	* @returns Promise with success message or error
+	*
+	* @example Delete bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .deleteBucket('avatars')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "message": "Successfully deleted"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async deleteBucket(id) {
+		var _this6 = this;
+		return _this6.handleOperation(async () => {
+			return await remove(_this6.fetch, `${_this6.url}/bucket/${id}`, {}, { headers: _this6.headers });
+		});
+	}
+	listBucketOptionsToQueryString(options) {
+		const params = {};
+		if (options) {
+			if ("limit" in options) params.limit = String(options.limit);
+			if ("offset" in options) params.offset = String(options.offset);
+			if (options.search) params.search = options.search;
+			if (options.sortColumn) params.sortColumn = options.sortColumn;
+			if (options.sortOrder) params.sortOrder = options.sortOrder;
+		}
+		return Object.keys(params).length > 0 ? "?" + new URLSearchParams(params).toString() : "";
+	}
+};
+
+//#endregion
+//#region src/packages/StorageAnalyticsClient.ts
+/**
+* Client class for managing Analytics Buckets using Iceberg tables
+* Provides methods for creating, listing, and deleting analytics buckets
+*/
+var StorageAnalyticsClient = class extends BaseApiClient {
+	/**
+	* @alpha
+	*
+	* Creates a new StorageAnalyticsClient instance
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Analytics Buckets
+	* @param url - The base URL for the storage API
+	* @param headers - HTTP headers to include in requests
+	* @param fetch - Optional custom fetch implementation
+	*
+	* @example
+	* ```typescript
+	* const client = new StorageAnalyticsClient(url, headers)
+	* ```
+	*/
+	constructor(url, headers = {}, fetch$1) {
+		const finalUrl = url.replace(/\/$/, "");
+		const finalHeaders = _objectSpread2(_objectSpread2({}, DEFAULT_HEADERS), headers);
+		super(finalUrl, finalHeaders, fetch$1, "storage");
+	}
+	/**
+	* @alpha
+	*
+	* Creates a new analytics bucket using Iceberg tables
+	* Analytics buckets are optimized for analytical queries and data processing
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Analytics Buckets
+	* @param name A unique name for the bucket you are creating
+	* @returns Promise with response containing newly created analytics bucket or error
+	*
+	* @example Create analytics bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .analytics
+	*   .createBucket('analytics-data')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "name": "analytics-data",
+	*     "type": "ANALYTICS",
+	*     "format": "iceberg",
+	*     "created_at": "2024-05-22T22:26:05.100Z",
+	*     "updated_at": "2024-05-22T22:26:05.100Z"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async createBucket(name) {
+		var _this = this;
+		return _this.handleOperation(async () => {
+			return await post(_this.fetch, `${_this.url}/bucket`, { name }, { headers: _this.headers });
+		});
+	}
+	/**
+	* @alpha
+	*
+	* Retrieves the details of all Analytics Storage buckets within an existing project
+	* Only returns buckets of type 'ANALYTICS'
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Analytics Buckets
+	* @param options Query parameters for listing buckets
+	* @param options.limit Maximum number of buckets to return
+	* @param options.offset Number of buckets to skip
+	* @param options.sortColumn Column to sort by ('name', 'created_at', 'updated_at')
+	* @param options.sortOrder Sort order ('asc' or 'desc')
+	* @param options.search Search term to filter bucket names
+	* @returns Promise with response containing array of analytics buckets or error
+	*
+	* @example List analytics buckets
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .analytics
+	*   .listBuckets({
+	*     limit: 10,
+	*     offset: 0,
+	*     sortColumn: 'created_at',
+	*     sortOrder: 'desc'
+	*   })
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": [
+	*     {
+	*       "name": "analytics-data",
+	*       "type": "ANALYTICS",
+	*       "format": "iceberg",
+	*       "created_at": "2024-05-22T22:26:05.100Z",
+	*       "updated_at": "2024-05-22T22:26:05.100Z"
+	*     }
+	*   ],
+	*   "error": null
+	* }
+	* ```
+	*/
+	async listBuckets(options) {
+		var _this2 = this;
+		return _this2.handleOperation(async () => {
+			const queryParams = new URLSearchParams();
+			if ((options === null || options === void 0 ? void 0 : options.limit) !== void 0) queryParams.set("limit", options.limit.toString());
+			if ((options === null || options === void 0 ? void 0 : options.offset) !== void 0) queryParams.set("offset", options.offset.toString());
+			if (options === null || options === void 0 ? void 0 : options.sortColumn) queryParams.set("sortColumn", options.sortColumn);
+			if (options === null || options === void 0 ? void 0 : options.sortOrder) queryParams.set("sortOrder", options.sortOrder);
+			if (options === null || options === void 0 ? void 0 : options.search) queryParams.set("search", options.search);
+			const queryString = queryParams.toString();
+			const url = queryString ? `${_this2.url}/bucket?${queryString}` : `${_this2.url}/bucket`;
+			return await get(_this2.fetch, url, { headers: _this2.headers });
+		});
+	}
+	/**
+	* @alpha
+	*
+	* Deletes an existing analytics bucket
+	* A bucket can't be deleted with existing objects inside it
+	* You must first empty the bucket before deletion
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Analytics Buckets
+	* @param bucketName The unique identifier of the bucket you would like to delete
+	* @returns Promise with response containing success message or error
+	*
+	* @example Delete analytics bucket
+	* ```js
+	* const { data, error } = await supabase
+	*   .storage
+	*   .analytics
+	*   .deleteBucket('analytics-data')
+	* ```
+	*
+	* Response:
+	* ```json
+	* {
+	*   "data": {
+	*     "message": "Successfully deleted"
+	*   },
+	*   "error": null
+	* }
+	* ```
+	*/
+	async deleteBucket(bucketName) {
+		var _this3 = this;
+		return _this3.handleOperation(async () => {
+			return await remove(_this3.fetch, `${_this3.url}/bucket/${bucketName}`, {}, { headers: _this3.headers });
+		});
+	}
+	/**
+	* @alpha
+	*
+	* Get an Iceberg REST Catalog client configured for a specific analytics bucket
+	* Use this to perform advanced table and namespace operations within the bucket
+	* The returned client provides full access to the Apache Iceberg REST Catalog API
+	* with the Supabase `{ data, error }` pattern for consistent error handling on all operations.
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Analytics Buckets
+	* @param bucketName - The name of the analytics bucket (warehouse) to connect to
+	* @returns The wrapped Iceberg catalog client
+	* @throws {StorageError} If the bucket name is invalid
+	*
+	* @example Get catalog and create table
+	* ```js
+	* // First, create an analytics bucket
+	* const { data: bucket, error: bucketError } = await supabase
+	*   .storage
+	*   .analytics
+	*   .createBucket('analytics-data')
+	*
+	* // Get the Iceberg catalog for that bucket
+	* const catalog = supabase.storage.analytics.from('analytics-data')
+	*
+	* // Create a namespace
+	* const { error: nsError } = await catalog.createNamespace({ namespace: ['default'] })
+	*
+	* // Create a table with schema
+	* const { data: tableMetadata, error: tableError } = await catalog.createTable(
+	*   { namespace: ['default'] },
+	*   {
+	*     name: 'events',
+	*     schema: {
+	*       type: 'struct',
+	*       fields: [
+	*         { id: 1, name: 'id', type: 'long', required: true },
+	*         { id: 2, name: 'timestamp', type: 'timestamp', required: true },
+	*         { id: 3, name: 'user_id', type: 'string', required: false }
+	*       ],
+	*       'schema-id': 0,
+	*       'identifier-field-ids': [1]
+	*     },
+	*     'partition-spec': {
+	*       'spec-id': 0,
+	*       fields: []
+	*     },
+	*     'write-order': {
+	*       'order-id': 0,
+	*       fields: []
+	*     },
+	*     properties: {
+	*       'write.format.default': 'parquet'
+	*     }
+	*   }
+	* )
+	* ```
+	*
+	* @example List tables in namespace
+	* ```js
+	* const catalog = supabase.storage.analytics.from('analytics-data')
+	*
+	* // List all tables in the default namespace
+	* const { data: tables, error: listError } = await catalog.listTables({ namespace: ['default'] })
+	* if (listError) {
+	*   if (listError.isNotFound()) {
+	*     console.log('Namespace not found')
+	*   }
+	*   return
+	* }
+	* console.log(tables) // [{ namespace: ['default'], name: 'events' }]
+	* ```
+	*
+	* @example Working with namespaces
+	* ```js
+	* const catalog = supabase.storage.analytics.from('analytics-data')
+	*
+	* // List all namespaces
+	* const { data: namespaces } = await catalog.listNamespaces()
+	*
+	* // Create namespace with properties
+	* await catalog.createNamespace(
+	*   { namespace: ['production'] },
+	*   { properties: { owner: 'data-team', env: 'prod' } }
+	* )
+	* ```
+	*
+	* @example Cleanup operations
+	* ```js
+	* const catalog = supabase.storage.analytics.from('analytics-data')
+	*
+	* // Drop table with purge option (removes all data)
+	* const { error: dropError } = await catalog.dropTable(
+	*   { namespace: ['default'], name: 'events' },
+	*   { purge: true }
+	* )
+	*
+	* if (dropError?.isNotFound()) {
+	*   console.log('Table does not exist')
+	* }
+	*
+	* // Drop namespace (must be empty)
+	* await catalog.dropNamespace({ namespace: ['default'] })
+	* ```
+	*
+	* @remarks
+	* This method provides a bridge between Supabase's bucket management and the standard
+	* Apache Iceberg REST Catalog API. The bucket name maps to the Iceberg warehouse parameter.
+	* All authentication and configuration is handled automatically using your Supabase credentials.
+	*
+	* **Error Handling**: Invalid bucket names throw immediately. All catalog
+	* operations return `{ data, error }` where errors are `IcebergError` instances from iceberg-js.
+	* Use helper methods like `error.isNotFound()` or check `error.status` for specific error handling.
+	* Use `.throwOnError()` on the analytics client if you prefer exceptions for catalog operations.
+	*
+	* **Cleanup Operations**: When using `dropTable`, the `purge: true` option permanently
+	* deletes all table data. Without it, the table is marked as deleted but data remains.
+	*
+	* **Library Dependency**: The returned catalog wraps `IcebergRestCatalog` from iceberg-js.
+	* For complete API documentation and advanced usage, refer to the
+	* [iceberg-js documentation](https://supabase.github.io/iceberg-js/).
+	*/
+	from(bucketName) {
+		var _this4 = this;
+		if (!isValidBucketName(bucketName)) throw new StorageError("Invalid bucket name: File, folder, and bucket names must follow AWS object key naming guidelines and should avoid the use of any other characters.");
+		const catalog = new iceberg_js.IcebergRestCatalog({
+			baseUrl: this.url,
+			catalogName: bucketName,
+			auth: {
+				type: "custom",
+				getHeaders: async () => _this4.headers
+			},
+			fetch: this.fetch
+		});
+		const shouldThrowOnError = this.shouldThrowOnError;
+		return new Proxy(catalog, { get(target, prop) {
+			const value = target[prop];
+			if (typeof value !== "function") return value;
+			return async (...args) => {
+				try {
+					return {
+						data: await value.apply(target, args),
+						error: null
+					};
+				} catch (error) {
+					if (shouldThrowOnError) throw error;
+					return {
+						data: null,
+						error
+					};
+				}
+			};
+		} });
+	}
+};
+
+//#endregion
+//#region src/packages/VectorIndexApi.ts
+/**
+* @hidden
+* Base implementation for vector index operations.
+* Use {@link VectorBucketScope} via `supabase.storage.vectors.from('bucket')` instead.
+*/
+var VectorIndexApi = class extends BaseApiClient {
+	/** Creates a new VectorIndexApi instance */
+	constructor(url, headers = {}, fetch$1) {
+		const finalUrl = url.replace(/\/$/, "");
+		const finalHeaders = _objectSpread2(_objectSpread2({}, DEFAULT_HEADERS), {}, { "Content-Type": "application/json" }, headers);
+		super(finalUrl, finalHeaders, fetch$1, "vectors");
+	}
+	/** Creates a new vector index within a bucket */
+	async createIndex(options) {
+		var _this = this;
+		return _this.handleOperation(async () => {
+			return await vectorsApi.post(_this.fetch, `${_this.url}/CreateIndex`, options, { headers: _this.headers }) || {};
+		});
+	}
+	/** Retrieves metadata for a specific vector index */
+	async getIndex(vectorBucketName, indexName) {
+		var _this2 = this;
+		return _this2.handleOperation(async () => {
+			return await vectorsApi.post(_this2.fetch, `${_this2.url}/GetIndex`, {
+				vectorBucketName,
+				indexName
+			}, { headers: _this2.headers });
+		});
+	}
+	/** Lists vector indexes within a bucket with optional filtering and pagination */
+	async listIndexes(options) {
+		var _this3 = this;
+		return _this3.handleOperation(async () => {
+			return await vectorsApi.post(_this3.fetch, `${_this3.url}/ListIndexes`, options, { headers: _this3.headers });
+		});
+	}
+	/** Deletes a vector index and all its data */
+	async deleteIndex(vectorBucketName, indexName) {
+		var _this4 = this;
+		return _this4.handleOperation(async () => {
+			return await vectorsApi.post(_this4.fetch, `${_this4.url}/DeleteIndex`, {
+				vectorBucketName,
+				indexName
+			}, { headers: _this4.headers }) || {};
+		});
+	}
+};
+
+//#endregion
+//#region src/packages/VectorDataApi.ts
+/**
+* @hidden
+* Base implementation for vector data operations.
+* Use {@link VectorIndexScope} via `supabase.storage.vectors.from('bucket').index('idx')` instead.
+*/
+var VectorDataApi = class extends BaseApiClient {
+	/** Creates a new VectorDataApi instance */
+	constructor(url, headers = {}, fetch$1) {
+		const finalUrl = url.replace(/\/$/, "");
+		const finalHeaders = _objectSpread2(_objectSpread2({}, DEFAULT_HEADERS), {}, { "Content-Type": "application/json" }, headers);
+		super(finalUrl, finalHeaders, fetch$1, "vectors");
+	}
+	/** Inserts or updates vectors in batch (1-500 per request) */
+	async putVectors(options) {
+		var _this = this;
+		if (options.vectors.length < 1 || options.vectors.length > 500) throw new Error("Vector batch size must be between 1 and 500 items");
+		return _this.handleOperation(async () => {
+			return await vectorsApi.post(_this.fetch, `${_this.url}/PutVectors`, options, { headers: _this.headers }) || {};
+		});
+	}
+	/** Retrieves vectors by their keys in batch */
+	async getVectors(options) {
+		var _this2 = this;
+		return _this2.handleOperation(async () => {
+			return await vectorsApi.post(_this2.fetch, `${_this2.url}/GetVectors`, options, { headers: _this2.headers });
+		});
+	}
+	/** Lists vectors in an index with pagination */
+	async listVectors(options) {
+		var _this3 = this;
+		if (options.segmentCount !== void 0) {
+			if (options.segmentCount < 1 || options.segmentCount > 16) throw new Error("segmentCount must be between 1 and 16");
+			if (options.segmentIndex !== void 0) {
+				if (options.segmentIndex < 0 || options.segmentIndex >= options.segmentCount) throw new Error(`segmentIndex must be between 0 and ${options.segmentCount - 1}`);
+			}
+		}
+		return _this3.handleOperation(async () => {
+			return await vectorsApi.post(_this3.fetch, `${_this3.url}/ListVectors`, options, { headers: _this3.headers });
+		});
+	}
+	/** Queries for similar vectors using approximate nearest neighbor search */
+	async queryVectors(options) {
+		var _this4 = this;
+		return _this4.handleOperation(async () => {
+			return await vectorsApi.post(_this4.fetch, `${_this4.url}/QueryVectors`, options, { headers: _this4.headers });
+		});
+	}
+	/** Deletes vectors by their keys in batch (1-500 per request) */
+	async deleteVectors(options) {
+		var _this5 = this;
+		if (options.keys.length < 1 || options.keys.length > 500) throw new Error("Keys batch size must be between 1 and 500 items");
+		return _this5.handleOperation(async () => {
+			return await vectorsApi.post(_this5.fetch, `${_this5.url}/DeleteVectors`, options, { headers: _this5.headers }) || {};
+		});
+	}
+};
+
+//#endregion
+//#region src/packages/VectorBucketApi.ts
+/**
+* @hidden
+* Base implementation for vector bucket operations.
+* Use {@link StorageVectorsClient} via `supabase.storage.vectors` instead.
+*/
+var VectorBucketApi = class extends BaseApiClient {
+	/** Creates a new VectorBucketApi instance */
+	constructor(url, headers = {}, fetch$1) {
+		const finalUrl = url.replace(/\/$/, "");
+		const finalHeaders = _objectSpread2(_objectSpread2({}, DEFAULT_HEADERS), {}, { "Content-Type": "application/json" }, headers);
+		super(finalUrl, finalHeaders, fetch$1, "vectors");
+	}
+	/** Creates a new vector bucket */
+	async createBucket(vectorBucketName) {
+		var _this = this;
+		return _this.handleOperation(async () => {
+			return await vectorsApi.post(_this.fetch, `${_this.url}/CreateVectorBucket`, { vectorBucketName }, { headers: _this.headers }) || {};
+		});
+	}
+	/** Retrieves metadata for a specific vector bucket */
+	async getBucket(vectorBucketName) {
+		var _this2 = this;
+		return _this2.handleOperation(async () => {
+			return await vectorsApi.post(_this2.fetch, `${_this2.url}/GetVectorBucket`, { vectorBucketName }, { headers: _this2.headers });
+		});
+	}
+	/** Lists vector buckets with optional filtering and pagination */
+	async listBuckets(options = {}) {
+		var _this3 = this;
+		return _this3.handleOperation(async () => {
+			return await vectorsApi.post(_this3.fetch, `${_this3.url}/ListVectorBuckets`, options, { headers: _this3.headers });
+		});
+	}
+	/** Deletes a vector bucket (must be empty first) */
+	async deleteBucket(vectorBucketName) {
+		var _this4 = this;
+		return _this4.handleOperation(async () => {
+			return await vectorsApi.post(_this4.fetch, `${_this4.url}/DeleteVectorBucket`, { vectorBucketName }, { headers: _this4.headers }) || {};
+		});
+	}
+};
+
+//#endregion
+//#region src/packages/StorageVectorsClient.ts
+/**
+*
+* @alpha
+*
+* Main client for interacting with S3 Vectors API
+* Provides access to bucket, index, and vector data operations
+*
+* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+*
+* **Usage Patterns:**
+*
+* ```typescript
+* const { data, error } = await supabase
+*  .storage
+*  .vectors
+*  .createBucket('embeddings-prod')
+*
+* // Access index operations via buckets
+* const bucket = supabase.storage.vectors.from('embeddings-prod')
+* await bucket.createIndex({
+*   indexName: 'documents',
+*   dataType: 'float32',
+*   dimension: 1536,
+*   distanceMetric: 'cosine'
+* })
+*
+* // Access vector operations via index
+* const index = bucket.index('documents')
+* await index.putVectors({
+*   vectors: [
+*     { key: 'doc-1', data: { float32: [...] }, metadata: { title: 'Intro' } }
+*   ]
+* })
+*
+* // Query similar vectors
+* const { data } = await index.queryVectors({
+*   queryVector: { float32: [...] },
+*   topK: 5,
+*   returnDistance: true
+* })
+* ```
+*/
+var StorageVectorsClient = class extends VectorBucketApi {
+	/**
+	* @alpha
+	*
+	* Creates a StorageVectorsClient that can manage buckets, indexes, and vectors.
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param url - Base URL of the Storage Vectors REST API.
+	* @param options.headers - Optional headers (for example `Authorization`) applied to every request.
+	* @param options.fetch - Optional custom `fetch` implementation for non-browser runtimes.
+	*
+	* @example
+	* ```typescript
+	* const client = new StorageVectorsClient(url, options)
+	* ```
+	*/
+	constructor(url, options = {}) {
+		super(url, options.headers || {}, options.fetch);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Access operations for a specific vector bucket
+	* Returns a scoped client for index and vector operations within the bucket
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param vectorBucketName - Name of the vector bucket
+	* @returns Bucket-scoped client with index and vector operations
+	*
+	* @example
+	* ```typescript
+	* const bucket = supabase.storage.vectors.from('embeddings-prod')
+	* ```
+	*/
+	from(vectorBucketName) {
+		return new VectorBucketScope(this.url, this.headers, vectorBucketName, this.fetch);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Creates a new vector bucket
+	* Vector buckets are containers for vector indexes and their data
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param vectorBucketName - Unique name for the vector bucket
+	* @returns Promise with empty response on success or error
+	*
+	* @example
+	* ```typescript
+	* const { data, error } = await supabase
+	*   .storage
+	*   .vectors
+	*   .createBucket('embeddings-prod')
+	* ```
+	*/
+	async createBucket(vectorBucketName) {
+		var _superprop_getCreateBucket = () => super.createBucket, _this = this;
+		return _superprop_getCreateBucket().call(_this, vectorBucketName);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Retrieves metadata for a specific vector bucket
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param vectorBucketName - Name of the vector bucket
+	* @returns Promise with bucket metadata or error
+	*
+	* @example
+	* ```typescript
+	* const { data, error } = await supabase
+	*   .storage
+	*   .vectors
+	*   .getBucket('embeddings-prod')
+	*
+	* console.log('Bucket created:', data?.vectorBucket.creationTime)
+	* ```
+	*/
+	async getBucket(vectorBucketName) {
+		var _superprop_getGetBucket = () => super.getBucket, _this2 = this;
+		return _superprop_getGetBucket().call(_this2, vectorBucketName);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Lists all vector buckets with optional filtering and pagination
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Optional filters (prefix, maxResults, nextToken)
+	* @returns Promise with list of buckets or error
+	*
+	* @example
+	* ```typescript
+	* const { data, error } = await supabase
+	*   .storage
+	*   .vectors
+	*   .listBuckets({ prefix: 'embeddings-' })
+	*
+	* data?.vectorBuckets.forEach(bucket => {
+	*   console.log(bucket.vectorBucketName)
+	* })
+	* ```
+	*/
+	async listBuckets(options = {}) {
+		var _superprop_getListBuckets = () => super.listBuckets, _this3 = this;
+		return _superprop_getListBuckets().call(_this3, options);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Deletes a vector bucket (bucket must be empty)
+	* All indexes must be deleted before deleting the bucket
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param vectorBucketName - Name of the vector bucket to delete
+	* @returns Promise with empty response on success or error
+	*
+	* @example
+	* ```typescript
+	* const { data, error } = await supabase
+	*   .storage
+	*   .vectors
+	*   .deleteBucket('embeddings-old')
+	* ```
+	*/
+	async deleteBucket(vectorBucketName) {
+		var _superprop_getDeleteBucket = () => super.deleteBucket, _this4 = this;
+		return _superprop_getDeleteBucket().call(_this4, vectorBucketName);
+	}
+};
+/**
+*
+* @alpha
+*
+* Scoped client for operations within a specific vector bucket
+* Provides index management and access to vector operations
+*
+* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+*/
+var VectorBucketScope = class extends VectorIndexApi {
+	/**
+	* @alpha
+	*
+	* Creates a helper that automatically scopes all index operations to the provided bucket.
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @example
+	* ```typescript
+	* const bucket = supabase.storage.vectors.from('embeddings-prod')
+	* ```
+	*/
+	constructor(url, headers, vectorBucketName, fetch$1) {
+		super(url, headers, fetch$1);
+		this.vectorBucketName = vectorBucketName;
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Creates a new vector index in this bucket
+	* Convenience method that automatically includes the bucket name
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Index configuration (vectorBucketName is automatically set)
+	* @returns Promise with empty response on success or error
+	*
+	* @example
+	* ```typescript
+	* const bucket = supabase.storage.vectors.from('embeddings-prod')
+	* await bucket.createIndex({
+	*   indexName: 'documents-openai',
+	*   dataType: 'float32',
+	*   dimension: 1536,
+	*   distanceMetric: 'cosine',
+	*   metadataConfiguration: {
+	*     nonFilterableMetadataKeys: ['raw_text']
+	*   }
+	* })
+	* ```
+	*/
+	async createIndex(options) {
+		var _superprop_getCreateIndex = () => super.createIndex, _this5 = this;
+		return _superprop_getCreateIndex().call(_this5, _objectSpread2(_objectSpread2({}, options), {}, { vectorBucketName: _this5.vectorBucketName }));
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Lists indexes in this bucket
+	* Convenience method that automatically includes the bucket name
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Listing options (vectorBucketName is automatically set)
+	* @returns Promise with response containing indexes array and pagination token or error
+	*
+	* @example
+	* ```typescript
+	* const bucket = supabase.storage.vectors.from('embeddings-prod')
+	* const { data } = await bucket.listIndexes({ prefix: 'documents-' })
+	* ```
+	*/
+	async listIndexes(options = {}) {
+		var _superprop_getListIndexes = () => super.listIndexes, _this6 = this;
+		return _superprop_getListIndexes().call(_this6, _objectSpread2(_objectSpread2({}, options), {}, { vectorBucketName: _this6.vectorBucketName }));
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Retrieves metadata for a specific index in this bucket
+	* Convenience method that automatically includes the bucket name
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param indexName - Name of the index to retrieve
+	* @returns Promise with index metadata or error
+	*
+	* @example
+	* ```typescript
+	* const bucket = supabase.storage.vectors.from('embeddings-prod')
+	* const { data } = await bucket.getIndex('documents-openai')
+	* console.log('Dimension:', data?.index.dimension)
+	* ```
+	*/
+	async getIndex(indexName) {
+		var _superprop_getGetIndex = () => super.getIndex, _this7 = this;
+		return _superprop_getGetIndex().call(_this7, _this7.vectorBucketName, indexName);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Deletes an index from this bucket
+	* Convenience method that automatically includes the bucket name
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param indexName - Name of the index to delete
+	* @returns Promise with empty response on success or error
+	*
+	* @example
+	* ```typescript
+	* const bucket = supabase.storage.vectors.from('embeddings-prod')
+	* await bucket.deleteIndex('old-index')
+	* ```
+	*/
+	async deleteIndex(indexName) {
+		var _superprop_getDeleteIndex = () => super.deleteIndex, _this8 = this;
+		return _superprop_getDeleteIndex().call(_this8, _this8.vectorBucketName, indexName);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Access operations for a specific index within this bucket
+	* Returns a scoped client for vector data operations
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param indexName - Name of the index
+	* @returns Index-scoped client with vector data operations
+	*
+	* @example
+	* ```typescript
+	* const index = supabase.storage.vectors.from('embeddings-prod').index('documents-openai')
+	*
+	* // Insert vectors
+	* await index.putVectors({
+	*   vectors: [
+	*     { key: 'doc-1', data: { float32: [...] }, metadata: { title: 'Intro' } }
+	*   ]
+	* })
+	*
+	* // Query similar vectors
+	* const { data } = await index.queryVectors({
+	*   queryVector: { float32: [...] },
+	*   topK: 5
+	* })
+	* ```
+	*/
+	index(indexName) {
+		return new VectorIndexScope(this.url, this.headers, this.vectorBucketName, indexName, this.fetch);
+	}
+};
+/**
+*
+* @alpha
+*
+* Scoped client for operations within a specific vector index
+* Provides vector data operations (put, get, list, query, delete)
+*
+* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+*/
+var VectorIndexScope = class extends VectorDataApi {
+	/**
+	*
+	* @alpha
+	*
+	* Creates a helper that automatically scopes all vector operations to the provided bucket/index names.
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @example
+	* ```typescript
+	* const index = supabase.storage.vectors.from('embeddings-prod').index('documents-openai')
+	* ```
+	*/
+	constructor(url, headers, vectorBucketName, indexName, fetch$1) {
+		super(url, headers, fetch$1);
+		this.vectorBucketName = vectorBucketName;
+		this.indexName = indexName;
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Inserts or updates vectors in this index
+	* Convenience method that automatically includes bucket and index names
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Vector insertion options (bucket and index names automatically set)
+	* @returns Promise with empty response on success or error
+	*
+	* @example
+	* ```typescript
+	* const index = supabase.storage.vectors.from('embeddings-prod').index('documents-openai')
+	* await index.putVectors({
+	*   vectors: [
+	*     {
+	*       key: 'doc-1',
+	*       data: { float32: [0.1, 0.2, ...] },
+	*       metadata: { title: 'Introduction', page: 1 }
+	*     }
+	*   ]
+	* })
+	* ```
+	*/
+	async putVectors(options) {
+		var _superprop_getPutVectors = () => super.putVectors, _this9 = this;
+		return _superprop_getPutVectors().call(_this9, _objectSpread2(_objectSpread2({}, options), {}, {
+			vectorBucketName: _this9.vectorBucketName,
+			indexName: _this9.indexName
+		}));
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Retrieves vectors by keys from this index
+	* Convenience method that automatically includes bucket and index names
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Vector retrieval options (bucket and index names automatically set)
+	* @returns Promise with response containing vectors array or error
+	*
+	* @example
+	* ```typescript
+	* const index = supabase.storage.vectors.from('embeddings-prod').index('documents-openai')
+	* const { data } = await index.getVectors({
+	*   keys: ['doc-1', 'doc-2'],
+	*   returnMetadata: true
+	* })
+	* ```
+	*/
+	async getVectors(options) {
+		var _superprop_getGetVectors = () => super.getVectors, _this10 = this;
+		return _superprop_getGetVectors().call(_this10, _objectSpread2(_objectSpread2({}, options), {}, {
+			vectorBucketName: _this10.vectorBucketName,
+			indexName: _this10.indexName
+		}));
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Lists vectors in this index with pagination
+	* Convenience method that automatically includes bucket and index names
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Listing options (bucket and index names automatically set)
+	* @returns Promise with response containing vectors array and pagination token or error
+	*
+	* @example
+	* ```typescript
+	* const index = supabase.storage.vectors.from('embeddings-prod').index('documents-openai')
+	* const { data } = await index.listVectors({
+	*   maxResults: 500,
+	*   returnMetadata: true
+	* })
+	* ```
+	*/
+	async listVectors(options = {}) {
+		var _superprop_getListVectors = () => super.listVectors, _this11 = this;
+		return _superprop_getListVectors().call(_this11, _objectSpread2(_objectSpread2({}, options), {}, {
+			vectorBucketName: _this11.vectorBucketName,
+			indexName: _this11.indexName
+		}));
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Queries for similar vectors in this index
+	* Convenience method that automatically includes bucket and index names
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Query options (bucket and index names automatically set)
+	* @returns Promise with response containing matches array of similar vectors ordered by distance or error
+	*
+	* @example
+	* ```typescript
+	* const index = supabase.storage.vectors.from('embeddings-prod').index('documents-openai')
+	* const { data } = await index.queryVectors({
+	*   queryVector: { float32: [0.1, 0.2, ...] },
+	*   topK: 5,
+	*   filter: { category: 'technical' },
+	*   returnDistance: true,
+	*   returnMetadata: true
+	* })
+	* ```
+	*/
+	async queryVectors(options) {
+		var _superprop_getQueryVectors = () => super.queryVectors, _this12 = this;
+		return _superprop_getQueryVectors().call(_this12, _objectSpread2(_objectSpread2({}, options), {}, {
+			vectorBucketName: _this12.vectorBucketName,
+			indexName: _this12.indexName
+		}));
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Deletes vectors by keys from this index
+	* Convenience method that automatically includes bucket and index names
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @param options - Deletion options (bucket and index names automatically set)
+	* @returns Promise with empty response on success or error
+	*
+	* @example
+	* ```typescript
+	* const index = supabase.storage.vectors.from('embeddings-prod').index('documents-openai')
+	* await index.deleteVectors({
+	*   keys: ['doc-1', 'doc-2', 'doc-3']
+	* })
+	* ```
+	*/
+	async deleteVectors(options) {
+		var _superprop_getDeleteVectors = () => super.deleteVectors, _this13 = this;
+		return _superprop_getDeleteVectors().call(_this13, _objectSpread2(_objectSpread2({}, options), {}, {
+			vectorBucketName: _this13.vectorBucketName,
+			indexName: _this13.indexName
+		}));
+	}
+};
+
+//#endregion
+//#region src/StorageClient.ts
+var StorageClient = class extends StorageBucketApi {
+	/**
+	* Creates a client for Storage buckets, files, analytics, and vectors.
+	*
+	* @category File Buckets
+	* @example
+	* ```ts
+	* import { StorageClient } from '@supabase/storage-js'
+	*
+	* const storage = new StorageClient('https://xyzcompany.supabase.co/storage/v1', {
+	*   apikey: 'public-anon-key',
+	* })
+	* const avatars = storage.from('avatars')
+	* ```
+	*/
+	constructor(url, headers = {}, fetch$1, opts) {
+		super(url, headers, fetch$1, opts);
+	}
+	/**
+	* Perform file operation in a bucket.
+	*
+	* @category File Buckets
+	* @param id The bucket id to operate on.
+	*
+	* @example
+	* ```typescript
+	* const avatars = supabase.storage.from('avatars')
+	* ```
+	*/
+	from(id) {
+		return new StorageFileApi(this.url, this.headers, id, this.fetch);
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Access vector storage operations.
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Vector Buckets
+	* @returns A StorageVectorsClient instance configured with the current storage settings.
+	*/
+	get vectors() {
+		return new StorageVectorsClient(this.url + "/vector", {
+			headers: this.headers,
+			fetch: this.fetch
+		});
+	}
+	/**
+	*
+	* @alpha
+	*
+	* Access analytics storage operations using Iceberg tables.
+	*
+	* **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
+	*
+	* @category Analytics Buckets
+	* @returns A StorageAnalyticsClient instance configured with the current storage settings.
+	*/
+	get analytics() {
+		return new StorageAnalyticsClient(this.url + "/iceberg", this.headers, this.fetch);
+	}
+};
+
+//#endregion
+exports.StorageAnalyticsClient = StorageAnalyticsClient;
+exports.StorageApiError = StorageApiError;
+exports.StorageClient = StorageClient;
+exports.StorageError = StorageError;
+exports.StorageUnknownError = StorageUnknownError;
+exports.StorageVectorsApiError = StorageVectorsApiError;
+exports.StorageVectorsClient = StorageVectorsClient;
+exports.StorageVectorsError = StorageVectorsError;
+exports.StorageVectorsErrorCode = StorageVectorsErrorCode;
+exports.StorageVectorsUnknownError = StorageVectorsUnknownError;
+exports.VectorBucketApi = VectorBucketApi;
+exports.VectorBucketScope = VectorBucketScope;
+exports.VectorDataApi = VectorDataApi;
+exports.VectorIndexApi = VectorIndexApi;
+exports.VectorIndexScope = VectorIndexScope;
+exports.isStorageError = isStorageError;
+exports.isStorageVectorsError = isStorageVectorsError;
+//# sourceMappingURL=index.cjs.map
+
+/***/ }),
+
+/***/ 91:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+let __supabase_functions_js = __nccwpck_require__(8519);
+let __supabase_postgrest_js = __nccwpck_require__(2155);
+let __supabase_realtime_js = __nccwpck_require__(442);
+let __supabase_storage_js = __nccwpck_require__(1066);
+let __supabase_auth_js = __nccwpck_require__(6748);
+
+//#region src/lib/version.ts
+const version = "2.95.3";
+
+//#endregion
+//#region src/lib/constants.ts
+let JS_ENV = "";
+if (typeof Deno !== "undefined") JS_ENV = "deno";
+else if (typeof document !== "undefined") JS_ENV = "web";
+else if (typeof navigator !== "undefined" && navigator.product === "ReactNative") JS_ENV = "react-native";
+else JS_ENV = "node";
+const DEFAULT_HEADERS = { "X-Client-Info": `supabase-js-${JS_ENV}/${version}` };
+const DEFAULT_GLOBAL_OPTIONS = { headers: DEFAULT_HEADERS };
+const DEFAULT_DB_OPTIONS = { schema: "public" };
+const DEFAULT_AUTH_OPTIONS = {
+	autoRefreshToken: true,
+	persistSession: true,
+	detectSessionInUrl: true,
+	flowType: "implicit"
+};
+const DEFAULT_REALTIME_OPTIONS = {};
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/typeof.js
+function _typeof(o) {
+	"@babel/helpers - typeof";
+	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o$1) {
+		return typeof o$1;
+	} : function(o$1) {
+		return o$1 && "function" == typeof Symbol && o$1.constructor === Symbol && o$1 !== Symbol.prototype ? "symbol" : typeof o$1;
+	}, _typeof(o);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/toPrimitive.js
+function toPrimitive(t, r) {
+	if ("object" != _typeof(t) || !t) return t;
+	var e = t[Symbol.toPrimitive];
+	if (void 0 !== e) {
+		var i = e.call(t, r || "default");
+		if ("object" != _typeof(i)) return i;
+		throw new TypeError("@@toPrimitive must return a primitive value.");
+	}
+	return ("string" === r ? String : Number)(t);
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/toPropertyKey.js
+function toPropertyKey(t) {
+	var i = toPrimitive(t, "string");
+	return "symbol" == _typeof(i) ? i : i + "";
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/defineProperty.js
+function _defineProperty(e, r, t) {
+	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+		value: t,
+		enumerable: !0,
+		configurable: !0,
+		writable: !0
+	}) : e[r] = t, e;
+}
+
+//#endregion
+//#region \0@oxc-project+runtime@0.101.0/helpers/objectSpread2.js
+function ownKeys(e, r) {
+	var t = Object.keys(e);
+	if (Object.getOwnPropertySymbols) {
+		var o = Object.getOwnPropertySymbols(e);
+		r && (o = o.filter(function(r$1) {
+			return Object.getOwnPropertyDescriptor(e, r$1).enumerable;
+		})), t.push.apply(t, o);
+	}
+	return t;
+}
+function _objectSpread2(e) {
+	for (var r = 1; r < arguments.length; r++) {
+		var t = null != arguments[r] ? arguments[r] : {};
+		r % 2 ? ownKeys(Object(t), !0).forEach(function(r$1) {
+			_defineProperty(e, r$1, t[r$1]);
+		}) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function(r$1) {
+			Object.defineProperty(e, r$1, Object.getOwnPropertyDescriptor(t, r$1));
+		});
+	}
+	return e;
+}
+
+//#endregion
+//#region src/lib/fetch.ts
+const resolveFetch = (customFetch) => {
+	if (customFetch) return (...args) => customFetch(...args);
+	return (...args) => fetch(...args);
+};
+const resolveHeadersConstructor = () => {
+	return Headers;
+};
+const fetchWithAuth = (supabaseKey, getAccessToken, customFetch) => {
+	const fetch$1 = resolveFetch(customFetch);
+	const HeadersConstructor = resolveHeadersConstructor();
+	return async (input, init) => {
+		var _await$getAccessToken;
+		const accessToken = (_await$getAccessToken = await getAccessToken()) !== null && _await$getAccessToken !== void 0 ? _await$getAccessToken : supabaseKey;
+		let headers = new HeadersConstructor(init === null || init === void 0 ? void 0 : init.headers);
+		if (!headers.has("apikey")) headers.set("apikey", supabaseKey);
+		if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${accessToken}`);
+		return fetch$1(input, _objectSpread2(_objectSpread2({}, init), {}, { headers }));
+	};
+};
+
+//#endregion
+//#region src/lib/helpers.ts
+function ensureTrailingSlash(url) {
+	return url.endsWith("/") ? url : url + "/";
+}
+function applySettingDefaults(options, defaults) {
+	var _DEFAULT_GLOBAL_OPTIO, _globalOptions$header;
+	const { db: dbOptions, auth: authOptions, realtime: realtimeOptions, global: globalOptions } = options;
+	const { db: DEFAULT_DB_OPTIONS$1, auth: DEFAULT_AUTH_OPTIONS$1, realtime: DEFAULT_REALTIME_OPTIONS$1, global: DEFAULT_GLOBAL_OPTIONS$1 } = defaults;
+	const result = {
+		db: _objectSpread2(_objectSpread2({}, DEFAULT_DB_OPTIONS$1), dbOptions),
+		auth: _objectSpread2(_objectSpread2({}, DEFAULT_AUTH_OPTIONS$1), authOptions),
+		realtime: _objectSpread2(_objectSpread2({}, DEFAULT_REALTIME_OPTIONS$1), realtimeOptions),
+		storage: {},
+		global: _objectSpread2(_objectSpread2(_objectSpread2({}, DEFAULT_GLOBAL_OPTIONS$1), globalOptions), {}, { headers: _objectSpread2(_objectSpread2({}, (_DEFAULT_GLOBAL_OPTIO = DEFAULT_GLOBAL_OPTIONS$1 === null || DEFAULT_GLOBAL_OPTIONS$1 === void 0 ? void 0 : DEFAULT_GLOBAL_OPTIONS$1.headers) !== null && _DEFAULT_GLOBAL_OPTIO !== void 0 ? _DEFAULT_GLOBAL_OPTIO : {}), (_globalOptions$header = globalOptions === null || globalOptions === void 0 ? void 0 : globalOptions.headers) !== null && _globalOptions$header !== void 0 ? _globalOptions$header : {}) }),
+		accessToken: async () => ""
+	};
+	if (options.accessToken) result.accessToken = options.accessToken;
+	else delete result.accessToken;
+	return result;
+}
+/**
+* Validates a Supabase client URL
+*
+* @param {string} supabaseUrl - The Supabase client URL string.
+* @returns {URL} - The validated base URL.
+* @throws {Error}
+*/
+function validateSupabaseUrl(supabaseUrl) {
+	const trimmedUrl = supabaseUrl === null || supabaseUrl === void 0 ? void 0 : supabaseUrl.trim();
+	if (!trimmedUrl) throw new Error("supabaseUrl is required.");
+	if (!trimmedUrl.match(/^https?:\/\//i)) throw new Error("Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL.");
+	try {
+		return new URL(ensureTrailingSlash(trimmedUrl));
+	} catch (_unused) {
+		throw Error("Invalid supabaseUrl: Provided URL is malformed.");
+	}
+}
+
+//#endregion
+//#region src/lib/SupabaseAuthClient.ts
+var SupabaseAuthClient = class extends __supabase_auth_js.AuthClient {
+	constructor(options) {
+		super(options);
+	}
+};
+
+//#endregion
+//#region src/SupabaseClient.ts
+/**
+* Supabase Client.
+*
+* An isomorphic Javascript client for interacting with Postgres.
+*/
+var SupabaseClient = class {
+	/**
+	* Create a new client for use in the browser.
+	* @param supabaseUrl The unique Supabase URL which is supplied when you create a new project in your project dashboard.
+	* @param supabaseKey The unique Supabase Key which is supplied when you create a new project in your project dashboard.
+	* @param options.db.schema You can switch in between schemas. The schema needs to be on the list of exposed schemas inside Supabase.
+	* @param options.auth.autoRefreshToken Set to "true" if you want to automatically refresh the token before expiring.
+	* @param options.auth.persistSession Set to "true" if you want to automatically save the user session into local storage.
+	* @param options.auth.detectSessionInUrl Set to "true" if you want to automatically detects OAuth grants in the URL and signs in the user.
+	* @param options.realtime Options passed along to realtime-js constructor.
+	* @param options.storage Options passed along to the storage-js constructor.
+	* @param options.global.fetch A custom fetch implementation.
+	* @param options.global.headers Any additional headers to send with each network request.
+	* @example
+	* ```ts
+	* import { createClient } from '@supabase/supabase-js'
+	*
+	* const supabase = createClient('https://xyzcompany.supabase.co', 'public-anon-key')
+	* const { data } = await supabase.from('profiles').select('*')
+	* ```
+	*/
+	constructor(supabaseUrl, supabaseKey, options) {
+		var _settings$auth$storag, _settings$global$head;
+		this.supabaseUrl = supabaseUrl;
+		this.supabaseKey = supabaseKey;
+		const baseUrl = validateSupabaseUrl(supabaseUrl);
+		if (!supabaseKey) throw new Error("supabaseKey is required.");
+		this.realtimeUrl = new URL("realtime/v1", baseUrl);
+		this.realtimeUrl.protocol = this.realtimeUrl.protocol.replace("http", "ws");
+		this.authUrl = new URL("auth/v1", baseUrl);
+		this.storageUrl = new URL("storage/v1", baseUrl);
+		this.functionsUrl = new URL("functions/v1", baseUrl);
+		const defaultStorageKey = `sb-${baseUrl.hostname.split(".")[0]}-auth-token`;
+		const DEFAULTS = {
+			db: DEFAULT_DB_OPTIONS,
+			realtime: DEFAULT_REALTIME_OPTIONS,
+			auth: _objectSpread2(_objectSpread2({}, DEFAULT_AUTH_OPTIONS), {}, { storageKey: defaultStorageKey }),
+			global: DEFAULT_GLOBAL_OPTIONS
+		};
+		const settings = applySettingDefaults(options !== null && options !== void 0 ? options : {}, DEFAULTS);
+		this.storageKey = (_settings$auth$storag = settings.auth.storageKey) !== null && _settings$auth$storag !== void 0 ? _settings$auth$storag : "";
+		this.headers = (_settings$global$head = settings.global.headers) !== null && _settings$global$head !== void 0 ? _settings$global$head : {};
+		if (!settings.accessToken) {
+			var _settings$auth;
+			this.auth = this._initSupabaseAuthClient((_settings$auth = settings.auth) !== null && _settings$auth !== void 0 ? _settings$auth : {}, this.headers, settings.global.fetch);
+		} else {
+			this.accessToken = settings.accessToken;
+			this.auth = new Proxy({}, { get: (_, prop) => {
+				throw new Error(`@supabase/supabase-js: Supabase Client is configured with the accessToken option, accessing supabase.auth.${String(prop)} is not possible`);
+			} });
+		}
+		this.fetch = fetchWithAuth(supabaseKey, this._getAccessToken.bind(this), settings.global.fetch);
+		this.realtime = this._initRealtimeClient(_objectSpread2({
+			headers: this.headers,
+			accessToken: this._getAccessToken.bind(this)
+		}, settings.realtime));
+		if (this.accessToken) Promise.resolve(this.accessToken()).then((token) => this.realtime.setAuth(token)).catch((e) => console.warn("Failed to set initial Realtime auth token:", e));
+		this.rest = new __supabase_postgrest_js.PostgrestClient(new URL("rest/v1", baseUrl).href, {
+			headers: this.headers,
+			schema: settings.db.schema,
+			fetch: this.fetch,
+			timeout: settings.db.timeout,
+			urlLengthLimit: settings.db.urlLengthLimit
+		});
+		this.storage = new __supabase_storage_js.StorageClient(this.storageUrl.href, this.headers, this.fetch, options === null || options === void 0 ? void 0 : options.storage);
+		if (!settings.accessToken) this._listenForAuthEvents();
+	}
+	/**
+	* Supabase Functions allows you to deploy and invoke edge functions.
+	*/
+	get functions() {
+		return new __supabase_functions_js.FunctionsClient(this.functionsUrl.href, {
+			headers: this.headers,
+			customFetch: this.fetch
+		});
+	}
+	/**
+	* Perform a query on a table or a view.
+	*
+	* @param relation - The table or view name to query
+	*/
+	from(relation) {
+		return this.rest.from(relation);
+	}
+	/**
+	* Select a schema to query or perform an function (rpc) call.
+	*
+	* The schema needs to be on the list of exposed schemas inside Supabase.
+	*
+	* @param schema - The schema to query
+	*/
+	schema(schema) {
+		return this.rest.schema(schema);
+	}
+	/**
+	* Perform a function call.
+	*
+	* @param fn - The function name to call
+	* @param args - The arguments to pass to the function call
+	* @param options - Named parameters
+	* @param options.head - When set to `true`, `data` will not be returned.
+	* Useful if you only need the count.
+	* @param options.get - When set to `true`, the function will be called with
+	* read-only access mode.
+	* @param options.count - Count algorithm to use to count rows returned by the
+	* function. Only applicable for [set-returning
+	* functions](https://www.postgresql.org/docs/current/functions-srf.html).
+	*
+	* `"exact"`: Exact but slow count algorithm. Performs a `COUNT(*)` under the
+	* hood.
+	*
+	* `"planned"`: Approximated but fast count algorithm. Uses the Postgres
+	* statistics under the hood.
+	*
+	* `"estimated"`: Uses exact count for low numbers and planned count for high
+	* numbers.
+	*/
+	rpc(fn, args = {}, options = {
+		head: false,
+		get: false,
+		count: void 0
+	}) {
+		return this.rest.rpc(fn, args, options);
+	}
+	/**
+	* Creates a Realtime channel with Broadcast, Presence, and Postgres Changes.
+	*
+	* @param {string} name - The name of the Realtime channel.
+	* @param {Object} opts - The options to pass to the Realtime channel.
+	*
+	*/
+	channel(name, opts = { config: {} }) {
+		return this.realtime.channel(name, opts);
+	}
+	/**
+	* Returns all Realtime channels.
+	*/
+	getChannels() {
+		return this.realtime.getChannels();
+	}
+	/**
+	* Unsubscribes and removes Realtime channel from Realtime client.
+	*
+	* @param {RealtimeChannel} channel - The name of the Realtime channel.
+	*
+	*/
+	removeChannel(channel) {
+		return this.realtime.removeChannel(channel);
+	}
+	/**
+	* Unsubscribes and removes all Realtime channels from Realtime client.
+	*/
+	removeAllChannels() {
+		return this.realtime.removeAllChannels();
+	}
+	async _getAccessToken() {
+		var _this = this;
+		var _data$session$access_, _data$session;
+		if (_this.accessToken) return await _this.accessToken();
+		const { data } = await _this.auth.getSession();
+		return (_data$session$access_ = (_data$session = data.session) === null || _data$session === void 0 ? void 0 : _data$session.access_token) !== null && _data$session$access_ !== void 0 ? _data$session$access_ : _this.supabaseKey;
+	}
+	_initSupabaseAuthClient({ autoRefreshToken, persistSession, detectSessionInUrl, storage, userStorage, storageKey, flowType, lock, debug, throwOnError }, headers, fetch$1) {
+		const authHeaders = {
+			Authorization: `Bearer ${this.supabaseKey}`,
+			apikey: `${this.supabaseKey}`
+		};
+		return new SupabaseAuthClient({
+			url: this.authUrl.href,
+			headers: _objectSpread2(_objectSpread2({}, authHeaders), headers),
+			storageKey,
+			autoRefreshToken,
+			persistSession,
+			detectSessionInUrl,
+			storage,
+			userStorage,
+			flowType,
+			lock,
+			debug,
+			throwOnError,
+			fetch: fetch$1,
+			hasCustomAuthorizationHeader: Object.keys(this.headers).some((key) => key.toLowerCase() === "authorization")
+		});
+	}
+	_initRealtimeClient(options) {
+		return new __supabase_realtime_js.RealtimeClient(this.realtimeUrl.href, _objectSpread2(_objectSpread2({}, options), {}, { params: _objectSpread2(_objectSpread2({}, { apikey: this.supabaseKey }), options === null || options === void 0 ? void 0 : options.params) }));
+	}
+	_listenForAuthEvents() {
+		return this.auth.onAuthStateChange((event, session) => {
+			this._handleTokenChanged(event, "CLIENT", session === null || session === void 0 ? void 0 : session.access_token);
+		});
+	}
+	_handleTokenChanged(event, source, token) {
+		if ((event === "TOKEN_REFRESHED" || event === "SIGNED_IN") && this.changedAccessToken !== token) {
+			this.changedAccessToken = token;
+			this.realtime.setAuth(token);
+		} else if (event === "SIGNED_OUT") {
+			this.realtime.setAuth();
+			if (source == "STORAGE") this.auth.signOut();
+			this.changedAccessToken = void 0;
+		}
+	}
+};
+
+//#endregion
+//#region src/index.ts
+/**
+* Creates a new Supabase Client.
+*
+* @example
+* ```ts
+* import { createClient } from '@supabase/supabase-js'
+*
+* const supabase = createClient('https://xyzcompany.supabase.co', 'public-anon-key')
+* const { data, error } = await supabase.from('profiles').select('*')
+* ```
+*/
+const createClient = (supabaseUrl, supabaseKey, options) => {
+	return new SupabaseClient(supabaseUrl, supabaseKey, options);
+};
+function shouldShowDeprecationWarning() {
+	if (typeof window !== "undefined") return false;
+	const _process = globalThis["process"];
+	if (!_process) return false;
+	const processVersion = _process["version"];
+	if (processVersion === void 0 || processVersion === null) return false;
+	const versionMatch = processVersion.match(/^v(\d+)\./);
+	if (!versionMatch) return false;
+	return parseInt(versionMatch[1], 10) <= 18;
+}
+if (shouldShowDeprecationWarning()) console.warn("⚠️  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217");
+
+//#endregion
+Object.defineProperty(exports, "FunctionRegion", ({
+  enumerable: true,
+  get: function () {
+    return __supabase_functions_js.FunctionRegion;
+  }
+}));
+Object.defineProperty(exports, "FunctionsError", ({
+  enumerable: true,
+  get: function () {
+    return __supabase_functions_js.FunctionsError;
+  }
+}));
+Object.defineProperty(exports, "FunctionsFetchError", ({
+  enumerable: true,
+  get: function () {
+    return __supabase_functions_js.FunctionsFetchError;
+  }
+}));
+Object.defineProperty(exports, "FunctionsHttpError", ({
+  enumerable: true,
+  get: function () {
+    return __supabase_functions_js.FunctionsHttpError;
+  }
+}));
+Object.defineProperty(exports, "FunctionsRelayError", ({
+  enumerable: true,
+  get: function () {
+    return __supabase_functions_js.FunctionsRelayError;
+  }
+}));
+Object.defineProperty(exports, "PostgrestError", ({
+  enumerable: true,
+  get: function () {
+    return __supabase_postgrest_js.PostgrestError;
+  }
+}));
+exports.SupabaseClient = SupabaseClient;
+exports.createClient = createClient;
+Object.keys(__supabase_auth_js).forEach(function (k) {
+  if (k !== 'default' && !Object.prototype.hasOwnProperty.call(exports, k)) Object.defineProperty(exports, k, {
+    enumerable: true,
+    get: function () { return __supabase_auth_js[k]; }
+  });
+});
+
+Object.keys(__supabase_realtime_js).forEach(function (k) {
+  if (k !== 'default' && !Object.prototype.hasOwnProperty.call(exports, k)) Object.defineProperty(exports, k, {
+    enumerable: true,
+    get: function () { return __supabase_realtime_js[k]; }
+  });
+});
+
+//# sourceMappingURL=index.cjs.map
+
+/***/ }),
+
+/***/ 1797:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+
+// src/errors/IcebergError.ts
+var IcebergError = class extends Error {
+  constructor(message, opts) {
+    super(message);
+    this.name = "IcebergError";
+    this.status = opts.status;
+    this.icebergType = opts.icebergType;
+    this.icebergCode = opts.icebergCode;
+    this.details = opts.details;
+    this.isCommitStateUnknown = opts.icebergType === "CommitStateUnknownException" || [500, 502, 504].includes(opts.status) && opts.icebergType?.includes("CommitState") === true;
+  }
+  /**
+   * Returns true if the error is a 404 Not Found error.
+   */
+  isNotFound() {
+    return this.status === 404;
+  }
+  /**
+   * Returns true if the error is a 409 Conflict error.
+   */
+  isConflict() {
+    return this.status === 409;
+  }
+  /**
+   * Returns true if the error is a 419 Authentication Timeout error.
+   */
+  isAuthenticationTimeout() {
+    return this.status === 419;
+  }
+};
+
+// src/utils/url.ts
+function buildUrl(baseUrl, path, query) {
+  const url = new URL(path, baseUrl);
+  if (query) {
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== void 0) {
+        url.searchParams.set(key, value);
+      }
+    }
+  }
+  return url.toString();
+}
+
+// src/http/createFetchClient.ts
+async function buildAuthHeaders(auth) {
+  if (!auth || auth.type === "none") {
+    return {};
+  }
+  if (auth.type === "bearer") {
+    return { Authorization: `Bearer ${auth.token}` };
+  }
+  if (auth.type === "header") {
+    return { [auth.name]: auth.value };
+  }
+  if (auth.type === "custom") {
+    return await auth.getHeaders();
+  }
+  return {};
+}
+function createFetchClient(options) {
+  const fetchFn = options.fetchImpl ?? globalThis.fetch;
+  return {
+    async request({
+      method,
+      path,
+      query,
+      body,
+      headers
+    }) {
+      const url = buildUrl(options.baseUrl, path, query);
+      const authHeaders = await buildAuthHeaders(options.auth);
+      const res = await fetchFn(url, {
+        method,
+        headers: {
+          ...body ? { "Content-Type": "application/json" } : {},
+          ...authHeaders,
+          ...headers
+        },
+        body: body ? JSON.stringify(body) : void 0
+      });
+      const text = await res.text();
+      const isJson = (res.headers.get("content-type") || "").includes("application/json");
+      const data = isJson && text ? JSON.parse(text) : text;
+      if (!res.ok) {
+        const errBody = isJson ? data : void 0;
+        const errorDetail = errBody?.error;
+        throw new IcebergError(
+          errorDetail?.message ?? `Request failed with status ${res.status}`,
+          {
+            status: res.status,
+            icebergType: errorDetail?.type,
+            icebergCode: errorDetail?.code,
+            details: errBody
+          }
+        );
+      }
+      return { status: res.status, headers: res.headers, data };
+    }
+  };
+}
+
+// src/catalog/namespaces.ts
+function namespaceToPath(namespace) {
+  return namespace.join("");
+}
+var NamespaceOperations = class {
+  constructor(client, prefix = "") {
+    this.client = client;
+    this.prefix = prefix;
+  }
+  async listNamespaces(parent) {
+    const query = parent ? { parent: namespaceToPath(parent.namespace) } : void 0;
+    const response = await this.client.request({
+      method: "GET",
+      path: `${this.prefix}/namespaces`,
+      query
+    });
+    return response.data.namespaces.map((ns) => ({ namespace: ns }));
+  }
+  async createNamespace(id, metadata) {
+    const request = {
+      namespace: id.namespace,
+      properties: metadata?.properties
+    };
+    const response = await this.client.request({
+      method: "POST",
+      path: `${this.prefix}/namespaces`,
+      body: request
+    });
+    return response.data;
+  }
+  async dropNamespace(id) {
+    await this.client.request({
+      method: "DELETE",
+      path: `${this.prefix}/namespaces/${namespaceToPath(id.namespace)}`
+    });
+  }
+  async loadNamespaceMetadata(id) {
+    const response = await this.client.request({
+      method: "GET",
+      path: `${this.prefix}/namespaces/${namespaceToPath(id.namespace)}`
+    });
+    return {
+      properties: response.data.properties
+    };
+  }
+  async namespaceExists(id) {
+    try {
+      await this.client.request({
+        method: "HEAD",
+        path: `${this.prefix}/namespaces/${namespaceToPath(id.namespace)}`
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof IcebergError && error.status === 404) {
+        return false;
+      }
+      throw error;
+    }
+  }
+  async createNamespaceIfNotExists(id, metadata) {
+    try {
+      return await this.createNamespace(id, metadata);
+    } catch (error) {
+      if (error instanceof IcebergError && error.status === 409) {
+        return;
+      }
+      throw error;
+    }
+  }
+};
+
+// src/catalog/tables.ts
+function namespaceToPath2(namespace) {
+  return namespace.join("");
+}
+var TableOperations = class {
+  constructor(client, prefix = "", accessDelegation) {
+    this.client = client;
+    this.prefix = prefix;
+    this.accessDelegation = accessDelegation;
+  }
+  async listTables(namespace) {
+    const response = await this.client.request({
+      method: "GET",
+      path: `${this.prefix}/namespaces/${namespaceToPath2(namespace.namespace)}/tables`
+    });
+    return response.data.identifiers;
+  }
+  async createTable(namespace, request) {
+    const headers = {};
+    if (this.accessDelegation) {
+      headers["X-Iceberg-Access-Delegation"] = this.accessDelegation;
+    }
+    const response = await this.client.request({
+      method: "POST",
+      path: `${this.prefix}/namespaces/${namespaceToPath2(namespace.namespace)}/tables`,
+      body: request,
+      headers
+    });
+    return response.data.metadata;
+  }
+  async updateTable(id, request) {
+    const response = await this.client.request({
+      method: "POST",
+      path: `${this.prefix}/namespaces/${namespaceToPath2(id.namespace)}/tables/${id.name}`,
+      body: request
+    });
+    return {
+      "metadata-location": response.data["metadata-location"],
+      metadata: response.data.metadata
+    };
+  }
+  async dropTable(id, options) {
+    await this.client.request({
+      method: "DELETE",
+      path: `${this.prefix}/namespaces/${namespaceToPath2(id.namespace)}/tables/${id.name}`,
+      query: { purgeRequested: String(options?.purge ?? false) }
+    });
+  }
+  async loadTable(id) {
+    const headers = {};
+    if (this.accessDelegation) {
+      headers["X-Iceberg-Access-Delegation"] = this.accessDelegation;
+    }
+    const response = await this.client.request({
+      method: "GET",
+      path: `${this.prefix}/namespaces/${namespaceToPath2(id.namespace)}/tables/${id.name}`,
+      headers
+    });
+    return response.data.metadata;
+  }
+  async tableExists(id) {
+    const headers = {};
+    if (this.accessDelegation) {
+      headers["X-Iceberg-Access-Delegation"] = this.accessDelegation;
+    }
+    try {
+      await this.client.request({
+        method: "HEAD",
+        path: `${this.prefix}/namespaces/${namespaceToPath2(id.namespace)}/tables/${id.name}`,
+        headers
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof IcebergError && error.status === 404) {
+        return false;
+      }
+      throw error;
+    }
+  }
+  async createTableIfNotExists(namespace, request) {
+    try {
+      return await this.createTable(namespace, request);
+    } catch (error) {
+      if (error instanceof IcebergError && error.status === 409) {
+        return await this.loadTable({ namespace: namespace.namespace, name: request.name });
+      }
+      throw error;
+    }
+  }
+};
+
+// src/catalog/IcebergRestCatalog.ts
+var IcebergRestCatalog = class {
+  /**
+   * Creates a new Iceberg REST Catalog client.
+   *
+   * @param options - Configuration options for the catalog client
+   */
+  constructor(options) {
+    let prefix = "v1";
+    if (options.catalogName) {
+      prefix += `/${options.catalogName}`;
+    }
+    const baseUrl = options.baseUrl.endsWith("/") ? options.baseUrl : `${options.baseUrl}/`;
+    this.client = createFetchClient({
+      baseUrl,
+      auth: options.auth,
+      fetchImpl: options.fetch
+    });
+    this.accessDelegation = options.accessDelegation?.join(",");
+    this.namespaceOps = new NamespaceOperations(this.client, prefix);
+    this.tableOps = new TableOperations(this.client, prefix, this.accessDelegation);
+  }
+  /**
+   * Lists all namespaces in the catalog.
+   *
+   * @param parent - Optional parent namespace to list children under
+   * @returns Array of namespace identifiers
+   *
+   * @example
+   * ```typescript
+   * // List all top-level namespaces
+   * const namespaces = await catalog.listNamespaces();
+   *
+   * // List namespaces under a parent
+   * const children = await catalog.listNamespaces({ namespace: ['analytics'] });
+   * ```
+   */
+  async listNamespaces(parent) {
+    return this.namespaceOps.listNamespaces(parent);
+  }
+  /**
+   * Creates a new namespace in the catalog.
+   *
+   * @param id - Namespace identifier to create
+   * @param metadata - Optional metadata properties for the namespace
+   * @returns Response containing the created namespace and its properties
+   *
+   * @example
+   * ```typescript
+   * const response = await catalog.createNamespace(
+   *   { namespace: ['analytics'] },
+   *   { properties: { owner: 'data-team' } }
+   * );
+   * console.log(response.namespace); // ['analytics']
+   * console.log(response.properties); // { owner: 'data-team', ... }
+   * ```
+   */
+  async createNamespace(id, metadata) {
+    return this.namespaceOps.createNamespace(id, metadata);
+  }
+  /**
+   * Drops a namespace from the catalog.
+   *
+   * The namespace must be empty (contain no tables) before it can be dropped.
+   *
+   * @param id - Namespace identifier to drop
+   *
+   * @example
+   * ```typescript
+   * await catalog.dropNamespace({ namespace: ['analytics'] });
+   * ```
+   */
+  async dropNamespace(id) {
+    await this.namespaceOps.dropNamespace(id);
+  }
+  /**
+   * Loads metadata for a namespace.
+   *
+   * @param id - Namespace identifier to load
+   * @returns Namespace metadata including properties
+   *
+   * @example
+   * ```typescript
+   * const metadata = await catalog.loadNamespaceMetadata({ namespace: ['analytics'] });
+   * console.log(metadata.properties);
+   * ```
+   */
+  async loadNamespaceMetadata(id) {
+    return this.namespaceOps.loadNamespaceMetadata(id);
+  }
+  /**
+   * Lists all tables in a namespace.
+   *
+   * @param namespace - Namespace identifier to list tables from
+   * @returns Array of table identifiers
+   *
+   * @example
+   * ```typescript
+   * const tables = await catalog.listTables({ namespace: ['analytics'] });
+   * console.log(tables); // [{ namespace: ['analytics'], name: 'events' }, ...]
+   * ```
+   */
+  async listTables(namespace) {
+    return this.tableOps.listTables(namespace);
+  }
+  /**
+   * Creates a new table in the catalog.
+   *
+   * @param namespace - Namespace to create the table in
+   * @param request - Table creation request including name, schema, partition spec, etc.
+   * @returns Table metadata for the created table
+   *
+   * @example
+   * ```typescript
+   * const metadata = await catalog.createTable(
+   *   { namespace: ['analytics'] },
+   *   {
+   *     name: 'events',
+   *     schema: {
+   *       type: 'struct',
+   *       fields: [
+   *         { id: 1, name: 'id', type: 'long', required: true },
+   *         { id: 2, name: 'timestamp', type: 'timestamp', required: true }
+   *       ],
+   *       'schema-id': 0
+   *     },
+   *     'partition-spec': {
+   *       'spec-id': 0,
+   *       fields: [
+   *         { source_id: 2, field_id: 1000, name: 'ts_day', transform: 'day' }
+   *       ]
+   *     }
+   *   }
+   * );
+   * ```
+   */
+  async createTable(namespace, request) {
+    return this.tableOps.createTable(namespace, request);
+  }
+  /**
+   * Updates an existing table's metadata.
+   *
+   * Can update the schema, partition spec, or properties of a table.
+   *
+   * @param id - Table identifier to update
+   * @param request - Update request with fields to modify
+   * @returns Response containing the metadata location and updated table metadata
+   *
+   * @example
+   * ```typescript
+   * const response = await catalog.updateTable(
+   *   { namespace: ['analytics'], name: 'events' },
+   *   {
+   *     properties: { 'read.split.target-size': '134217728' }
+   *   }
+   * );
+   * console.log(response['metadata-location']); // s3://...
+   * console.log(response.metadata); // TableMetadata object
+   * ```
+   */
+  async updateTable(id, request) {
+    return this.tableOps.updateTable(id, request);
+  }
+  /**
+   * Drops a table from the catalog.
+   *
+   * @param id - Table identifier to drop
+   *
+   * @example
+   * ```typescript
+   * await catalog.dropTable({ namespace: ['analytics'], name: 'events' });
+   * ```
+   */
+  async dropTable(id, options) {
+    await this.tableOps.dropTable(id, options);
+  }
+  /**
+   * Loads metadata for a table.
+   *
+   * @param id - Table identifier to load
+   * @returns Table metadata including schema, partition spec, location, etc.
+   *
+   * @example
+   * ```typescript
+   * const metadata = await catalog.loadTable({ namespace: ['analytics'], name: 'events' });
+   * console.log(metadata.schema);
+   * console.log(metadata.location);
+   * ```
+   */
+  async loadTable(id) {
+    return this.tableOps.loadTable(id);
+  }
+  /**
+   * Checks if a namespace exists in the catalog.
+   *
+   * @param id - Namespace identifier to check
+   * @returns True if the namespace exists, false otherwise
+   *
+   * @example
+   * ```typescript
+   * const exists = await catalog.namespaceExists({ namespace: ['analytics'] });
+   * console.log(exists); // true or false
+   * ```
+   */
+  async namespaceExists(id) {
+    return this.namespaceOps.namespaceExists(id);
+  }
+  /**
+   * Checks if a table exists in the catalog.
+   *
+   * @param id - Table identifier to check
+   * @returns True if the table exists, false otherwise
+   *
+   * @example
+   * ```typescript
+   * const exists = await catalog.tableExists({ namespace: ['analytics'], name: 'events' });
+   * console.log(exists); // true or false
+   * ```
+   */
+  async tableExists(id) {
+    return this.tableOps.tableExists(id);
+  }
+  /**
+   * Creates a namespace if it does not exist.
+   *
+   * If the namespace already exists, returns void. If created, returns the response.
+   *
+   * @param id - Namespace identifier to create
+   * @param metadata - Optional metadata properties for the namespace
+   * @returns Response containing the created namespace and its properties, or void if it already exists
+   *
+   * @example
+   * ```typescript
+   * const response = await catalog.createNamespaceIfNotExists(
+   *   { namespace: ['analytics'] },
+   *   { properties: { owner: 'data-team' } }
+   * );
+   * if (response) {
+   *   console.log('Created:', response.namespace);
+   * } else {
+   *   console.log('Already exists');
+   * }
+   * ```
+   */
+  async createNamespaceIfNotExists(id, metadata) {
+    return this.namespaceOps.createNamespaceIfNotExists(id, metadata);
+  }
+  /**
+   * Creates a table if it does not exist.
+   *
+   * If the table already exists, returns its metadata instead.
+   *
+   * @param namespace - Namespace to create the table in
+   * @param request - Table creation request including name, schema, partition spec, etc.
+   * @returns Table metadata for the created or existing table
+   *
+   * @example
+   * ```typescript
+   * const metadata = await catalog.createTableIfNotExists(
+   *   { namespace: ['analytics'] },
+   *   {
+   *     name: 'events',
+   *     schema: {
+   *       type: 'struct',
+   *       fields: [
+   *         { id: 1, name: 'id', type: 'long', required: true },
+   *         { id: 2, name: 'timestamp', type: 'timestamp', required: true }
+   *       ],
+   *       'schema-id': 0
+   *     }
+   *   }
+   * );
+   * ```
+   */
+  async createTableIfNotExists(namespace, request) {
+    return this.tableOps.createTableIfNotExists(namespace, request);
+  }
+};
+
+// src/catalog/types.ts
+var DECIMAL_REGEX = /^decimal\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$/;
+var FIXED_REGEX = /^fixed\s*\[\s*(\d+)\s*\]$/;
+function parseDecimalType(type) {
+  const match = type.match(DECIMAL_REGEX);
+  if (!match) return null;
+  return {
+    precision: parseInt(match[1], 10),
+    scale: parseInt(match[2], 10)
+  };
+}
+function parseFixedType(type) {
+  const match = type.match(FIXED_REGEX);
+  if (!match) return null;
+  return {
+    length: parseInt(match[1], 10)
+  };
+}
+function isDecimalType(type) {
+  return DECIMAL_REGEX.test(type);
+}
+function isFixedType(type) {
+  return FIXED_REGEX.test(type);
+}
+function typesEqual(a, b) {
+  const decimalA = parseDecimalType(a);
+  const decimalB = parseDecimalType(b);
+  if (decimalA && decimalB) {
+    return decimalA.precision === decimalB.precision && decimalA.scale === decimalB.scale;
+  }
+  const fixedA = parseFixedType(a);
+  const fixedB = parseFixedType(b);
+  if (fixedA && fixedB) {
+    return fixedA.length === fixedB.length;
+  }
+  return a === b;
+}
+function getCurrentSchema(metadata) {
+  return metadata.schemas.find((s) => s["schema-id"] === metadata["current-schema-id"]);
+}
+
+exports.IcebergError = IcebergError;
+exports.IcebergRestCatalog = IcebergRestCatalog;
+exports.getCurrentSchema = getCurrentSchema;
+exports.isDecimalType = isDecimalType;
+exports.isFixedType = isFixedType;
+exports.parseDecimalType = parseDecimalType;
+exports.parseFixedType = parseFixedType;
+exports.typesEqual = typesEqual;
+//# sourceMappingURL=index.cjs.map
+//# sourceMappingURL=index.cjs.map
 
 /***/ }),
 
