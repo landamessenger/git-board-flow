@@ -74,11 +74,11 @@ Example (action starts and stops OpenCode for you; no separate server needed):
 ## Features using OpenCode
 
 - **AI pull request description** – Generates PR descriptions from issue and diff.
-- **Think / reasoning** – Deep code analysis and change proposals.
-- **Check progress** – Progress detection from branch vs issue description.
-- **Vector / AI knowledge** – Codebase analysis and indexing.
-- **Copilot** – Code analysis and manipulation agent.
-- **Error detection** – Potential bugs and issues in the codebase.
+- **Think / reasoning** – Deep code analysis and change proposals (OpenCode Plan agent).
+- **Check progress** – Progress detection from branch vs issue description (OpenCode Plan agent).
+- **Copilot** – Code analysis and manipulation agent (OpenCode Build agent).
+- **Error detection** – Potential bugs and issues in the codebase (OpenCode Plan agent).
+- **Recommend steps** – Suggests implementation steps from the issue description (OpenCode Plan agent).
 
 All of these use the same OpenCode server and model configuration.
 
@@ -90,11 +90,11 @@ When the GitHub Action runs with `single-action: check_progress_action` and `sin
 
 2. **Data gathering** – The action reads the **issue description** (objectives of the feature/bugfix), finds the **branch** linked to that issue (e.g. `feature/123-title` or `bugfix/123-title`), and gets the **diff** of that branch vs the development branch (e.g. `develop`).
 
-3. **AI analysis (OpenCode)** – A **ProgressDetector** agent runs against your OpenCode server. It receives the issue description, list of changed files, and (when used) file contents. The agent compares what was requested in the issue vs what is implemented in the diff and calls the **report_progress** tool once with `progress` (0–100) and `summary` (short explanation).
+3. **AI analysis (OpenCode)** – The **OpenCode Plan agent** runs against your OpenCode server. It receives the issue description, list of changed files, and (when used) file contents. The agent compares what was requested in the issue vs what is implemented in the diff and returns a structured response with `progress` (0–100) and `summary` (short explanation).
 
 4. **Result** – The use case returns a `Result` with `steps` (e.g. "Progress for issue #123: 30%", summary) and a payload with progress, summary, issue number, branch, etc.
 
-5. **Comment on the issue** – After `mainRun`, the action runs **PublishResultUseCase**, which builds the comment body from all `result.steps`, numbers them (1., 2., …), and posts the comment on the issue via `issueRepository.addComment(...)`. So the "30%" and the summary come from the OpenCode agent via `report_progress`; the comment is written by **PublishResultUseCase** using those steps.
+5. **Comment on the issue** – After `mainRun`, the action runs **PublishResultUseCase**, which builds the comment body from all `result.steps`, numbers them (1., 2., …), and posts the comment on the issue via `issueRepository.addComment(...)`. The "30%" and the summary come from the OpenCode Plan agent response; the comment is written by **PublishResultUseCase** using those steps.
 
 ## Can we avoid `opencode-server-url` and use a "master" OpenCode server?
 

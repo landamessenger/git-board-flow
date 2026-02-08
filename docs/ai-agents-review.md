@@ -1,209 +1,72 @@
-# Revisión: Agentes, subagentes y tools de AI
+# Revisión: Uso de OpenCode como backend de AI
 
-Revisión de la arquitectura de agentes, subagentes y herramientas para comprobar si son necesarios o generan sobreingeniería, dado que el proyecto consume **OpenCode** como backend de AI.
-
-## Lo que OpenCode sí ofrece (y no estamos usando)
-
-Cuando usas OpenCode por **CLI o interfaz gráfica**, pasa exactamente lo que describes: haces una pregunta sobre el código y OpenCode **responde o aplica los cambios** (igual que un asistente en un chat). Eso es posible porque OpenCode tiene **agentes** (Build, Plan, etc.) con **tools** (editar archivos, bash, etc.) y un bucle que ejecuta el modelo, las tools y vuelve a llamar al modelo hasta tener la respuesta final.
-
-El **servidor HTTP** de OpenCode expone esa misma capacidad. Según la [documentación del Server](https://open-code.ai/en/docs/server):
-
-- **`POST /session/:id/message`** — *"Send a message and wait for response"*
-- El body puede incluir: **`agent?`**, `model?`, `noReply?`, `system?`, `tools?`, `parts`.
-
-Es decir: puedes enviar un mensaje **indicando qué agente usar** (por ejemplo `agent: "build"`) y el servidor **espera a que el agente termine** (usando tools, aplicando cambios si hace falta) y te devuelve la respuesta completa. En la respuesta, `parts` puede incluir no solo texto sino también resultados de tools, diffs de archivos, etc.
-
-**Qué hacemos nosotros hoy:** en `ai_repository.ts` solo enviamos `{ model: { providerID, modelID }, parts: [{ type: 'text', text: prompt }] }`. **No** pasamos `agent`. Además, de la respuesta solo extraemos el **texto** (`extractTextFromParts`), ignorando cualquier parte de tipo tool/diff. Resultado: estamos usando OpenCode como **un solo turno de LLM** (prompt → texto), no como el agente completo que usas en la CLI/UI. Toda la orquestación (bucle agente + tools, subagents, etc.) la hemos implementado nosotros por encima.
-
-**Conclusión:** OpenCode **sí** puede actuar “como en la CLI”: pregunta → responde o aplica cambios. Nosotros **no** estamos usando esa vía; por eso da la impresión de que “OpenCode no gestiona los agentes”. La siguiente sección resume el estado actual y las opciones.
+El proyecto consume **OpenCode** como backend de AI. Este documento resume cómo se usa y qué capacidades ofrece OpenCode.
 
 ---
 
-## Resumen ejecutivo
+## Lo que OpenCode ofrece
 
-- **OpenCode** se usa en el proyecto solo como **una llamada LLM** (crear sesión → enviar mensaje con model+parts → leer solo texto de la respuesta). **No** se usa el parámetro `agent` ni se consumen las parts de tipo tool/diff.
-- Toda la orquestación (agentes, tools, subagents, reasoning loop) es **propia**: la implementamos nosotros y OpenCode solo responde a cada prompt como modelo.
-- Hay **dos patrones** en el código: **(1) simple** (AiRepository directo) y **(2) completo** (Agent + ReasoningLoop + tools ± subagents). Varios casos podrían simplificarse del (2) al (1). Y, en paralelo, **podría explorarse** usar la API de OpenCode con `agent` para que el servidor ejecute el agente completo y así simplificar o sustituir parte de nuestra capa Copilot/Agent.
+El **servidor HTTP** de OpenCode permite enviar mensajes indicando **qué agente usar** (por ejemplo `agent: "plan"` o `agent: "build"`). El servidor ejecuta el agente (con tools si aplica) y devuelve la respuesta. En la respuesta, `parts` puede incluir texto, resultados de tools, diffs de archivos, etc.
 
----
-
-## 1. Cómo se usa OpenCode hoy
-
-### 1.1 AiRepository (capa fina)
-
-- **Ubicación**: `src/data/repository/ai_repository.ts`
-- **API**: `ask(ai, prompt)`, `askJson(ai, prompt, schema, ...)`, `askThinkJson(ai, messagesOrPrompt)`
-- **Implementación**: HTTP a OpenCode: `POST /session` → `POST /session/:id/message` con `{ model, parts: [{ type: 'text', text: prompt }] }`; se extrae texto de la respuesta.
-- **Uso**: Una sola llamada por tarea, sin agentes ni tools.
-
-### 1.2 Agent + ReasoningLoop (nuestra orquestación)
-
-- **Ubicación**: `src/agent/core/` (agent.ts, reasoning_loop.ts, …)
-- **Flujo**: Se construye un prompt con historial de mensajes + definiciones de tools; se llama a **AiRepository.askJson** con `AGENT_RESPONSE_SCHEMA` (response + tool_calls); si el modelo devuelve tool_calls, se ejecutan con `ToolExecutor` y se vuelve a llamar al modelo (bucle hasta respuesta final o maxTurns).
-- **Conclusión**: OpenCode **no** gestiona agentes ni tools por nosotros; nosotros implementamos el bucle agente–tools y usamos OpenCode solo como modelo.
+**Documentación**: [OpenCode Server](https://open-code.ai/en/docs/server) — `POST /session/:id/message` con body que puede incluir `agent`, `model`, `parts`, etc.
 
 ---
 
-## 2. Uso por caso de uso
+## Cómo se usa OpenCode en el proyecto hoy
 
-| Caso | Dónde se usa | Qué usa | ¿Necesita Agent + tools? |
-|------|----------------|---------|---------------------------|
-| **Descripción de PR** | `UpdatePullRequestDescriptionUseCase` | **AiRepository.ask()** (y ask en processFile para cada cambio) | No. Ya está bien simplificado. |
-| **Comentarios (idioma)** | `CheckIssueCommentLanguageUseCase`, `CheckPullRequestCommentLanguageUseCase` | **AiRepository.ask()** | No. |
-| **Progreso de una issue** | `CheckProgressUseCase` (single action `check_progress`) | **ProgressDetector** → Agent + report_progress_tool ± SubagentHandler | Solo si queremos repartir muchos ficheros entre subagents; para pocos ficheros podría ser un solo `askJson`. |
-| **Posibles errores en rama** | Solo **tec_tester_commands** (CLI de pruebas) | **ErrorDetector** → Agent + report_errors_tool ± SubagentHandler | No está en el flujo principal. Si se integra, igual que progreso: askJson simple o Agent según tamaño. |
-| **Copilot (preguntas / editar código)** | CLI (`copilot`) | **Copilot** → Agent + muchas tools + IntentClassifier + SubagentHandler | Aquí sí tiene sentido Agent + tools (leer/editar archivos, ejecutar comandos, etc.). |
-| **Intent “¿aplicar cambios?”** | Solo dentro de **Copilot** | **IntentClassifier** → Agent + report_intent_tool | **Overkill**: es una decisión binaria (apply sí/no + razón). Puede ser un único **askJson** con schema `{ shouldApplyChanges, reasoning, confidence }`. |
+### AiRepository (`src/data/repository/ai_repository.ts`)
 
----
+- **`ask(ai, prompt)`**  
+  Una llamada por turno: crea sesión, envía mensaje con `model` + `parts`, devuelve solo el texto de la respuesta. Se usa para comprobar idioma en comentarios (issue/PR).
 
-## 3. Dónde hay posible sobreingeniería o ruido
+- **`askAgent(ai, agentId, prompt, options?)`**  
+  Envía el mensaje con **`agent: agentId`** (p. ej. `OPENCODE_AGENT_PLAN`). El servidor OpenCode ejecuta el agente y devuelve la respuesta. Opcionalmente se puede pedir JSON (`expectJson`, `schema`).  
+  Uso: descripción de PR, progreso de una issue, detección de errores, recomendación de pasos.
 
-### 3.1 IntentClassifier
+- **`copilotMessage(ai, prompt)`**  
+  Usa el agente **build** (`OPENCODE_AGENT_BUILD`). El servidor puede leer y escribir archivos cuando se ejecuta desde el workspace (p. ej. `opencode serve`). Devuelve texto y `sessionId`; el CLI puede llamar a **`getSessionDiff(baseUrl, sessionId)`** para mostrar los cambios.
 
-- **Situación**: Un Agent completo (inicialización, system prompt, ReasoningLoop, report_intent_tool, IntentParser) para clasificar si el prompt del usuario pide “aplicar cambios” o no.
-- **Propuesta**: Sustituir por **una llamada AiRepository.askJson** con un prompt claro y un schema fijo, por ejemplo:
-  - `{ "shouldApplyChanges": boolean, "reasoning": string, "confidence": "low"|"medium"|"high" }`
-- **Beneficio**: Se elimina dependencia de Agent, report_intent_tool, IntentParser y AgentInitializer del intent classifier; menos código y menos superficie de fallos.
-
-### 3.2 ProgressDetector (caso sin subagents)
-
-- **Situación**: Siempre se usa un Agent con report_progress_tool. Cuando `useSubAgents === false` o hay pocos ficheros, el agente hace una sola “vuelta” y llama a report_progress.
-- **Propuesta (opcional)**: Para el caso “pocos ficheros / sin subagents”, un flujo alternativo: construir un único prompt (issue + lista de cambios/archivos) y **AiRepository.askJson** con schema `{ progress: number, summary: string }`. Mantener Agent + SubagentHandler cuando `useSubAgents` y muchos ficheros.
-- **Beneficio**: Menos componentes en el camino crítico del single action “check progress” cuando no hace falta paralelizar.
-
-### 3.3 ErrorDetector
-
-- **Situación**: Solo usado en `tec_tester_commands.ts` (CLI de test), no en la GitHub Action ni en use cases.
-- **Propuesta**: Si en el futuro se integra “detectar errores en rama” en el flujo principal, valorar el mismo criterio: para pocos ficheros, **askJson** con schema de lista de errores; para muchos, mantener Agent + subagents.
-- **Ruido actual**: Poca (no está en el flujo principal), pero el código existe y debe mantenerse.
-
-### 3.4 PR description y comentarios
-
-- **Situación**: Ya usan solo AiRepository (ask / processFile con ask). No usan Agent ni tools.
-- **Conclusión**: Sin cambios; ya están en el nivel adecuado de complejidad.
-
-### 3.5 Copilot
-
-- **Situación**: Muchas tools (read_file, search_files, propose_change, apply_changes, execute_command, etc.), opcionalmente IntentClassifier y SubagentHandler para repartir archivos.
-- **Conclusión**: Aquí la complejidad está justificada (asistente que puede leer, buscar, proponer y aplicar cambios). La única simplificación recomendada es **sustituir IntentClassifier por askJson** (ver 3.1).
+No existe orquestación propia de agentes: no hay `src/agent/`, ni `askJson`/`askThinkJson`, ni bucles de tools implementados en el repo. Toda la lógica de “agente” (Plan o Build) se delega en OpenCode.
 
 ---
 
-## 4. Estructura actual de “agentes” y herramientas
+## Uso por caso de uso
 
-### 4.1 Módulos de reasoning (cada uno con bastante superficie)
-
-- **Copilot**: agent_initializer, copilot, file_partitioner, subagent_handler, system_prompt_builder, types.
-- **ErrorDetector**: agent_initializer, error_detector, error_parser, file_partitioner, file_relationship_analyzer, subagent_handler, summary_generator, system_prompt_builder, types.
-- **ProgressDetector**: agent_initializer, file_partitioner, progress_detector, progress_parser, subagent_handler, system_prompt_builder, types.
-- **IntentClassifier**: agent_initializer, intent_classifier, intent_parser, system_prompt_builder, types.
-
-Todos siguen el mismo patrón: Agent + system prompt + tools + (opcional) subagents + parser del resultado. Para IntentClassifier ese patrón es desproporcionado.
-
-### 4.2 Builtin tools
-
-- **report_intent_tool**: Solo lo usa IntentClassifier → candidato a eliminar si IntentClassifier pasa a askJson.
-- **report_progress_tool**: Lo usa ProgressDetector; necesario mientras Progress use Agent.
-- **report_errors_tool**: Lo usa ErrorDetector; necesario mientras ErrorDetector use Agent.
-- **read_file_tool, search_files_tool, propose_change_tool, apply_changes_tool, execute_command_tool, manage_todos_tool**: Usados por Copilot (y en algunos casos por Progress/Error/Intent). Mantener.
-
-### 4.3 Core (agent, reasoning_loop, subagent_manager, …)
-
-- **Necesario** para Copilot y, si se mantienen, para ProgressDetector y ErrorDetector con Agent.
-- **SubAgentManager** (core): usado por la orquestación de subagents en Copilot, Progress y Error. Si se simplifican Progress/Error en el caso “sin subagents”, se sigue usando en Copilot y en los casos “con subagents”.
+| Caso | Dónde | API |
+|------|--------|-----|
+| **Descripción de PR** | `UpdatePullRequestDescriptionUseCase` | `askAgent(ai, OPENCODE_AGENT_PLAN, prompt)` |
+| **Comentarios (idioma)** | `CheckIssueCommentLanguageUseCase`, `CheckPullRequestCommentLanguageUseCase` | `ask(ai, prompt)` |
+| **Progreso de una issue** | `CheckProgressUseCase` (single action `check_progress`) | `askAgent(ai, OPENCODE_AGENT_PLAN, prompt, { expectJson: true, schema })` |
+| **Detección de errores** | `DetectErrorsUseCase` (single action `detect_errors`) | `askAgent(ai, OPENCODE_AGENT_PLAN, prompt)` |
+| **Recomendar pasos** | `RecommendStepsUseCase` (single action `recommend_steps`) | `askAgent(ai, OPENCODE_AGENT_PLAN, prompt)` |
+| **Copilot (CLI)** | `giik copilot` | `copilotMessage(ai, prompt)` → agente **build**; opcionalmente `getSessionDiff` para ver cambios. |
 
 ---
 
-## 5. Recomendaciones concretas
+## Delegación al agente Plan
 
-1. **IntentClassifier → askJson**  
-   - Implementar un `classifyIntent(prompt: string)` que use solo `AiRepository.askJson` con un schema fijo.  
-   - Eliminar: Agent + report_intent_tool + IntentParser + AgentInitializer del intent classifier (y tests asociados).  
-   - Mantener el fallback heurístico actual como respaldo si la llamada falla.
+Se usa el **agente Plan de OpenCode** para análisis sin editar código:
 
-2. **Mantener PR description y comentarios** como están (solo AiRepository).
+- **Descripción de PR**: un único prompt con la descripción de la issue y los cambios genera la descripción de la PR.
+- **Progreso**: prompt con descripción de la issue y ficheros/diffs; la respuesta se pide en JSON `{ progress, summary }`.
+- **Detección de errores**: se pasa la rama y los cambios frente a la base; el agente devuelve un informe.
+- **Recomendar pasos**: a partir de la descripción de la issue, el agente recomienda pasos.
 
-3. **ProgressDetector**  
-   - Opción A: Mantener como está.  
-   - Opción B: Para el camino “sin subagents”, ofrecer un modo “simple” con askJson(progress, summary) y usar Agent + subagents solo cuando se active useSubAgents o haya muchos ficheros.
+Requisito: el servidor OpenCode debe estar ejecutándose. Las llamadas usan `POST /session/:id/message` con `agent: "plan"`.
 
-4. **ErrorDetector**  
-   - Dejar como está hasta que se integre en el flujo principal; entonces decidir si hace falta solo askJson o Agent + subagents según tamaño del repo/rama.
+### ¿Hay que pasar el diff desde la GitHub Action?
 
-5. **Copilot**  
-   - No reducir herramientas ni subagents; solo reemplazar IntentClassifier por la versión askJson (recomendación 1).
+**Sí.** El agente Plan no calcula el diff por nosotros:
 
-6. **Documentación**  
-   - Dejar claro que hoy OpenCode se usa como LLM (una llamada por turno) y que la orquestación es propia del proyecto.
+1. Plan por defecto no tiene bash: no puede ejecutar `git diff`.
+2. No sabe cuál es la rama base (eso lo tiene la Action o la config).
+3. En CI el clone puede ser shallow.
 
-7. **Explorar el agente de OpenCode**  
-   - Para el flujo Copilot (pregunta → responde o aplica cambios), probar la API con `agent: "build"` en POST /session/:id/message. El servidor ejecutaría el bucle agente + tools y devolvería la respuesta completa. Habría que interpretar todas las parts (no solo texto) para aplicar cambios en disco. Si funciona, se podría simplificar mucho la capa Copilot delegando en el agente de OpenCode.
+Por eso en los use cases **construimos el diff** (GitHub API, `PullRequestRepository.getPullRequestChanges`, `BranchRepository.getChanges`) y lo incluimos en el prompt. Es la opción más portable y segura.
 
 ---
 
-## 6. Conclusión
+## Estado del código
 
-- **OpenCode** en CLI/UI sí actúa como pregunta → responde o aplica cambios. Esa capacidad existe en el servidor HTTP (mensaje con `agent`). Nosotros no la usamos: solo enviamos model+parts y leemos texto. Toda la lógica de agentes, tools y subagents es nuestra.
-- **Sí hay sobreingeniería** en **IntentClassifier**: un agente completo para una decisión binaria; se puede sustituir por una llamada askJson.
-- **El resto** (Progress, Error, Copilot) puede mantenerse, con la opción de simplificar Progress (y en su día Error) en el caso “pocos ficheros / sin subagents” usando askJson en lugar de Agent para ese camino.
-- **Descripción de PR y comprobación de idioma** ya están en el nivel adecuado (solo AiRepository).
-
-Próximos pasos posibles: **(1)** Sustituir IntentClassifier por askJson. **(2)** Spike: en Copilot (o un comando de prueba), llamar a OpenCode con `agent: "build"`, pasar el prompt del usuario, y tratar todas las parts de la respuesta para ver si podemos delegar ahí el responde o aplica cambios y simplificar nuestro código.
-
----
-
-## 7. Delegación al agente Plan (implementado)
-
-Se ha implementado el uso del **agente Plan de OpenCode** para delegar toda la lógica de análisis (sin editar código):
-
-- **Descripción de PR**: `UpdatePullRequestDescriptionUseCase` usa `AiRepository.askAgent(ai, OPENCODE_AGENT_PLAN, prompt)`. Un único prompt con la descripción de la issue y los cambios (patches) genera la descripción de la PR.
-- **Progreso de una issue**: `CheckProgressUseCase` usa el agente Plan con un prompt que incluye la descripción de la issue y los ficheros/diffs cambiados; la respuesta se pide en JSON `{ progress, summary }`.
-- **Detección de errores**: Nueva single action `detect_errors_action` y `DetectErrorsUseCase`: se pasa la rama de la issue y los cambios frente a la rama base; el agente Plan devuelve un informe de posibles errores. CLI: `detect-errors -i <issue>`.
-- **Recomendar pasos al crear una issue**: Nueva single action `recommend_steps_action` y `RecommendStepsUseCase`: a partir de la descripción de la issue, el agente Plan recomienda pasos a seguir. CLI: `recommend-steps -i <issue>`.
-
-Requisito: el servidor OpenCode debe estar ejecutándose y ser capaz de trabajar sobre el path del proyecto (mismo proyecto o acceso al repo) para que el agente tenga contexto. Las llamadas usan `POST /session/:id/message` con `agent: "plan"`.
-
-### ¿Hay que pasar el diff desde la GitHub Action o lo calcula OpenCode?
-
-**Sí, tenemos que pasar el diff (o la rama base) nosotros.** El agente Plan no puede calcularlo solo en el caso típico:
-
-1. **Plan por defecto no tiene bash**  
-   En la documentación de OpenCode, el agente Plan tiene `write: false`, `edit: false`, `bash: false`. No puede ejecutar `git diff` ni ningún comando. Lo que “ve” es solo el contenido de los ficheros del workspace (el checkout de la rama del PR en el runner).
-
-2. **No sabe cuál es la rama base**  
-   Aunque se habilitara bash solo para `git diff`, el agente no sabe con qué rama comparar (p. ej. `main`, `develop`). Esa información la tiene la GitHub Action (p. ej. `pull_request.base.ref` o la config de tu flujo), no el repo en disco.
-
-3. **En CI el clone puede ser shallow**  
-   En el runner a veces se hace un clone superficial y puede no tener la rama base. La API de GitHub (compare, o “files changed” del PR) nos da el diff sin depender de tener esa rama en local.
-
-Por eso en los use cases (descripción de PR, progreso, detección de errores) **construimos el diff desde nuestra capa** (GitHub API / `PullRequestRepository.getPullRequestChanges`, `BranchRepository.getChanges`) y lo incluimos en el prompt. Así:
-
-- Funciona con la config por defecto de Plan (sin bash).
-- La “base” es siempre la que define el PR o tu configuración (rama base del PR o develop).
-- No dependemos de que el runner tenga la rama base ni de un clone completo.
-
-**Resumen:** desde la GitHub Action (o CLI) debemos pasar el diff —o al menos la rama base y dejar que el agente ejecute `git diff` solo si en tu proyecto habilitas bash para Plan—. La opción actual (pasamos el diff en el prompt) es la más segura y portable.
-
----
-
-## 8. ¿Sigue siendo necesario `src/agent/`?
-
-**Flujo principal (GitHub Action + single actions): no.** Los use cases de producto ya no importan nada de `src/agent/`:
-
-- **Descripción de PR, check-progress, detect-errors, recommend-steps** usan `AiRepository.askAgent(ai, OPENCODE_AGENT_PLAN, prompt)` y no usan ProgressDetector, ErrorDetector ni Agent core.
-
-**Comando CLI `copilot`: sí.** Es el único flujo que sigue usando la orquestación local:
-
-- **`giik copilot`** → `Copilot` → `Agent` + ReasoningLoop + tools (read_file, search_files, propose_change, apply_changes, execute_command, manage_todos) + `IntentClassifier` + SubagentHandler. Todo eso vive en `src/agent/` (core, reasoning/copilot, reasoning/intent_classifier, tools).
-
-**Comandos de test (opcionales):** `agent_tester_commands`, `sub_agent_tester_commands`, `tec_tester_commands` usan Agent, ErrorDetector y tools; son solo para desarrollo/pruebas, no para el flujo principal.
-
-**Resumen:**
-
-| Componente | Estado |
-|------------|--------|
-| Agent core, ReasoningLoop, tools, ProgressDetector, ErrorDetector, IntentClassifier, Copilot local | **Eliminados** (`src/agent/` borrado). |
-| Comando `giik copilot` | Usa OpenCode agente **build** vía `AiRepository.copilotMessage()`. |
-
-**Actualización:** El comando **`giik copilot`** usa OpenCode con el agente **build** (`OPENCODE_AGENT_BUILD`). **`src/agent/`** ha sido **eliminado**: ya no existe orquestación local de agentes ni comandos de test que dependieran de ella. Toda la lógica de AI (descripción de PR, progreso, detección de errores, recomendación de pasos, copilot) delega en OpenCode (agentes Plan y Build).
+- **`src/agent/`**: **Eliminado.** No hay orquestación local de agentes ni módulos Copilot/ProgressDetector/ErrorDetector/IntentClassifier propios.
+- **Comando `giik copilot`**: usa OpenCode con el agente **build** vía `AiRepository.copilotMessage()` y, opcionalmente, `getSessionDiff()` para mostrar cambios en archivos.

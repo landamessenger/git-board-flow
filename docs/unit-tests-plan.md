@@ -1,129 +1,62 @@
 # Plan de acción: tests unitarios
 
-Objetivo: añadir todos los tests unitarios que tengan sentido, siguiendo la convención del proyecto (`src/**/__tests__/**/*.test.ts`, Jest).
+Objetivo: tests unitarios donde tengan sentido. Convención: `src/**/__tests__/**/*.test.ts`, Jest.
 
 ---
 
-## Limpieza post-eliminación de `/src/agent`
+## Plan de acción (checklist)
 
-Tras eliminar el directorio del agent, se identificó y eliminó código que ya no tenía referencias en producción:
-
-| Eliminado | Motivo |
-|-----------|--------|
-| **think_code_manager.ts** | No importado en ningún sitio. |
-| **think_todo_manager.ts** | Solo usado por CommentFormatter (eliminado). |
-| **comment_formatter.ts** | Solo usado en tests; el flujo think que lo usaba estaba en el agent. |
-| **file_import_analyzer.ts** | Solo usado en tests; el flujo think lo usaba en el agent. |
-| **file_search_service.ts** | Solo usado en tests; el flujo think lo usaba en el agent. |
-| **think_response.ts** (modelo) | Solo usado por los archivos anteriores. Se mantiene **think_response_schema.ts** (usado por ai_repository). |
-| Tests de comment_formatter, file_import_analyzer, file_search_service | Eliminados al borrar las clases. |
-
-**Segunda revisión (código muerto adicional):**
-
-| Eliminado | Motivo |
-|-----------|--------|
-| **ai_response.ts** (modelo) | Interfaz `AiResponse` no importada en ningún sitio; solo se usa `ai_response_schema`. |
-| **ai_responses.ts** (graph) | Interfaz `PatchSummary` no usada. |
-| **add_project_item_response.ts** (graph) | Interfaz `AddProjectItemResponse` no importada; `project_repository` usa tipo inline. |
-| **think_use_case.getIssueDescription** | Método privado nunca llamado. |
-
-**Sistema clásico del agent eliminado (AI + Think JSON):**
-
-| Eliminado | Motivo |
-|-----------|--------|
-| **ai_response_schema.ts** | Solo lo usaba `askJson`; `askJson` no se llamaba. Eliminado. |
-| **askJson** en ai_repository | Obsoleto; eliminado. |
-| **think_response_schema.ts** | Solo lo usaba `askThinkJson`; `askThinkJson` no se llama en ningún sitio (era el loop think del agent). Eliminado. |
-| **askThinkJson** en ai_repository | Obsoleto; eliminado. |
-| **ai_response_schema.test.ts**, **think_response_schema.test.ts** | Eliminados al borrar los schemas. |
+| # | Tarea | Estado |
+|---|--------|--------|
+| 1 | **GetHotfixVersionUseCase** – mock `IssueRepository.getDescription`; éxito con Base Version + Hotfix Version; fallos: description undefined, issue number no determinado, baseVersion/hotfixVersion no encontrados | ✅ Hecho |
+| 2 | **GetReleaseVersionUseCase** / **GetReleaseTypeUseCase** – ya implementados | ✅ Hecho |
+| 3 | **ThinkUseCase** (opcional) – tests de salidas tempranas: sin URL/modelo OpenCode, pregunta vacía, comentario sin @user (mocks: IssueRepository, ReasoningVisualizer) | Pendiente |
+| 4 | **UpdateTitleUseCase** (opcional) – tests con mocks de IssueRepository (getTitle, updateTitleIssueFormat, updateTitlePullRequestFormat); casos: no issue/PR, emojiLabeledTitle false | Pendiente |
+| 5 | **Excluidos** – logger, queue_utils, repositories (HTTP), actions, cli → E2E o sin tests unitarios | N/A |
 
 ---
 
-## 1. Utilidades puras (prioridad alta)
+## Estado actual de tests (implementados)
 
-| Módulo | Funciones / comportamiento | Notas |
-|--------|----------------------------|--------|
-| **version_utils** | `incrementVersion`, `getLatestVersion` | Lógica pura. Casos: Major/Minor/Patch, formato inválido, lista vacía. |
-| **content_utils** | `extractVersion`, `extractReleaseType`, `injectJsonAsMarkdownBlock` | Regex y formateo. Sin dependencias. |
-| **title_utils** | `extractIssueNumberFromBranch`, `extractIssueNumberFromPush`, `extractVersionFromBranch` | Mockear `logger` para evitar salida en tests. |
-| **label_utils** | `branchesForManagement`, `typesForIssue` | Crear `Execution` mínimo con `branches` y llamar con distintos `labels`. |
-| **list_utils** | `getRandomElement` | Comprobar que retorna elemento de la lista, `undefined` para `[]`, y que con 1 elemento retorna ese. |
-
----
-
-## 2. Utilidades con I/O o dependencias (prioridad media)
-
-| Módulo | Qué testear | Notas |
-|--------|-------------|--------|
-| **yml_utils** | `loadActionYaml`, `getActionInputs`, `getActionInputsWithDefaults` | Mock de `fs.readFileSync` y `path.join` o usar `action.yml` real en repo. |
-| **queue_utils** | `waitForPreviousRuns` | Depende de `WorkflowRepository` y timeouts; opcional o test de integración. |
-
----
-
-## 3. Servicios (lógica aislada)
-
-*(FileImportAnalyzer, FileSearchService y CommentFormatter se eliminaron como código muerto tras quitar `/src/agent`.)*
+| Área | Archivo | Qué cubre |
+|------|---------|-----------|
+| **Utils** | `version_utils.test.ts` | `incrementVersion`, `getLatestVersion` |
+| | `content_utils.test.ts` | `extractVersion`, `extractReleaseType`, `injectJsonAsMarkdownBlock` |
+| | `title_utils.test.ts` | `extractIssueNumberFromBranch`, `extractIssueNumberFromPush`, `extractVersionFromBranch` |
+| | `label_utils.test.ts` | `branchesForManagement`, `typesForIssue` |
+| | `list_utils.test.ts` | `getRandomElement` |
+| | `yml_utils.test.ts` | `loadActionYaml`, `getActionInputs`, `getActionInputsWithDefaults` (mock fs) |
+| | `reasoning_visualizer.test.ts` | `initialize`, `updateIteration`, `showHeader`, `showCompletion`, `showActionResult` (mock chalk + logger) |
+| **Modelos** | `result.test.ts` | Constructor `Result` (defaults y asignación) |
+| | `config.test.ts` | Constructor `Config` (vacío, branches, branchConfiguration) |
+| | `branch_configuration.test.ts` | Constructor `BranchConfiguration` (recursivo) |
+| **Use cases** | `get_release_version_use_case.test.ts` | GetReleaseVersionUseCase con mock de IssueRepository |
+| | `get_release_type_use_case.test.ts` | GetReleaseTypeUseCase con mock de IssueRepository |
+| | `get_hotfix_version_use_case.test.ts` | GetHotfixVersionUseCase con mock de IssueRepository (Base Version + Hotfix Version) |
 
 ---
 
-## 4. Manager / Visualización
+## Detalle excluidos y opcionales
 
-| Módulo | Qué testear | Notas |
-|--------|-------------|--------|
-| **ReasoningVisualizer** | `initialize`, `updateIteration`, `createProgressBar` (si se expone o se comprueba vía salida), `getActionEmoji` | Mock de `logger` (logInfo, logSingleLine). |
-| **ConfigurationHandler** / markdown handlers | Si tienen lógica de parsing/transformación pura | Revisar si hay funciones puras testeables. |
+1. **Opcionales** (ver checklist arriba): ThinkUseCase (salidas tempranas), UpdateTitleUseCase (mocks costosos).
 
----
+2. **Excluidos** (sin tests unitarios o solo E2E)  
+   - **logger.ts**: wrappers de console.  
+   - **queue_utils**: timeouts + `WorkflowRepository`; integración/E2E.  
+   - **Repositories** (ai, branch, file, issue, project, pull_request, workflow): llamadas HTTP/GitHub; tests con mocks posibles pero costosos.  
+   - **Actions** (github_action, local_action, common_action): orquestación y contexto GitHub; E2E.  
+   - **cli.ts**: entrada/salida y commander; E2E.
 
-## 5. Use cases (con mocks de repositorios)
-
-| Use case | Estrategia |
-|----------|------------|
-| **GetReleaseVersionUseCase** | Mock `IssueRepository.getDescription`; comprobar que con descripción válida se usa `extractVersion` y el resultado tiene `releaseVersion`. |
-| **GetHotfixVersionUseCase** | Igual con `extractVersion` para Base Version y Hotfix Version. |
-| **GetReleaseTypeUseCase** | Mock descripción; comprobar que se usa `extractReleaseType` y el payload tiene `releaseType`. |
-| Otros use cases | Valorar según complejidad y dependencias (repositorios, GitHub context). *(ThinkTodoManager se eliminó como código muerto.)* |
+3. **Convenciones**  
+   - Ubicación: `src/<módulo>/__tests__/<nombre>.test.ts`.  
+   - Mocks: `jest.mock()` para logger, fs, fetch cuando aplique.  
+   - Priorizar regresiones y casos límite; no obsesionarse con 100% cobertura.
 
 ---
 
-## 6. Modelos
+## Limpieza realizada (referencia)
 
-| Módulo | Qué testear |
-|--------|-------------|
-| **Result** | Constructor con datos vacíos (defaults) y con campos asignados. ✅ |
-| **Config** | Constructor con datos vacíos, con branches, con `branchConfiguration`. ✅ |
-| **BranchConfiguration** | Constructor y children recursivos. ✅ |
-| *(AI_RESPONSE_JSON_SCHEMA y THINK_RESPONSE_JSON_SCHEMA eliminados como obsoletos; no hay flujo que los use.)* |
-| **Branches** | Getter `defaultBranch` con `github.context` mockeado (opcional). |
-| Resto de modelos | Principalmente DTOs/interfaces; sin lógica no añadir tests. |
-
----
-
-## 7. Excluidos (sin tests unitarios o solo E2E)
-
-- **logger.ts**: wrappers de `console`.
-- **opencode_server.ts**: HTTP/axios; mejor E2E o tests de integración.
-- **queue_utils** (opcional): timeouts y `WorkflowRepository`.
-- **Repositories** (ai, branch, file, issue, project, pull_request, workflow): llamadas a GitHub API; tests con mocks de axios son posibles pero más costosos; prioridad baja.
-- **Actions** (`github_action`, `local_action`, `common_action`): orquestación y contexto GitHub; E2E o integración.
-- **cli.ts**: entrada/salida y commander; E2E.
-
----
-
-## Orden de implementación
-
-1. **Fase 1**: `version_utils`, `content_utils`, `title_utils` (utils puras + mock logger).
-2. **Fase 2**: `label_utils`, `list_utils`.
-3. **Fase 3**: `FileImportAnalyzer`, `FileSearchService`.
-4. **Fase 4**: *(CommentFormatter eliminado.)*
-5. **Fase 5**: `yml_utils` (mock fs), `ReasoningVisualizer` (mock logger).
-6. **Fase 6**: Si aplica, 1–2 use cases con mocks (GetReleaseVersion, GetReleaseType, GetHotfixVersion). *(ThinkTodoManager eliminado.)*
-
----
-
-## Convenciones
-
-- Ubicación: `src/<módulo>/__tests__/<nombre>.test.ts` o junto al archivo en `__tests__`.
-- Nombres: `describe` por módulo/función, `it` descriptivo.
-- Mocks: Jest `jest.mock()` para logger, fs, repositorios.
-- Cobertura: no obsesionarse con 100%; priorizar regresiones y casos límite.
+- Eliminación de `/src/agent` y código asociado: think_code_manager, think_todo_manager, comment_formatter, file_import_analyzer, file_search_service, think_response.ts.  
+- Código muerto adicional: ai_response.ts, ai_responses.ts, add_project_item_response.ts, getIssueDescription en think_use_case.  
+- Sistema AI obsoleto: ai_response_schema, think_response_schema, askJson, askThinkJson.  
+- AiRepository: `OpenCodeAgentMessageResult` dejó de exportarse (solo uso interno).

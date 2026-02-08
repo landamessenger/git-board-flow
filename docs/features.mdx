@@ -61,8 +61,10 @@ When you set `single-action` (and, when required, `single-action-issue`, `single
 
 | Single action value | Inputs required | Description |
 |--------------------|----------------|-------------|
-| **`check_progress_action`** | `single-action-issue` | Uses OpenCode to analyze the branch diff vs the issue description and posts a **progress percentage** (e.g. "Progress: 30%") and summary as a comment on the issue. |
-| **`think_action`** | — | Uses OpenCode for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
+| **`check_progress_action`** | `single-action-issue` | Uses OpenCode Plan to analyze the branch diff vs the issue description and posts a **progress percentage** (e.g. "Progress: 30%") and summary as a comment on the issue. |
+| **`detect_errors_action`** | `single-action-issue` | Uses OpenCode Plan to detect potential errors in the branch vs base; posts a comment on the issue. |
+| **`recommend_steps_action`** | `single-action-issue` | Uses OpenCode Plan to recommend implementation steps from the issue description; posts a comment on the issue. |
+| **`think_action`** | — | Uses OpenCode Plan for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
 | **`initial_setup`** | — | Performs initial setup steps (e.g. for repo or project). No issue required. |
 | **`create_release`** | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release with the given version, title, and changelog. |
 | **`create_tag`** | `single-action-version` | Creates a Git tag for the given version. |
@@ -79,11 +81,12 @@ All AI features go through **OpenCode** (one server URL + model). You can use 75
 
 | Feature | Where it runs | Description |
 |--------|----------------|-------------|
-| **Check progress** | Single action `check_progress_action` | ProgressDetector agent compares issue description vs branch diff and reports a percentage and summary. |
-| **Think / reasoning** | Single action `think_action` | Deep code analysis and change proposals. |
-| **AI PR description** | Pull request pipeline | Generates or updates PR description from issue and diff. |
-| **Copilot** | Used internally by other flows | Code analysis and manipulation agent. |
-| **Error detection** | Can be used in analysis flows | Detects potential bugs and issues in the codebase. |
+| **Check progress** | Single action `check_progress_action` | OpenCode Plan agent compares issue description vs branch diff and reports a percentage and summary. |
+| **Think / reasoning** | Single action `think_action` | Deep code analysis and change proposals (OpenCode Plan agent). |
+| **AI PR description** | Pull request pipeline | Generates or updates PR description from issue and diff (OpenCode Plan agent). |
+| **Copilot** | CLI `giik copilot` | Code analysis and file edits via OpenCode Build agent. |
+| **Error detection** | Single action / CLI | Detects potential bugs and issues in the codebase (OpenCode Plan agent). |
+| **Recommend steps** | Single action / CLI | Suggests implementation steps from the issue description (OpenCode Plan agent). |
 
 Configuration: `opencode-server-url`, `opencode-model`, and optionally `opencode-start-server` (action starts and stops OpenCode in the job). See [OpenCode (AI)](/opencode-integration).
 
