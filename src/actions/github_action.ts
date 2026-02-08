@@ -52,7 +52,7 @@ export async function runGitHubAction(): Promise<void> {
     /**
      * AI (OpenCode)
      */
-    let opencodeServerUrl = getInput(INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://localhost:4096';
+    let opencodeServerUrl = getInput(INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://127.0.0.1:4096';
     const opencodeModel = getInput(INPUT_KEYS.OPENCODE_MODEL) || 'opencode/kimi-k2.5';
     const opencodeStartServer = getInput(INPUT_KEYS.OPENCODE_START_SERVER) === 'true';
 

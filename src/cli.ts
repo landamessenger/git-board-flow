@@ -43,7 +43,7 @@ program
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('-q, --question <question...>', 'Question or prompt for analysis', '')
-  .option('--opencode-server-url <url>', 'OpenCode server URL (e.g. http://localhost:4096)', '')
+  .option('--opencode-server-url <url>', 'OpenCode server URL (e.g. http://127.0.0.1:4096)', '')
   .option('--opencode-model <model>', 'OpenCode model (e.g. opencode/kimi-k2.5, openai/gpt-4o-mini)', '')
   .option('--ai-ignore-files <ai-ignore-files>', 'AI ignore files', 'node_modules/*,build/*')
   .option('--include-reasoning <include-reasoning>', 'Include reasoning', 'false')
@@ -142,7 +142,7 @@ program
   .description(`${TITLE} - AI development assistant (OpenCode build agent; can edit files when run locally)`)
   .option('-p, --prompt <prompt...>', 'Prompt or question for the copilot (required)', '')
   .option('-d, --debug', 'Debug mode', false)
-  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
   .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
   .option('--output <format>', 'Output format (text|json)', 'text')
   .action(async (options) => {    
@@ -168,7 +168,7 @@ program
       return;
     }
 
-    const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096';
+    const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096';
     const model = cleanArg(options.opencodeModel) || process.env.OPENCODE_MODEL || 'opencode/kimi-k2.5';
     const workingDir = cleanArg(options.workingDir) || process.cwd();
     // Handle subagents flag: default is true, can be disabled with --no-use-subagents
@@ -235,7 +235,7 @@ program
   .option('-b, --branch <name>', 'Branch name (optional, will try to determine from issue)')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
   .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
   .action(async (options) => {    
     const gitInfo = getGitInfo();
@@ -272,7 +272,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.CHECK_PROGRESS,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parsedIssueNumber,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
       [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
       [INPUT_KEYS.AI_IGNORE_FILES]: process.env.AI_IGNORE_FILES || 'build/*,dist/*,node_modules/*,*.d.ts',
       repo: {
@@ -308,7 +308,7 @@ program
   .option('-i, --issue <number>', 'Issue number (required)', '')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
   .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
   .action(async (options) => {
     const gitInfo = getGitInfo();
@@ -327,7 +327,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.DETECT_ERRORS,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
       [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
       repo: { owner: gitInfo.owner, repo: gitInfo.repo },
       issue: { number: parseInt(issueNumber) },
@@ -346,7 +346,7 @@ program
   .option('-i, --issue <number>', 'Issue number (required)', '')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
   .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
   .action(async (options) => {
     const gitInfo = getGitInfo();
@@ -365,7 +365,7 @@ program
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.RECOMMEND_STEPS,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
       [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
       repo: { owner: gitInfo.owner, repo: gitInfo.repo },
       issue: { number: parseInt(issueNumber) },

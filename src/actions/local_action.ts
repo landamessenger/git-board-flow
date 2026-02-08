@@ -59,7 +59,7 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     /**
      * AI (OpenCode)
      */
-    const opencodeServerUrl = additionalParams[INPUT_KEYS.OPENCODE_SERVER_URL] ?? actionInputs[INPUT_KEYS.OPENCODE_SERVER_URL] ?? 'http://localhost:4096';
+    const opencodeServerUrl = additionalParams[INPUT_KEYS.OPENCODE_SERVER_URL] ?? actionInputs[INPUT_KEYS.OPENCODE_SERVER_URL] ?? 'http://127.0.0.1:4096';
     const opencodeModel = additionalParams[INPUT_KEYS.OPENCODE_MODEL] ?? actionInputs[INPUT_KEYS.OPENCODE_MODEL] ?? 'opencode/kimi-k2.5';
     const aiPullRequestDescription = (additionalParams[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION] ?? actionInputs[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION]) === 'true';
     const aiMembersOnly = (additionalParams[INPUT_KEYS.AI_MEMBERS_ONLY] ?? actionInputs[INPUT_KEYS.AI_MEMBERS_ONLY]) === 'true';
