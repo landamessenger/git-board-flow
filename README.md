@@ -151,7 +151,7 @@ giik <command> [options]
 
 Add `-d` or `--debug` for verbose logs. For OpenCode, use `--opencode-server-url` and `--opencode-model` if you don’t set env vars.
 
-For a step-by-step guide to testing the OpenCode Plan flows (check-progress, detect-errors, recommend-steps) locally, see [docs/testing-opencode-plan-locally.md](docs/testing-opencode-plan-locally.md).
+For a step-by-step guide to testing the OpenCode Plan flows (check-progress, detect-errors, recommend-steps) locally, see [Testing OpenCode Plan Locally](https://docs.page/landamessenger/git-board-flow/testing-opencode-plan-locally).
 
 ### 4. Optional: `.env` in repo root
 
@@ -218,3 +218,9 @@ Default is `replace-slash`. Full list and details: [Configuration](https://docs.
 ---
 
 Transform your GitHub workflow with **Git Board Flow**. For full feature list, single actions, and configuration, see the [documentation](https://docs.page/landamessenger/git-board-flow).
+
+---
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, conventions, and how to submit changes.

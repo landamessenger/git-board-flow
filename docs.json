@@ -17,6 +17,7 @@
         { "title": "Features & Capabilities", "href": "/features", "icon": "list" },
         { "title": "Authentication", "href": "/authentication", "icon": "key" },
         { "title": "OpenCode (AI)", "href": "/opencode-integration", "icon": "cpu" },
+        { "title": "Testing OpenCode Plan Locally", "href": "/testing-opencode-plan-locally", "icon": "terminal" },
         { "title": "Configuration", "href": "/configuration", "icon": "gear" },
         { "title": "Troubleshooting", "href": "/troubleshooting", "icon": "wrench" }
       ]

@@ -59,6 +59,9 @@ Example (action starts and stops OpenCode for you; no separate server needed):
 - `--opencode-server-url <url>` – Override OpenCode server URL.
 - `--opencode-model <model>` – Override model.
 
+For the `copilot` command:
+- `--output <format>` – Output format: `text` (default) or `json`. Use `json` to get `{ response, sessionId, diff }` for programmatic use.
+
 ## Running OpenCode
 
 1. **GitHub Actions – managed server (easiest)**: Set `opencode-start-server: true`. The action will start an OpenCode server at the beginning of the job (`npx opencode-ai serve` on port 4096), wait until it is healthy, run the rest of the job using that server, and stop the server when the job ends. You do not need to install or run OpenCode yourself. Pass provider API keys via env (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) as GitHub secrets.

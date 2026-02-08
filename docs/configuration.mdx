@@ -54,12 +54,12 @@ Git Board Flow provides extensive configuration options to customize your workfl
 ## Size Labels and Thresholds
 
 ### Size Labels
-- `size-xxl-label`: XXL size label (default: "size xxl")
-- `size-xl-label`: XL size label (default: "size xl")
-- `size-l-label`: L size label (default: "size l")
-- `size-m-label`: M size label (default: "size m")
-- `size-s-label`: S size label (default: "size s")
-- `size-xs-label`: XS size label (default: "size xs")
+- `size-xxl-label`: XXL size label (default: "size: XXL")
+- `size-xl-label`: XL size label (default: "size: XL")
+- `size-l-label`: L size label (default: "size: L")
+- `size-m-label`: M size label (default: "size: M")
+- `size-s-label`: S size label (default: "size: S")
+- `size-xs-label`: XS size label (default: "size: XS")
 
 ### Size Thresholds
 Each size has three threshold parameters:
@@ -78,6 +78,10 @@ Default thresholds:
 ## Project Integration
 
 - `project-ids`: Comma-separated list of GitHub Project IDs to link issues and PRs
+- `project-column-issue-created`: Project column for new issues (default: "Todo")
+- `project-column-pull-request-created`: Project column for new PRs (default: "In Progress")
+- `project-column-issue-in-progress`: Project column for in-progress issues (default: "In Progress")
+- `project-column-pull-request-in-progress`: Project column for in-progress PRs (default: "In Progress")
 - `desired-assignees-count`: Number of assignees for issues/PRs (default: 1, max: 10)
 - `desired-reviewers-count`: Number of reviewers for PRs (default: 1, max: 15)
 
