@@ -3,6 +3,8 @@ export declare const TITLE = "Giik";
 export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export declare const OPENCODE_DEFAULT_MODEL = "opencode/kimi-k2.5-free";
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
+export declare const OPENCODE_REQUEST_TIMEOUT_MS = 600000;
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
         automatic: string[];

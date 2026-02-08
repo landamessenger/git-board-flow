@@ -48805,7 +48805,13 @@ exports.Workflows = Workflows;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AiRepository = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
 exports.getSessionDiff = getSessionDiff;
+const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
+function createTimeoutSignal(ms) {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new Error(`OpenCode request timeout after ${ms}ms`)), ms);
+    return controller.signal;
+}
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, '') || url;
 }
@@ -48852,10 +48858,12 @@ exports.OPENCODE_AGENT_BUILD = 'build';
  */
 async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
     const base = ensureNoTrailingSlash(baseUrl);
+    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'gbf' }),
+        signal,
     });
     if (!createRes.ok) {
         const err = await createRes.text();
@@ -48873,6 +48881,7 @@ async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
             model: { providerID, modelID },
             parts: [{ type: 'text', text: promptText }],
         }),
+        signal,
     });
     if (!messageRes.ok) {
         const err = await messageRes.text();
@@ -48889,10 +48898,12 @@ async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
  */
 async function opencodeMessageWithAgent(baseUrl, options) {
     const base = ensureNoTrailingSlash(baseUrl);
+    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'gbf' }),
+        signal,
     });
     if (!createRes.ok) {
         const err = await createRes.text();
@@ -48912,6 +48923,7 @@ async function opencodeMessageWithAgent(baseUrl, options) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal,
     });
     if (!messageRes.ok) {
         const err = await messageRes.text();
@@ -48928,7 +48940,8 @@ async function opencodeMessageWithAgent(baseUrl, options) {
  */
 async function getSessionDiff(baseUrl, sessionId) {
     const base = ensureNoTrailingSlash(baseUrl);
-    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET' });
+    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
+    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET', signal });
     if (!res.ok)
         return [];
     const raw = await res.text();
@@ -56027,12 +56040,14 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
+exports.OPENCODE_REQUEST_TIMEOUT_MS = 600000;
 exports.DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [

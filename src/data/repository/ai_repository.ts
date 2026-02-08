@@ -1,5 +1,12 @@
+import { OPENCODE_REQUEST_TIMEOUT_MS } from '../../utils/constants';
 import { logDebugInfo, logError } from '../../utils/logger';
 import { Ai } from '../model/ai';
+
+function createTimeoutSignal(ms: number): AbortSignal {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new Error(`OpenCode request timeout after ${ms}ms`)), ms);
+    return controller.signal;
+}
 
 function ensureNoTrailingSlash(url: string): string {
     return url.replace(/\/+$/, '') || url;
@@ -60,10 +67,12 @@ async function opencodePrompt(
     promptText: string
 ): Promise<string> {
     const base = ensureNoTrailingSlash(baseUrl);
+    const signal = createTimeoutSignal(OPENCODE_REQUEST_TIMEOUT_MS);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'gbf' }),
+        signal,
     });
     if (!createRes.ok) {
         const err = await createRes.text();
@@ -84,6 +93,7 @@ async function opencodePrompt(
             model: { providerID, modelID },
             parts: [{ type: 'text', text: promptText }],
         }),
+        signal,
     });
     if (!messageRes.ok) {
         const err = await messageRes.text();
@@ -126,10 +136,12 @@ async function opencodeMessageWithAgent(
     }
 ): Promise<OpenCodeAgentMessageResult> {
     const base = ensureNoTrailingSlash(baseUrl);
+    const signal = createTimeoutSignal(OPENCODE_REQUEST_TIMEOUT_MS);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'gbf' }),
+        signal,
     });
     if (!createRes.ok) {
         const err = await createRes.text();
@@ -152,6 +164,7 @@ async function opencodeMessageWithAgent(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal,
     });
     if (!messageRes.ok) {
         const err = await messageRes.text();
@@ -182,7 +195,8 @@ export async function getSessionDiff(
     sessionId: string
 ): Promise<OpenCodeFileDiff[]> {
     const base = ensureNoTrailingSlash(baseUrl);
-    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET' });
+    const signal = createTimeoutSignal(OPENCODE_REQUEST_TIMEOUT_MS);
+    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET', signal });
     if (!res.ok) return [];
     const raw = await res.text();
     if (!raw?.trim()) return [];
