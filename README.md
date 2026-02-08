@@ -13,7 +13,6 @@ All AI features use **OpenCode** (75+ LLM providers: OpenAI, Anthropic, Gemini, 
 - **Progress detection** — Analyzes branch vs issue and posts a progress percentage on the issue (`check_progress_action`).
 - **Think / reasoning** — Deep code analysis and change proposals (`think_action`).
 - **AI PR description** — Generates or updates pull request descriptions from issue and diff.
-- **Vector / AI cache** — Codebase analysis and embedding generation (`ai_cache_action` / `ai_cache_local_action`).
 
 You can set `opencode-server-url` and `opencode-model`, or use **`opencode-start-server: true`** so the action starts and stops an OpenCode server in the job (no separate install needed; pass provider API keys as secrets).
 
@@ -27,7 +26,7 @@ See the [OpenCode (AI)](https://docs.page/landamessenger/git-board-flow/opencode
 - **Commit monitoring** — Posts commit summaries on the issue when pushes occur on linked branches; optional commit prefix validation.
 - **Pull request linking** — Links PRs to issues, adds them to projects, assigns reviewers, and can generate PR descriptions with AI.
 - **GitHub Project integration** — Links issues and PRs to the configured projects (`project-ids`) and moves them to the right columns.
-- **Single actions** — Run on-demand actions: check progress, think, create release/tag, vector indexing, deployed marking, and more.
+- **Single actions** — Run on-demand actions: check progress, think, create release/tag, deployed marking, and more.
 
 ---
 
@@ -107,6 +106,66 @@ jobs:
 ```
 
 A **fine-grained Personal Access Token (PAT)** is required for branch and project operations. See [Authentication](https://docs.page/landamessenger/git-board-flow/authentication) in the docs.
+
+---
+
+## Testing locally (CLI)
+
+The same logic as the GitHub Action runs in **CLI mode** via the `giik` command, so you can test workflows locally before pushing.
+
+### 1. Prerequisites
+
+- **Node.js 20** (e.g. `nvm use 20`).
+- **Git repo** with `origin` pointing to a GitHub repo (e.g. `github.com/owner/repo`). The CLI reads `git config remote.origin.url` to get owner/repo.
+- **Personal Access Token** for GitHub (env `PERSONAL_ACCESS_TOKEN` or `-t` / `--token`).
+- For **AI features**: a running [OpenCode](https://docs.page/landamessenger/git-board-flow/opencode-integration) server (default `http://localhost:4096`). Optional env: `OPENCODE_SERVER_URL`, `OPENCODE_MODEL`.
+
+### 2. Build and run
+
+```bash
+nvm use 20
+npm install
+npm run build
+```
+
+Run the CLI from the repo root (same repo that will use the action, or any repo with the same `origin`):
+
+```bash
+# Using the built binary (no global install)
+node build/cli/index.js <command> [options]
+
+# Or, if you install/link the package so that `giik` is on PATH:
+giik <command> [options]
+```
+
+### 3. Commands that mirror the action
+
+| Command | Description | Example |
+|--------|-------------|--------|
+| `setup` | Initial setup: labels, issue types, verify access | `node build/cli/index.js setup -t <PAT>` |
+| `check-progress` | Check progress for an issue (posts % on the issue) | `node build/cli/index.js check-progress -i 123 -t <PAT>` |
+| `think` | Deep code analysis / reasoning (needs a question) | `node build/cli/index.js think -q "Where is auth validated?" -t <PAT>` |
+| `copilot` | AI development assistant (analyze/modify code) | `node build/cli/index.js copilot -p "Explain src/cli.ts" -t <PAT>` |
+
+Add `-d` or `--debug` for verbose logs. For OpenCode, use `--opencode-server-url` and `--opencode-model` if you don’t set env vars.
+
+### 4. Optional: `.env` in repo root
+
+You can put secrets in a `.env` file (do not commit it). The CLI loads it via `dotenv`:
+
+```bash
+# .env (do not commit)
+PERSONAL_ACCESS_TOKEN=ghp_...
+OPENCODE_SERVER_URL=http://localhost:4096
+OPENCODE_MODEL=openai/gpt-4o-mini
+```
+
+Then you can run without passing `-t` every time, e.g.:
+
+```bash
+node build/cli/index.js setup
+node build/cli/index.js check-progress -i 123
+```
 
 ---
 

@@ -28,7 +28,6 @@ import { PullRequest } from "./pull_request";
 import { Release } from "./release";
 import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
-import { SupabaseConfig } from "./supabase_config";
 import { Tokens } from "./tokens";
 import { Welcome } from "./welcome";
 import { Workflows } from "./workflows";
@@ -64,7 +63,6 @@ export class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
-    supabaseConfig: SupabaseConfig | undefined;
     inputs: any | undefined;
 
     get eventName(): string {
@@ -192,7 +190,6 @@ export class Execution {
         hotfix: Hotfix,
         workflows: Workflows,
         project: Projects,
-        supabaseConfig: SupabaseConfig | undefined,
         welcome: Welcome | undefined,
         inputs: any | undefined
     ) {
@@ -215,7 +212,6 @@ export class Execution {
         this.project = project;
         this.workflows = workflows;
         this.currentConfiguration = new Config({});
-        this.supabaseConfig = supabaseConfig;
         this.inputs = inputs;
         this.welcome = welcome;
     }

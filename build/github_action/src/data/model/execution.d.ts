@@ -14,7 +14,6 @@ import { PullRequest } from "./pull_request";
 import { Release } from "./release";
 import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
-import { SupabaseConfig } from "./supabase_config";
 import { Tokens } from "./tokens";
 import { Welcome } from "./welcome";
 import { Workflows } from "./workflows";
@@ -49,7 +48,6 @@ export declare class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
-    supabaseConfig: SupabaseConfig | undefined;
     inputs: any | undefined;
     get eventName(): string;
     get actor(): string;
@@ -70,6 +68,6 @@ export declare class Execution {
     get cleanIssueBranches(): boolean;
     get commit(): Commit;
     get runnedByToken(): boolean;
-    constructor(debug: boolean, singleAction: SingleAction, commitPrefixBuilder: string, issue: Issue, pullRequest: PullRequest, emoji: Emoji, giphy: Images, tokens: Tokens, ai: Ai, labels: Labels, issueTypes: IssueTypes, locale: Locale, sizeThresholds: SizeThresholds, branches: Branches, release: Release, hotfix: Hotfix, workflows: Workflows, project: Projects, supabaseConfig: SupabaseConfig | undefined, welcome: Welcome | undefined, inputs: any | undefined);
+    constructor(debug: boolean, singleAction: SingleAction, commitPrefixBuilder: string, issue: Issue, pullRequest: PullRequest, emoji: Emoji, giphy: Images, tokens: Tokens, ai: Ai, labels: Labels, issueTypes: IssueTypes, locale: Locale, sizeThresholds: SizeThresholds, branches: Branches, release: Release, hotfix: Hotfix, workflows: Workflows, project: Projects, welcome: Welcome | undefined, inputs: any | undefined);
     setup: () => Promise<void>;
 }

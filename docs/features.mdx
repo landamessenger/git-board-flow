@@ -63,15 +63,13 @@ When you set `single-action` (and, when required, `single-action-issue`, `single
 |--------------------|----------------|-------------|
 | **`check_progress_action`** | `single-action-issue` | Uses OpenCode to analyze the branch diff vs the issue description and posts a **progress percentage** (e.g. "Progress: 30%") and summary as a comment on the issue. |
 | **`think_action`** | — | Uses OpenCode for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
-| **`ai_cache_action`** | — | Runs vector indexing / AI cache update for the repository (codebase analysis and embeddings). No issue required. |
-| **`ai_cache_local_action`** | — | Same as `ai_cache_action` but for local/self-hosted runner (e.g. with local AI container). No issue required. |
 | **`initial_setup`** | — | Performs initial setup steps (e.g. for repo or project). No issue required. |
 | **`create_release`** | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release with the given version, title, and changelog. |
 | **`create_tag`** | `single-action-version` | Creates a Git tag for the given version. |
 | **`publish_github_action`** | — | Publishes or updates the GitHub Action (e.g. versioning, release). |
 | **`deployed_action`** | `single-action-issue` | Marks the issue as deployed; updates labels and project state (e.g. "deployed"). |
 
-Single actions that **throw an error** if the last step fails: `ai_cache_action`, `publish_github_action`, `create_release`, `deployed_action`, `create_tag`. This lets the workflow fail the job when the action does not succeed.
+Single actions that **throw an error** if the last step fails: `publish_github_action`, `create_release`, `deployed_action`, `create_tag`. This lets the workflow fail the job when the action does not succeed.
 
 ---
 
@@ -84,7 +82,6 @@ All AI features go through **OpenCode** (one server URL + model). You can use 75
 | **Check progress** | Single action `check_progress_action` | ProgressDetector agent compares issue description vs branch diff and reports a percentage and summary. |
 | **Think / reasoning** | Single action `think_action` | Deep code analysis and change proposals. |
 | **AI PR description** | Pull request pipeline | Generates or updates PR description from issue and diff. |
-| **Vector / AI cache** | Single actions `ai_cache_action`, `ai_cache_local_action` | Codebase analysis and embedding generation for semantic search. |
 | **Copilot** | Used internally by other flows | Code analysis and manipulation agent. |
 | **Error detection** | Can be used in analysis flows | Detects potential bugs and issues in the codebase. |
 
@@ -96,7 +93,6 @@ Configuration: `opencode-server-url`, `opencode-model`, and optionally `opencode
 
 - **Commit prefix transforms**: `commit-prefix-transforms` defines how branch names are turned into commit prefixes (e.g. `replace-slash`, `kebab-case`). Used for validation and comments.
 - **Issue types**: Configurable issue type names, descriptions, and colors (Task, Bug, Feature, Documentation, Maintenance, Hotfix, Release, Question, Help).
-- **Supabase** (optional): `supabase-url` and `supabase-key` for optional backend features.
 - **Debug**: Set `debug: true` for verbose logging.
 
 For full input reference, see [Configuration](/configuration).

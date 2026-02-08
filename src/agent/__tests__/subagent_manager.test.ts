@@ -17,8 +17,7 @@ describe('SubAgentManager', () => {
     // Create a real Agent instance for testing
     mockParentAgent = new Agent({
       model: 'test-model',
-      serverUrl: 'http://localhost:4096',
-      enableMCP: false
+      serverUrl: 'http://localhost:4096'
     }) as any;
 
     // Mock the methods we need
@@ -218,7 +217,6 @@ describe('SubAgentManager', () => {
       (mockParentAgent as any).options = {
         model: 'test-model',
         serverUrl: 'http://localhost:4096',
-        enableMCP: false
       };
       
       const agent = manager.createSubAgent({ name: 'test-agent' });
@@ -234,7 +232,6 @@ describe('SubAgentManager', () => {
       (mockParentAgent as any).options = {
         model: 'test-model',
         serverUrl: 'http://localhost:4096',
-        enableMCP: false
       };
       
       manager.createSubAgent({ name: 'test-agent' });
@@ -251,7 +248,6 @@ describe('SubAgentManager', () => {
       (mockParentAgent as any).options = {
         model: 'test-model',
         serverUrl: 'http://localhost:4096',
-        enableMCP: false
       };
       
       manager.createSubAgent({ name: 'agent1' });

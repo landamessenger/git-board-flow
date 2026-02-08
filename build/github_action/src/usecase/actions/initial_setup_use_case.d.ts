@@ -7,5 +7,4 @@ export declare class InitialSetupUseCase implements ParamUseCase<Execution, Resu
     private verifyGitHubAccess;
     private ensureLabels;
     private ensureIssueTypes;
-    private verifyAndSetupSupabase;
 }

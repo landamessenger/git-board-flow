@@ -16,7 +16,6 @@ import { Release } from '../data/model/release';
 import { SingleAction } from '../data/model/single_action';
 import { SizeThreshold } from '../data/model/size_threshold';
 import { SizeThresholds } from '../data/model/size_thresholds';
-import { SupabaseConfig } from '../data/model/supabase_config';
 import { Tokens } from '../data/model/tokens';
 import { Welcome } from '../data/model/welcome';
 import { Workflows } from '../data/model/workflows';
@@ -450,16 +449,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     const pullRequestDesiredReviewersCount = parseInt(additionalParams[INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT] ?? actionInputs[INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT]) ?? 0;
     const pullRequestMergeTimeout = parseInt(additionalParams[INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT] ?? actionInputs[INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT]) ?? 0;
 
-    /**
-     * Supabase
-     */
-    const supabaseUrl = additionalParams[INPUT_KEYS.SUPABASE_URL] ?? actionInputs[INPUT_KEYS.SUPABASE_URL];
-    const supabaseKey = additionalParams[INPUT_KEYS.SUPABASE_KEY] ?? actionInputs[INPUT_KEYS.SUPABASE_KEY];
-    let supabaseConfig: SupabaseConfig | undefined = undefined;
-    if (supabaseUrl.length > 0 && supabaseKey.length > 0) {
-        supabaseConfig = new SupabaseConfig(supabaseUrl, supabaseKey);
-    }
-
     const execution = new Execution(
         debug,
         new SingleAction(
@@ -635,7 +624,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             projectColumnIssueInProgress,
             projectColumnPullRequestInProgress,
         ),
-        supabaseConfig,
         new Welcome(welcomeTitle, welcomeMessages),
         additionalParams,
     )

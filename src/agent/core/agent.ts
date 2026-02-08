@@ -11,8 +11,6 @@ import { ToolExecutor } from '../tools/tool_executor';
 import { BaseTool } from '../tools/base_tool';
 import { AgentOptions, AgentResult, Message } from '../types';
 import { SessionManager, SessionData } from './session_manager';
-import { MCPManager } from '../mcp/mcp_manager';
-import { MCPServerConfig } from '../mcp/types';
 import { SubAgentManager, SubAgentOptions, Task } from './subagent_manager';
 import { logInfo } from '../../utils/logger';
 
@@ -22,7 +20,6 @@ export class Agent {
   private toolExecutor: ToolExecutor;
   private reasoningLoop: ReasoningLoop | null = null;
   private sessionManager: SessionManager;
-  private mcpManager?: MCPManager;
   private subAgentManager?: SubAgentManager;
   private sessionId: string;
 
@@ -56,12 +53,6 @@ export class Agent {
     // Add system prompt if provided
     if (options.systemPrompt) {
       this.messageManager.addSystemMessage(options.systemPrompt);
-    }
-
-    // Initialize MCP if enabled
-    if (options.enableMCP !== false) {
-      this.mcpManager = new MCPManager(this.toolRegistry);
-      // MCP initialization is async, so we'll do it lazily or via initializeMCP()
     }
   }
 
@@ -246,47 +237,6 @@ export class Agent {
    */
   setSystemPrompt(prompt: string): void {
     this.messageManager.addSystemMessage(prompt);
-  }
-
-  /**
-   * Initialize MCP connections
-   */
-  async initializeMCP(configPath?: string): Promise<void> {
-    if (!this.mcpManager) {
-      this.mcpManager = new MCPManager(this.toolRegistry);
-    }
-    await this.mcpManager.initialize(configPath);
-  }
-
-  /**
-   * Connect to an MCP server
-   */
-  async connectMCPServer(config: MCPServerConfig): Promise<void> {
-    if (!this.mcpManager) {
-      this.mcpManager = new MCPManager(this.toolRegistry);
-    }
-    await this.mcpManager.connectServer(config);
-  }
-
-  /**
-   * Get MCP manager
-   */
-  getMCPManager(): MCPManager | undefined {
-    return this.mcpManager;
-  }
-
-  /**
-   * Check if MCP server is connected
-   */
-  isMCPConnected(serverName: string): boolean {
-    return this.mcpManager?.isConnected(serverName) || false;
-  }
-
-  /**
-   * Get connected MCP servers
-   */
-  getConnectedMCPServers(): string[] {
-    return this.mcpManager?.getConnectedServers() || [];
   }
 
   /**

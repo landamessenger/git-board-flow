@@ -73,7 +73,6 @@ export class AgentInitializer {
       systemPrompt,
       tools,
       maxTurns: options.maxTurns || 20,
-      enableMCP: false
     };
 
     const agent = new Agent(agentOptions);

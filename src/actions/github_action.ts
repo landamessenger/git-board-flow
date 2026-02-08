@@ -26,7 +26,6 @@ import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
 import { logError } from '../utils/logger';
 import { startOpencodeServer, type ManagedOpencodeServer } from '../utils/opencode_server';
 import { mainRun } from './common_action';
-import { SupabaseConfig } from '../data/model/supabase_config';
 
 export async function runGitHubAction(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -452,16 +451,6 @@ export async function runGitHubAction(): Promise<void> {
     const pullRequestDesiredReviewersCount = parseInt(getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)) ?? 0;
     const pullRequestMergeTimeout = parseInt(getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)) ?? 0;
 
-    /**
-     * Supabase
-     */
-    const supabaseUrl = getInput(INPUT_KEYS.SUPABASE_URL);
-    const supabaseKey = getInput(INPUT_KEYS.SUPABASE_KEY);
-    let supabaseConfig: SupabaseConfig | undefined = undefined;
-    if (supabaseUrl.length > 0 && supabaseKey.length > 0) {
-        supabaseConfig = new SupabaseConfig(supabaseUrl, supabaseKey);
-    }
-
     const execution = new Execution(
         debug,
         new SingleAction(
@@ -635,7 +624,6 @@ export async function runGitHubAction(): Promise<void> {
             projectColumnIssueInProgress,
             projectColumnPullRequestInProgress,
         ),
-        supabaseConfig,
         undefined,
         undefined,
     )

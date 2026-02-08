@@ -57,8 +57,7 @@ export class SubAgentManager {
       // This shouldn't happen in practice, but helps with testing
       const fallbackOptions: AgentOptions = {
         model: 'unknown',
-        serverUrl: 'http://localhost:4096',
-        enableMCP: false
+        serverUrl: 'http://localhost:4096'
       };
       return this.createSubAgentWithOptions(options, fallbackOptions);
     }
@@ -78,8 +77,7 @@ export class SubAgentManager {
       maxTurns: options.maxTurns || parentOptions.maxTurns || 10,
       maxTokens: options.maxTokens || parentOptions.maxTokens,
       temperature: options.temperature || parentOptions.temperature,
-      tools: [],
-      enableMCP: false // Subagents don't initialize MCP by default
+      tools: []
     };
 
     // Inherit tools if requested

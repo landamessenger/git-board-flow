@@ -177,16 +177,12 @@ export declare const INPUT_KEYS: {
     readonly PULL_REQUEST_DESIRED_ASSIGNEES_COUNT: "desired-assignees-count";
     readonly PULL_REQUEST_DESIRED_REVIEWERS_COUNT: "desired-reviewers-count";
     readonly PULL_REQUEST_MERGE_TIMEOUT: "merge-timeout";
-    readonly SUPABASE_URL: "supabase-url";
-    readonly SUPABASE_KEY: "supabase-key";
 };
 export declare const ERRORS: {
     readonly GIT_REPOSITORY_NOT_FOUND: "❌ Git repository not found";
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
-    readonly AI_CACHE: "ai_cache_action";
-    readonly AI_CACHE_LOCAL: "ai_cache_local_action";
     readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";
@@ -194,6 +190,4 @@ export declare const ACTIONS: {
     readonly INITIAL_SETUP: "initial_setup";
     readonly CHECK_PROGRESS: "check_progress_action";
 };
-export declare const PROMPTS: {
-    readonly CODE_BASE_ANALYSIS: "\nYou are a technical code analysis assistant.\n\nYour task is to analyze the content of the following source code file in depth.\n\nProvide a precise and highly technical explanation of what the code does, including:\n- Its main purpose and functionality.\n- A breakdown of the logic and flow (step by step or module by module).\n- How each class, function, or major block interacts with the rest.\n- The technologies, frameworks, or libraries it uses and how.\n- Any relevant algorithms, patterns, or data structures implemented.\n- Potential edge cases, performance considerations, or hidden behaviors.\n- Dependencies and external integrations (APIs, services, databases, etc.).\n- Any implicit assumptions or limitations found in the implementation.\n\nFocus exclusively on *accurate technical analysis and understanding*, not on summarizing in simple language.\n\nDo not propose improvements, changes, or fixes in this stage — your only goal is to explain exactly what the code does and how it works.\n    ";
-};
+export declare const PROMPTS: {};

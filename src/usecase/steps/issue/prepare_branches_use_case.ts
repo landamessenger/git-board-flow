@@ -2,7 +2,6 @@ import * as core from "@actions/core";
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { BranchRepository } from "../../../data/repository/branch_repository";
-import { SupabaseRepository } from "../../../data/repository/supabase_repository";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
 import { CommitPrefixBuilderUseCase } from "../common/execute_script_use_case";
@@ -15,11 +14,6 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
-
-        let supabaseRepository: SupabaseRepository | undefined = undefined;
-        if (param.supabaseConfig) {
-            supabaseRepository = new SupabaseRepository(param.supabaseConfig);
-        }
 
         const result: Result[] = []
         try {
@@ -101,15 +95,6 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                 })
                             )
                             logDebugInfo(`Hotfix branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
-
-                            result.push(
-                                ...await this.duplicateAICacheByBranch(
-                                    supabaseRepository,
-                                    param,
-                                    param.branches.main,
-                                    param.hotfix.branch,
-                                )
-                            );
                         }
                     } else {
                         result.push(
@@ -210,15 +195,6 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                                 })
                             )
                             logDebugInfo(`Release branch successfully linked to issue: ${JSON.stringify(linkResult)}`);
-
-                            result.push(
-                                ...await this.duplicateAICacheByBranch(
-                                    supabaseRepository,
-                                    param,
-                                    param.branches.development,
-                                    param.release.branch,
-                                )
-                            );
                         }
                     } else {
                         result.push(
@@ -338,15 +314,6 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                     )
                 }
 
-                result.push(
-                    ...await this.duplicateAICacheByBranch(
-                        supabaseRepository,
-                        param,
-                        param.branches.development,
-                        lastAction.payload.newBranchName,
-                    )
-                );
-
                 await new Promise(resolve => setTimeout(resolve, 10000));
                 result.push(...await new MoveIssueToInProgressUseCase().invoke(param));
             }
@@ -363,42 +330,6 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                         `Tried to prepare the hotfix branch to the issue, but there was a problem.`,
                     ],
                     error: error,
-                })
-            )
-        }
-        return result;
-    }
-
-    private duplicateAICacheByBranch = async (supabaseRepository: SupabaseRepository | undefined, param: Execution, sourceBranch: string, targetBranch: string) => {
-        const result: Result[] = []
-        if (!supabaseRepository) {
-            return result;
-        }
-        try {
-            await supabaseRepository.duplicateAIFileCacheByBranch(param.owner, param.repo, sourceBranch, targetBranch);
-            result.push(
-                new Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `AI index was duplicated from \`${sourceBranch}\` to \`${targetBranch}\`.`,
-                    ]
-                })
-            )
-        } catch (error) {
-            logError(`Error duplicating AI cache: ${JSON.stringify(error, null, 2)}`);
-            result.push(
-                new Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `There was an error duplicating the AI index from \`${sourceBranch}\` to \`${targetBranch}\`.`,
-                    ],
-                    errors: [
-                        JSON.stringify(error, null, 2),
-                    ],
                 })
             )
         }

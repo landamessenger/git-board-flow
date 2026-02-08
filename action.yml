@@ -387,12 +387,6 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
-  supabase-key:
-    description: "Supabase key for AI operations."
-    default: ""
-  supabase-url:
-    description: "Supabase URL for AI operations."
-    default: ""
   opencode-server-url:
     description: "OpenCode server URL for AI operations (e.g. http://localhost:4096). OpenCode supports 75+ LLM providers."
     default: "http://localhost:4096"

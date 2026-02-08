@@ -2,7 +2,6 @@ import { Execution } from "../data/model/execution";
 import { Result } from "../data/model/result";
 import { logDebugInfo, logError, logInfo } from "../utils/logger";
 import { DeployedActionUseCase } from "./actions/deployed_action_use_case";
-import { VectorActionUseCase } from "./actions/vector_action_use_case";
 import { ParamUseCase } from "./base/param_usecase";
 import { PublishGithubActionUseCase } from "./actions/publish_github_action_use_case";
 import { CreateReleaseUseCase } from "./actions/create_release_use_case";
@@ -24,9 +23,7 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (param.singleAction.isAiCacheAction) {
-                results.push(...await new VectorActionUseCase().invoke(param));
-            } else if (param.singleAction.isDeployedAction) {
+            if (param.singleAction.isDeployedAction) {
                 results.push(...await new DeployedActionUseCase().invoke(param));
             } else if (param.singleAction.isPublishGithubAction) {
                 results.push(...await new PublishGithubActionUseCase().invoke(param));

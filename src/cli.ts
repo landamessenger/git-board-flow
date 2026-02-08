@@ -8,7 +8,6 @@ import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
 import { logInfo } from './utils/logger';
 import { registerAgentTestCommands } from './agent_tester_commands';
-import { registerMCPTestCommands } from './mcp_tester_commands';
 import { registerSubAgentTestCommands } from './sub_agent_tester_commands';
 import { registerTECTestCommands } from './tec_tester_commands';
 import { Copilot, CopilotOptions } from './agent/reasoning/copilot';
@@ -34,54 +33,6 @@ function getGitInfo() {
     return { error: ERRORS.GIT_REPOSITORY_NOT_FOUND };
   }
 }
-
-program
-  .command('build-ai')
-  .description(`${TITLE} - Build AI container and execute AI cache indexing`)
-  .option('-d, --debug', 'Debug mode', false)
-  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('-b, --branch <name>', 'Branch name')
-  .action(async (options) => {    
-    const gitInfo = getGitInfo();
-    
-    if ('error' in gitInfo) {
-      console.log(gitInfo.error);
-      return;
-    }
-    const branch = options.branch;
-  
-    const params: any = {
-      [INPUT_KEYS.DEBUG]: options.debug.toString(),
-      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.AI_CACHE_LOCAL,
-      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
-      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
-      [INPUT_KEYS.OPENCODE_SERVER_URL]: process.env.OPENCODE_SERVER_URL,
-      [INPUT_KEYS.OPENCODE_MODEL]: process.env.OPENCODE_MODEL,
-      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
-      repo: {
-        owner: gitInfo.owner,
-        repo: gitInfo.repo,
-      },
-      issue: {
-        number: 1,
-      },
-    };
-
-    if (branch && branch.length > 0) {
-      params.commits = {
-        ref: `refs/heads/${branch}`,
-      };
-    }
-
-    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Cache Indexing';
-    params[INPUT_KEYS.WELCOME_MESSAGES] = [
-      `Indexing AI cache for ${gitInfo.owner}/${gitInfo.repo}...`,
-    ];
-
-    await runLocalAction(params);
-  });
 
 /**
  * Run the thinking AI scenario for deep code analysis and proposals.
@@ -128,8 +79,6 @@ program
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.THINK,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber) || 1,
-      [INPUT_KEYS.SUPABASE_URL]: options?.supabaseUrl?.length > 0 ? options.supabaseUrl : process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: options?.supabaseKey?.length > 0 ? options.supabaseKey : process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options?.token?.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.OPENCODE_SERVER_URL]: options?.opencodeServerUrl?.length > 0 ? options.opencodeServerUrl : process.env.OPENCODE_SERVER_URL,
       [INPUT_KEYS.OPENCODE_MODEL]: options?.opencodeModel?.length > 0 ? options.opencodeModel : process.env.OPENCODE_MODEL,
@@ -353,8 +302,6 @@ program
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.CHECK_PROGRESS,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parsedIssueNumber,
-      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
       [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
@@ -403,8 +350,6 @@ program
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.INITIAL_SETUP,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
-      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       repo: {
         owner: gitInfo.owner,
@@ -418,7 +363,7 @@ program
     params[INPUT_KEYS.WELCOME_TITLE] = '⚙️  Initial Setup';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [
       `Running initial setup for ${gitInfo.owner}/${gitInfo.repo}...`,
-      'This will create labels, issue types, and verify access to GitHub and Supabase.',
+      'This will create labels, issue types, and verify access to GitHub.',
     ];
 
     await runLocalAction(params);
@@ -426,7 +371,6 @@ program
 
 // Register agent test commands
 registerAgentTestCommands(program);
-registerMCPTestCommands(program);
 registerSubAgentTestCommands(program);
 registerTECTestCommands(program);
 
