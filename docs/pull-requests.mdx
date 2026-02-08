@@ -1,0 +1,46 @@
+---
+title: Pull Requests
+description: How Git Board Flow handles pull requests
+---
+
+# Pull Request Management
+
+When your workflow runs on `pull_request` events (e.g. opened, edited, labeled, unlabeled), Git Board Flow can:
+
+- **Link the PR to the issue** associated with its branch and post a comment.
+- **Add the PR to GitHub Projects** (using `project-ids`) and move it to the configured column.
+- **Assign reviewers** (up to `desired-reviewers-count`).
+- **Apply priority and size checks** (labels and thresholds).
+- **Generate or update the PR description** with AI when `ai-pull-request-description` is true and OpenCode is configured.
+- **Post comments with optional images** per branch type (feature, bugfix, docs, chore, hotfix, release).
+
+## Example workflow
+
+```yaml
+name: Git Board Flow - Pull Request
+
+on:
+  pull_request:
+    types: [opened, edited, labeled, unlabeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  git-board-flow-pull-requests:
+    name: Git Board Flow - Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Git Board Flow - Pull Request
+        uses: landamessenger/git-board-flow@master
+        with:
+          token: ${{ secrets.PAT }}
+          project-ids: '2,3'
+          commit-prefix-transforms: 'replace-slash'
+```
+
+For all options, see [Configuration](/configuration) and [Features & Capabilities](/features).

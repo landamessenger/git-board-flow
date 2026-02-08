@@ -23,9 +23,10 @@ import { ProjectRepository } from '../data/repository/project_repository';
 import { PublishResultUseCase } from '../usecase/steps/common/publish_resume_use_case';
 import { StoreConfigurationUseCase } from '../usecase/steps/common/store_configuration_use_case';
 import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
+import { logError } from '../utils/logger';
+import { startOpencodeServer, type ManagedOpencodeServer } from '../utils/opencode_server';
 import { mainRun } from './common_action';
 import { SupabaseConfig } from '../data/model/supabase_config';
-import { logError } from '../utils/logger';
 
 export async function runGitHubAction(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -52,8 +53,17 @@ export async function runGitHubAction(): Promise<void> {
     /**
      * AI (OpenCode)
      */
-    const opencodeServerUrl = getInput(INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://localhost:4096';
+    let opencodeServerUrl = getInput(INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://localhost:4096';
     const opencodeModel = getInput(INPUT_KEYS.OPENCODE_MODEL) || 'openai/gpt-4o-mini';
+    const opencodeStartServer = getInput(INPUT_KEYS.OPENCODE_START_SERVER) === 'true';
+
+    let managedOpencodeServer: ManagedOpencodeServer | undefined;
+    if (opencodeStartServer) {
+        managedOpencodeServer = await startOpencodeServer({ cwd: process.cwd() });
+        opencodeServerUrl = managedOpencodeServer.url;
+    }
+
+    try {
     const aiPullRequestDescription = getInput(INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION) === 'true';
     const aiMembersOnly = getInput(INPUT_KEYS.AI_MEMBERS_ONLY) === 'true';
     const aiIncludeReasoning = getInput(INPUT_KEYS.AI_INCLUDE_REASONING) === 'true';
@@ -633,6 +643,9 @@ export async function runGitHubAction(): Promise<void> {
     const results: Result[] = await mainRun(execution);
 
     await finishWithResults(execution, results);
+    } finally {
+        if (managedOpencodeServer) await managedOpencodeServer.stop();
+    }
 }
 
 async function finishWithResults(execution: Execution, results: Result[]): Promise<void> {

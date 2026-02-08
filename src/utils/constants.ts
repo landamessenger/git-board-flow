@@ -210,6 +210,7 @@ export const INPUT_KEYS = {
     // AI (OpenCode)
     OPENCODE_SERVER_URL: 'opencode-server-url',
     OPENCODE_MODEL: 'opencode-model',
+    OPENCODE_START_SERVER: 'opencode-start-server',
     AI_PULL_REQUEST_DESCRIPTION: 'ai-pull-request-description',
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',

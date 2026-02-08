@@ -13,8 +13,9 @@ Git Board Flow provides extensive configuration options to customize your workfl
 
 ## AI (OpenCode)
 
-- `opencode-server-url`: OpenCode server URL for AI operations (default: "http://localhost:4096"). See [OpenCode Integration](opencode-integration.md).
+- `opencode-server-url`: OpenCode server URL for AI operations (default: "http://localhost:4096"). See [OpenCode (AI)](/opencode-integration).
 - `opencode-model`: Model in provider/model format, e.g. `openai/gpt-4o-mini` or `anthropic/claude-3-5-sonnet` (default: "openai/gpt-4o-mini")
+- `opencode-start-server`: If true, the action starts an OpenCode server at job start and stops it at job end; no separate install needed (default: "false")
 
 ## Branch Management
 
@@ -76,14 +77,14 @@ Default thresholds:
 
 ## Project Integration
 
-- `project-urls`: Comma-separated list of GitHub Project URLs to link issues and PRs
+- `project-ids`: Comma-separated list of GitHub Project IDs to link issues and PRs
 - `desired-assignees-count`: Number of assignees for issues/PRs (default: 1, max: 10)
 - `desired-reviewers-count`: Number of reviewers for PRs (default: 1, max: 15)
 
 ## Customization
 
 - `emoji-labeled-title`: Enable emoji titles based on labels (default: "true")
-- `commit-prefix-builder`: Custom commit prefix generation logic
+- `commit-prefix-transforms`: Comma-separated list of transforms for commit prefix from branch name (e.g. "replace-slash", "kebab-case"). See README for full list.
 - `reopen-issue-on-push`: Reopen closed issues on new commits (default: "true")
 - `merge-timeout`: Timeout for merge operations in seconds (default: 600)
 
@@ -94,8 +95,11 @@ Default thresholds:
 
 ## Single Actions
 
-- `single-action`: Launch single actions
-- `single-action-issue`: Issue target for executing single action
+- `single-action`: Single action to run (e.g. `check_progress_action`, `think_action`, `create_release`). See [Single Actions](/single-actions).
+- `single-action-issue`: Issue number for actions that require one (e.g. `check_progress_action`, `deployed_action`)
+- `single-action-version`: Version for `create_release` or `create_tag`
+- `single-action-title`: Title for `create_release`
+- `single-action-changelog`: Changelog body for `create_release`
 
 ## Image Configuration
 

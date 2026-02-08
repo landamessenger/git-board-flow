@@ -1,0 +1,131 @@
+---
+title: OpenCode (AI)
+description: Configure OpenCode for all AI features in Git Board Flow
+---
+
+# OpenCode Integration
+
+Git Board Flow uses **OpenCode** for all AI-backed features: code analysis, progress detection, error detection, PR descriptions, and the copilot agent. OpenRouter has been removed in favor of OpenCode.
+
+## Why OpenCode
+
+- **Multi-provider**: OpenCode supports 75+ LLM providers (Anthropic, OpenAI, Gemini, local models via Ollama, etc.), so you can switch between paid and free models without changing code.
+- **Single backend**: One server (OpenCode) handles API keys and model routing; this action only needs the server URL and model name.
+- **Consistent API**: The same configuration works for GitHub Actions and local CLI.
+
+## Requirements
+
+1. **OpenCode server** must be running and reachable (e.g. `http://localhost:4096` or your deployed URL).
+2. **Model** in `provider/model` format (e.g. `openai/gpt-4o-mini`, `anthropic/claude-3-5-sonnet`).
+3. **API keys** are configured on the OpenCode server (not in this action). Use OpenCode's auth/config to add provider keys.
+
+## Configuration
+
+### GitHub Action inputs
+
+| Input | Description | Default |
+|-------|-------------|--------|
+| `opencode-server-url` | OpenCode server URL | `http://localhost:4096` |
+| `opencode-model` | Model in `provider/model` format | `openai/gpt-4o-mini` |
+| `opencode-start-server` | If `true`, the action starts an OpenCode server at the beginning of the job and stops it when the job ends. No need to install or run OpenCode yourself. Requires provider API keys (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) as GitHub secrets. | `false` |
+
+Example (using your own OpenCode server):
+
+```yaml
+- uses: landamessenger/git-board-flow@master
+  with:
+    opencode-server-url: 'http://your-opencode-host:4096'
+    opencode-model: 'anthropic/claude-3-5-sonnet'
+```
+
+Example (action starts and stops OpenCode for you; no separate server needed):
+
+```yaml
+- uses: landamessenger/git-board-flow@master
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  with:
+    opencode-start-server: true
+    opencode-model: 'openai/gpt-4o-mini'
+```
+
+### Environment variables (CLI / local)
+
+- `OPENCODE_SERVER_URL` – OpenCode server URL.
+- `OPENCODE_MODEL` – Model in `provider/model` format.
+
+### CLI options
+
+- `--opencode-server-url <url>` – Override OpenCode server URL.
+- `--opencode-model <model>` – Override model.
+
+## Running OpenCode
+
+1. **GitHub Actions – managed server (easiest)**: Set `opencode-start-server: true`. The action will start an OpenCode server at the beginning of the job (`npx opencode-ai serve` on port 4096), wait until it is healthy, run the rest of the job using that server, and stop the server when the job ends. You do not need to install or run OpenCode yourself. Pass provider API keys via env (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) as GitHub secrets.
+
+2. **Local / self-hosted**: Install OpenCode and run the server, e.g.:
+   ```bash
+   npx opencode-ai serve
+   # or
+   opencode serve --port 4096
+   ```
+3. **CI with your own server**: Run OpenCode in a job (e.g. in a container or as a service) and set `opencode-server-url`, or point `opencode-server-url` to a shared OpenCode instance your org hosts.
+
+## Features using OpenCode
+
+- **AI pull request description** – Generates PR descriptions from issue and diff.
+- **Think / reasoning** – Deep code analysis and change proposals.
+- **Check progress** – Progress detection from branch vs issue description.
+- **Vector / AI knowledge** – Codebase analysis and indexing.
+- **Copilot** – Code analysis and manipulation agent.
+- **Error detection** – Potential bugs and issues in the codebase.
+
+All of these use the same OpenCode server and model configuration.
+
+## How "check progress" works (e.g. "Progress 30%" in the issue)
+
+When the GitHub Action runs with `single-action: check_progress_action` and `single-action-issue: <number>` (or the CLI `check-progress -i <number>`), the issue gets a comment like "Progress: 30%" as follows:
+
+1. **Trigger** – The workflow runs the action with the single action set to check progress and the target issue number.
+
+2. **Data gathering** – The action reads the **issue description** (objectives of the feature/bugfix), finds the **branch** linked to that issue (e.g. `feature/123-title` or `bugfix/123-title`), and gets the **diff** of that branch vs the development branch (e.g. `develop`).
+
+3. **AI analysis (OpenCode)** – A **ProgressDetector** agent runs against your OpenCode server. It receives the issue description, list of changed files, and (when used) file contents. The agent compares what was requested in the issue vs what is implemented in the diff and calls the **report_progress** tool once with `progress` (0–100) and `summary` (short explanation).
+
+4. **Result** – The use case returns a `Result` with `steps` (e.g. "Progress for issue #123: 30%", summary) and a payload with progress, summary, issue number, branch, etc.
+
+5. **Comment on the issue** – After `mainRun`, the action runs **PublishResultUseCase**, which builds the comment body from all `result.steps`, numbers them (1., 2., …), and posts the comment on the issue via `issueRepository.addComment(...)`. So the "30%" and the summary come from the OpenCode agent via `report_progress`; the comment is written by **PublishResultUseCase** using those steps.
+
+## Can we avoid `opencode-server-url` and use a "master" OpenCode server?
+
+**Current situation**
+
+- OpenCode is **open-source and self-hosted**: there is no public "master" server or official opencode.ai cloud API for this action to point to by default.
+- The server used by the action is the one **you** (or your org) configure in `opencode-server-url`.
+
+**Options**
+
+1. **Keep `opencode-server-url` (recommended)** – For local/CLI, the default `http://localhost:4096` works without setting a URL. For GitHub Actions you need an OpenCode server reachable from the runner, so you must set the URL (or use an org default via secret).
+
+2. **Shared organization server** – Deploy OpenCode on an internal or cloud server with your provider API keys. In the workflow, pass that host as `opencode-server-url` (e.g. via secret). One "master" server for all repos that use the action.
+
+3. **Managed server inside the job** – The action supports **`opencode-start-server: true`**: it starts OpenCode at the beginning of the job (`npx opencode-ai serve`), waits until it is ready, runs the flow, and stops the server at the end. No need to install or run OpenCode manually; only provider API keys as secrets. Heavier (startup time, first-time download of opencode-ai) but no external server required.
+
+**Summary** – You need **some** OpenCode server (yours or shared). You can use one server for many repos (org "master") and keep the default `http://localhost:4096` for local development while requiring `opencode-server-url` (or an org default) in CI.
+
+## Model format
+
+Use `provider/model` as in OpenCode's config, for example:
+
+- `openai/gpt-4o-mini`
+- `openai/gpt-4o`
+- `anthropic/claude-3-5-sonnet-20241022`
+- `google/gemini-2.0-flash`
+
+Check OpenCode's docs or `/config/providers` on your server for the exact model IDs.
+
+## Troubleshooting
+
+- **"Missing required AI configuration"**: Set `opencode-server-url` and `opencode-model` (or env vars).
+- **Connection errors**: Ensure the OpenCode server is running and reachable from the runner (network/firewall, correct URL and port).
+- **Auth errors**: Configure provider API keys in OpenCode (e.g. via OpenCode UI or config), not in this action.

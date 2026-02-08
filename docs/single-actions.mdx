@@ -1,0 +1,38 @@
+---
+title: Single Actions
+description: Run one-off actions on demand (check progress, think, create release, etc.)
+---
+
+# Single Actions
+
+When you set the `single-action` input (and any required targets such as `single-action-issue` or `single-action-version`), Git Board Flow runs **only** that action and skips the normal issue, pull request, and push pipelines.
+
+## Usage
+
+In your workflow, pass the action name and any required inputs:
+
+```yaml
+- uses: landamessenger/git-board-flow@master
+  with:
+    token: ${{ secrets.PAT }}
+    single-action: check_progress_action
+    single-action-issue: '123'
+```
+
+## Available single actions
+
+| Action | Inputs | Description |
+|--------|--------|-------------|
+| `check_progress_action` | `single-action-issue` | Analyzes branch vs issue description via OpenCode and posts a progress percentage and summary on the issue. |
+| `think_action` | — | Deep code analysis and change proposals (OpenCode). No issue required. |
+| `ai_cache_action` | — | Vector indexing / AI cache update for the codebase. No issue required. |
+| `ai_cache_local_action` | — | Same as `ai_cache_action` for local/self-hosted runners. No issue required. |
+| `initial_setup` | — | Initial setup steps. No issue required. |
+| `create_release` | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release. |
+| `create_tag` | `single-action-version` | Creates a Git tag. |
+| `publish_github_action` | — | Publishes or updates the GitHub Action. |
+| `deployed_action` | `single-action-issue` | Marks the issue as deployed; updates labels and project state. |
+
+Actions that **fail the job** if the last step fails: `ai_cache_action`, `publish_github_action`, `create_release`, `deployed_action`, `create_tag`.
+
+For full details and how each feature works, see [Features & Capabilities](/features).

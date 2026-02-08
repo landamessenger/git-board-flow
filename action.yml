@@ -399,6 +399,9 @@ inputs:
   opencode-model:
     description: "OpenCode model in provider/model format (e.g. openai/gpt-4o-mini, anthropic/claude-3-5-sonnet)."
     default: "openai/gpt-4o-mini"
+  opencode-start-server:
+    description: "If true, the action starts an OpenCode server at the beginning and stops it when the job ends. No need to install or run OpenCode yourself. Requires OPENAI_API_KEY or ANTHROPIC_API_KEY (or other provider keys) as secrets."
+    default: "false"
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
     default: "false"
