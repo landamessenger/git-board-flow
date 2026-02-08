@@ -23,7 +23,7 @@ import { ProjectRepository } from '../data/repository/project_repository';
 import { PublishResultUseCase } from '../usecase/steps/common/publish_resume_use_case';
 import { StoreConfigurationUseCase } from '../usecase/steps/common/store_configuration_use_case';
 import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL } from '../utils/constants';
-import { logError } from '../utils/logger';
+import { logError, logInfo } from '../utils/logger';
 import { startOpencodeServer, type ManagedOpencodeServer } from '../utils/opencode_server';
 import { mainRun } from './common_action';
 
@@ -632,7 +632,11 @@ export async function runGitHubAction(): Promise<void> {
 
     await finishWithResults(execution, results);
     } finally {
-        if (managedOpencodeServer) await managedOpencodeServer.stop();
+        if (managedOpencodeServer) {
+            logInfo('Stopping OpenCode server...');
+            await managedOpencodeServer.stop();
+            logInfo('OpenCode server stopped.');
+        }
     }
 }
 
@@ -640,6 +644,7 @@ async function finishWithResults(execution: Execution, results: Result[]): Promi
     execution.currentConfiguration.results = results;
     await new PublishResultUseCase().invoke(execution)
     await new StoreConfigurationUseCase().invoke(execution)
+    logInfo('Configuration stored. Finishing.');
 
     /**
      * If a single action is executed and the last step failed, throw an error

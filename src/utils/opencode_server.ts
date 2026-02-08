@@ -106,11 +106,23 @@ export async function startOpencodeServer(options?: {
 
 /**
  * Stop the OpenCode server process cleanly.
+ * Destroys stdio pipes first so the child can exit without blocking on write.
  */
 export async function stopOpencodeServer(child: ChildProcess): Promise<void> {
   if (!child.pid) return;
+  logInfo('Stopping OpenCode server process...');
+  const destroyIfPossible = (s: typeof child.stdout) => {
+    if (s && typeof (s as { destroy?: () => void }).destroy === 'function') (s as { destroy: () => void }).destroy();
+  };
+  destroyIfPossible(child.stdout);
+  destroyIfPossible(child.stderr);
   return new Promise((resolve) => {
-    child.once('exit', () => resolve());
+    const onExit = () => {
+      clearTimeout(t);
+      logInfo('OpenCode server process exited.');
+      resolve();
+    };
+    child.once('exit', onExit);
     child.kill('SIGTERM');
     const t = setTimeout(() => {
       try {
@@ -118,8 +130,8 @@ export async function stopOpencodeServer(child: ChildProcess): Promise<void> {
       } catch {
         // ignore
       }
+      logInfo('OpenCode server stop timeout reached (SIGKILL sent).');
       resolve();
     }, 5000);
-    child.once('exit', () => clearTimeout(t));
   });
 }
