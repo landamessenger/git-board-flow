@@ -37,13 +37,13 @@ export function registerAgentTestCommands(program: Command) {
     .command('agent:test-simple')
     .description('Test Agent SDK with a simple prompt (no tools)')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Hello, can you introduce yourself?')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('--max-turns <number>', 'Maximum turns', '5')
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
-        console.error('   Set OPENROUTER_API_KEY environment variable or use --api-key');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
+        console.error('   Set OPENCODE_SERVER_URL environment variable or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -55,7 +55,7 @@ export function registerAgentTestCommands(program: Command) {
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         systemPrompt: 'You are a helpful AI assistant. Be concise and clear.',
         maxTurns: parseInt(options.maxTurns) || 5,
         onTurnComplete: (turn) => {
@@ -92,12 +92,12 @@ export function registerAgentTestCommands(program: Command) {
     .command('agent:test-file')
     .description('Test Agent SDK with file reading tool')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Read the package.json file and tell me what dependencies are used')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('--max-turns <number>', 'Maximum turns', '10')
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -142,7 +142,7 @@ export function registerAgentTestCommands(program: Command) {
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         systemPrompt: 'You are a helpful AI assistant that can read files from a codebase. When asked about files, use the read_file tool to examine them.',
         maxTurns: parseInt(options.maxTurns) || 10,
         tools: [readFileTool],
@@ -183,12 +183,12 @@ export function registerAgentTestCommands(program: Command) {
     .command('agent:test-full')
     .description('Test Agent SDK with all built-in tools (read_file, search_files, propose_change, manage_todos)')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Analyze the codebase structure and create a TODO list for improvements')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('--max-turns <number>', 'Maximum turns', '20')
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -289,7 +289,7 @@ export function registerAgentTestCommands(program: Command) {
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         systemPrompt: `You are an advanced code analysis assistant similar to Claude Code. You have access to tools to:
 - Read files from the repository
 - Search for files by name or content
@@ -353,11 +353,11 @@ Use these tools systematically to analyze code and propose improvements.`,
     .command('agent:test-streaming')
     .description('Test Agent SDK with streaming enabled')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Tell me a short story')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -369,7 +369,7 @@ Use these tools systematically to analyze code and propose improvements.`,
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         streaming: true,
         onStreamChunk: (chunk) => {
           process.stdout.write(chunk.content);
@@ -392,11 +392,11 @@ Use these tools systematically to analyze code and propose improvements.`,
     .command('agent:test-permissions')
     .description('Test Agent SDK with tool permissions (blocklist)')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Read README.md and create a TODO')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -454,7 +454,7 @@ Use these tools systematically to analyze code and propose improvements.`,
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         tools: [readFileTool, manageTodosTool],
         toolPermissions: {
           strategy: 'blocklist',
@@ -477,11 +477,11 @@ Use these tools systematically to analyze code and propose improvements.`,
   program
     .command('agent:test-sessions')
     .description('Test Agent SDK with session persistence')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -492,7 +492,7 @@ Use these tools systematically to analyze code and propose improvements.`,
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         persistSession: true
       });
 
@@ -523,11 +523,11 @@ Use these tools systematically to analyze code and propose improvements.`,
     .command('agent:test-metrics')
     .description('Test Agent SDK with metrics tracking')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Explain what AI is in one sentence')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -541,7 +541,7 @@ Use these tools systematically to analyze code and propose improvements.`,
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         trackMetrics: true,
         onMetrics: (metrics) => {
           metricsReceived = true;
@@ -574,12 +574,12 @@ Use these tools systematically to analyze code and propose improvements.`,
     .command('agent:test-budget')
     .description('Test Agent SDK with budget limits')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Count to 10')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('--max-tokens <number>', 'Max tokens budget', '100')
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -592,7 +592,7 @@ Use these tools systematically to analyze code and propose improvements.`,
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         trackMetrics: true,
         budget: {
           maxTokens: parseInt(options.maxTokens),
@@ -618,11 +618,11 @@ Use these tools systematically to analyze code and propose improvements.`,
     .command('agent:test-retry')
     .description('Test Agent SDK with retry logic')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Hello')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -634,7 +634,7 @@ Use these tools systematically to analyze code and propose improvements.`,
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         retry: {
           maxRetries: 3,
           initialDelay: 100,
@@ -656,11 +656,11 @@ Use these tools systematically to analyze code and propose improvements.`,
     .command('agent:test-all-features')
     .description('Test Agent SDK with all advanced features enabled')
     .option('-p, --prompt <prompt>', 'Prompt to send', 'Explain what AI is')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        console.error('❌ Error: OpenRouter API key is required');
+      if (!options.opencodeServerUrl) {
+        console.error('❌ Error: OpenCode server URL is required');
         process.exit(1);
       }
 
@@ -672,7 +672,7 @@ Use these tools systematically to analyze code and propose improvements.`,
 
       const agent = new Agent({
         model: options.model,
-        apiKey: options.apiKey,
+        serverUrl: options.opencodeServerUrl,
         streaming: true,
         persistSession: true,
         trackMetrics: true,

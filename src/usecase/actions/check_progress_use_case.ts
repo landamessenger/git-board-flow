@@ -19,15 +19,15 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
 
         try {
             // Check if AI configuration is available
-            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
-                logError(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`);
+            if (!param.ai || !param.ai.getOpencodeModel() || !param.ai.getOpencodeServerUrl()) {
+                logError(`Missing required AI configuration. Please provide OPENCODE_SERVER_URL and OPENCODE_MODEL.`);
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
                         errors: [
-                            `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                            `Missing required AI configuration. Please provide OPENCODE_SERVER_URL and OPENCODE_MODEL.`,
                         ],
                     })
                 );
@@ -238,8 +238,8 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
             logDebugInfo(`🔑 Token available: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
 
             const detectorOptions: ProgressDetectionOptions = {
-                model: param.ai.getOpenRouterModel(),
-                apiKey: param.ai.getOpenRouterApiKey(),
+                model: param.ai.getOpencodeModel(),
+                serverUrl: param.ai.getOpencodeServerUrl(),
                 personalAccessToken: token,
                 maxTurns: 20,
                 repositoryOwner: param.owner,

@@ -73,7 +73,7 @@ export class AgentInitializer {
     
     const agentOptions: AgentOptions = {
       model: options.model!,
-      apiKey: options.apiKey,
+      serverUrl: options.serverUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
       systemPrompt,
       tools,
       maxTurns: options.maxTurns,

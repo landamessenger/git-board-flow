@@ -10,7 +10,11 @@ Git Board Flow provides extensive configuration options to customize your workfl
 ## Authentication
 
 - `token`: GitHub token for repository operations (required)
-- `openai-api-key`: OpenAI API key for AI operations (optional)
+
+## AI (OpenCode)
+
+- `opencode-server-url`: OpenCode server URL for AI operations (default: "http://localhost:4096"). See [OpenCode Integration](opencode-integration.md).
+- `opencode-model`: Model in provider/model format, e.g. `openai/gpt-4o-mini` or `anthropic/claude-3-5-sonnet` (default: "openai/gpt-4o-mini")
 
 ## Branch Management
 

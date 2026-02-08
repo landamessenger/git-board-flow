@@ -19,7 +19,7 @@ describe('Copilot', () => {
 
   beforeEach(() => {
     mockOptions = {
-      apiKey: 'test-api-key',
+      serverUrl: 'http://localhost:4096',
       model: 'test-model',
       maxTurns: 50,
       repositoryOwner: 'test-owner',
@@ -41,11 +41,11 @@ describe('Copilot', () => {
     });
 
     it('should use default model from environment if not provided', () => {
-      const originalEnv = process.env.OPENROUTER_MODEL;
-      process.env.OPENROUTER_MODEL = 'env-model';
+      const originalEnv = process.env.OPENCODE_MODEL;
+      process.env.OPENCODE_MODEL = 'env-model';
 
       const options: CopilotOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       copilot = new Copilot(options);
@@ -53,15 +53,15 @@ describe('Copilot', () => {
       expect(copilot).toBeDefined();
       
       if (originalEnv) {
-        process.env.OPENROUTER_MODEL = originalEnv;
+        process.env.OPENCODE_MODEL = originalEnv;
       } else {
-        delete process.env.OPENROUTER_MODEL;
+        delete process.env.OPENCODE_MODEL;
       }
     });
 
     it('should set default maxTurns if not provided', () => {
       const options: CopilotOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       copilot = new Copilot(options);
@@ -71,7 +71,7 @@ describe('Copilot', () => {
 
     it('should set default workingDirectory to current directory if not provided', () => {
       const options: CopilotOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       copilot = new Copilot(options);
@@ -82,7 +82,7 @@ describe('Copilot', () => {
 
     it('should use provided workingDirectory', () => {
       const options: CopilotOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         workingDirectory: 'custom_dir'
       };
 
@@ -762,7 +762,7 @@ describe('Copilot', () => {
 
       // useSubAgents is undefined (default should be true)
       const options: CopilotOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo'
       };

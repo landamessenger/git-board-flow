@@ -17,7 +17,7 @@ describe('SubAgentManager', () => {
     // Create a real Agent instance for testing
     mockParentAgent = new Agent({
       model: 'test-model',
-      apiKey: 'test-key',
+      serverUrl: 'http://localhost:4096',
       enableMCP: false
     }) as any;
 
@@ -217,7 +217,7 @@ describe('SubAgentManager', () => {
       // Ensure parent agent has options accessible
       (mockParentAgent as any).options = {
         model: 'test-model',
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         enableMCP: false
       };
       
@@ -233,7 +233,7 @@ describe('SubAgentManager', () => {
       // Ensure parent agent has options accessible
       (mockParentAgent as any).options = {
         model: 'test-model',
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         enableMCP: false
       };
       
@@ -250,7 +250,7 @@ describe('SubAgentManager', () => {
       // Ensure parent agent has options accessible
       (mockParentAgent as any).options = {
         model: 'test-model',
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         enableMCP: false
       };
       

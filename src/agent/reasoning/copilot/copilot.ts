@@ -26,8 +26,8 @@ export class Copilot {
 
   constructor(options: CopilotOptions) {
     this.options = {
-      model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
-      apiKey: options.apiKey,
+      model: options.model || process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini',
+      serverUrl: options.serverUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
       personalAccessToken: options.personalAccessToken,
       maxTurns: options.maxTurns || 50,
       repositoryOwner: options.repositoryOwner,
@@ -43,7 +43,7 @@ export class Copilot {
     if (this.options.useIntentClassifier) {
       this.intentClassifier = new IntentClassifier({
         model: this.options.model,
-        apiKey: this.options.apiKey,
+        serverUrl: this.options.serverUrl,
         maxTurns: 5
       });
     }

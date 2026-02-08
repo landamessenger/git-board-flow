@@ -87,13 +87,13 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             }
 
-            if (param.ai.getOpenRouterModel().length === 0 || param.ai.getOpenRouterApiKey().length === 0) {
+            if (param.ai.getOpencodeModel().length === 0 || param.ai.getOpencodeServerUrl().length === 0) {
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: false,
-                        errors: ['OpenRouter model or API key not found.'],
+                        errors: ['OpenCode server URL or model not found.'],
                     })
                 );
                 return results;

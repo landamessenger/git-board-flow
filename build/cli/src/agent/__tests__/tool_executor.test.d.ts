@@ -1,4 +1,0 @@
-/**
- * Tests for ToolExecutor
- */
-export {};

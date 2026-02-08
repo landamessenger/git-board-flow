@@ -64,8 +64,8 @@ describe('VectorActionUseCase - Orphaned Branch Detection', () => {
         },
       },
       ai: {
-        getOpenRouterModel: () => 'test-model',
-        getOpenRouterApiKey: () => 'test-api-key',
+        getOpencodeModel: () => 'test-model',
+        getOpencodeServerUrl: () => 'http://localhost:4096',
         getAiIgnoreFiles: () => [],
       },
     } as any;
@@ -486,8 +486,8 @@ describe('VectorActionUseCase - Orphaned Branch Detection', () => {
       const executionWithoutModel = {
         ...mockExecution,
         ai: {
-          getOpenRouterModel: () => undefined,
-          getOpenRouterApiKey: () => 'test-key',
+          getOpencodeModel: () => undefined,
+          getOpencodeServerUrl: () => 'http://localhost:4096',
           getAiIgnoreFiles: () => [],
         },
       } as any;
@@ -503,8 +503,8 @@ describe('VectorActionUseCase - Orphaned Branch Detection', () => {
       const executionWithoutKey = {
         ...mockExecution,
         ai: {
-          getOpenRouterModel: () => 'test-model',
-          getOpenRouterApiKey: () => undefined,
+          getOpencodeModel: () => 'test-model',
+          getOpencodeServerUrl: () => undefined,
           getAiIgnoreFiles: () => [],
         },
       } as any;

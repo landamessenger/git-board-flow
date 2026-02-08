@@ -18,8 +18,8 @@ export class ProgressDetector {
 
   constructor(options: ProgressDetectionOptions) {
     this.options = {
-      model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
-      apiKey: options.apiKey,
+      model: options.model || process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini',
+      serverUrl: options.serverUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
       personalAccessToken: options.personalAccessToken,
       maxTurns: options.maxTurns || 20,
       repositoryOwner: options.repositoryOwner,

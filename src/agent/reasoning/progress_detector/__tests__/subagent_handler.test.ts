@@ -24,7 +24,7 @@ describe('SubagentHandler', () => {
     }
 
     mockOptions = {
-      apiKey: 'test-api-key',
+      serverUrl: 'http://localhost:4096',
       model: 'test-model',
       issueNumber: 123,
       issueDescription: 'Test task',

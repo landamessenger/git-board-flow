@@ -31,8 +31,8 @@ export class Agent {
     if (!options.model) {
       throw new Error('Model is required');
     }
-    if (!options.apiKey) {
-      throw new Error('API key is required');
+    if (!options.serverUrl) {
+      throw new Error('OpenCode server URL is required');
     }
 
     // Initialize components

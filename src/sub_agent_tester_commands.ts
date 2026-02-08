@@ -18,14 +18,14 @@ export function registerSubAgentTestCommands(program: Command) {
   program
     .command('agent:test-subagent-create')
     .description('Test creating a subagent')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('-n, --name <name>', 'SubAgent name', 'test-subagent')
     .option('-p, --prompt <prompt>', 'System prompt', 'You are a helpful assistant')
     .option('-q, --query <query>', 'Test query', 'Hello, introduce yourself')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -34,7 +34,7 @@ export function registerSubAgentTestCommands(program: Command) {
 
         const mainAgent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           maxTurns: 3
         });
 
@@ -68,12 +68,12 @@ export function registerSubAgentTestCommands(program: Command) {
   program
     .command('agent:test-subagent-parallel')
     .description('Test parallel execution with subagents')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('--max-turns <number>', 'Max turns per agent', '3')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -82,7 +82,7 @@ export function registerSubAgentTestCommands(program: Command) {
 
         const mainAgent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           maxTurns: parseInt(options.maxTurns)
         });
 
@@ -130,12 +130,12 @@ export function registerSubAgentTestCommands(program: Command) {
   program
     .command('agent:test-subagent-coordinate')
     .description('Test coordinated execution with dependencies')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('--max-turns <number>', 'Max turns per agent', '3')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -144,7 +144,7 @@ export function registerSubAgentTestCommands(program: Command) {
 
         const mainAgent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           maxTurns: parseInt(options.maxTurns)
         });
 
@@ -194,11 +194,11 @@ export function registerSubAgentTestCommands(program: Command) {
   program
     .command('agent:test-subagent-context')
     .description('Test context sharing between subagents')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -207,7 +207,7 @@ export function registerSubAgentTestCommands(program: Command) {
 
         const mainAgent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           maxTurns: 2
         });
 
@@ -252,11 +252,11 @@ export function registerSubAgentTestCommands(program: Command) {
   program
     .command('agent:test-subagent-tools')
     .description('Test subagent with specific tools')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -265,7 +265,7 @@ export function registerSubAgentTestCommands(program: Command) {
 
         const mainAgent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           maxTurns: 5
         });
 

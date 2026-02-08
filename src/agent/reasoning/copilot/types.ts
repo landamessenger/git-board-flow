@@ -10,7 +10,8 @@ import { ChangeType } from '../../../data/model/think_response';
  */
 export interface CopilotOptions {
   model?: string;
-  apiKey: string;
+  /** OpenCode server URL (e.g. http://localhost:4096) */
+  serverUrl: string;
   personalAccessToken?: string; // GitHub Personal Access Token for loading repository files
   maxTurns?: number;
   repositoryOwner?: string;

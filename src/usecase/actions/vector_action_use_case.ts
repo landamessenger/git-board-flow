@@ -94,15 +94,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
             }
 
             // Check if AI configuration is available
-            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
-                logError(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL. ${JSON.stringify(param.ai, null, 2)}`);
+            if (!param.ai || !param.ai.getOpencodeModel() || !param.ai.getOpencodeServerUrl()) {
+                logError(`Missing required AI configuration. Please provide OPENCODE_SERVER_URL and OPENCODE_MODEL. ${JSON.stringify(param.ai, null, 2)}`);
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
                         errors: [
-                            `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                            `Missing required AI configuration. Please provide OPENCODE_SERVER_URL and OPENCODE_MODEL.`,
                         ],
                     })
                 )
@@ -316,15 +316,15 @@ export class VectorActionUseCase implements ParamUseCase<Execution, Result[]> {
         }
 
         // Check if AI configuration is available
-        if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
-            logError(`Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`);
+        if (!param.ai || !param.ai.getOpencodeModel() || !param.ai.getOpencodeServerUrl()) {
+            logError(`Missing required AI configuration. Please provide OPENCODE_SERVER_URL and OPENCODE_MODEL.`);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Missing required AI configuration. Please provide OPENROUTER_API_KEY and OPENROUTER_MODEL.`,
+                        `Missing required AI configuration. Please provide OPENCODE_SERVER_URL and OPENCODE_MODEL.`,
                     ],
                 })
             )
@@ -963,15 +963,15 @@ ${fileContent}
     } | null> => {
         try {
             // Check if AI configuration is available
-            if (!param.ai || !param.ai.getOpenRouterModel() || !param.ai.getOpenRouterApiKey()) {
+            if (!param.ai || !param.ai.getOpencodeModel() || !param.ai.getOpencodeServerUrl()) {
                 logDebugInfo(`Skipping error detection for ${filePath}: Missing AI configuration`);
                 return null;
             }
 
             // Create ErrorDetector options for single file analysis
             const detectorOptions: ErrorDetectionOptions = {
-                model: param.ai.getOpenRouterModel(),
-                apiKey: param.ai.getOpenRouterApiKey(),
+                model: param.ai.getOpencodeModel(),
+                serverUrl: param.ai.getOpencodeServerUrl(),
                 personalAccessToken: param.tokens.token, // GitHub token for loading repository files
                 maxTurns: 10, // Reduced for single file analysis to prevent loops
                 repositoryOwner: param.owner,

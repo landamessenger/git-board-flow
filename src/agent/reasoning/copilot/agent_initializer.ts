@@ -68,8 +68,8 @@ export class AgentInitializer {
     const systemPrompt = SystemPromptBuilder.build(options);
     
     const agentOptions: AgentOptions = {
-      model: options.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
-      apiKey: options.apiKey,
+      model: options.model || process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini',
+      serverUrl: options.serverUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
       systemPrompt,
       tools,
       maxTurns: options.maxTurns || 50,

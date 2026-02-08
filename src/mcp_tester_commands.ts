@@ -17,14 +17,14 @@ export function registerMCPTestCommands(program: Command) {
   program
     .command('agent:test-mcp-stdio')
     .description('Test MCP connection via stdio transport')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('-c, --command <command>', 'MCP server command', 'node')
     .option('-a, --args <args...>', 'MCP server arguments', [])
     .option('-p, --prompt <prompt>', 'Test prompt', 'List available tools')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -35,7 +35,7 @@ export function registerMCPTestCommands(program: Command) {
 
         agent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           enableMCP: true,
           maxTurns: 5
         });
@@ -99,13 +99,13 @@ export function registerMCPTestCommands(program: Command) {
   program
     .command('agent:test-mcp-http')
     .description('Test MCP connection via HTTP transport')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('-u, --url <url>', 'MCP server URL', 'https://mcp.example.com')
     .option('-p, --prompt <prompt>', 'Test prompt', 'List available tools')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -116,7 +116,7 @@ export function registerMCPTestCommands(program: Command) {
 
         agent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           enableMCP: true,
           maxTurns: 5
         });
@@ -180,13 +180,13 @@ export function registerMCPTestCommands(program: Command) {
   program
     .command('agent:test-mcp-config')
     .description('Test MCP with .mcp.json config file')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('-c, --config <path>', 'MCP config path', '.mcp.json')
     .option('-p, --prompt <prompt>', 'Test prompt', 'List available tools')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -197,7 +197,7 @@ export function registerMCPTestCommands(program: Command) {
 
         agent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           enableMCP: true,
           maxTurns: 5
         });
@@ -256,14 +256,14 @@ export function registerMCPTestCommands(program: Command) {
   program
     .command('agent:test-mcp-tool')
     .description('Test MCP tool execution')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('-s, --server <name>', 'MCP server name', 'test-server')
     .option('-t, --tool <name>', 'Tool name to test')
     .option('-i, --input <json>', 'Tool input as JSON', '{}')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -277,7 +277,7 @@ export function registerMCPTestCommands(program: Command) {
 
         const agent = new Agent({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           enableMCP: true
         });
 

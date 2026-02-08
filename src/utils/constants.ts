@@ -207,20 +207,13 @@ export const INPUT_KEYS = {
     // Tokens
     TOKEN: 'token',
 
-    // AI
-    OPENROUTER_API_KEY: 'openrouter-api-key',
-    OPENROUTER_MODEL: 'openrouter-model',
+    // AI (OpenCode)
+    OPENCODE_SERVER_URL: 'opencode-server-url',
+    OPENCODE_MODEL: 'opencode-model',
     AI_PULL_REQUEST_DESCRIPTION: 'ai-pull-request-description',
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',
     AI_INCLUDE_REASONING: 'ai-include-reasoning',
-    OPENROUTER_PROVIDER_ORDER: 'openrouter-provider-order',
-    OPENROUTER_PROVIDER_ALLOW_FALLBACKS: 'openrouter-provider-allow-fallbacks',
-    OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: 'openrouter-provider-require-parameters',
-    OPENROUTER_PROVIDER_DATA_COLLECTION: 'openrouter-provider-data-collection',
-    OPENROUTER_PROVIDER_IGNORE: 'openrouter-provider-ignore',
-    OPENROUTER_PROVIDER_QUANTIZATIONS: 'openrouter-provider-quantizations',
-    OPENROUTER_PROVIDER_SORT: 'openrouter-provider-sort',
 
     // Projects
     PROJECT_IDS: 'project-ids',

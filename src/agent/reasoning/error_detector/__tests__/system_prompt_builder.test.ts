@@ -9,7 +9,7 @@ describe('SystemPromptBuilder', () => {
   describe('build', () => {
     it('should build prompt with default options', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       const prompt = SystemPromptBuilder.build(options);
@@ -22,7 +22,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include focus areas when provided', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         focusAreas: ['src/agent', 'src/utils']
       };
 
@@ -34,7 +34,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include error types when provided', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         errorTypes: [IssueType.TYPE_ERROR, IssueType.SECURITY_VULNERABILITY]
       };
 
@@ -45,7 +45,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include both focus areas and error types', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         focusAreas: ['src/agent'],
         errorTypes: [IssueType.TYPE_ERROR]
       };
@@ -58,7 +58,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include mandatory workflow instructions', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       const prompt = SystemPromptBuilder.build(options);
@@ -70,7 +70,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include error severity levels', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       const prompt = SystemPromptBuilder.build(options);
@@ -83,7 +83,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include output format instructions', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       const prompt = SystemPromptBuilder.build(options);

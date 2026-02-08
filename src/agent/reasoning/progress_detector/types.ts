@@ -9,7 +9,7 @@ import { AgentResult } from '../../types';
  */
 export interface ProgressDetectionOptions {
   model?: string;
-  apiKey: string;
+  serverUrl: string;
   personalAccessToken?: string; // GitHub Personal Access Token for loading repository files
   maxTurns?: number;
   repositoryOwner?: string;

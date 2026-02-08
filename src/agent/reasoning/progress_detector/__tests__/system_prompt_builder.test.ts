@@ -9,7 +9,7 @@ describe('SystemPromptBuilder', () => {
   describe('build', () => {
     it('should build prompt with default options', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch'
@@ -24,7 +24,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include issue number when provided', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',
@@ -38,7 +38,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include issue description when provided', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',
@@ -53,7 +53,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include changed files when provided', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',
@@ -82,7 +82,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should handle no changed files', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',
@@ -96,7 +96,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include report_progress tool instructions', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch'
@@ -111,7 +111,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include instructions to read all changed files', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',
@@ -131,7 +131,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include example of report_progress usage', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch'
@@ -146,7 +146,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should include all required instructions', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',
@@ -171,7 +171,7 @@ describe('SystemPromptBuilder', () => {
 
     it('should handle missing issue description gracefully', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',

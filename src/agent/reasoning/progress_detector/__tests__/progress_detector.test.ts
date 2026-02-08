@@ -18,7 +18,7 @@ describe('ProgressDetector', () => {
 
   beforeEach(() => {
     mockOptions = {
-      apiKey: 'test-api-key',
+      serverUrl: 'http://localhost:4096',
       model: 'test-model',
       maxTurns: 10,
       repositoryOwner: 'test-owner',
@@ -49,11 +49,11 @@ describe('ProgressDetector', () => {
     });
 
     it('should use default model from environment if not provided', () => {
-      const originalEnv = process.env.OPENROUTER_MODEL;
-      process.env.OPENROUTER_MODEL = 'env-model';
+      const originalEnv = process.env.OPENCODE_MODEL;
+      process.env.OPENCODE_MODEL = 'env-model';
 
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch'
@@ -64,15 +64,15 @@ describe('ProgressDetector', () => {
       expect(detector).toBeDefined();
       
       if (originalEnv) {
-        process.env.OPENROUTER_MODEL = originalEnv;
+        process.env.OPENCODE_MODEL = originalEnv;
       } else {
-        delete process.env.OPENROUTER_MODEL;
+        delete process.env.OPENCODE_MODEL;
       }
     });
 
     it('should set default maxTurns if not provided', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch'
@@ -85,7 +85,7 @@ describe('ProgressDetector', () => {
 
     it('should set default developmentBranch if not provided', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch'
@@ -380,7 +380,7 @@ describe('ProgressDetector', () => {
 
     it('should set default useSubAgents to false', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch'
@@ -392,7 +392,7 @@ describe('ProgressDetector', () => {
 
     it('should set default maxConcurrentSubAgents to 5', () => {
       const options: ProgressDetectionOptions = {
-        apiKey: 'test-key',
+        serverUrl: 'http://localhost:4096',
         repositoryOwner: 'owner',
         repositoryName: 'repo',
         repositoryBranch: 'branch',

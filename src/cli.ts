@@ -56,8 +56,8 @@ program
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
-      [INPUT_KEYS.OPENROUTER_API_KEY]: process.env.OPENROUTER_API_KEY,
-      [INPUT_KEYS.OPENROUTER_MODEL]: process.env.OPENROUTER_MODEL,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: process.env.OPENCODE_SERVER_URL,
+      [INPUT_KEYS.OPENCODE_MODEL]: process.env.OPENCODE_MODEL,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       [INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
       repo: {
@@ -94,15 +94,8 @@ program
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('-q, --question <question...>', 'Question or prompt for analysis', '')
-  .option('--openrouter-api-key <key>', 'OpenRouter API key', '')
-  .option('--openrouter-model <model>', 'OpenRouter model', '')
-  .option('--openrouter-provider-order <provider>', 'OpenRouter provider', '')
-  .option('--openrouter-provider-allow-fallbacks <fallback>', 'OpenRouter fallback', '')
-  .option('--openrouter-provider-require-parameters <require>', 'OpenRouter require', '')
-  .option('--openrouter-provider-data-collection <collection>', 'OpenRouter collection', '')
-  .option('--openrouter-provider-ignore <ignore>', 'OpenRouter ignore', '')
-  .option('--openrouter-provider-quantizations <quantizations>', 'OpenRouter quantizations', '')
-  .option('--openrouter-provider-sort <sort>', 'OpenRouter sort', '')
+  .option('--opencode-server-url <url>', 'OpenCode server URL (e.g. http://localhost:4096)', '')
+  .option('--opencode-model <model>', 'OpenCode model (e.g. openai/gpt-4o-mini)', '')
   .option('--ai-ignore-files <ai-ignore-files>', 'AI ignore files', 'node_modules/*,build/*')
   .option('--include-reasoning <include-reasoning>', 'Include reasoning', 'false')
   .action(async (options) => {    
@@ -138,15 +131,8 @@ program
       [INPUT_KEYS.SUPABASE_URL]: options?.supabaseUrl?.length > 0 ? options.supabaseUrl : process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: options?.supabaseKey?.length > 0 ? options.supabaseKey : process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options?.token?.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENROUTER_API_KEY]: options?.openrouterApiKey?.length > 0 ? options.openrouterApiKey : process.env.OPENROUTER_API_KEY,
-      [INPUT_KEYS.OPENROUTER_MODEL]: options?.openrouterModel?.length > 0 ? options.openrouterModel : process.env.OPENROUTER_MODEL,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_ORDER]: options?.openrouterProviderOrder?.length > 0 ? options.openrouterProviderOrder : process.env.OPENROUTER_PROVIDER_ORDER,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS]: options?.openrouterProviderAllowFallbacks?.length > 0 ? options.openrouterProviderAllowFallbacks : process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS]: options?.openrouterProviderRequireParameters?.length > 0 ? options.openrouterProviderRequireParameters : process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION]: options?.openrouterProviderDataCollection?.length > 0 ? options.openrouterProviderDataCollection : process.env.OPENROUTER_PROVIDER_DATA_COLLECTION,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE]: options?.openrouterProviderIgnore?.length > 0 ? options.openrouterProviderIgnore : process.env.OPENROUTER_PROVIDER_IGNORE,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS]: options?.openrouterProviderQuantizations?.length > 0 ? options.openrouterProviderQuantizations : process.env.OPENROUTER_PROVIDER_QUANTIZATIONS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_SORT]: options?.openrouterProviderSort?.length > 0 ? options.openrouterProviderSort : process.env.OPENROUTER_PROVIDER_SORT,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options?.opencodeServerUrl?.length > 0 ? options.opencodeServerUrl : process.env.OPENCODE_SERVER_URL,
+      [INPUT_KEYS.OPENCODE_MODEL]: options?.opencodeModel?.length > 0 ? options.opencodeModel : process.env.OPENCODE_MODEL,
       [INPUT_KEYS.AI_IGNORE_FILES]: options?.aiIgnoreFiles?.length > 0 ? options.aiIgnoreFiles : process.env.AI_IGNORE_FILES,
       [INPUT_KEYS.AI_INCLUDE_REASONING]: options?.includeReasoning?.length > 0 ? options.includeReasoning : process.env.AI_INCLUDE_REASONING,
       repo: {
@@ -210,8 +196,8 @@ program
   .option('-b, --branch <name>', 'Branch name', 'master')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('--openrouter-api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
-  .option('--openrouter-model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
   .option('--max-turns <number>', 'Maximum turns', '50')
   .option('--working-dir <dir>', 'Working directory for file operations (default: current directory)')
   .option('--use-subagents', 'Use subagents for parallel processing (recommended for large codebases, enabled by default)', true)
@@ -242,8 +228,8 @@ program
     }
 
     const branch = cleanArg(options.branch);
-    const apiKey = cleanArg(options.openrouterApiKey);
-    const model = cleanArg(options.openrouterModel);
+    const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096';
+    const model = cleanArg(options.opencodeModel);
     const token = cleanArg(options.token);
     const maxTurns = parseInt(cleanArg(options.maxTurns)) || 50;
     const workingDir = cleanArg(options.workingDir) || process.cwd();
@@ -253,15 +239,15 @@ program
     const maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
     const outputFormat = cleanArg(options.output) || 'text';
 
-    if (!apiKey) {
-      console.log('❌ OpenRouter API key required. Set OPENROUTER_API_KEY or use --openrouter-api-key');
+    if (!serverUrl) {
+      console.log('❌ OpenCode server URL required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
       return;
     }
 
     try {
       const copilotOptions: CopilotOptions = {
-        model: model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
-        apiKey: apiKey,
+        model: model || process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini',
+        serverUrl: serverUrl,
         personalAccessToken: token,
         maxTurns: maxTurns,
         repositoryOwner: gitInfo.owner,
@@ -331,8 +317,8 @@ program
   .option('-b, --branch <name>', 'Branch name (optional, will try to determine from issue)')
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('--openrouter-api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
-  .option('--openrouter-model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
   .action(async (options) => {    
     const gitInfo = getGitInfo();
     
@@ -370,8 +356,8 @@ program
       [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
       [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENROUTER_API_KEY]: options.openrouterApiKey || process.env.OPENROUTER_API_KEY,
-      [INPUT_KEYS.OPENROUTER_MODEL]: options.openrouterModel || process.env.OPENROUTER_MODEL,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
       [INPUT_KEYS.AI_IGNORE_FILES]: process.env.AI_IGNORE_FILES || 'build/*,dist/*,node_modules/*,*.d.ts',
       repo: {
         owner: gitInfo.owner,

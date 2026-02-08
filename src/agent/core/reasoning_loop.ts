@@ -38,13 +38,12 @@ export class ReasoningLoop {
   ) {
     this.aiRepository = new AiRepository();
     this.ai = new Ai(
-      options.apiKey,
+      options.serverUrl,
       options.model,
       false, // aiPullRequestDescription
       false, // aiMembersOnly
       [], // aiIgnoreFiles
-      false, // aiIncludeReasoning
-      {} // providerRouting
+      false  // aiIncludeReasoning
     );
 
     // Initialize managers
@@ -255,7 +254,7 @@ export class ReasoningLoop {
   }
 
   /**
-   * Call OpenRouter API via AiRepository
+   * Call OpenCode API via AiRepository
    */
   private async callAPI(): Promise<any> {
     const messages = this.messageManager.getMessages();

@@ -57,7 +57,7 @@ export class SubAgentManager {
       // This shouldn't happen in practice, but helps with testing
       const fallbackOptions: AgentOptions = {
         model: 'unknown',
-        apiKey: 'unknown',
+        serverUrl: 'http://localhost:4096',
         enableMCP: false
       };
       return this.createSubAgentWithOptions(options, fallbackOptions);

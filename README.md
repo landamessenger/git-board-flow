@@ -2,14 +2,17 @@
 
 **Git Board Flow** is a powerful GitHub Action designed to streamline issue, branch, and project management while adhering to the Git-Flow methodology. This action simplifies your workflow by automating the creation and management of branches, linking them to issues, and ensuring smooth integration with GitHub Projects.
 
-## 🤖 AI-Powered Features
+## 🤖 AI-Powered Features (OpenCode)
 
-Git Board Flow includes advanced AI capabilities for code analysis and vector indexing:
+Git Board Flow uses **OpenCode** for all AI features, so you can use 75+ LLM providers (OpenAI, Anthropic, Gemini, local models, etc.) from a single configuration:
 
-- **AI Container Management**: Automated Docker container preparation with model pre-loading
-- **Vector Indexing**: Semantic code analysis and embedding generation
-- **Registry Integration**: Efficient image distribution across different environments
-- **Smart Caching**: Optimized for both GitHub-hosted and self-hosted runners
+- **OpenCode backend**: Analysis, progress detection, error detection, PR descriptions, and the copilot agent all go through your OpenCode server.
+- **Configurable model**: Set `opencode-server-url` and `opencode-model` (e.g. `openai/gpt-4o-mini` or `anthropic/claude-3-5-sonnet`) in the action or via env vars.
+- **AI Container Management**: Docker container preparation with model pre-loading (when using the vector/AI cache flow).
+- **Vector Indexing**: Semantic code analysis and embedding generation.
+- **Smart Caching**: Optimized for both GitHub-hosted and self-hosted runners.
+
+See [docs/opencode-integration.md](docs/opencode-integration.md) for setup and configuration.
 
 ---
 

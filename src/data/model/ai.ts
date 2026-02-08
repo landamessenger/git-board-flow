@@ -1,42 +1,38 @@
-export interface ProviderRoutingConfig {
-    order?: string[];
-    allow_fallbacks?: boolean;
-    require_parameters?: boolean;
-    data_collection?: 'allow' | 'deny';
-    ignore?: string[];
-    quantizations?: string[];
-    sort?: 'price' | 'throughput' | 'latency';
-}
-
+/**
+ * AI configuration for OpenCode-backed analysis.
+ * OpenCode supports 75+ LLM providers (Anthropic, OpenAI, Gemini, local models, etc.).
+ * API keys are configured on the OpenCode server, not here.
+ */
 export class Ai {
-    private openRouterApiKey: string;
-    private openRouterModel: string;
+    private opencodeServerUrl: string;
+    private opencodeModel: string;
     private aiPullRequestDescription: boolean;
     private aiMembersOnly: boolean;
     private aiIgnoreFiles: string[];
     private aiIncludeReasoning: boolean;
-    private providerRouting: ProviderRoutingConfig;
 
     constructor(
-        openRouterApiKey: string, 
-        openRouterModel: string, 
-        aiPullRequestDescription: boolean, 
-        aiMembersOnly: boolean, 
+        opencodeServerUrl: string,
+        opencodeModel: string,
+        aiPullRequestDescription: boolean,
+        aiMembersOnly: boolean,
         aiIgnoreFiles: string[],
-        aiIncludeReasoning: boolean,
-        providerRouting?: ProviderRoutingConfig
+        aiIncludeReasoning: boolean
     ) {
-        this.openRouterApiKey = openRouterApiKey;
-        this.openRouterModel = openRouterModel;
+        this.opencodeServerUrl = opencodeServerUrl;
+        this.opencodeModel = opencodeModel;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
         this.aiIncludeReasoning = aiIncludeReasoning;
-        this.providerRouting = providerRouting || {};
     }
 
-    getOpenRouterApiKey(): string {
-        return this.openRouterApiKey;
+    getOpencodeServerUrl(): string {
+        return this.opencodeServerUrl;
+    }
+
+    getOpencodeModel(): string {
+        return this.opencodeModel;
     }
 
     getAiPullRequestDescription(): boolean {
@@ -55,11 +51,18 @@ export class Ai {
         return this.aiIncludeReasoning;
     }
 
-    getOpenRouterModel(): string {
-        return this.openRouterModel;
-    }
-
-    getProviderRouting(): ProviderRoutingConfig {
-        return this.providerRouting;
+    /**
+     * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
+     */
+    getOpencodeModelParts(): { providerID: string; modelID: string } {
+        const model = this.opencodeModel.trim();
+        const slash = model.indexOf('/');
+        if (slash <= 0) {
+            return { providerID: 'openai', modelID: model || 'gpt-4o-mini' };
+        }
+        return {
+            providerID: model.slice(0, slash).trim(),
+            modelID: model.slice(slash + 1).trim(),
+        };
     }
 }

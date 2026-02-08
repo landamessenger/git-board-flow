@@ -100,7 +100,7 @@ export enum SeverityLevel {
 
 export interface ErrorDetectionOptions {
   model?: string;
-  apiKey: string;
+  serverUrl: string;
   personalAccessToken?: string; // GitHub Personal Access Token for loading repository files
   maxTurns?: number;
   repositoryOwner?: string;

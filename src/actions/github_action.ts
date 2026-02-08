@@ -50,10 +50,10 @@ export async function runGitHubAction(): Promise<void> {
     const token = getInput(INPUT_KEYS.TOKEN, {required: true});
 
     /**
-     * AI
+     * AI (OpenCode)
      */
-    const openrouterApiKey = getInput(INPUT_KEYS.OPENROUTER_API_KEY);
-    const openrouterModel = getInput(INPUT_KEYS.OPENROUTER_MODEL)
+    const opencodeServerUrl = getInput(INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://localhost:4096';
+    const opencodeModel = getInput(INPUT_KEYS.OPENCODE_MODEL) || 'openai/gpt-4o-mini';
     const aiPullRequestDescription = getInput(INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION) === 'true';
     const aiMembersOnly = getInput(INPUT_KEYS.AI_MEMBERS_ONLY) === 'true';
     const aiIncludeReasoning = getInput(INPUT_KEYS.AI_INCLUDE_REASONING) === 'true';
@@ -62,41 +62,6 @@ export async function runGitHubAction(): Promise<void> {
         .split(',')
         .map(path => path.trim())
         .filter(path => path.length > 0);
-
-    // Provider routing configuration
-    const openRouterProviderOrderInput: string = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_ORDER);
-    const openRouterProviderOrder: string[] = openRouterProviderOrderInput
-        .split(',')
-        .map(provider => provider.trim())
-        .filter(provider => provider.length > 0);
-
-    const openRouterProviderAllowFallbacks = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS) === 'true';
-    const openRouterProviderRequireParameters = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS) === 'true';
-    const openRouterProviderDataCollection = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION) as 'allow' | 'deny';
-    
-    const openRouterProviderIgnoreInput: string = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE);
-    const openRouterProviderIgnore: string[] = openRouterProviderIgnoreInput
-        .split(',')
-        .map(provider => provider.trim())
-        .filter(provider => provider.length > 0);
-
-    const openRouterProviderQuantizationsInput: string = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS);
-    const openRouterProviderQuantizations: string[] = openRouterProviderQuantizationsInput
-        .split(',')
-        .map(level => level.trim())
-        .filter(level => level.length > 0);
-
-    const openRouterProviderSort = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_SORT) as 'price' | 'throughput' | 'latency' | '';
-
-    const providerRouting = {
-        ...(openRouterProviderOrder.length > 0 && { order: openRouterProviderOrder }),
-        ...(openRouterProviderAllowFallbacks !== undefined && { allow_fallbacks: openRouterProviderAllowFallbacks }),
-        ...(openRouterProviderRequireParameters !== undefined && { require_parameters: openRouterProviderRequireParameters }),
-        ...(openRouterProviderDataCollection && { data_collection: openRouterProviderDataCollection }),
-        ...(openRouterProviderIgnore.length > 0 && { ignore: openRouterProviderIgnore }),
-        ...(openRouterProviderQuantizations.length > 0 && { quantizations: openRouterProviderQuantizations }),
-        ...(openRouterProviderSort && { sort: openRouterProviderSort })
-    };
 
     /**
      * Projects Details
@@ -541,13 +506,12 @@ export async function runGitHubAction(): Promise<void> {
             token,
         ),
         new Ai(
-            openrouterApiKey,
-            openrouterModel,
+            opencodeServerUrl,
+            opencodeModel,
             aiPullRequestDescription,
             aiMembersOnly,
             aiIgnoreFiles,
             aiIncludeReasoning,
-            Object.keys(providerRouting).length > 0 ? providerRouting : undefined
         ),
         new Labels(
             branchManagementLauncherLabel,

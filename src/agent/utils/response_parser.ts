@@ -1,12 +1,12 @@
 /**
- * Response parser for OpenRouter JSON responses
+ * Response parser for OpenCode JSON responses
  */
 
 import { ParsedResponse, ToolCall } from '../types';
 
 export class ResponseParser {
   /**
-   * Parse JSON response from OpenRouter
+   * Parse JSON response from OpenCode
    * Expected format:
    * {
    *   "reasoning": "...",

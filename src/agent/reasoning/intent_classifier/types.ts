@@ -12,7 +12,7 @@ export enum ConfidenceLevel {
 
 export interface IntentClassifierOptions {
   model?: string;
-  apiKey: string;
+  serverUrl: string;
   maxTurns?: number;
 }
 

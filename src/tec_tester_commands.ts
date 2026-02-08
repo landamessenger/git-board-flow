@@ -56,8 +56,8 @@ export function registerTECTestCommands(program: Command) {
     .command('tec:detect-errors')
     .description('Detect potential errors in the codebase using Agent SDK')
     .option('-p, --prompt <prompt>', 'Optional: Custom detection prompt (system prompt already has all instructions)')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('-t, --token <token>', 'GitHub Personal Access Token', process.env.PERSONAL_ACCESS_TOKEN)
     .option('--max-turns <number>', 'Maximum turns', '30')
     .option('--focus <areas...>', 'Focus on specific areas (e.g., src/agent src/utils)', [])
@@ -70,8 +70,8 @@ export function registerTECTestCommands(program: Command) {
     .option('--include-dependencies', 'Also analyze files that the target file depends on (only if --analyze-only-target is false)', false)
     .option('--output <format>', 'Output format (text|json)', 'text')
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -106,7 +106,7 @@ export function registerTECTestCommands(program: Command) {
         // Create error detector
         const detectorOptions: ErrorDetectionOptions = {
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           personalAccessToken: token, // Use token from options or env var
           maxTurns: parseInt(options.maxTurns),
           repositoryOwner: owner,
@@ -211,12 +211,12 @@ export function registerTECTestCommands(program: Command) {
   program
     .command('tec:quick-check')
     .description('Quick error check (faster, fewer turns)')
-    .option('-m, --model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini')
-    .option('-k, --api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
+    .option('-m, --model <model>', 'OpenCode model', process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini')
+    .option('-k, --opencode-server-url <key>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL)
     .option('--focus <areas...>', 'Focus on specific areas', [])
     .action(async (options) => {
-      if (!options.apiKey) {
-        logError('❌ API key required. Set OPENROUTER_API_KEY or use -k flag');
+      if (!options.opencodeServerUrl) {
+        logError('❌ API key required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
         process.exit(1);
       }
 
@@ -226,7 +226,7 @@ export function registerTECTestCommands(program: Command) {
         const gitInfo = getGitInfo();
         const detector = new ErrorDetector({
           model: options.model,
-          apiKey: options.apiKey,
+          serverUrl: options.opencodeServerUrl,
           maxTurns: 10, // Fewer turns for quick check
           repositoryOwner: gitInfo?.owner,
           repositoryName: gitInfo?.repo,

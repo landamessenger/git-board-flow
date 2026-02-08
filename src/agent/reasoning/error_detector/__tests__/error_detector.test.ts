@@ -18,7 +18,7 @@ describe('ErrorDetector', () => {
 
   beforeEach(() => {
     mockOptions = {
-      apiKey: 'test-api-key',
+      serverUrl: 'http://localhost:4096',
       model: 'test-model',
       maxTurns: 10
     };
@@ -36,11 +36,11 @@ describe('ErrorDetector', () => {
     });
 
     it('should use default model from environment if not provided', () => {
-      const originalEnv = process.env.OPENROUTER_MODEL;
-      process.env.OPENROUTER_MODEL = 'env-model';
+      const originalEnv = process.env.OPENCODE_MODEL;
+      process.env.OPENCODE_MODEL = 'env-model';
 
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       detector = new ErrorDetector(options);
@@ -48,15 +48,15 @@ describe('ErrorDetector', () => {
       expect(detector).toBeDefined();
       
       if (originalEnv) {
-        process.env.OPENROUTER_MODEL = originalEnv;
+        process.env.OPENCODE_MODEL = originalEnv;
       } else {
-        delete process.env.OPENROUTER_MODEL;
+        delete process.env.OPENCODE_MODEL;
       }
     });
 
     it('should set default maxTurns if not provided', () => {
       const options: ErrorDetectionOptions = {
-        apiKey: 'test-key'
+        serverUrl: 'http://localhost:4096'
       };
 
       detector = new ErrorDetector(options);

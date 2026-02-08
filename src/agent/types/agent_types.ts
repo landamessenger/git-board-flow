@@ -40,7 +40,8 @@ export interface RetryConfig {
 
 export interface AgentOptions {
   model: string;
-  apiKey: string;
+  /** OpenCode server URL (e.g. http://localhost:4096) */
+  serverUrl: string;
   systemPrompt?: string;
   maxTurns?: number;
   maxTokens?: number;
