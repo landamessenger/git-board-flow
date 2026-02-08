@@ -251,5 +251,5 @@ export declare class ManageTodosTool extends BaseTool {
      * const result3 = await tool.execute({ action: 'list' });
      * // Returns formatted list with all TODOs
      */
-    execute(input: Record<string, any>): Promise<string>;
+    execute(input: Record<string, unknown>): Promise<string>;
 }

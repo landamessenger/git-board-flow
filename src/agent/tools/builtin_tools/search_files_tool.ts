@@ -34,6 +34,7 @@
  */
 
 import { BaseTool } from '../base_tool';
+import { logInfo } from '../../../utils/logger';
 
 /**
  * Options for configuring the SearchFilesTool.
@@ -182,12 +183,11 @@ export class SearchFilesTool extends BaseTool {
    * // Returns: "No files found matching query: "nonexistent""
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo } = require('../../../utils/logger');
+  async execute(input: Record<string, unknown>): Promise<string> {
     const query = input.query as string;
     logInfo(`   🔍 Searching files with query: "${query}"`);
-    // Use nullish coalescing to handle 0 correctly (0 || 1000 would be 1000)
-    const maxResults = input.max_results !== undefined ? input.max_results : 1000; // Default to 1000 for comprehensive searches
+    // Use number when valid, otherwise default 1000 (nullish coalescing would treat 0 as valid)
+    const maxResults: number = typeof input.max_results === 'number' ? input.max_results : 1000;
 
     // Validate query is provided and is a string
     // @internal query is required to know what to search for

@@ -45053,6 +45053,7 @@ exports.BaseTool = BaseTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReadFileTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * ReadFileTool - Tool for reading file contents from repository or virtual codebase.
  *
@@ -45146,9 +45147,8 @@ class ReadFileTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         const filePath = input.file_path;
-        logInfo(`   📖 Reading file: ${filePath}`);
+        (0, logger_1.logInfo)(`   📖 Reading file: ${filePath}`);
         // Validate file_path is provided and is a string
         // @internal file_path is required to identify which file to read
         if (!filePath || typeof filePath !== 'string') {
@@ -45222,6 +45222,7 @@ exports.ReadFileTool = ReadFileTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportProgressTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * ReportProgressTool - Tool for reporting task progress in structured format.
  *
@@ -45328,7 +45329,6 @@ class ReportProgressTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         // Validate progress
         // @internal progress is required to know the completion percentage
         if (input.progress === undefined || input.progress === null) {
@@ -45378,8 +45378,8 @@ class ReportProgressTool extends base_tool_1.BaseTool {
         if (!summary || summary.length === 0) {
             throw new Error('summary is required and cannot be empty');
         }
-        logInfo(`   📊 Progress reported: ${progress}%`);
-        logInfo(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
+        (0, logger_1.logInfo)(`   📊 Progress reported: ${progress}%`);
+        (0, logger_1.logInfo)(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
         // Notify callback
         // @internal Pass cleaned and validated data to callback
         this.options.onProgressReported(progress, summary);
@@ -45433,6 +45433,7 @@ exports.ReportProgressTool = ReportProgressTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SearchFilesTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * SearchFilesTool - Tool for searching files by name or content.
  *
@@ -45537,11 +45538,10 @@ class SearchFilesTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         const query = input.query;
-        logInfo(`   🔍 Searching files with query: "${query}"`);
-        // Use nullish coalescing to handle 0 correctly (0 || 1000 would be 1000)
-        const maxResults = input.max_results !== undefined ? input.max_results : 1000; // Default to 1000 for comprehensive searches
+        (0, logger_1.logInfo)(`   🔍 Searching files with query: "${query}"`);
+        // Use number when valid, otherwise default 1000 (nullish coalescing would treat 0 as valid)
+        const maxResults = typeof input.max_results === 'number' ? input.max_results : 1000;
         // Validate query is provided and is a string
         // @internal query is required to know what to search for
         if (!query || typeof query !== 'string') {

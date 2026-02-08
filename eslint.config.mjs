@@ -42,12 +42,13 @@ export default defineConfig(
       'no-console': 'off',
     },
   },
-  // Tests: allow any and unused vars for mocks/flexibility
+  // Tests: allow any, unused vars, and require() for mocks/isolation
   {
     files: ['src/**/*.test.ts', 'src/**/__tests__/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
     },
   }
 );

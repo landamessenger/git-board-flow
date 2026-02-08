@@ -56,6 +56,7 @@
  */
 
 import { BaseTool } from '../base_tool';
+import { logInfo } from '../../../utils/logger';
 import { TodoStatus, TodoAction } from '../../../data/model/think_response';
 
 /**
@@ -283,8 +284,7 @@ export class ManageTodosTool extends BaseTool {
    * const result3 = await tool.execute({ action: 'list' });
    * // Returns formatted list with all TODOs
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo } = require('../../../utils/logger');
+  async execute(input: Record<string, unknown>): Promise<string> {
     const action = input.action as string;
     logInfo(`   📋 Managing TODOs - Action: ${action}`);
 

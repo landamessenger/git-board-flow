@@ -36,6 +36,7 @@
  */
 
 import { BaseTool } from '../base_tool';
+import { logInfo, logError, logWarn } from '../../../utils/logger';
 import { execSync } from 'child_process';
 
 /**
@@ -227,10 +228,11 @@ The output will be captured and returned. Use this to verify that changes are co
    * });
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo, logError, logWarn } = require('../../../utils/logger');
+  async execute(input: Record<string, unknown>): Promise<string> {
     let command = input.command as string;
-    const workingDir = input.working_directory || this.options.getWorkingDirectory?.() || process.cwd();
+    const workingDir: string = (input.working_directory as string | undefined)
+      ?? this.options.getWorkingDirectory?.()
+      ?? process.cwd();
     const extractLines = input.extract_lines as {
       head?: number;
       tail?: number;

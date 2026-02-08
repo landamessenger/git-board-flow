@@ -140,5 +140,5 @@ export declare class ReportProgressTool extends BaseTool {
      * // Progress: 50, Summary: 'Halfway done'
      * ```
      */
-    execute(input: Record<string, any>): Promise<string>;
+    execute(input: Record<string, unknown>): Promise<string>;
 }

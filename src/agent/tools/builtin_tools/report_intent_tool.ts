@@ -34,6 +34,7 @@
 
 import { BaseTool } from '../base_tool';
 import { ConfidenceLevel } from '../../reasoning/intent_classifier/types';
+import { logInfo } from '../../../utils/logger';
 
 /**
  * Options for configuring the ReportIntentTool.
@@ -166,9 +167,7 @@ export class ReportIntentTool extends BaseTool {
    * // Returns: "Successfully reported intent classification: shouldApplyChanges=true, confidence=high. Classification has been recorded."
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo } = require('../../../utils/logger');
-    
+  async execute(input: Record<string, unknown>): Promise<string> {
     // Validate shouldApplyChanges
     // @internal shouldApplyChanges is required to know whether to apply changes
     if (input.shouldApplyChanges === undefined || input.shouldApplyChanges === null) {

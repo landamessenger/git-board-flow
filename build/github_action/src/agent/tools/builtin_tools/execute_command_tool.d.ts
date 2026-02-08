@@ -163,5 +163,5 @@ export declare class ExecuteCommandTool extends BaseTool {
      * });
      * ```
      */
-    execute(input: Record<string, any>): Promise<string>;
+    execute(input: Record<string, unknown>): Promise<string>;
 }

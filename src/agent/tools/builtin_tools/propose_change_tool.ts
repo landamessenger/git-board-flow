@@ -44,6 +44,7 @@
 
 import { BaseTool } from '../base_tool';
 import { ChangeType } from '../../../data/model/think_response';
+import { logInfo } from '../../../utils/logger';
 
 /**
  * Options for configuring the ProposeChangeTool.
@@ -273,11 +274,11 @@ export class ProposeChangeTool extends BaseTool {
    * });
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo } = require('../../../utils/logger');
+  async execute(input: Record<string, unknown>): Promise<string> {
     const filePath = input.file_path as string;
     logInfo(`   ✏️ Proposing change: ${filePath} (${input.change_type})`);
-    logInfo(`      Description: ${input.description?.substring(0, 100) || 'N/A'}${input.description && input.description.length > 100 ? '...' : ''}`);
+    const desc = input.description as string | undefined;
+    logInfo(`      Description: ${desc?.substring(0, 100) ?? 'N/A'}${desc && desc.length > 100 ? '...' : ''}`);
     const changeType = input.change_type as ChangeType;
     const description = input.description as string;
     const suggestedCode = input.suggested_code as string;

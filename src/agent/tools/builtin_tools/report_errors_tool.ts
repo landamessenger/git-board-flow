@@ -41,6 +41,7 @@
 
 import { BaseTool } from '../base_tool';
 import { DetectedError, IssueType, SeverityLevel } from '../../reasoning/error_detector/types';
+import { logInfo } from '../../../utils/logger';
 
 /**
  * Options for configuring the ReportErrorsTool.
@@ -205,9 +206,8 @@ export class ReportErrorsTool extends BaseTool {
    * // Returns: "Successfully reported 1 error(s). Errors have been recorded for analysis."
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo } = require('../../../utils/logger');
-    const errors = input.errors as any[];
+  async execute(input: Record<string, unknown>): Promise<string> {
+    const errors = input.errors as unknown[];
 
     // Validate errors is an array
     // @internal errors must be an array to process multiple errors at once
@@ -229,13 +229,12 @@ export class ReportErrorsTool extends BaseTool {
     // @internal Each error is processed individually to ensure all are valid before reporting
     const cleanedErrors: DetectedError[] = [];
     for (let i = 0; i < errors.length; i++) {
-      const error = errors[i];
-      
+      const raw = errors[i];
       // Validate required fields exist
-      if (!error || typeof error !== 'object') {
+      if (!raw || typeof raw !== 'object') {
         throw new Error(`Error at index ${i}: must be an object`);
       }
-      
+      const error = raw as Record<string, unknown>;
       if (!error.file || !error.type || !error.severity || !error.description) {
         throw new Error(`Error at index ${i}: must have file, type, severity, and description fields`);
       }

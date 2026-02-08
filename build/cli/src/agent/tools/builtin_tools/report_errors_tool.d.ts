@@ -148,5 +148,5 @@ export declare class ReportErrorsTool extends BaseTool {
      * // Returns: "Successfully reported 1 error(s). Errors have been recorded for analysis."
      * ```
      */
-    execute(input: Record<string, any>): Promise<string>;
+    execute(input: Record<string, unknown>): Promise<string>;
 }

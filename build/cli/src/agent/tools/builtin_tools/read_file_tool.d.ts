@@ -137,5 +137,5 @@ export declare class ReadFileTool extends BaseTool {
      * // Returns: "Error: File "nonexistent.ts" not found in the repository."
      * ```
      */
-    execute(input: Record<string, any>): Promise<string>;
+    execute(input: Record<string, unknown>): Promise<string>;
 }

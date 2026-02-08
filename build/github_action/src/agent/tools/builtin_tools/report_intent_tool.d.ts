@@ -133,5 +133,5 @@ export declare class ReportIntentTool extends BaseTool {
      * // Returns: "Successfully reported intent classification: shouldApplyChanges=true, confidence=high. Classification has been recorded."
      * ```
      */
-    execute(input: Record<string, any>): Promise<string>;
+    execute(input: Record<string, unknown>): Promise<string>;
 }

@@ -52792,6 +52792,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ApplyChangesTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 const fs = __importStar(__nccwpck_require__(7147));
 const path = __importStar(__nccwpck_require__(1017));
 /**
@@ -52900,7 +52901,6 @@ class ApplyChangesTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo, logWarn, logError } = __nccwpck_require__(8836);
         const filePaths = input.file_paths;
         const dryRun = input.dry_run === true;
         const virtualCodebase = this.options.getVirtualCodebase();
@@ -52914,7 +52914,7 @@ class ApplyChangesTool extends base_tool_1.BaseTool {
             filesToApply = filePaths.filter(filePath => {
                 const isInWorkingDir = filePath.startsWith(workingDir + '/') || filePath.startsWith(workingDir + '\\');
                 if (!isInWorkingDir) {
-                    logWarn(`⚠️  Skipping ${filePath} - outside working directory (${workingDir})`);
+                    (0, logger_1.logWarn)(`⚠️  Skipping ${filePath} - outside working directory (${workingDir})`);
                 }
                 return isInWorkingDir;
             });
@@ -52951,7 +52951,7 @@ class ApplyChangesTool extends base_tool_1.BaseTool {
                 if (dryRun) {
                     // Dry run: just log what would be done
                     // @internal Dry run mode allows previewing changes without writing to disk
-                    logInfo(`   🔍 [DRY RUN] Would ${exists ? 'update' : 'create'}: ${filePath}`);
+                    (0, logger_1.logInfo)(`   🔍 [DRY RUN] Would ${exists ? 'update' : 'create'}: ${filePath}`);
                     appliedChanges.push({
                         file: filePath,
                         changeType: exists ? 'modify' : 'create'
@@ -52962,12 +52962,12 @@ class ApplyChangesTool extends base_tool_1.BaseTool {
                     // @internal Create directory structure if it doesn't exist
                     if (!fs.existsSync(dir)) {
                         fs.mkdirSync(dir, { recursive: true });
-                        logInfo(`📁 Created directory: ${dir}`);
+                        (0, logger_1.logInfo)(`📁 Created directory: ${dir}`);
                     }
                     // Write file
                     // @internal Write file content to disk
                     fs.writeFileSync(fullPath, content, 'utf8');
-                    logInfo(`💾 Applied change: ${filePath} (${exists ? 'updated' : 'created'})`);
+                    (0, logger_1.logInfo)(`💾 Applied change: ${filePath} (${exists ? 'updated' : 'created'})`);
                     appliedChanges.push({
                         file: filePath,
                         changeType: exists ? 'modify' : 'create'
@@ -52978,7 +52978,7 @@ class ApplyChangesTool extends base_tool_1.BaseTool {
                 // Handle errors for individual files
                 // @internal Errors for one file don't stop processing of other files
                 const errorMsg = `Error applying ${filePath}: ${error.message}`;
-                logError(`❌ ${errorMsg}`);
+                (0, logger_1.logError)(`❌ ${errorMsg}`);
                 errors.push(errorMsg);
             }
         }
@@ -53053,6 +53053,7 @@ exports.ApplyChangesTool = ApplyChangesTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ExecuteCommandTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 const child_process_1 = __nccwpck_require__(2081);
 /**
  * ExecuteCommandTool - Tool for executing shell commands and returning their output.
@@ -53189,9 +53190,10 @@ The output will be captured and returned. Use this to verify that changes are co
      * ```
      */
     async execute(input) {
-        const { logInfo, logError, logWarn } = __nccwpck_require__(8836);
         let command = input.command;
-        const workingDir = input.working_directory || this.options.getWorkingDirectory?.() || process.cwd();
+        const workingDir = input.working_directory
+            ?? this.options.getWorkingDirectory?.()
+            ?? process.cwd();
         const extractLines = input.extract_lines;
         const autoCd = this.options.autoCd !== false; // Default to true
         // Validate command is provided and is a string
@@ -53206,13 +53208,13 @@ The output will be captured and returned. Use this to verify that changes are co
             // @internal Escaping prevents shell injection and handles paths with spaces/special chars
             const escapedDir = workingDir.replace(/'/g, "'\\''");
             command = `cd '${escapedDir}' && ${command}`;
-            logInfo(`   🔧 Executing command with auto cd: ${command}`);
+            (0, logger_1.logInfo)(`   🔧 Executing command with auto cd: ${command}`);
         }
         else {
-            logInfo(`   🔧 Executing command: ${command}`);
+            (0, logger_1.logInfo)(`   🔧 Executing command: ${command}`);
         }
         if (workingDir) {
-            logInfo(`      Working directory: ${workingDir}`);
+            (0, logger_1.logInfo)(`      Working directory: ${workingDir}`);
         }
         try {
             // Execute command (if autoCd prepended cd, use process.cwd() as cwd since cd is in command)
@@ -53236,19 +53238,19 @@ The output will be captured and returned. Use this to verify that changes are co
                 if (extractLines.grep) {
                     const pattern = extractLines.grep.toLowerCase();
                     filteredLines = filteredLines.filter(line => line.toLowerCase().includes(pattern));
-                    logInfo(`      Filtered with grep pattern: "${extractLines.grep}" (${filteredLines.length} lines)`);
+                    (0, logger_1.logInfo)(`      Filtered with grep pattern: "${extractLines.grep}" (${filteredLines.length} lines)`);
                 }
                 // Apply head filter
                 // @internal Extract first N lines (like head -N)
                 if (extractLines.head && extractLines.head > 0) {
                     filteredLines = filteredLines.slice(0, extractLines.head);
-                    logInfo(`      Extracted first ${extractLines.head} lines`);
+                    (0, logger_1.logInfo)(`      Extracted first ${extractLines.head} lines`);
                 }
                 // Apply tail filter
                 // @internal Extract last N lines (like tail -N)
                 if (extractLines.tail && extractLines.tail > 0) {
                     filteredLines = filteredLines.slice(-extractLines.tail);
-                    logInfo(`      Extracted last ${extractLines.tail} lines`);
+                    (0, logger_1.logInfo)(`      Extracted last ${extractLines.tail} lines`);
                 }
                 result = filteredLines.join('\n');
             }
@@ -53265,11 +53267,11 @@ The output will be captured and returned. Use this to verify that changes are co
             ];
             const hasFailure = failurePatterns.some(pattern => pattern.test(result));
             if (hasFailure) {
-                logWarn(`   ⚠️  Command output suggests possible failure`);
+                (0, logger_1.logWarn)(`   ⚠️  Command output suggests possible failure`);
                 success = false;
             }
             else {
-                logInfo(`   ✅ Command executed successfully`);
+                (0, logger_1.logInfo)(`   ✅ Command executed successfully`);
             }
             this.options.onCommandExecuted?.(command, success, result);
             // Format result
@@ -53289,7 +53291,7 @@ The output will be captured and returned. Use this to verify that changes are co
             // @internal execSync throws on non-zero exit codes, so we catch and format the error
             const errorOutput = error.stdout?.toString() || error.stderr?.toString() || error.message;
             const exitCode = error.status || error.code || 1;
-            logError(`   ❌ Command failed with exit code ${exitCode}`);
+            (0, logger_1.logError)(`   ❌ Command failed with exit code ${exitCode}`);
             this.options.onCommandExecuted?.(command, false, errorOutput);
             // Format error result
             // @internal Error output includes command, working directory, exit code, and error details
@@ -53372,6 +53374,7 @@ exports.ExecuteCommandTool = ExecuteCommandTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ManageTodosTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 const think_response_1 = __nccwpck_require__(5893);
 /**
  * ManageTodosTool - Tool for managing TODO list items.
@@ -53522,9 +53525,8 @@ class ManageTodosTool extends base_tool_1.BaseTool {
      * // Returns formatted list with all TODOs
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         const action = input.action;
-        logInfo(`   📋 Managing TODOs - Action: ${action}`);
+        (0, logger_1.logInfo)(`   📋 Managing TODOs - Action: ${action}`);
         // Validate action is a valid TodoAction enum value
         // @internal This ensures type safety and prevents invalid action values
         if (!Object.values(think_response_1.TodoAction).includes(action)) {
@@ -53680,6 +53682,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ProposeChangeTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
 const think_response_1 = __nccwpck_require__(5893);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * ProposeChangeTool - Tool for proposing changes to files in the virtual codebase.
  *
@@ -53870,10 +53873,10 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         const filePath = input.file_path;
-        logInfo(`   ✏️ Proposing change: ${filePath} (${input.change_type})`);
-        logInfo(`      Description: ${input.description?.substring(0, 100) || 'N/A'}${input.description && input.description.length > 100 ? '...' : ''}`);
+        (0, logger_1.logInfo)(`   ✏️ Proposing change: ${filePath} (${input.change_type})`);
+        const desc = input.description;
+        (0, logger_1.logInfo)(`      Description: ${desc?.substring(0, 100) ?? 'N/A'}${desc && desc.length > 100 ? '...' : ''}`);
         const changeType = input.change_type;
         const description = input.description;
         const suggestedCode = input.suggested_code;
@@ -53927,14 +53930,14 @@ class ProposeChangeTool extends base_tool_1.BaseTool {
                 const preClassifiedIntent = this.options.getShouldApplyChanges?.();
                 if (preClassifiedIntent !== undefined) {
                     shouldAutoApply = preClassifiedIntent;
-                    logInfo(`   🎯 Using intent classifier result: shouldApplyChanges=${shouldAutoApply}`);
+                    (0, logger_1.logInfo)(`   🎯 Using intent classifier result: shouldApplyChanges=${shouldAutoApply}`);
                 }
                 // Fallback to user prompt analysis (if classifier not used)
                 else {
                     const userPrompt = this.options.getUserPrompt?.();
                     if (userPrompt && this.isOrderPrompt(userPrompt)) {
                         shouldAutoApply = true;
-                        logInfo(`   🔄 Auto-detected order prompt (fallback), enabling auto_apply`);
+                        (0, logger_1.logInfo)(`   🔄 Auto-detected order prompt (fallback), enabling auto_apply`);
                     }
                 }
             }
@@ -54015,6 +54018,7 @@ exports.ProposeChangeTool = ProposeChangeTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReadFileTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * ReadFileTool - Tool for reading file contents from repository or virtual codebase.
  *
@@ -54108,9 +54112,8 @@ class ReadFileTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         const filePath = input.file_path;
-        logInfo(`   📖 Reading file: ${filePath}`);
+        (0, logger_1.logInfo)(`   📖 Reading file: ${filePath}`);
         // Validate file_path is provided and is a string
         // @internal file_path is required to identify which file to read
         if (!filePath || typeof filePath !== 'string') {
@@ -54192,6 +54195,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportErrorsTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
 const types_1 = __nccwpck_require__(9978);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * ReportErrorsTool - Tool for reporting detected errors in structured format.
  *
@@ -54326,7 +54330,6 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         const errors = input.errors;
         // Validate errors is an array
         // @internal errors must be an array to process multiple errors at once
@@ -54336,20 +54339,21 @@ class ReportErrorsTool extends base_tool_1.BaseTool {
         // Handle empty errors array
         // @internal Empty array is valid - means no errors were found during analysis
         if (errors.length === 0) {
-            logInfo('   ✅ No errors reported');
+            (0, logger_1.logInfo)('   ✅ No errors reported');
             this.options.onErrorsReported([]);
             return 'No errors to report. All files analyzed successfully.';
         }
-        logInfo(`   📋 Reporting ${errors.length} error(s) in structured format`);
+        (0, logger_1.logInfo)(`   📋 Reporting ${errors.length} error(s) in structured format`);
         // Clean and validate each error
         // @internal Each error is processed individually to ensure all are valid before reporting
         const cleanedErrors = [];
         for (let i = 0; i < errors.length; i++) {
-            const error = errors[i];
+            const raw = errors[i];
             // Validate required fields exist
-            if (!error || typeof error !== 'object') {
+            if (!raw || typeof raw !== 'object') {
                 throw new Error(`Error at index ${i}: must be an object`);
             }
+            const error = raw;
             if (!error.file || !error.type || !error.severity || !error.description) {
                 throw new Error(`Error at index ${i}: must have file, type, severity, and description fields`);
             }
@@ -54507,6 +54511,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportIntentTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
 const types_1 = __nccwpck_require__(1042);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * ReportIntentTool - Tool for reporting intent classification decisions.
  *
@@ -54607,7 +54612,6 @@ class ReportIntentTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         // Validate shouldApplyChanges
         // @internal shouldApplyChanges is required to know whether to apply changes
         if (input.shouldApplyChanges === undefined || input.shouldApplyChanges === null) {
@@ -54642,8 +54646,8 @@ class ReportIntentTool extends base_tool_1.BaseTool {
             throw new Error(`confidence must be one of: ${Object.values(types_1.ConfidenceLevel).join(', ')}, got: "${confidence}"`);
         }
         const confidenceLevel = confidence;
-        logInfo(`   🎯 Intent reported: shouldApplyChanges=${shouldApplyChanges}, confidence=${confidenceLevel}`);
-        logInfo(`   📝 Reasoning: ${reasoning.substring(0, 100)}${reasoning.length > 100 ? '...' : ''}`);
+        (0, logger_1.logInfo)(`   🎯 Intent reported: shouldApplyChanges=${shouldApplyChanges}, confidence=${confidenceLevel}`);
+        (0, logger_1.logInfo)(`   📝 Reasoning: ${reasoning.substring(0, 100)}${reasoning.length > 100 ? '...' : ''}`);
         // Notify callback
         // @internal Pass cleaned and validated data to callback
         this.options.onIntentReported(shouldApplyChanges, reasoning, confidenceLevel);
@@ -54696,6 +54700,7 @@ exports.ReportIntentTool = ReportIntentTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReportProgressTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * ReportProgressTool - Tool for reporting task progress in structured format.
  *
@@ -54802,7 +54807,6 @@ class ReportProgressTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         // Validate progress
         // @internal progress is required to know the completion percentage
         if (input.progress === undefined || input.progress === null) {
@@ -54852,8 +54856,8 @@ class ReportProgressTool extends base_tool_1.BaseTool {
         if (!summary || summary.length === 0) {
             throw new Error('summary is required and cannot be empty');
         }
-        logInfo(`   📊 Progress reported: ${progress}%`);
-        logInfo(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
+        (0, logger_1.logInfo)(`   📊 Progress reported: ${progress}%`);
+        (0, logger_1.logInfo)(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
         // Notify callback
         // @internal Pass cleaned and validated data to callback
         this.options.onProgressReported(progress, summary);
@@ -54907,6 +54911,7 @@ exports.ReportProgressTool = ReportProgressTool;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SearchFilesTool = void 0;
 const base_tool_1 = __nccwpck_require__(9121);
+const logger_1 = __nccwpck_require__(8836);
 /**
  * SearchFilesTool - Tool for searching files by name or content.
  *
@@ -55011,11 +55016,10 @@ class SearchFilesTool extends base_tool_1.BaseTool {
      * ```
      */
     async execute(input) {
-        const { logInfo } = __nccwpck_require__(8836);
         const query = input.query;
-        logInfo(`   🔍 Searching files with query: "${query}"`);
-        // Use nullish coalescing to handle 0 correctly (0 || 1000 would be 1000)
-        const maxResults = input.max_results !== undefined ? input.max_results : 1000; // Default to 1000 for comprehensive searches
+        (0, logger_1.logInfo)(`   🔍 Searching files with query: "${query}"`);
+        // Use number when valid, otherwise default 1000 (nullish coalescing would treat 0 as valid)
+        const maxResults = typeof input.max_results === 'number' ? input.max_results : 1000;
         // Validate query is provided and is a string
         // @internal query is required to know what to search for
         if (!query || typeof query !== 'string') {

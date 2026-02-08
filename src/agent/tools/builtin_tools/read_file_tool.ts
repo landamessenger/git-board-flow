@@ -29,6 +29,7 @@
  */
 
 import { BaseTool } from '../base_tool';
+import { logInfo } from '../../../utils/logger';
 
 /**
  * Options for configuring the ReadFileTool.
@@ -162,8 +163,7 @@ export class ReadFileTool extends BaseTool {
    * // Returns: "Error: File "nonexistent.ts" not found in the repository."
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo } = require('../../../utils/logger');
+  async execute(input: Record<string, unknown>): Promise<string> {
     const filePath = input.file_path as string;
     logInfo(`   📖 Reading file: ${filePath}`);
 

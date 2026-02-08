@@ -37,6 +37,7 @@
  */
 
 import { BaseTool } from '../base_tool';
+import { logInfo, logWarn, logError } from '../../../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -198,8 +199,7 @@ export class ApplyChangesTool extends BaseTool {
    * // Returns: "[DRY RUN] Would apply 2 file(s):\n  - src/utils.ts (create)\n  - src/helper.ts (modify)"
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo, logWarn, logError } = require('../../../utils/logger');
+  async execute(input: Record<string, unknown>): Promise<string> {
     const filePaths = input.file_paths as string[] | undefined;
     const dryRun = input.dry_run === true;
     

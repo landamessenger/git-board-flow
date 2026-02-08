@@ -33,6 +33,7 @@
  */
 
 import { BaseTool } from '../base_tool';
+import { logInfo } from '../../../utils/logger';
 
 /**
  * Options for configuring the ReportProgressTool.
@@ -170,9 +171,7 @@ export class ReportProgressTool extends BaseTool {
    * // Progress: 50, Summary: 'Halfway done'
    * ```
    */
-  async execute(input: Record<string, any>): Promise<string> {
-    const { logInfo } = require('../../../utils/logger');
-    
+  async execute(input: Record<string, unknown>): Promise<string> {
     // Validate progress
     // @internal progress is required to know the completion percentage
     if (input.progress === undefined || input.progress === null) {

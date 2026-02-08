@@ -166,5 +166,5 @@ export declare class ApplyChangesTool extends BaseTool {
      * // Returns: "[DRY RUN] Would apply 2 file(s):\n  - src/utils.ts (create)\n  - src/helper.ts (modify)"
      * ```
      */
-    execute(input: Record<string, any>): Promise<string>;
+    execute(input: Record<string, unknown>): Promise<string>;
 }
