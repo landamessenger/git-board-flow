@@ -11,6 +11,8 @@ export class SingleAction {
         ACTIONS.THINK,
         ACTIONS.INITIAL_SETUP,
         ACTIONS.CHECK_PROGRESS,
+        ACTIONS.DETECT_ERRORS,
+        ACTIONS.RECOMMEND_STEPS,
     ];
     /**
      * Actions that throw an error if the last step failed
@@ -68,6 +70,14 @@ export class SingleAction {
 
     get isCheckProgressAction(): boolean {
         return this.currentSingleAction === ACTIONS.CHECK_PROGRESS;
+    }
+
+    get isDetectErrorsAction(): boolean {
+        return this.currentSingleAction === ACTIONS.DETECT_ERRORS;
+    }
+
+    get isRecommendStepsAction(): boolean {
+        return this.currentSingleAction === ACTIONS.RECOMMEND_STEPS;
     }
 
     get enabledSingleAction(): boolean {

@@ -4,13 +4,23 @@ import { logError, logInfo, logDebugInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 import { IssueRepository } from '../../data/repository/issue_repository';
 import { BranchRepository } from '../../data/repository/branch_repository';
-import { ProgressDetector } from '../../agent/reasoning/progress_detector/progress_detector';
-import { ProgressDetectionOptions } from '../../agent/reasoning/progress_detector/types';
+import { AiRepository, OPENCODE_AGENT_PLAN } from '../../data/repository/ai_repository';
+
+const PROGRESS_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        progress: { type: 'number', description: 'Completion percentage 0-100' },
+        summary: { type: 'string', description: 'Short explanation of the assessment' },
+    },
+    required: ['progress', 'summary'],
+    additionalProperties: false,
+} as const;
 
 export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckProgressUseCase';
     private issueRepository: IssueRepository = new IssueRepository();
     private branchRepository: BranchRepository = new BranchRepository();
+    private aiRepository: AiRepository = new AiRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`);
@@ -218,48 +228,31 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            // Create ProgressDetector options
-            const token = param.tokens.token;
-            if (!token || token.length === 0) {
-                logError(`GitHub token is missing or empty. Cannot load repository files.`);
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        errors: [
-                            `GitHub token is missing or empty. Cannot load repository files for progress analysis.`,
-                        ],
-                    })
-                );
-                return results;
-            }
-
-            logDebugInfo(`🔑 Token available: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
-
-            const detectorOptions: ProgressDetectionOptions = {
-                model: param.ai.getOpencodeModel(),
-                serverUrl: param.ai.getOpencodeServerUrl(),
-                personalAccessToken: token,
-                maxTurns: 20,
-                repositoryOwner: param.owner,
-                repositoryName: param.repo,
-                repositoryBranch: branch,
-                developmentBranch: developmentBranch,
-                issueNumber: issueNumber,
-                issueDescription: issueDescription,
-                changedFiles: changedFiles,
-                useSubAgents: false,
-            };
-
-            // Detect progress
-            logInfo(`🤖 Analyzing progress using AI...`);
-            const detector = new ProgressDetector(detectorOptions);
-            const progressResult = await detector.detectProgress(
-                `Analyze the progress of issue #${issueNumber} based on the changes made in branch ${branch} compared to ${developmentBranch}.`
+            const prompt = this.buildProgressPrompt(
+                issueNumber,
+                issueDescription,
+                branch,
+                developmentBranch,
+                changedFiles
             );
 
-            logInfo(`✅ Progress detection completed: ${progressResult.progress}%`);
+            logInfo(`🤖 Analyzing progress using OpenCode Plan agent...`);
+            const agentResponse = await this.aiRepository.askAgent(
+                param.ai,
+                OPENCODE_AGENT_PLAN,
+                prompt,
+                { expectJson: true, schema: PROGRESS_RESPONSE_SCHEMA as unknown as Record<string, unknown>, schemaName: 'progress_response' }
+            );
+
+            const progress = agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).progress === 'number'
+                ? Math.min(100, Math.max(0, Math.round((agentResponse as Record<string, unknown>).progress as number)))
+                : 0;
+            const summary =
+                agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).summary === 'string'
+                    ? String((agentResponse as Record<string, unknown>).summary)
+                    : 'Unable to determine progress.';
+
+            logInfo(`✅ Progress detection completed: ${progress}%`);
 
             results.push(
                 new Result({
@@ -267,12 +260,12 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                     success: true,
                     executed: true,
                     steps: [
-                        `Progress for issue #${issueNumber}: ${progressResult.progress}%`,
-                        progressResult.summary
+                        `Progress for issue #${issueNumber}: ${progress}%`,
+                        summary
                     ],
                     payload: {
-                        progress: progressResult.progress,
-                        summary: progressResult.summary,
+                        progress,
+                        summary,
                         issueNumber,
                         branch,
                         developmentBranch,
@@ -296,6 +289,35 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
         }
 
         return results;
+    }
+
+    private buildProgressPrompt(
+        issueNumber: number,
+        issueDescription: string,
+        branch: string,
+        developmentBranch: string,
+        changedFiles: Array<{ filename: string; status: string; additions?: number; deletions?: number; patch?: string }>
+    ): string {
+        const fileList = changedFiles
+            .map((f) => `- ${f.filename} (${f.status}${f.additions != null ? `, +${f.additions}` : ''}${f.deletions != null ? `/-${f.deletions}` : ''})`)
+            .join('\n');
+        const patchesSnippet = changedFiles
+            .filter((f) => f.patch)
+            .slice(0, 15)
+            .map((f) => `### ${f.filename}\n\`\`\`diff\n${(f.patch ?? '').slice(0, 2000)}\n\`\`\``)
+            .join('\n\n');
+        return `Assess the progress of issue #${issueNumber} based on the branch "${branch}" compared to "${developmentBranch}".
+
+**Issue description:**
+${issueDescription}
+
+**Changed files:**
+${fileList}
+
+**Patch excerpts (for context):**
+${patchesSnippet}
+
+Respond with a JSON object: { "progress": <number 0-100>, "summary": "<short explanation>" }.`;
     }
 
     /**

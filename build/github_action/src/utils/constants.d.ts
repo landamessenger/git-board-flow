@@ -189,5 +189,7 @@ export declare const ACTIONS: {
     readonly THINK: "think_action";
     readonly INITIAL_SETUP: "initial_setup";
     readonly CHECK_PROGRESS: "check_progress_action";
+    readonly DETECT_ERRORS: "detect_errors_action";
+    readonly RECOMMEND_STEPS: "recommend_steps_action";
 };
 export declare const PROMPTS: {};

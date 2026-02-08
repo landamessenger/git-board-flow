@@ -26,6 +26,8 @@ export declare class SingleAction {
     get isThinkAction(): boolean;
     get isInitialSetupAction(): boolean;
     get isCheckProgressAction(): boolean;
+    get isDetectErrorsAction(): boolean;
+    get isRecommendStepsAction(): boolean;
     get enabledSingleAction(): boolean;
     get validSingleAction(): boolean;
     get isSingleActionWithoutIssue(): boolean;

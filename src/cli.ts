@@ -331,6 +331,82 @@ program
   });
 
 /**
+ * Detect potential errors in the branch for an issue (vs base branch).
+ */
+program
+  .command('detect-errors')
+  .description(`${TITLE} - Detect potential errors in the branch (vs base) using OpenCode Plan agent`)
+  .option('-i, --issue <number>', 'Issue number (required)', '')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+  .action(async (options) => {
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+    const cleanArg = (v: any): string => (v ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const issueNumber = cleanArg(options.issue);
+    if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
+      console.log('❌ Provide a valid issue number with -i or --issue');
+      return;
+    }
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.DETECT_ERRORS,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
+      repo: { owner: gitInfo.owner, repo: gitInfo.repo },
+      issue: { number: parseInt(issueNumber) },
+    };
+    params[INPUT_KEYS.WELCOME_TITLE] = '🔍 Error detection';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [`Detecting errors for issue #${issueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`];
+    await runLocalAction(params);
+  });
+
+/**
+ * Recommend implementation steps for an issue based on its description.
+ */
+program
+  .command('recommend-steps')
+  .description(`${TITLE} - Recommend steps to implement an issue (OpenCode Plan agent)`)
+  .option('-i, --issue <number>', 'Issue number (required)', '')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://localhost:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+  .action(async (options) => {
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+    const cleanArg = (v: any): string => (v ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const issueNumber = cleanArg(options.issue);
+    if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
+      console.log('❌ Provide a valid issue number with -i or --issue');
+      return;
+    }
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.RECOMMEND_STEPS,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL,
+      repo: { owner: gitInfo.owner, repo: gitInfo.repo },
+      issue: { number: parseInt(issueNumber) },
+    };
+    params[INPUT_KEYS.WELCOME_TITLE] = '📋 Recommend steps';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [`Recommending steps for issue #${issueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`];
+    await runLocalAction(params);
+  });
+
+/**
  * Run the initial setup to configure labels, issue types, and verify access.
  */
 program

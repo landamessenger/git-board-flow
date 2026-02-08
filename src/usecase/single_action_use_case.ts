@@ -9,6 +9,8 @@ import { CreateTagUseCase } from "./actions/create_tag_use_case";
 import { ThinkUseCase } from "./steps/common/think_use_case";
 import { InitialSetupUseCase } from "./actions/initial_setup_use_case";
 import { CheckProgressUseCase } from "./actions/check_progress_use_case";
+import { DetectErrorsUseCase } from "./actions/detect_errors_use_case";
+import { RecommendStepsUseCase } from "./actions/recommend_steps_use_case";
 
 export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'SingleActionUseCase';
@@ -37,6 +39,10 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
                 results.push(...await new InitialSetupUseCase().invoke(param));
             } else if (param.singleAction.isCheckProgressAction) {
                 results.push(...await new CheckProgressUseCase().invoke(param));
+            } else if (param.singleAction.isDetectErrorsAction) {
+                results.push(...await new DetectErrorsUseCase().invoke(param));
+            } else if (param.singleAction.isRecommendStepsAction) {
+                results.push(...await new RecommendStepsUseCase().invoke(param));
             }
         } catch (error) {
             logError(error);

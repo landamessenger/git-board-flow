@@ -5,7 +5,9 @@ export declare class CheckProgressUseCase implements ParamUseCase<Execution, Res
     taskId: string;
     private issueRepository;
     private branchRepository;
+    private aiRepository;
     invoke(param: Execution): Promise<Result[]>;
+    private buildProgressPrompt;
     /**
      * Check if a file should be ignored based on ignore patterns
      * This method matches the implementation in FileRepository.shouldIgnoreFile

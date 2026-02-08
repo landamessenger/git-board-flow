@@ -5,14 +5,9 @@ export declare class UpdatePullRequestDescriptionUseCase implements ParamUseCase
     taskId: string;
     private aiRepository;
     private pullRequestRepository;
-    private fileRepository;
     private issueRepository;
     private projectRepository;
     invoke(param: Execution): Promise<Result[]>;
+    private buildPrDescriptionPrompt;
     private shouldIgnoreFile;
-    private mergePatchSummaries;
-    private groupFilesByDirectory;
-    private formatFileChanges;
-    private processFile;
-    private processChanges;
 }

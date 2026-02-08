@@ -1,28 +1,25 @@
-import { PatchSummary } from "../../../data/graph/ai_responses";
 import { Ai } from "../../../data/model/ai";
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
-import { AiRepository } from "../../../data/repository/ai_repository";
-import { FileRepository } from "../../../data/repository/file_repository";
+import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../data/repository/ai_repository";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
-import { logDebugError, logDebugInfo, logError } from "../../../utils/logger";
+import { logDebugInfo, logError } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'UpdatePullRequestDescriptionUseCase';
-    
+
     private aiRepository = new AiRepository();
     private pullRequestRepository = new PullRequestRepository();
-    private fileRepository = new FileRepository();
     private issueRepository = new IssueRepository();
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logDebugInfo(`Executing ${this.taskId}.`)
+        logDebugInfo(`Executing ${this.taskId}.`);
 
-        const result: Result[] = []
+        const result: Result[] = [];
 
         try {
             const prNumber = param.pullRequest.number;
@@ -35,37 +32,36 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
 
             if (issueDescription.length === 0) {
                 result.push(
-                    new Result(
-                        {
-                            id: this.taskId,
-                            success: false,
-                            executed: false,
-                            steps: [
-                                `No issue description found. Skipping update pull request description.`
-                            ]
-                        }
-                    )
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: false,
+                        steps: [
+                            `No issue description found. Skipping update pull request description.`,
+                        ],
+                    })
                 );
                 return result;
             }
 
-            const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.token);
-            const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
-                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
-
+            const currentProjectMembers = await this.projectRepository.getAllMembers(
+                param.owner,
+                param.tokens.token
+            );
+            const pullRequestCreatorIsTeamMember =
+                param.pullRequest.creator.length > 0 &&
+                currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
 
             if (!pullRequestCreatorIsTeamMember && param.ai.getAiMembersOnly()) {
                 result.push(
-                    new Result(
-                        {
-                            id: this.taskId,
-                            success: false,
-                            executed: false,
-                            steps: [
-                                `The pull request creator @${param.pullRequest.creator} is not a team member and \`AI members only\` is enabled. Skipping update pull request description.`
-                            ]
-                        }
-                    )
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: false,
+                        steps: [
+                            `The pull request creator @${param.pullRequest.creator} is not a team member and \`AI members only\` is enabled. Skipping update pull request description.`,
+                        ],
+                    })
                 );
                 return result;
             }
@@ -77,275 +73,106 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 param.tokens.token
             );
 
-            const changesDescription = await this.processChanges(changes, param.ai, param.owner, param.repo, param.tokens.token, param.pullRequest.base);
-
-            const descriptionPrompt = `this an issue descrition.
-define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
-just a text description:\n\n
-${issueDescription}`;
-
-            const currentDescription = await this.aiRepository.ask(
-                param.ai,
-                descriptionPrompt,
+            const filteredChanges = changes.filter(
+                (c) => !this.shouldIgnoreFile(c.filename, param.ai.getAiIgnoreFiles())
             );
 
-            // Update pull request description
+            const prompt = this.buildPrDescriptionPrompt(issueDescription, filteredChanges);
+
+            const agentResponse = await this.aiRepository.askAgent(
+                param.ai,
+                OPENCODE_AGENT_PLAN,
+                prompt
+            );
+
+            const prBody =
+                typeof agentResponse === 'string'
+                    ? agentResponse
+                    : (agentResponse && String((agentResponse as Record<string, unknown>).description)) || '';
+
+            if (!prBody.trim()) {
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [`OpenCode Plan agent did not return a PR description.`],
+                    })
+                );
+                return result;
+            }
+
             await this.pullRequestRepository.updateDescription(
                 param.owner,
                 param.repo,
                 prNumber,
-                `
-#${param.issueNumber}
-
-## What does this PR do?
-
-${currentDescription}
-
-${changesDescription}
-`,
+                `#${param.issueNumber}\n\n## What does this PR do?\n\n${prBody.trim()}`,
                 param.tokens.token
             );
 
             result.push(
-                new Result(
-                    {
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The description has been updated with AI-generated content.`
-                        ]
-                    }
-                )
+                new Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [`The description has been updated with AI-generated content (OpenCode Plan agent).`],
+                })
             );
-            
         } catch (error) {
             logError(error);
             result.push(
-                new Result(
-                    {
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Error updating pull request description: ${error}`
-                        ]
-                    }
-                )
+                new Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`Error updating pull request description: ${error}`],
+                })
             );
         }
 
         return result;
     }
 
+    private buildPrDescriptionPrompt(
+        issueDescription: string,
+        changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[]
+    ): string {
+        const changesBlock = changes
+            .map((c) => {
+                const header = `### ${c.filename} (${c.status}, +${c.additions}/-${c.deletions})`;
+                const patch = c.patch ? `\n\`\`\`diff\n${c.patch}\n\`\`\`` : '';
+                return header + patch;
+            })
+            .join('\n\n');
+
+        return `You are helping write a pull request description. The PR closes an issue.
+
+**Issue description:**
+${issueDescription}
+
+**Changed files and patches:**
+${changesBlock}
+
+**Instructions:**
+- Write one short paragraph describing what this PR does (plain text, no markdown titles like # or ##).
+- Then add a "Summary of Changes" section and a "Detailed Changes" section if there are multiple files.
+- Do not use titles (#, ##, ###) in the first paragraph; only in the summary/detailed sections.
+- Output only the description content (the "What does this PR do?" paragraph plus optional sections).`;
+    }
+
     private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
-        return ignorePatterns.some(pattern => {
-            // Convert glob pattern to regex
+        if (ignorePatterns.length === 0) return false;
+        return ignorePatterns.some((pattern) => {
             const regexPattern = pattern
-                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
-                .replace(/\*/g, '.*') // Convert * to match anything
-                .replace(/\//g, '\\/'); // Escape forward slashes
-    
-            // Allow pattern ending on /* to ignore also subdirectories and files inside
-            if (pattern.endsWith("/*")) {
-                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                .replace(/\*/g, '.*')
+                .replace(/\//g, '\\/');
+            if (pattern.endsWith('/*')) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, '(\\/.*)?')}$`).test(
+                    filename
+                );
             }
-    
-            const regex = new RegExp(`^${regexPattern}$`);
-            return regex.test(filename);
+            return new RegExp(`^${regexPattern}$`).test(filename);
         });
-    }
-
-    private mergePatchSummaries(summaries: PatchSummary[]): PatchSummary[] {
-        const mergedMap = new Map<string, PatchSummary>();
-
-        for (const summary of summaries) {
-            const existing = mergedMap.get(summary.filePath);
-            if (existing) {
-                // Merge with existing summary
-                existing.summary = `${existing.summary}\n${summary.summary}`;
-                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
-            } else {
-                // Create new entry
-                mergedMap.set(summary.filePath, {
-                    filePath: summary.filePath,
-                    summary: summary.summary,
-                    changes: [...summary.changes]
-                });
-            }
-        }
-
-        return Array.from(mergedMap.values());
-    }
-
-    private groupFilesByDirectory(files: PatchSummary[]): { [key: string]: PatchSummary[] } {
-        const groups: { [key: string]: PatchSummary[] } = {
-            root: []
-        };
-
-        files.forEach(file => {
-            const pathParts = file.filePath.split('/');
-            if (pathParts.length > 1) {
-                const directory = pathParts.slice(0, -1).join('/');
-                if (!groups[directory]) {
-                    groups[directory] = [];
-                }
-                groups[directory].push(file);
-            } else {
-                groups.root.push(file);
-            }
-        });
-
-        return groups;
-    }
-
-    private formatFileChanges(file: PatchSummary): string {
-        let output = `#### \`${file.filePath}\`\n\n`;
-        output += `${file.summary}\n\n`;
-        
-        if (file.changes.length > 0) {
-            output += '**Changes:**\n';
-            output += file.changes.map(change => `- ${change}`).join('\n');
-        }
-
-        output += `\n\n--- \n\n`;
-
-        return output;
-    }
-
-    private async processFile(
-        change: { filename: string; status: string; additions: number; deletions: number; patch?: string },
-        ai: Ai,
-        owner: string,
-        repo: string,
-        token: string,
-        baseBranch: string
-    ): Promise<PatchSummary[]> {
-        if (!change.patch) {
-            return [];
-        }
-
-        // Get the original file content
-        const originalContent = await this.fileRepository.getFileContent(
-            owner,
-            repo,
-            change.filename,
-            token,
-            baseBranch
-        );
-
-        const filePrompt = `Analyze the following code changes and provide a summary in JSON format.
-
-### **Guidelines**:
-- Output must be a **valid JSON** object.
-- Provide a high-level summary of the changes.
-- List the key changes in detail.
-- Pay attention to the file names, don't make mistakes with uppercase, lowercase, or underscores.
-- Be careful when composing the response JSON, don't make mistakes with unnecessary commas.
-
-### **Output Format Example**:
-\`\`\`json
-{
-    "filePath": "src/utils/logger.ts",
-    "summary": "Refactored logging system for better error handling.",
-    "changes": [
-        "Replaced \`console.error\` with \`logError\`.",
-        "Added support for async logging.",
-        "Removed unused function \`debugLog\`."
-    ]
-}
-\`\`\`
-
-### **Metadata**:
-- **Filename:** ${change.filename}
-- **Status:** ${change.status}
-- **Changes:** +${change.additions} / -${change.deletions}
-
-### **Original File Content**:
-\`\`\`
-${originalContent}
-\`\`\`
-
-### **Patch**:
-${change.patch}`;
-
-        const response = await this.aiRepository.ask(ai, filePrompt);
-        if (!response) {
-            return [];
-        }
-
-        try {
-            const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-            const patchSummary: PatchSummary = JSON.parse(cleanResponse);
-            return [patchSummary];
-        } catch (error) {
-            logDebugError(`Response: ${response}`);
-            logError(`Error parsing JSON response: ${error}`);
-            return [];
-        }
-    }
-
-    private async processChanges(
-        changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[],
-        ai: Ai,
-        owner: string,
-        repo: string,
-        token: string,
-        baseBranch: string
-    ): Promise<string> {
-        logDebugInfo(`Processing ${changes.length} changes`);
-        
-        const processFilePromises = changes.map(async (change) => {
-            try {
-                logDebugInfo(`Processing changes for file ${change.filename}`);
-                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ai.getAiIgnoreFiles());
-                if (shouldIgnoreFile) {
-                    logDebugInfo(`File ${change.filename} should be ignored`);
-                    return [];
-                }
-
-                return await this.processFile(change, ai, owner, repo, token, baseBranch);
-            } catch (error) {
-                logError(error);
-                throw new Error(`Error processing file ${change.filename}: ${error}`);
-            }
-        });
-
-        const fileDescriptions = (await Promise.all(processFilePromises)).flat();
-
-        // Merge PatchSummary objects for the same file
-        const mergedFileDescriptions = this.mergePatchSummaries(fileDescriptions);
-
-        // Group files by directory
-        const groupedFiles = this.groupFilesByDirectory(mergedFileDescriptions);
-        
-        // Generate a structured description
-        let description = '';
-        
-        // Add summary section if there are files
-        if (mergedFileDescriptions.length > 0) {
-            description += '## Summary of Changes\n\n';
-            description += mergedFileDescriptions.map(file => 
-                `- **${file.filePath}**: ${file.summary}`
-            ).join('\n');
-            description += '\n\n';
-        }
-
-        // Add detailed changes section
-        description += '## Detailed Changes\n\n';
-        
-        // Process each directory group
-        for (const [directory, files] of Object.entries(groupedFiles)) {
-            if (directory === 'root') {
-                // Files in root directory
-                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
-            } else {
-                // Files in subdirectories
-                description += `### ${directory}\n\n`;
-                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
-            }
-        }
-
-        return description;
     }
 }

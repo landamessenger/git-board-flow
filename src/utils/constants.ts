@@ -382,6 +382,8 @@ export const ACTIONS = {
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
+    DETECT_ERRORS: 'detect_errors_action',
+    RECOMMEND_STEPS: 'recommend_steps_action',
 } as const; 
 
 export const PROMPTS = {

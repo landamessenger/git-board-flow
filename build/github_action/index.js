@@ -42483,3622 +42483,6 @@ runGitHubAction();
 
 /***/ }),
 
-/***/ 1963:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Agent - Main class for Agent SDK
- * Similar to Anthropic's Agent SDK
- * Integrated with all advanced features
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Agent = void 0;
-const message_manager_1 = __nccwpck_require__(5759);
-const reasoning_loop_1 = __nccwpck_require__(7982);
-const tool_registry_1 = __nccwpck_require__(4138);
-const tool_executor_1 = __nccwpck_require__(4315);
-const session_manager_1 = __nccwpck_require__(7408);
-const subagent_manager_1 = __nccwpck_require__(2078);
-const logger_1 = __nccwpck_require__(8836);
-class Agent {
-    constructor(options) {
-        this.options = options;
-        this.reasoningLoop = null;
-        // Validate options
-        if (!options.model) {
-            throw new Error('Model is required');
-        }
-        if (!options.serverUrl) {
-            throw new Error('OpenCode server URL is required');
-        }
-        // Initialize components
-        this.messageManager = new message_manager_1.MessageManager();
-        this.toolRegistry = new tool_registry_1.ToolRegistry();
-        this.toolExecutor = new tool_executor_1.ToolExecutor(this.toolRegistry);
-        this.sessionManager = new session_manager_1.SessionManager();
-        // Generate or use provided session ID
-        this.sessionId = options.sessionId || this.sessionManager.generateSessionId();
-        // Note: Session loading should be done explicitly via loadSession() method
-        // after construction, as it's async
-        // Register tools if provided
-        if (options.tools && options.tools.length > 0) {
-            this.toolRegistry.registerAll(options.tools);
-            (0, logger_1.logInfo)(`🔧 Registered ${options.tools.length} tool(s)`);
-        }
-        // Add system prompt if provided
-        if (options.systemPrompt) {
-            this.messageManager.addSystemMessage(options.systemPrompt);
-        }
-    }
-    /**
-     * Execute query - main entry point
-     * Similar to Agent SDK's query() method
-     */
-    async query(prompt) {
-        (0, logger_1.logInfo)(`🚀 Agent query started`);
-        // Add user message
-        this.messageManager.addUserMessage(prompt);
-        // Create reasoning loop
-        this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
-        // Execute
-        const result = await this.reasoningLoop.execute();
-        // Save session if enabled
-        if (this.options.persistSession) {
-            await this.saveSession(result);
-        }
-        (0, logger_1.logInfo)(`✅ Agent query completed (${result.turns.length} turn(s), ${result.toolCalls.length} tool call(s))`);
-        return result;
-    }
-    /**
-     * Continue conversation with additional prompt
-     */
-    async continue(prompt) {
-        (0, logger_1.logInfo)(`🔄 Agent continuing conversation`);
-        // Add user message
-        this.messageManager.addUserMessage(prompt);
-        // Create reasoning loop
-        this.reasoningLoop = new reasoning_loop_1.ReasoningLoop(this.messageManager, this.toolExecutor, this.options);
-        // Execute
-        const result = await this.reasoningLoop.execute();
-        // Save session if enabled
-        if (this.options.persistSession) {
-            await this.saveSession(result);
-        }
-        (0, logger_1.logInfo)(`✅ Agent continued (${result.turns.length} turn(s))`);
-        return result;
-    }
-    /**
-     * Load session
-     */
-    async loadSession(sessionId) {
-        const id = sessionId || this.sessionId;
-        const session = await this.sessionManager.loadSession(id);
-        if (session) {
-            // Reset current messages
-            this.messageManager.reset();
-            // Restore messages
-            for (const msg of session.messages) {
-                if (msg.role === 'system') {
-                    this.messageManager.addSystemMessage(typeof msg.content === 'string' ? msg.content : '');
-                }
-                else if (msg.role === 'user') {
-                    this.messageManager.addUserMessage(msg.content);
-                }
-                else if (msg.role === 'assistant') {
-                    this.messageManager.addAssistantMessage(msg.content);
-                }
-            }
-            this.sessionId = id;
-            (0, logger_1.logInfo)(`📂 Session loaded: ${id} (${session.messages.length} messages)`);
-        }
-    }
-    /**
-     * Save session
-     */
-    async saveSession(result) {
-        try {
-            await this.sessionManager.saveSession(this.sessionId, this.messageManager.getMessages(), result);
-        }
-        catch (error) {
-            (0, logger_1.logInfo)(`⚠️ Failed to save session: ${error}`);
-        }
-    }
-    /**
-     * Get session ID
-     */
-    getSessionId() {
-        return this.sessionId;
-    }
-    /**
-     * List all sessions
-     */
-    async listSessions() {
-        return await this.sessionManager.listSessions();
-    }
-    /**
-     * Delete session
-     */
-    async deleteSession(sessionId) {
-        const id = sessionId || this.sessionId;
-        await this.sessionManager.deleteSession(id);
-    }
-    /**
-     * Get message history
-     */
-    getMessages() {
-        return this.messageManager.getMessages();
-    }
-    /**
-     * Get message count
-     */
-    getMessageCount() {
-        return this.messageManager.getMessageCount();
-    }
-    /**
-     * Reset agent (clear history)
-     */
-    reset() {
-        this.messageManager.reset();
-        if (this.options.systemPrompt) {
-            this.messageManager.addSystemMessage(this.options.systemPrompt);
-        }
-        (0, logger_1.logInfo)(`🔄 Agent reset`);
-    }
-    /**
-     * Register a tool
-     */
-    registerTool(tool) {
-        this.toolRegistry.register(tool);
-        (0, logger_1.logInfo)(`🔧 Tool registered: ${tool.getName()}`);
-    }
-    /**
-     * Register multiple tools
-     */
-    registerTools(tools) {
-        this.toolRegistry.registerAll(tools);
-        (0, logger_1.logInfo)(`🔧 Registered ${tools.length} tool(s)`);
-    }
-    /**
-     * Get available tools
-     */
-    getAvailableTools() {
-        return this.toolRegistry.getToolNames();
-    }
-    /**
-     * Get system prompt
-     */
-    getSystemPrompt() {
-        return this.messageManager.getSystemMessage();
-    }
-    /**
-     * Update system prompt
-     */
-    setSystemPrompt(prompt) {
-        this.messageManager.addSystemMessage(prompt);
-    }
-    /**
-     * Create a subagent
-     */
-    createSubAgent(options) {
-        if (!this.subAgentManager) {
-            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
-        }
-        return this.subAgentManager.createSubAgent(options);
-    }
-    /**
-     * Execute multiple tasks in parallel using subagents
-     */
-    async executeParallel(tasks) {
-        if (!this.subAgentManager) {
-            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
-        }
-        return await this.subAgentManager.executeParallel(tasks);
-    }
-    /**
-     * Coordinate agents with dependencies
-     */
-    async coordinateAgents(tasks) {
-        if (!this.subAgentManager) {
-            this.subAgentManager = new subagent_manager_1.SubAgentManager(this);
-        }
-        return await this.subAgentManager.coordinateAgents(tasks);
-    }
-    /**
-     * Get subagent manager
-     */
-    getSubAgentManager() {
-        return this.subAgentManager;
-    }
-    /**
-     * Get subagent by name
-     */
-    getSubAgent(name) {
-        return this.subAgentManager?.getSubAgent(name);
-    }
-    /**
-     * Get all subagents
-     */
-    getAllSubAgents() {
-        return this.subAgentManager?.getAllSubAgents() || [];
-    }
-}
-exports.Agent = Agent;
-
-
-/***/ }),
-
-/***/ 341:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Budget Manager
- * Tracks and enforces budget limits
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.BudgetManager = void 0;
-const logger_1 = __nccwpck_require__(8836);
-class BudgetManager {
-    constructor(config) {
-        this.currentCost = 0;
-        this.currentTokens = 0;
-        this.config = {
-            maxCost: config?.maxCost,
-            maxTokens: config?.maxTokens,
-            warnAtPercent: config?.warnAtPercent ?? 80
-        };
-    }
-    /**
-     * Check if budget is exceeded
-     */
-    isExceeded(metrics) {
-        // Check token limit
-        if (this.config.maxTokens) {
-            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
-            if (totalTokens > this.config.maxTokens) {
-                return true;
-            }
-        }
-        // Check cost limit
-        if (this.config.maxCost && metrics.totalCost) {
-            if (metrics.totalCost > this.config.maxCost) {
-                return true;
-            }
-        }
-        return false;
-    }
-    /**
-     * Check if budget warning should be shown
-     */
-    shouldWarn(metrics) {
-        if (!this.config.warnAtPercent) {
-            return false;
-        }
-        // Check token warning
-        if (this.config.maxTokens) {
-            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
-            const percent = (totalTokens / this.config.maxTokens) * 100;
-            if (percent >= this.config.warnAtPercent) {
-                return true;
-            }
-        }
-        // Check cost warning
-        if (this.config.maxCost && metrics.totalCost) {
-            const percent = (metrics.totalCost / this.config.maxCost) * 100;
-            if (percent >= this.config.warnAtPercent) {
-                return true;
-            }
-        }
-        return false;
-    }
-    /**
-     * Get budget status
-     */
-    getStatus(metrics) {
-        const status = {
-            exceeded: this.isExceeded(metrics),
-            warning: this.shouldWarn(metrics)
-        };
-        // Token usage
-        if (this.config.maxTokens) {
-            const totalTokens = metrics.totalTokens.input + metrics.totalTokens.output;
-            status.tokenUsage = {
-                used: totalTokens,
-                limit: this.config.maxTokens,
-                percent: Math.round((totalTokens / this.config.maxTokens) * 100)
-            };
-        }
-        // Cost usage
-        if (this.config.maxCost && metrics.totalCost) {
-            status.costUsage = {
-                used: metrics.totalCost,
-                limit: this.config.maxCost,
-                percent: Math.round((metrics.totalCost / this.config.maxCost) * 100)
-            };
-        }
-        return status;
-    }
-    /**
-     * Log budget status
-     */
-    logStatus(metrics) {
-        const status = this.getStatus(metrics);
-        if (status.exceeded) {
-            (0, logger_1.logWarn)('⚠️ Budget exceeded!');
-        }
-        else if (status.warning) {
-            (0, logger_1.logWarn)('⚠️ Budget warning: Approaching limit');
-        }
-        if (status.tokenUsage) {
-            (0, logger_1.logDebugInfo)(`💰 Tokens: ${status.tokenUsage.used}/${status.tokenUsage.limit} (${status.tokenUsage.percent}%)`);
-        }
-        if (status.costUsage) {
-            (0, logger_1.logDebugInfo)(`💰 Cost: $${status.costUsage.used.toFixed(4)}/$${status.costUsage.limit.toFixed(4)} (${status.costUsage.percent}%)`);
-        }
-    }
-    /**
-     * Update budget config
-     */
-    updateConfig(config) {
-        this.config = { ...this.config, ...config };
-    }
-}
-exports.BudgetManager = BudgetManager;
-
-
-/***/ }),
-
-/***/ 6955:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Context Manager
- * Manages conversation context and compression for long conversations
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ContextManager = void 0;
-const logger_1 = __nccwpck_require__(8836);
-class ContextManager {
-    constructor(maxContextLength = 100000, compressionEnabled = true) {
-        this.maxContextLength = maxContextLength;
-        this.compressionEnabled = compressionEnabled;
-    }
-    /**
-     * Estimate tokens in messages (rough approximation: 1 token ≈ 4 characters)
-     */
-    estimateTokens(messages) {
-        let totalChars = 0;
-        for (const msg of messages) {
-            if (typeof msg.content === 'string') {
-                totalChars += msg.content.length;
-            }
-            else if (Array.isArray(msg.content)) {
-                for (const block of msg.content) {
-                    if (block.type === 'text' && 'text' in block) {
-                        totalChars += block.text.length;
-                    }
-                    else if (block.type === 'tool_use' && 'input' in block) {
-                        totalChars += JSON.stringify(block.input).length;
-                    }
-                    else if (block.type === 'tool_result' && 'content' in block) {
-                        const content = block.content;
-                        totalChars += typeof content === 'string' ? content.length : JSON.stringify(content).length;
-                    }
-                }
-            }
-        }
-        return Math.ceil(totalChars / 4);
-    }
-    /**
-     * Check if context needs compression
-     */
-    needsCompression(messages) {
-        if (!this.compressionEnabled) {
-            return false;
-        }
-        const tokens = this.estimateTokens(messages);
-        return tokens > this.maxContextLength * 0.8; // Compress at 80% of max
-    }
-    /**
-     * Compress context by summarizing old messages
-     */
-    compressContext(messages) {
-        if (!this.needsCompression(messages)) {
-            return messages;
-        }
-        (0, logger_1.logDebugInfo)(`📦 Compressing context (${messages.length} messages, ~${this.estimateTokens(messages)} tokens)`);
-        // Keep system message
-        const systemMessage = messages.find(m => m.role === 'system');
-        const otherMessages = messages.filter(m => m.role !== 'system');
-        // Keep recent messages (last 10)
-        const recentMessages = otherMessages.slice(-10);
-        // Summarize older messages
-        const oldMessages = otherMessages.slice(0, -10);
-        const summary = {
-            role: 'user',
-            content: `[Previous conversation summary: ${oldMessages.length} messages were exchanged. Key points: The conversation involved multiple tool calls and responses.]`
-        };
-        const compressed = systemMessage
-            ? [systemMessage, summary, ...recentMessages]
-            : [summary, ...recentMessages];
-        (0, logger_1.logDebugInfo)(`✅ Compressed to ${compressed.length} messages (~${this.estimateTokens(compressed)} tokens)`);
-        return compressed;
-    }
-    /**
-     * Get context statistics
-     */
-    getStats(messages) {
-        const tokens = this.estimateTokens(messages);
-        const compressed = this.needsCompression(messages);
-        return {
-            messageCount: messages.length,
-            estimatedTokens: tokens,
-            compressed
-        };
-    }
-    /**
-     * Update max context length
-     */
-    setMaxContextLength(length) {
-        this.maxContextLength = length;
-    }
-    /**
-     * Enable/disable compression
-     */
-    setCompressionEnabled(enabled) {
-        this.compressionEnabled = enabled;
-    }
-}
-exports.ContextManager = ContextManager;
-
-
-/***/ }),
-
-/***/ 3675:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Context Sharing
- * Manages sharing context between agents
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ContextSharing = void 0;
-const logger_1 = __nccwpck_require__(8836);
-class ContextSharing {
-    /**
-     * Extract relevant messages from an agent
-     */
-    static extractRelevantMessages(messages, maxMessages = 10) {
-        // Keep system messages and recent messages
-        const systemMessages = messages.filter(m => m.role === 'system');
-        const recentMessages = messages
-            .filter(m => m.role !== 'system')
-            .slice(-maxMessages);
-        return [...systemMessages, ...recentMessages];
-    }
-    /**
-     * Share context between agents
-     */
-    static shareContext(fromMessages, toMessageManager, options = {}) {
-        const { includeSystem = true, maxMessages = 10, filterByRole = ['user', 'assistant', 'system'] } = options;
-        let relevantMessages = fromMessages;
-        // Filter by role
-        if (filterByRole.length > 0) {
-            relevantMessages = relevantMessages.filter(m => filterByRole.includes(m.role));
-        }
-        // Exclude system if not needed
-        if (!includeSystem) {
-            relevantMessages = relevantMessages.filter(m => m.role !== 'system');
-        }
-        // Limit messages
-        relevantMessages = relevantMessages.slice(-maxMessages);
-        // Add to target message manager
-        for (const msg of relevantMessages) {
-            if (msg.role === 'system' && includeSystem) {
-                toMessageManager.addSystemMessage(typeof msg.content === 'string' ? msg.content : '');
-            }
-            else if (msg.role === 'user') {
-                toMessageManager.addUserMessage(msg.content);
-            }
-            else if (msg.role === 'assistant') {
-                toMessageManager.addAssistantMessage(msg.content);
-            }
-        }
-        (0, logger_1.logDebugInfo)(`📤 Shared ${relevantMessages.length} messages between agents`);
-    }
-    /**
-     * Merge contexts from multiple agents
-     */
-    static mergeContexts(contexts, options = {}) {
-        const { deduplicate = true, maxMessages = 20 } = options;
-        // Flatten all messages
-        let allMessages = [];
-        for (const context of contexts) {
-            allMessages.push(...context);
-        }
-        // Deduplicate if needed
-        if (deduplicate) {
-            const seen = new Set();
-            allMessages = allMessages.filter(msg => {
-                const key = `${msg.role}:${JSON.stringify(msg.content)}`;
-                if (seen.has(key)) {
-                    return false;
-                }
-                seen.add(key);
-                return true;
-            });
-        }
-        // Sort by timestamp if available, otherwise keep order
-        // (Messages don't have timestamps in our current implementation,
-        // so we'll keep the order from contexts)
-        // Limit messages
-        return allMessages.slice(-maxMessages);
-    }
-    /**
-     * Create a summary of context for sharing
-     */
-    static createContextSummary(messages) {
-        const userMessages = messages.filter(m => m.role === 'user').length;
-        const assistantMessages = messages.filter(m => m.role === 'assistant').length;
-        const toolCalls = messages.filter(m => m.role === 'assistant' &&
-            typeof m.content !== 'string' &&
-            Array.isArray(m.content) &&
-            m.content.some((block) => block.type === 'tool_use')).length;
-        return `Context summary: ${userMessages} user messages, ${assistantMessages} assistant messages, ${toolCalls} tool calls`;
-    }
-}
-exports.ContextSharing = ContextSharing;
-
-
-/***/ }),
-
-/***/ 5759:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Message Manager for Agent SDK
- * Manages conversation history in Anthropic Messages API format
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.MessageManager = void 0;
-class MessageManager {
-    constructor() {
-        this.messages = [];
-    }
-    /**
-     * Add system message (only one allowed, at the beginning)
-     */
-    addSystemMessage(content) {
-        // Remove existing system message if any
-        this.messages = this.messages.filter(m => m.role !== 'system');
-        // Add at the beginning
-        this.messages.unshift({
-            role: 'system',
-            content
-        });
-    }
-    /**
-     * Add user message
-     */
-    addUserMessage(content) {
-        this.messages.push({
-            role: 'user',
-            content
-        });
-    }
-    /**
-     * Add assistant message
-     */
-    addAssistantMessage(content) {
-        // Convert string to ContentBlock if needed
-        const contentBlocks = typeof content === 'string'
-            ? [{ type: 'text', text: content }]
-            : content;
-        this.messages.push({
-            role: 'assistant',
-            content: contentBlocks
-        });
-    }
-    /**
-     * Add tool results as user message
-     */
-    addToolResults(results) {
-        const content = results.map(r => ({
-            type: 'tool_result',
-            tool_use_id: r.toolCallId,
-            content: r.content,
-            is_error: r.isError
-        }));
-        this.messages.push({
-            role: 'user',
-            content
-        });
-    }
-    /**
-     * Get all messages
-     */
-    getMessages() {
-        return [...this.messages];
-    }
-    /**
-     * Get messages count
-     */
-    getMessageCount() {
-        return this.messages.length;
-    }
-    /**
-     * Get last message
-     */
-    getLastMessage() {
-        return this.messages[this.messages.length - 1];
-    }
-    /**
-     * Reset message history
-     */
-    reset() {
-        this.messages = [];
-    }
-    /**
-     * Check if has system message
-     */
-    hasSystemMessage() {
-        return this.messages.some(m => m.role === 'system');
-    }
-    /**
-     * Get system message if exists
-     */
-    getSystemMessage() {
-        const systemMsg = this.messages.find(m => m.role === 'system');
-        return systemMsg && typeof systemMsg.content === 'string'
-            ? systemMsg.content
-            : undefined;
-    }
-}
-exports.MessageManager = MessageManager;
-
-
-/***/ }),
-
-/***/ 7984:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Metrics Tracker
- * Tracks tokens, costs, latency, and other metrics
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.MetricsTracker = void 0;
-const logger_1 = __nccwpck_require__(8836);
-class MetricsTracker {
-    constructor(costConfig) {
-        this.apiCallTimes = [];
-        this.metrics = {
-            totalTokens: { input: 0, output: 0 },
-            apiCalls: 0,
-            toolCalls: 0,
-            averageLatency: 0,
-            totalDuration: 0,
-            errors: 0
-        };
-        this.startTime = Date.now();
-        this.costConfig = costConfig;
-    }
-    /**
-     * Record API call with tokens and latency
-     */
-    recordAPICall(inputTokens, outputTokens, latency) {
-        this.metrics.apiCalls++;
-        this.metrics.totalTokens.input += inputTokens;
-        this.metrics.totalTokens.output += outputTokens;
-        this.apiCallTimes.push(latency);
-        // Calculate average latency
-        const sum = this.apiCallTimes.reduce((a, b) => a + b, 0);
-        this.metrics.averageLatency = Math.round(sum / this.apiCallTimes.length);
-        // Calculate cost if config provided
-        if (this.costConfig) {
-            const inputCost = (inputTokens / 1000) * this.costConfig.inputCostPer1kTokens;
-            const outputCost = (outputTokens / 1000) * this.costConfig.outputCostPer1kTokens;
-            this.metrics.totalCost = (this.metrics.totalCost || 0) + inputCost + outputCost;
-        }
-        (0, logger_1.logDebugInfo)(`📊 API Call: ${inputTokens} in, ${outputTokens} out tokens, ${latency}ms latency`);
-    }
-    /**
-     * Record tool call
-     */
-    recordToolCall() {
-        this.metrics.toolCalls++;
-    }
-    /**
-     * Record error
-     */
-    recordError() {
-        this.metrics.errors++;
-    }
-    /**
-     * Get current metrics
-     */
-    getMetrics() {
-        this.metrics.totalDuration = Date.now() - this.startTime;
-        return { ...this.metrics };
-    }
-    /**
-     * Reset metrics
-     */
-    reset() {
-        this.metrics = {
-            totalTokens: { input: 0, output: 0 },
-            apiCalls: 0,
-            toolCalls: 0,
-            averageLatency: 0,
-            totalDuration: 0,
-            errors: 0
-        };
-        this.startTime = Date.now();
-        this.apiCallTimes = [];
-    }
-    /**
-     * Set cost configuration
-     */
-    setCostConfig(config) {
-        this.costConfig = config;
-    }
-}
-exports.MetricsTracker = MetricsTracker;
-
-
-/***/ }),
-
-/***/ 7982:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Reasoning Loop for Agent SDK
- * Manages the conversation loop with tool calling
- * Integrated with all advanced features: streaming, permissions, context, metrics, budget, timeouts, retry
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ReasoningLoop = void 0;
-const response_parser_1 = __nccwpck_require__(8952);
-const prompt_builder_1 = __nccwpck_require__(3277);
-const error_handler_1 = __nccwpck_require__(9907);
-const ai_repository_1 = __nccwpck_require__(8307);
-const ai_1 = __nccwpck_require__(4470);
-const response_schema_1 = __nccwpck_require__(6515);
-const logger_1 = __nccwpck_require__(8836);
-const tool_permissions_1 = __nccwpck_require__(2859);
-const context_manager_1 = __nccwpck_require__(6955);
-const metrics_tracker_1 = __nccwpck_require__(7984);
-const budget_manager_1 = __nccwpck_require__(341);
-const retry_manager_1 = __nccwpck_require__(9306);
-class ReasoningLoop {
-    constructor(messageManager, toolExecutor, options) {
-        this.messageManager = messageManager;
-        this.toolExecutor = toolExecutor;
-        this.options = options;
-        this.aiRepository = new ai_repository_1.AiRepository();
-        this.ai = new ai_1.Ai(options.serverUrl, options.model, false, // aiPullRequestDescription
-        false, // aiMembersOnly
-        [], // aiIgnoreFiles
-        false // aiIncludeReasoning
-        );
-        // Initialize managers
-        this.permissionsManager = new tool_permissions_1.ToolPermissionsManager(options.toolPermissions);
-        this.contextManager = new context_manager_1.ContextManager(options.maxContextLength || 100000, options.contextCompressionEnabled !== false);
-        this.metricsTracker = new metrics_tracker_1.MetricsTracker();
-        this.budgetManager = new budget_manager_1.BudgetManager(options.budget);
-        this.retryManager = new retry_manager_1.RetryManager(options.retry);
-        this.sessionStartTime = Date.now();
-        // Set up session timeout
-        if (options.timeouts?.totalSession) {
-            this.timeoutId = setTimeout(() => {
-                (0, logger_1.logWarn)('⏱️ Session timeout reached');
-            }, options.timeouts.totalSession);
-        }
-    }
-    /**
-     * Execute the reasoning loop
-     */
-    async execute() {
-        const turns = [];
-        const allToolCalls = [];
-        let turn = 0;
-        const maxTurns = this.options.maxTurns || 30;
-        (0, logger_1.logInfo)(`🔄 Starting reasoning loop (max turns: ${maxTurns})`);
-        try {
-            while (turn < maxTurns) {
-                // Check timeout
-                if (this.options.timeouts?.totalSession) {
-                    const elapsed = Date.now() - this.sessionStartTime;
-                    if (elapsed > this.options.timeouts.totalSession) {
-                        (0, logger_1.logWarn)('⏱️ Session timeout exceeded');
-                        return this.createResult(turns, allToolCalls, undefined, true);
-                    }
-                }
-                turn++;
-                (0, logger_1.logInfo)(`🔄 Turn ${turn}/${maxTurns}`);
-                try {
-                    // 1. Compress context if needed
-                    const messages = this.messageManager.getMessages();
-                    if (this.contextManager.needsCompression(messages)) {
-                        const compressed = this.contextManager.compressContext(messages);
-                        // Note: MessageManager doesn't support direct replacement, so we'd need to reset and rebuild
-                        // For now, we'll just log the stats
-                        const stats = this.contextManager.getStats(messages);
-                        (0, logger_1.logDebugInfo)(`📊 Context: ${stats.messageCount} messages, ~${stats.estimatedTokens} tokens`);
-                    }
-                    // 2. Call API with retry, timeout, and streaming
-                    const apiStartTime = Date.now();
-                    const response = await this.callAPIWithRetry();
-                    const apiLatency = Date.now() - apiStartTime;
-                    // Estimate tokens (rough approximation)
-                    const inputTokens = Math.ceil(this.estimateInputTokens() / 4);
-                    const outputTokens = Math.ceil((response?.response?.length || 0) / 4);
-                    // Record metrics
-                    if (this.options.trackMetrics !== false) {
-                        this.metricsTracker.recordAPICall(inputTokens, outputTokens, apiLatency);
-                    }
-                    // 3. Parse response
-                    const parsedResponse = this.parseResponse(response);
-                    // 4. Filter tool calls by permissions
-                    let toolCalls = parsedResponse.toolCalls || [];
-                    const originalCount = toolCalls.length;
-                    toolCalls = toolCalls.filter(tc => this.permissionsManager.isAllowed(tc.name));
-                    if (originalCount > toolCalls.length) {
-                        (0, logger_1.logWarn)(`🚫 Filtered ${originalCount - toolCalls.length} tool call(s) due to permissions`);
-                    }
-                    // 5. Create turn result
-                    const turnResult = {
-                        turnNumber: turn,
-                        assistantMessage: parsedResponse.text,
-                        toolCalls: toolCalls,
-                        reasoning: parsedResponse.reasoning,
-                        timestamp: Date.now()
-                    };
-                    // 6. Execute tools if any
-                    if (toolCalls.length > 0) {
-                        (0, logger_1.logInfo)(`🔧 Executing ${toolCalls.length} tool call(s)`);
-                        for (const toolCall of toolCalls) {
-                            (0, logger_1.logInfo)(`   🔨 Tool: ${toolCall.name}`);
-                            (0, logger_1.logInfo)(`      Input: ${JSON.stringify(toolCall.input).substring(0, 150)}${JSON.stringify(toolCall.input).length > 150 ? '...' : ''}`);
-                        }
-                        // Record tool calls in metrics
-                        for (const _ of toolCalls) {
-                            this.metricsTracker.recordToolCall();
-                        }
-                        const toolResults = await this.executeToolsWithTimeout(toolCalls);
-                        turnResult.toolResults = toolResults;
-                        allToolCalls.push(...toolCalls);
-                        // Log tool execution details
-                        for (let i = 0; i < toolCalls.length; i++) {
-                            const toolCall = toolCalls[i];
-                            const toolResult = toolResults[i];
-                            (0, logger_1.logInfo)(`   ✅ Tool result (${toolCall.name}):`);
-                            if (toolResult.isError) {
-                                (0, logger_1.logError)(`      ❌ Error: ${toolResult.errorMessage || 'Unknown error'}`);
-                                this.metricsTracker.recordError();
-                            }
-                            else {
-                                const resultPreview = typeof toolResult.content === 'string'
-                                    ? toolResult.content.substring(0, 500)
-                                    : JSON.stringify(toolResult.content).substring(0, 500);
-                                (0, logger_1.logInfo)(`      ${resultPreview}${(typeof toolResult.content === 'string' && toolResult.content.length > 500) || (typeof toolResult.content !== 'string' && JSON.stringify(toolResult.content).length > 500) ? '...' : ''}`);
-                            }
-                        }
-                        // Call callbacks
-                        for (const toolCall of toolCalls) {
-                            this.options.onToolCall?.(toolCall);
-                        }
-                        for (const result of toolResults) {
-                            this.options.onToolResult?.(result);
-                        }
-                        // 7. Add assistant message and tool results to history
-                        this.messageManager.addAssistantMessage(parsedResponse.text);
-                        this.messageManager.addToolResults(toolResults);
-                        turns.push(turnResult);
-                        this.options.onTurnComplete?.(turnResult);
-                        // Check budget
-                        const metrics = this.metricsTracker.getMetrics();
-                        if (this.budgetManager.isExceeded(metrics)) {
-                            (0, logger_1.logWarn)('💰 Budget exceeded! Stopping execution.');
-                            return this.createResult(turns, allToolCalls, parsedResponse.text, false, true);
-                        }
-                        this.budgetManager.logStatus(metrics);
-                        // 8. Continue loop
-                        continue;
-                    }
-                    // 9. No tool calls = final response
-                    // Log the response to see what the agent is saying
-                    if (parsedResponse.text) {
-                        (0, logger_1.logInfo)(`   📝 Final response: ${parsedResponse.text}`);
-                    }
-                    (0, logger_1.logInfo)(`✅ Final response received (no more tool calls)`);
-                    this.messageManager.addAssistantMessage(parsedResponse.text);
-                    turns.push(turnResult);
-                    this.options.onTurnComplete?.(turnResult);
-                    // Get final metrics
-                    const finalMetrics = this.metricsTracker.getMetrics();
-                    if (this.options.onMetrics) {
-                        this.options.onMetrics(finalMetrics);
-                    }
-                    return this.createResult(turns, allToolCalls, parsedResponse.text);
-                }
-                catch (error) {
-                    const handledError = error_handler_1.ErrorHandler.handle(error);
-                    (0, logger_1.logError)(`❌ Error in turn ${turn}: ${handledError.message}`);
-                    this.metricsTracker.recordError();
-                    this.options.onError?.(handledError);
-                    return this.createResult(turns, allToolCalls, undefined, false, false, handledError);
-                }
-            }
-            // Max turns reached
-            (0, logger_1.logInfo)(`⚠️ Max turns (${maxTurns}) reached`);
-            return this.createResult(turns, allToolCalls, undefined, true);
-        }
-        finally {
-            // Cleanup
-            if (this.timeoutId) {
-                clearTimeout(this.timeoutId);
-            }
-        }
-    }
-    /**
-     * Call API with retry logic
-     */
-    async callAPIWithRetry() {
-        return this.retryManager.execute(async () => {
-            return await this.callAPI();
-        }, (error, attempt) => {
-            // Custom error handler for API errors
-            if (error instanceof error_handler_1.APIError) {
-                return true; // Retry API errors
-            }
-            return false;
-        });
-    }
-    /**
-     * Call OpenCode API via AiRepository
-     */
-    async callAPI() {
-        const messages = this.messageManager.getMessages();
-        const toolDefinitions = this.toolExecutor.getToolDefinitions();
-        // Filter tools by permissions
-        const allowedToolNames = this.permissionsManager.filterAllowed(toolDefinitions.map(t => t.name));
-        const filteredTools = toolDefinitions.filter(t => allowedToolNames.includes(t.name));
-        // Build prompt
-        const prompt = prompt_builder_1.PromptBuilder.buildPrompt(messages, filteredTools);
-        (0, logger_1.logDebugInfo)(`📤 Calling API with ${messages.length} message(s) and ${filteredTools.length} tool(s)`);
-        // Handle streaming
-        if (this.options.streaming && this.options.onStreamChunk) {
-            let streamedContent = '';
-            const onChunk = (chunk) => {
-                streamedContent += chunk;
-                this.options.onStreamChunk({
-                    type: 'text',
-                    content: chunk
-                });
-            };
-            // Call with streaming
-            // Use strict: false for Agent SDK because input is generic (varies by tool)
-            // Individual tool schemas (like report_errors) are still strict and validated
-            const response = await Promise.race([
-                this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', true, onChunk, false // strict: false for Agent SDK (input is generic)
-                ),
-                this.createTimeoutPromise(this.options.timeouts?.apiCall)
-            ]);
-            if (!response) {
-                throw new error_handler_1.APIError('No response from API');
-            }
-            // Send done chunk
-            this.options.onStreamChunk({
-                type: 'done',
-                content: ''
-            });
-            return response;
-        }
-        // Non-streaming call with timeout
-        // Use strict: false for Agent SDK because input is generic (varies by tool)
-        // Individual tool schemas (like report_errors) are still strict and validated
-        const response = await Promise.race([
-            this.aiRepository.askJson(this.ai, prompt, response_schema_1.AGENT_RESPONSE_SCHEMA, 'agent_response', false, // streaming: false
-            undefined, // onChunk: undefined
-            false // strict: false for Agent SDK (input is generic)
-            ),
-            this.createTimeoutPromise(this.options.timeouts?.apiCall)
-        ]);
-        if (!response) {
-            throw new error_handler_1.APIError('No response from API');
-        }
-        return response;
-    }
-    /**
-     * Execute tools with timeout
-     */
-    async executeToolsWithTimeout(toolCalls) {
-        const timeout = this.options.timeouts?.toolExecution;
-        if (timeout) {
-            return Promise.race([
-                this.toolExecutor.executeAll(toolCalls),
-                this.createTimeoutPromise(timeout).then(() => {
-                    throw new Error('Tool execution timeout');
-                })
-            ]);
-        }
-        return this.toolExecutor.executeAll(toolCalls);
-    }
-    /**
-     * Create timeout promise
-     */
-    createTimeoutPromise(timeout) {
-        return new Promise((_, reject) => {
-            if (!timeout) {
-                // No timeout, never reject
-                return;
-            }
-            setTimeout(() => {
-                reject(new Error(`Operation timed out after ${timeout}ms`));
-            }, timeout);
-        });
-    }
-    /**
-     * Estimate input tokens (rough approximation)
-     */
-    estimateInputTokens() {
-        const messages = this.messageManager.getMessages();
-        return this.contextManager.estimateTokens(messages);
-    }
-    /**
-     * Parse API response
-     */
-    parseResponse(response) {
-        try {
-            const parsed = response_parser_1.ResponseParser.parse(response);
-            if (!response_parser_1.ResponseParser.validate(parsed)) {
-                throw new Error('Invalid parsed response format');
-            }
-            return parsed;
-        }
-        catch (error) {
-            throw new error_handler_1.APIError(`Failed to parse response: ${error instanceof Error ? error.message : String(error)}`, undefined, response);
-        }
-    }
-    /**
-     * Create result object
-     */
-    createResult(turns, toolCalls, finalResponse, truncated = false, budgetExceeded = false, error) {
-        const metrics = this.options.trackMetrics !== false
-            ? this.metricsTracker.getMetrics()
-            : undefined;
-        return {
-            finalResponse: finalResponse || (turns.length > 0
-                ? turns[turns.length - 1].assistantMessage
-                : 'No response'),
-            turns: turns,
-            toolCalls: toolCalls,
-            messages: this.messageManager.getMessages(),
-            totalTokens: metrics ? {
-                input: metrics.totalTokens.input,
-                output: metrics.totalTokens.output
-            } : undefined,
-            metrics: metrics,
-            error: error,
-            truncated: truncated,
-            budgetExceeded: budgetExceeded,
-            timeoutExceeded: truncated && !error
-        };
-    }
-}
-exports.ReasoningLoop = ReasoningLoop;
-
-
-/***/ }),
-
-/***/ 9306:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Retry Manager
- * Handles retries with exponential backoff and circuit breaker
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.RetryManager = void 0;
-const logger_1 = __nccwpck_require__(8836);
-class RetryManager {
-    constructor(config) {
-        this.circuitBreakerState = 'closed';
-        this.circuitBreakerFailures = 0;
-        this.circuitBreakerLastFailure = 0;
-        this.circuitBreakerThreshold = 5;
-        this.circuitBreakerTimeout = 60000; // 1 minute
-        this.config = {
-            maxRetries: config?.maxRetries ?? 3,
-            initialDelay: config?.initialDelay ?? 1000,
-            maxDelay: config?.maxDelay ?? 30000,
-            backoffMultiplier: config?.backoffMultiplier ?? 2,
-            retryableErrors: config?.retryableErrors ?? [429, 500, 502, 503, 504]
-        };
-    }
-    /**
-     * Execute function with retry logic
-     */
-    async execute(fn, errorHandler) {
-        // Check circuit breaker
-        if (this.circuitBreakerState === 'open') {
-            const timeSinceLastFailure = Date.now() - this.circuitBreakerLastFailure;
-            if (timeSinceLastFailure > this.circuitBreakerTimeout) {
-                this.circuitBreakerState = 'half-open';
-                (0, logger_1.logDebugInfo)('🔌 Circuit breaker: half-open (testing)');
-            }
-            else {
-                throw new Error('Circuit breaker is open');
-            }
-        }
-        let lastError;
-        let delay = this.config.initialDelay;
-        for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
-            try {
-                const result = await fn();
-                // Success - reset circuit breaker
-                if (this.circuitBreakerState === 'half-open') {
-                    this.circuitBreakerState = 'closed';
-                    this.circuitBreakerFailures = 0;
-                    (0, logger_1.logDebugInfo)('🔌 Circuit breaker: closed (reset)');
-                }
-                return result;
-            }
-            catch (error) {
-                lastError = error;
-                // Check if error is retryable
-                const isRetryable = this.isRetryableError(error);
-                // Custom error handler can override retry decision
-                if (errorHandler) {
-                    const shouldRetry = errorHandler(error, attempt);
-                    if (!shouldRetry) {
-                        break;
-                    }
-                }
-                else if (!isRetryable) {
-                    break;
-                }
-                // Don't retry on last attempt
-                if (attempt >= this.config.maxRetries) {
-                    break;
-                }
-                // Record failure for circuit breaker
-                this.circuitBreakerFailures++;
-                this.circuitBreakerLastFailure = Date.now();
-                if (this.circuitBreakerFailures >= this.circuitBreakerThreshold) {
-                    this.circuitBreakerState = 'open';
-                    (0, logger_1.logError)('🔌 Circuit breaker: open (too many failures)');
-                    throw new Error('Circuit breaker is open due to too many failures');
-                }
-                (0, logger_1.logDebugInfo)(`🔄 Retry attempt ${attempt + 1}/${this.config.maxRetries} after ${delay}ms`);
-                // Wait before retry
-                await this.sleep(delay);
-                // Exponential backoff
-                delay = Math.min(delay * this.config.backoffMultiplier, this.config.maxDelay);
-            }
-        }
-        throw lastError;
-    }
-    /**
-     * Check if error is retryable
-     */
-    isRetryableError(error) {
-        // Check HTTP status code
-        if (error.status && this.config.retryableErrors.includes(error.status)) {
-            return true;
-        }
-        // Check error message for network errors
-        const message = error.message?.toLowerCase() || '';
-        if (message.includes('network') || message.includes('timeout') || message.includes('econnreset')) {
-            return true;
-        }
-        return false;
-    }
-    /**
-     * Sleep utility
-     */
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-    /**
-     * Reset circuit breaker
-     */
-    resetCircuitBreaker() {
-        this.circuitBreakerState = 'closed';
-        this.circuitBreakerFailures = 0;
-        this.circuitBreakerLastFailure = 0;
-    }
-}
-exports.RetryManager = RetryManager;
-
-
-/***/ }),
-
-/***/ 7408:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-/**
- * Session Manager
- * Manages agent sessions with persistence
- */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SessionManager = void 0;
-const fs = __importStar(__nccwpck_require__(7147));
-const path = __importStar(__nccwpck_require__(1017));
-const logger_1 = __nccwpck_require__(8836);
-class SessionManager {
-    constructor(sessionsDir = '.agent-sessions') {
-        this.sessionsDir = sessionsDir;
-        this.ensureSessionsDir();
-    }
-    /**
-     * Ensure sessions directory exists
-     */
-    ensureSessionsDir() {
-        if (!fs.existsSync(this.sessionsDir)) {
-            fs.mkdirSync(this.sessionsDir, { recursive: true });
-        }
-    }
-    /**
-     * Get session file path
-     */
-    getSessionPath(sessionId) {
-        return path.join(this.sessionsDir, `${sessionId}.json`);
-    }
-    /**
-     * Save session
-     */
-    async saveSession(sessionId, messages, result) {
-        try {
-            const metadata = {
-                sessionId,
-                createdAt: this.getSessionCreatedAt(sessionId) || Date.now(),
-                lastUpdated: Date.now(),
-                messageCount: messages.length,
-                turnCount: result?.turns.length || 0,
-                toolCallCount: result?.toolCalls.length || 0,
-                metrics: result?.metrics
-            };
-            const sessionData = {
-                metadata,
-                messages
-            };
-            const filePath = this.getSessionPath(sessionId);
-            fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2));
-            (0, logger_1.logInfo)(`💾 Session saved: ${sessionId}`);
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Failed to save session ${sessionId}: ${error}`);
-            throw error;
-        }
-    }
-    /**
-     * Load session
-     */
-    async loadSession(sessionId) {
-        try {
-            const filePath = this.getSessionPath(sessionId);
-            if (!fs.existsSync(filePath)) {
-                return null;
-            }
-            const content = fs.readFileSync(filePath, 'utf-8');
-            const sessionData = JSON.parse(content);
-            (0, logger_1.logInfo)(`📂 Session loaded: ${sessionId}`);
-            return sessionData;
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Failed to load session ${sessionId}: ${error}`);
-            return null;
-        }
-    }
-    /**
-     * Delete session
-     */
-    async deleteSession(sessionId) {
-        try {
-            const filePath = this.getSessionPath(sessionId);
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-                (0, logger_1.logInfo)(`🗑️ Session deleted: ${sessionId}`);
-            }
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Failed to delete session ${sessionId}: ${error}`);
-            throw error;
-        }
-    }
-    /**
-     * List all sessions
-     */
-    async listSessions() {
-        try {
-            const files = fs.readdirSync(this.sessionsDir);
-            const sessions = [];
-            for (const file of files) {
-                if (file.endsWith('.json')) {
-                    const sessionId = file.replace('.json', '');
-                    const session = await this.loadSession(sessionId);
-                    if (session) {
-                        sessions.push(session.metadata);
-                    }
-                }
-            }
-            return sessions.sort((a, b) => b.lastUpdated - a.lastUpdated);
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Failed to list sessions: ${error}`);
-            return [];
-        }
-    }
-    /**
-     * Get session creation time
-     */
-    getSessionCreatedAt(sessionId) {
-        try {
-            const session = this.loadSession(sessionId);
-            return session ? session.metadata?.createdAt || null : null;
-        }
-        catch {
-            return null;
-        }
-    }
-    /**
-     * Generate new session ID
-     */
-    generateSessionId() {
-        return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    }
-}
-exports.SessionManager = SessionManager;
-
-
-/***/ }),
-
-/***/ 2078:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * SubAgent Manager
- * Manages subagents and their coordination
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SubAgentManager = void 0;
-const agent_1 = __nccwpck_require__(1963);
-const context_sharing_1 = __nccwpck_require__(3675);
-const logger_1 = __nccwpck_require__(8836);
-class SubAgentManager {
-    constructor(parentAgent) {
-        this.subAgents = new Map();
-        this.sharedContext = [];
-        this.parentAgent = parentAgent;
-    }
-    /**
-     * Create a subagent
-     */
-    createSubAgent(options) {
-        if (this.subAgents.has(options.name)) {
-            (0, logger_1.logInfo)(`SubAgent ${options.name} already exists, returning existing`);
-            return this.subAgents.get(options.name);
-        }
-        (0, logger_1.logInfo)(`🤖 Creating subagent: ${options.name}`);
-        // Get parent options (access private property)
-        // In TypeScript, private properties are accessible at runtime
-        const parentOptions = this.parentAgent.options;
-        if (!parentOptions) {
-            // Fallback: create minimal options from agent's public methods
-            // This shouldn't happen in practice, but helps with testing
-            const fallbackOptions = {
-                model: 'unknown',
-                serverUrl: 'http://localhost:4096'
-            };
-            return this.createSubAgentWithOptions(options, fallbackOptions);
-        }
-        return this.createSubAgentWithOptions(options, parentOptions);
-    }
-    /**
-     * Internal method to create subagent with options
-     */
-    createSubAgentWithOptions(options, parentOptions) {
-        // Build subagent options
-        const subAgentOptions = {
-            ...parentOptions,
-            systemPrompt: options.systemPrompt || parentOptions.systemPrompt,
-            maxTurns: options.maxTurns || parentOptions.maxTurns || 10,
-            maxTokens: options.maxTokens || parentOptions.maxTokens,
-            temperature: options.temperature || parentOptions.temperature,
-            tools: []
-        };
-        // Inherit tools if requested
-        if (options.inheritTools !== false) {
-            const parentTools = this.parentAgent.getAvailableTools();
-            // Note: We can't directly get tool instances, so we'll need to pass them
-            // For now, we'll rely on tools being passed explicitly
-        }
-        // Add explicit tools
-        if (options.tools && options.tools.length > 0) {
-            subAgentOptions.tools = options.tools;
-        }
-        // Create subagent
-        const subAgent = new agent_1.Agent(subAgentOptions);
-        // Share context if requested
-        if (options.inheritContext !== false) {
-            const parentMessages = this.parentAgent.getMessages();
-            context_sharing_1.ContextSharing.shareContext(parentMessages, subAgent['messageManager'], {
-                includeSystem: true,
-                maxMessages: 5 // Share recent context
-            });
-        }
-        this.subAgents.set(options.name, subAgent);
-        return subAgent;
-    }
-    /**
-     * Execute multiple agents in parallel
-     */
-    async executeParallel(tasks) {
-        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} tasks in parallel`);
-        // Create or get subagents for each task
-        const agents = [];
-        for (const task of tasks) {
-            let agent = this.subAgents.get(task.name);
-            if (!agent) {
-                // Create subagent for this task
-                agent = this.createSubAgent({
-                    name: task.name,
-                    systemPrompt: task.systemPrompt,
-                    tools: task.tools,
-                    inheritContext: true
-                });
-            }
-            agents.push({ agent, task });
-        }
-        // Execute all agents in parallel
-        const promises = agents.map(async ({ agent, task }) => {
-            try {
-                (0, logger_1.logDebugInfo)(`▶️ Executing task: ${task.name}`);
-                const result = await agent.query(task.prompt);
-                (0, logger_1.logDebugInfo)(`✅ Completed task: ${task.name}`);
-                return { task: task.name, result };
-            }
-            catch (error) {
-                (0, logger_1.logError)(`❌ Task ${task.name} failed: ${error}`);
-                throw error;
-            }
-        });
-        const results = await Promise.all(promises);
-        (0, logger_1.logInfo)(`✅ All ${results.length} tasks completed`);
-        return results;
-    }
-    /**
-     * Coordinate agents - execute with dependency management
-     */
-    async coordinateAgents(tasks) {
-        (0, logger_1.logInfo)(`🎯 Coordinating ${tasks.length} tasks with dependencies`);
-        const results = [];
-        const completed = new Set();
-        // Build dependency graph
-        const taskMap = new Map();
-        for (const task of tasks) {
-            taskMap.set(task.name, task);
-        }
-        // Execute tasks respecting dependencies
-        while (completed.size < tasks.length) {
-            const readyTasks = tasks.filter(task => {
-                if (completed.has(task.name))
-                    return false;
-                if (!task.dependsOn || task.dependsOn.length === 0)
-                    return true;
-                return task.dependsOn.every(dep => completed.has(dep));
-            });
-            if (readyTasks.length === 0) {
-                throw new Error('Circular dependency or missing dependency detected');
-            }
-            // Execute ready tasks in parallel
-            const promises = readyTasks.map(async (task) => {
-                let agent = this.subAgents.get(task.name);
-                if (!agent) {
-                    agent = this.createSubAgent({
-                        name: task.name,
-                        systemPrompt: task.systemPrompt,
-                        tools: task.tools,
-                        inheritContext: true
-                    });
-                }
-                try {
-                    const result = await agent.query(task.prompt);
-                    completed.add(task.name);
-                    return { task: task.name, result };
-                }
-                catch (error) {
-                    (0, logger_1.logError)(`Task ${task.name} failed: ${error}`);
-                    throw error;
-                }
-            });
-            const batchResults = await Promise.all(promises);
-            results.push(...batchResults);
-        }
-        (0, logger_1.logInfo)(`✅ All coordinated tasks completed`);
-        return results;
-    }
-    /**
-     * Share context between subagents
-     */
-    shareContext(fromAgentName, toAgentName) {
-        const fromAgent = this.subAgents.get(fromAgentName);
-        const toAgent = this.subAgents.get(toAgentName);
-        if (!fromAgent || !toAgent) {
-            throw new Error(`Agent not found: ${fromAgentName} or ${toAgentName}`);
-        }
-        const fromMessages = fromAgent.getMessages();
-        context_sharing_1.ContextSharing.shareContext(fromMessages, toAgent['messageManager'], {
-            includeSystem: false,
-            maxMessages: 5
-        });
-        (0, logger_1.logDebugInfo)(`📤 Shared context from ${fromAgentName} to ${toAgentName}`);
-    }
-    /**
-     * Get subagent by name
-     */
-    getSubAgent(name) {
-        return this.subAgents.get(name);
-    }
-    /**
-     * Get all subagents
-     */
-    getAllSubAgents() {
-        return Array.from(this.subAgents.values());
-    }
-    /**
-     * Get subagent names
-     */
-    getSubAgentNames() {
-        return Array.from(this.subAgents.keys());
-    }
-    /**
-     * Remove subagent
-     */
-    removeSubAgent(name) {
-        this.subAgents.delete(name);
-        (0, logger_1.logInfo)(`🗑️ Removed subagent: ${name}`);
-    }
-    /**
-     * Clear all subagents
-     */
-    clear() {
-        this.subAgents.clear();
-        (0, logger_1.logInfo)(`🗑️ Cleared all subagents`);
-    }
-}
-exports.SubAgentManager = SubAgentManager;
-
-
-/***/ }),
-
-/***/ 2859:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Tool Permissions Manager
- * Controls which tools the agent can use
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ToolPermissionsManager = void 0;
-class ToolPermissionsManager {
-    constructor(permissions) {
-        this.permissions = permissions || { strategy: 'all' };
-    }
-    /**
-     * Check if a tool is allowed
-     */
-    isAllowed(toolName) {
-        const { strategy, allowed = [], blocked = [] } = this.permissions;
-        switch (strategy) {
-            case 'all':
-                return !blocked.includes(toolName);
-            case 'allowlist':
-                return allowed.includes(toolName);
-            case 'blocklist':
-                return !blocked.includes(toolName);
-            default:
-                return true;
-        }
-    }
-    /**
-     * Get all allowed tool names from a list
-     */
-    filterAllowed(toolNames) {
-        return toolNames.filter(name => this.isAllowed(name));
-    }
-    /**
-     * Update permissions
-     */
-    updatePermissions(permissions) {
-        this.permissions = permissions;
-    }
-    /**
-     * Get current permissions
-     */
-    getPermissions() {
-        return { ...this.permissions };
-    }
-}
-exports.ToolPermissionsManager = ToolPermissionsManager;
-
-
-/***/ }),
-
-/***/ 6827:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Agent Initializer
- * Initializes agent with tools and repository files for progress detection
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AgentInitializer = void 0;
-const agent_1 = __nccwpck_require__(1963);
-const read_file_tool_1 = __nccwpck_require__(9010);
-const search_files_tool_1 = __nccwpck_require__(4293);
-const report_progress_tool_1 = __nccwpck_require__(1422);
-const file_repository_1 = __nccwpck_require__(1503);
-const logger_1 = __nccwpck_require__(8836);
-const system_prompt_builder_1 = __nccwpck_require__(5021);
-class AgentInitializer {
-    /**
-     * Initialize agent with tools and repository files
-     */
-    static async initialize(options) {
-        const repositoryFiles = await this.loadRepositoryFiles(options);
-        // Store for progress reported via report_progress tool
-        let reportedProgress = undefined;
-        const tools = await this.createTools(repositoryFiles, (progress, summary) => {
-            reportedProgress = { progress, summary };
-        });
-        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
-        const agentOptions = {
-            model: options.model || process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini',
-            serverUrl: options.serverUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
-            systemPrompt,
-            tools,
-            maxTurns: options.maxTurns || 20,
-        };
-        const agent = new agent_1.Agent(agentOptions);
-        return {
-            agent,
-            repositoryFiles,
-            reportedProgress
-        };
-    }
-    /**
-     * Load repository files from GitHub
-     * Only loads changed files if available, otherwise loads all files from the branch
-     */
-    static async loadRepositoryFiles(options) {
-        const repositoryFiles = new Map();
-        if (options.repositoryOwner && options.repositoryName) {
-            try {
-                const token = options.personalAccessToken;
-                if (!token) {
-                    (0, logger_1.logWarn)('⚠️ personalAccessToken not provided in options, cannot load repository files');
-                }
-                else {
-                    (0, logger_1.logDebugInfo)(`🔑 Using token: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
-                    if (!options.repositoryBranch) {
-                        throw new Error(`repositoryBranch is required but not provided. Cannot load repository files from ${options.repositoryOwner}/${options.repositoryName} without a branch.`);
-                    }
-                    const branch = options.repositoryBranch;
-                    (0, logger_1.logInfo)(`📥 Loading repository files from ${options.repositoryOwner}/${options.repositoryName} on branch ${branch}...`);
-                    const fileRepository = new file_repository_1.FileRepository();
-                    // If we have changed files, only load those
-                    if (options.changedFiles && options.changedFiles.length > 0) {
-                        (0, logger_1.logInfo)(`📄 Loading ${options.changedFiles.length} changed file(s)...`);
-                        for (const changedFile of options.changedFiles) {
-                            // Skip removed files
-                            if (changedFile.status === 'removed') {
-                                // logDebugInfo(`   ⏭️  Skipping removed file: ${changedFile.filename}`);
-                                continue;
-                            }
-                            try {
-                                // logDebugInfo(`📥 Loading: ${changedFile.filename}...`);
-                                const content = await fileRepository.getFileContent(options.repositoryOwner, options.repositoryName, changedFile.filename, token, branch);
-                                if (content) {
-                                    repositoryFiles.set(changedFile.filename, content);
-                                    // logDebugInfo(`   ✅ Loaded: ${changedFile.filename} (${content.length} bytes) from ${branch}`);
-                                }
-                                else {
-                                    (0, logger_1.logWarn)(`   ⚠️  Could not load: ${changedFile.filename} (empty content returned) from ${branch}`);
-                                }
-                            }
-                            catch (error) {
-                                const errorMessage = error?.message || String(error);
-                                const errorStatus = error?.status || 'unknown';
-                                (0, logger_1.logWarn)(`   ⚠️  Error loading ${changedFile.filename}: ${errorMessage} (status: ${errorStatus})`);
-                                // Continue loading other files even if one fails
-                            }
-                        }
-                    }
-                    else {
-                        // Load all files from the branch
-                        const files = await fileRepository.getRepositoryContent(options.repositoryOwner, options.repositoryName, token, branch, this.IGNORE_FILES, (fileName) => {
-                            // logDebugInfo(`   📄 Loaded: ${fileName}`);
-                        }, (fileName) => {
-                            // logDebugInfo(`   ⏭️  Ignored: ${fileName}`);
-                        });
-                        files.forEach((content, path) => {
-                            repositoryFiles.set(path, content);
-                        });
-                    }
-                    (0, logger_1.logInfo)(`✅ Loaded ${repositoryFiles.size} file(s) from repository`);
-                }
-            }
-            catch (error) {
-                (0, logger_1.logWarn)(`Failed to load repository files: ${error}`);
-            }
-        }
-        return repositoryFiles;
-    }
-    /**
-     * Create tools for the agent
-     */
-    static async createTools(repositoryFiles, onProgressReported) {
-        const readFileTool = new read_file_tool_1.ReadFileTool({
-            getFileContent: (filePath) => {
-                return repositoryFiles.get(filePath);
-            },
-            repositoryFiles
-        });
-        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
-            searchFiles: (query) => {
-                return this.searchFiles(repositoryFiles, query);
-            },
-            getAllFiles: () => {
-                return this.getAllFiles(repositoryFiles);
-            }
-        });
-        // Report progress tool for structured progress reporting
-        const reportProgressTool = new report_progress_tool_1.ReportProgressTool({
-            onProgressReported: (progress, summary) => {
-                if (onProgressReported) {
-                    onProgressReported(progress, summary);
-                }
-            }
-        });
-        return [readFileTool, searchFilesTool, reportProgressTool];
-    }
-    /**
-     * Search files in repository
-     */
-    static searchFiles(repositoryFiles, query) {
-        const results = [];
-        const queryLower = query.toLowerCase();
-        for (const [path] of repositoryFiles) {
-            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
-            if (shouldExclude) {
-                continue;
-            }
-            const pathLower = path.toLowerCase();
-            if (pathLower.includes(queryLower) ||
-                pathLower.endsWith(queryLower) ||
-                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
-                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
-                results.push(path);
-            }
-        }
-        return results;
-    }
-    /**
-     * Get all files (excluding compiled files)
-     */
-    static getAllFiles(repositoryFiles) {
-        return Array.from(repositoryFiles.keys()).filter((path) => {
-            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
-        });
-    }
-}
-exports.AgentInitializer = AgentInitializer;
-AgentInitializer.EXCLUDE_PATTERNS = [
-    /^build\//,
-    /^dist\//,
-    /^node_modules\//,
-    /\.d\.ts$/,
-    /^\.next\//,
-    /^out\//,
-    /^coverage\//,
-    /\.min\.(js|css)$/,
-    /\.map$/,
-    /^\.git\//,
-    /^\.vscode\//,
-    /^\.idea\//
-];
-AgentInitializer.IGNORE_FILES = [
-    'build/**',
-    'dist/**',
-    'node_modules/**',
-    '*.d.ts',
-    '.next/**',
-    'out/**',
-    'coverage/**',
-    '.turbo/**',
-    '.cache/**',
-    '*.min.js',
-    '*.min.css',
-    '*.map',
-    '.git/**',
-    '.vscode/**',
-    '.idea/**'
-];
-
-
-/***/ }),
-
-/***/ 4538:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * File Partitioner
- * Partitions files by directory for subagent distribution
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.FilePartitioner = void 0;
-class FilePartitioner {
-    /**
-     * Partition files by directory to keep related files together
-     * Tries to balance file distribution across groups
-     */
-    static partitionFilesByDirectory(files, maxGroups) {
-        // Group files by top-level directory
-        const dirGroups = new Map();
-        for (const file of files) {
-            const parts = file.split('/');
-            const topDir = parts.length > 1 ? parts[0] : 'root';
-            if (!dirGroups.has(topDir)) {
-                dirGroups.set(topDir, []);
-            }
-            dirGroups.get(topDir).push(file);
-        }
-        // Convert to array and sort by size (largest first)
-        const groups = Array.from(dirGroups.values()).sort((a, b) => b.length - a.length);
-        // Initialize result groups
-        const result = Array(maxGroups).fill(null).map(() => []);
-        // Distribute groups across subagents, trying to balance sizes
-        // Use a balanced approach: always assign to the subagent with the least files
-        for (let i = 0; i < groups.length; i++) {
-            // Find the subagent with the least files
-            let minIndex = 0;
-            let minSize = result[0].length;
-            for (let j = 1; j < result.length; j++) {
-                if (result[j].length < minSize) {
-                    minSize = result[j].length;
-                    minIndex = j;
-                }
-            }
-            result[minIndex].push(...groups[i]);
-        }
-        // Remove empty groups
-        return result.filter(group => group.length > 0);
-    }
-}
-exports.FilePartitioner = FilePartitioner;
-
-
-/***/ }),
-
-/***/ 7887:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Progress Detector
- * Uses Agent SDK to detect progress of a task based on code changes
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ProgressDetector = void 0;
-const logger_1 = __nccwpck_require__(8836);
-const agent_initializer_1 = __nccwpck_require__(6827);
-const progress_parser_1 = __nccwpck_require__(9025);
-const subagent_handler_1 = __nccwpck_require__(9480);
-class ProgressDetector {
-    constructor(options) {
-        this.repositoryFiles = new Map();
-        this.options = {
-            model: options.model || process.env.OPENCODE_MODEL || 'openai/gpt-4o-mini',
-            serverUrl: options.serverUrl || process.env.OPENCODE_SERVER_URL || 'http://localhost:4096',
-            personalAccessToken: options.personalAccessToken,
-            maxTurns: options.maxTurns || 20,
-            repositoryOwner: options.repositoryOwner,
-            repositoryName: options.repositoryName,
-            repositoryBranch: options.repositoryBranch,
-            developmentBranch: options.developmentBranch || 'develop',
-            issueNumber: options.issueNumber,
-            issueDescription: options.issueDescription,
-            changedFiles: options.changedFiles || [],
-            useSubAgents: options.useSubAgents !== undefined ? options.useSubAgents : false,
-            maxConcurrentSubAgents: options.maxConcurrentSubAgents || 5
-        };
-    }
-    /**
-     * Detect progress of the task
-     */
-    async detectProgress(prompt) {
-        (0, logger_1.logInfo)('📊 Starting progress detection...');
-        const userPrompt = prompt || `Analyze the progress of issue #${this.options.issueNumber || 'the task'} based on the changes made.`;
-        (0, logger_1.logInfo)(`📋 User Prompt: ${userPrompt}`);
-        (0, logger_1.logInfo)(`📊 Configuration:`);
-        (0, logger_1.logInfo)(`   - Model: ${this.options.model}`);
-        (0, logger_1.logInfo)(`   - Max Turns: ${this.options.maxTurns}`);
-        (0, logger_1.logInfo)(`   - Repository: ${this.options.repositoryOwner}/${this.options.repositoryName || 'N/A'}`);
-        (0, logger_1.logInfo)(`   - Branch: ${this.options.repositoryBranch || 'N/A'}`);
-        (0, logger_1.logInfo)(`   - Issue: #${this.options.issueNumber || 'N/A'}`);
-        (0, logger_1.logInfo)(`   - Changed Files: ${this.options.changedFiles?.length || 0}`);
-        (0, logger_1.logInfo)(`   - Use Subagents: ${this.options.useSubAgents}`);
-        if (this.options.useSubAgents) {
-            (0, logger_1.logInfo)(`   - Max Concurrent Subagents: ${this.options.maxConcurrentSubAgents}`);
-        }
-        // Initialize agent if not already initialized
-        if (!this.agent) {
-            (0, logger_1.logInfo)('🤖 Initializing agent...');
-            const { agent, repositoryFiles, reportedProgress } = await agent_initializer_1.AgentInitializer.initialize(this.options);
-            this.agent = agent;
-            this.repositoryFiles = repositoryFiles;
-            (0, logger_1.logInfo)('✅ Agent initialized');
-            // If progress was already reported during initialization (shouldn't happen, but handle it)
-            if (reportedProgress) {
-                (0, logger_1.logInfo)(`📊 Progress already reported during initialization: ${reportedProgress.progress}%`);
-            }
-        }
-        let result;
-        // Use subagents if enabled AND files > 20
-        const shouldUseSubAgents = this.options.useSubAgents &&
-            this.repositoryFiles.size > 20;
-        if (shouldUseSubAgents) {
-            (0, logger_1.logInfo)('🚀 Executing progress detection with subagents...');
-            const subagentResult = await subagent_handler_1.SubagentHandler.detectProgressWithSubAgents(this.agent, this.repositoryFiles, this.options, userPrompt);
-            result = subagentResult.agentResult;
-            // Return result from subagents (already combined)
-            (0, logger_1.logInfo)(`✅ Progress detection completed: ${subagentResult.progress}%`);
-            return subagentResult;
-        }
-        else {
-            // Warn if many files but sub-agents are disabled
-            if (!this.options.useSubAgents && this.repositoryFiles.size > 20) {
-                (0, logger_1.logWarn)(`⚠️  Many files detected (${this.repositoryFiles.size}) but sub-agents are disabled. This may be slow or hit token limits. Consider enabling sub-agents for better performance.`);
-            }
-            // Execute agent query
-            (0, logger_1.logInfo)('🚀 Executing agent query...');
-            result = await this.agent.query(userPrompt);
-        }
-        (0, logger_1.logInfo)(`📈 Agent execution completed:`);
-        (0, logger_1.logInfo)(`   - Total Turns: ${result.turns.length}`);
-        (0, logger_1.logInfo)(`   - Tool Calls: ${result.toolCalls.length}`);
-        if (result.metrics) {
-            (0, logger_1.logInfo)(`   - Input Tokens: ${result.metrics.totalTokens.input}`);
-            (0, logger_1.logInfo)(`   - Output Tokens: ${result.metrics.totalTokens.output}`);
-            (0, logger_1.logInfo)(`   - Total Duration: ${result.metrics.totalDuration}ms`);
-            (0, logger_1.logInfo)(`   - Average Latency: ${result.metrics.averageLatency}ms`);
-        }
-        // Parse progress from agent response
-        const { progress, summary } = progress_parser_1.ProgressParser.parseProgress(result);
-        (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
-        return {
-            progress,
-            summary,
-            agentResult: result
-        };
-    }
-    /**
-     * Get agent instance (for advanced usage)
-     */
-    getAgent() {
-        return this.agent;
-    }
-}
-exports.ProgressDetector = ProgressDetector;
-
-
-/***/ }),
-
-/***/ 9025:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Progress Parser
- * Parses progress percentage from agent results
- * Only uses structured format from report_progress tool - no text parsing
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ProgressParser = void 0;
-const logger_1 = __nccwpck_require__(8836);
-class ProgressParser {
-    /**
-     * Parse progress from agent result
-     * Only uses structured format from report_progress tool - no text parsing
-     * The tool already validates and cleans the data, so we just extract it directly
-     */
-    static parseProgress(result) {
-        const defaultProgress = 0;
-        const defaultSummary = 'Unable to determine progress from agent response.';
-        (0, logger_1.logDebugInfo)(`📝 Parsing progress from agent response (${result.toolCalls.length} tool calls)`);
-        // Only parse progress from report_progress tool calls (structured format)
-        // The tool already validated and cleaned the data, so we extract it directly
-        for (const toolCall of result.toolCalls) {
-            if (toolCall.name === 'report_progress' && toolCall.input.progress !== undefined) {
-                const progress = typeof toolCall.input.progress === 'number'
-                    ? toolCall.input.progress
-                    : parseFloat(String(toolCall.input.progress));
-                const summary = toolCall.input.summary
-                    ? String(toolCall.input.summary).trim()
-                    : defaultSummary;
-                // Validate progress range
-                if (!isNaN(progress) && progress >= 0 && progress <= 100) {
-                    const roundedProgress = Math.round(progress);
-                    (0, logger_1.logDebugInfo)(`   ✅ Found report_progress call with progress: ${roundedProgress}%`);
-                    (0, logger_1.logDebugInfo)(`   📝 Summary: ${summary.substring(0, 100)}...`);
-                    return {
-                        progress: roundedProgress,
-                        summary: summary || defaultSummary
-                    };
-                }
-                else {
-                    (0, logger_1.logWarn)(`   ⚠️ Invalid progress value: ${progress}, must be between 0 and 100`);
-                }
-            }
-        }
-        (0, logger_1.logWarn)('⚠️ No report_progress tool call found in agent result');
-        (0, logger_1.logDebugInfo)(`   📊 Final progress: ${defaultProgress}%`);
-        (0, logger_1.logDebugInfo)(`   📝 Summary: ${defaultSummary}`);
-        return { progress: defaultProgress, summary: defaultSummary };
-    }
-}
-exports.ProgressParser = ProgressParser;
-
-
-/***/ }),
-
-/***/ 9480:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Subagent Handler
- * Handles progress detection using subagents for parallel processing
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SubagentHandler = void 0;
-const read_file_tool_1 = __nccwpck_require__(9010);
-const search_files_tool_1 = __nccwpck_require__(4293);
-const report_progress_tool_1 = __nccwpck_require__(1422);
-const logger_1 = __nccwpck_require__(8836);
-const file_partitioner_1 = __nccwpck_require__(4538);
-const progress_parser_1 = __nccwpck_require__(9025);
-const system_prompt_builder_1 = __nccwpck_require__(5021);
-class SubagentHandler {
-    /**
-     * Detect progress using subagents for parallel processing
-     */
-    static async detectProgressWithSubAgents(agent, repositoryFiles, options, userPrompt) {
-        const allFiles = Array.from(repositoryFiles.keys());
-        // Optimal number of files per subagent (comfortable for AI processing)
-        const OPTIMAL_FILES_PER_AGENT = 15;
-        const MAX_FILES_IN_PROMPT = 20; // Maximum files to list in prompt
-        // Calculate number of subagents needed based on optimal files per agent
-        // But respect maxConcurrentSubAgents as an upper limit
-        const maxConcurrent = options.maxConcurrentSubAgents || 5;
-        const calculatedSubagents = Math.ceil(allFiles.length / OPTIMAL_FILES_PER_AGENT);
-        const numSubagents = Math.min(calculatedSubagents, maxConcurrent);
-        const filesPerAgent = Math.ceil(allFiles.length / numSubagents);
-        (0, logger_1.logInfo)(`📦 Partitioning ${allFiles.length} files into ${numSubagents} subagents (~${filesPerAgent} files each)`);
-        (0, logger_1.logInfo)(`   Optimal: ${OPTIMAL_FILES_PER_AGENT} files per agent, creating ${numSubagents} subagents for comfortable processing`);
-        // Group files by directory to keep related files together
-        const fileGroups = file_partitioner_1.FilePartitioner.partitionFilesByDirectory(allFiles, numSubagents);
-        (0, logger_1.logInfo)(`📁 Created ${fileGroups.length} file groups for parallel analysis`);
-        // Create tools for subagents (all files available through tools)
-        const tools = await this.createSubagentTools(repositoryFiles);
-        // Create tasks for each subagent
-        const systemPrompt = system_prompt_builder_1.SystemPromptBuilder.build(options);
-        const tasks = fileGroups.map((files, index) => {
-            const totalFiles = files.length;
-            // Show first N files in prompt, rest available through tools
-            const filesToShow = files.slice(0, MAX_FILES_IN_PROMPT);
-            const remainingFiles = totalFiles - filesToShow.length;
-            let fileListSection = '';
-            if (filesToShow.length > 0) {
-                fileListSection = `\n\nFiles assigned to you (${totalFiles} total):\n${filesToShow.map(f => `- ${f}`).join('\n')}`;
-                if (remainingFiles > 0) {
-                    fileListSection += `\n\n... and ${remainingFiles} more file(s). Use search_files or read_file directly to access all files.`;
-                }
-            }
-            return {
-                name: `progress-detector-${index + 1}`,
-                prompt: userPrompt
-                    ? `${userPrompt}\n\nYou have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for progress assessment. After analyzing all files, use report_progress to report the progress percentage for YOUR assigned files.**`
-                    : `You have been assigned ${totalFiles} files to analyze. You MUST read and analyze ALL ${totalFiles} of these files for progress assessment using read_file.${fileListSection}\n\n**CRITICAL: Read EVERY SINGLE FILE assigned to you (${totalFiles} files total). Use read_file on each file. Do not skip any files. Analyze each file thoroughly for progress assessment. After analyzing all files, use report_progress to report the progress percentage for YOUR assigned files.**`,
-                systemPrompt,
-                tools
-            };
-        });
-        (0, logger_1.logInfo)(`🚀 Executing ${tasks.length} subagents in parallel...`);
-        const results = await agent.executeParallel(tasks);
-        (0, logger_1.logInfo)(`✅ All ${results.length} subagents completed`);
-        // Combine results from all subagents
-        return this.combineSubagentResults(results, options);
-    }
-    /**
-     * Create tools for subagents
-     */
-    static async createSubagentTools(repositoryFiles) {
-        const readFileTool = new read_file_tool_1.ReadFileTool({
-            getFileContent: (filePath) => {
-                return repositoryFiles.get(filePath);
-            },
-            repositoryFiles
-        });
-        const searchFilesTool = new search_files_tool_1.SearchFilesTool({
-            searchFiles: (query) => {
-                return this.searchFiles(repositoryFiles, query);
-            },
-            getAllFiles: () => {
-                return this.getAllFiles(repositoryFiles);
-            }
-        });
-        // ReportProgressTool for subagents - progress will be extracted from results via ProgressParser
-        const reportProgressTool = new report_progress_tool_1.ReportProgressTool({
-            onProgressReported: () => {
-                // Progress will be extracted from tool calls in the result, not via callback
-            }
-        });
-        return [readFileTool, searchFilesTool, reportProgressTool];
-    }
-    /**
-     * Search files in repository
-     */
-    static searchFiles(repositoryFiles, query) {
-        const results = [];
-        const queryLower = query.toLowerCase();
-        for (const [path] of repositoryFiles) {
-            // Skip compiled files
-            const shouldExclude = this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
-            if (shouldExclude) {
-                continue;
-            }
-            const pathLower = path.toLowerCase();
-            // Support multiple search strategies
-            if (pathLower.includes(queryLower) ||
-                pathLower.endsWith(queryLower) ||
-                (queryLower.includes('.ts') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts')) ||
-                (queryLower.includes('typescript') && pathLower.endsWith('.ts') && !pathLower.endsWith('.d.ts'))) {
-                results.push(path);
-            }
-        }
-        return results;
-    }
-    /**
-     * Get all files (excluding compiled files)
-     */
-    static getAllFiles(repositoryFiles) {
-        return Array.from(repositoryFiles.keys()).filter((path) => {
-            return !this.EXCLUDE_PATTERNS.some(pattern => pattern.test(path));
-        });
-    }
-    /**
-     * Combine results from all subagents
-     * Calculates average progress and combines summaries
-     */
-    static combineSubagentResults(results, options) {
-        const allProgressReports = [];
-        const allToolCalls = [];
-        const allTurns = [];
-        let totalInputTokens = 0;
-        let totalOutputTokens = 0;
-        let maxDuration = 0;
-        for (const { task, result } of results) {
-            (0, logger_1.logInfo)(`   📊 Subagent "${task}": ${result.turns.length} turns, ${result.toolCalls.length} tool calls`);
-            // Parse progress from each subagent
-            const { progress, summary } = progress_parser_1.ProgressParser.parseProgress(result);
-            allProgressReports.push({ progress, summary });
-            allToolCalls.push(...result.toolCalls);
-            allTurns.push(...result.turns);
-            if (result.metrics) {
-                totalInputTokens += result.metrics.totalTokens.input;
-                totalOutputTokens += result.metrics.totalTokens.output;
-                maxDuration = Math.max(maxDuration, result.metrics.totalDuration);
-            }
-        }
-        // Calculate average progress (weighted by number of files analyzed if needed)
-        // For now, simple average - could be improved with weighting
-        const averageProgress = allProgressReports.length > 0
-            ? Math.round(allProgressReports.reduce((sum, r) => sum + r.progress, 0) / allProgressReports.length)
-            : 0;
-        // Combine summaries
-        const combinedSummary = allProgressReports.length > 0
-            ? allProgressReports.map((r, i) => `Subagent ${i + 1}: ${r.progress}% - ${r.summary}`).join('\n')
-            : 'Unable to determine progress from subagent responses.';
-        // Calculate average latency from all subagents
-        const totalApiCalls = results.reduce((sum, r) => sum + (r.result.metrics?.apiCalls || 0), 0);
-        const totalLatency = results.reduce((sum, r) => {
-            if (r.result.metrics?.averageLatency && r.result.metrics?.apiCalls) {
-                return sum + (r.result.metrics.averageLatency * r.result.metrics.apiCalls);
-            }
-            return sum;
-        }, 0);
-        const averageLatency = totalApiCalls > 0 ? totalLatency / totalApiCalls : 0;
-        // Create combined agent result
-        const combinedResult = {
-            finalResponse: `Progress analysis completed by ${results.length} subagents. Average progress: ${averageProgress}%.`,
-            turns: allTurns,
-            toolCalls: allToolCalls,
-            messages: results.flatMap(r => r.result.messages),
-            metrics: {
-                totalTokens: {
-                    input: totalInputTokens,
-                    output: totalOutputTokens
-                },
-                totalDuration: maxDuration,
-                apiCalls: totalApiCalls,
-                toolCalls: allToolCalls.length,
-                errors: results.reduce((sum, r) => sum + (r.result.metrics?.errors || 0), 0),
-                averageLatency: averageLatency
-            }
-        };
-        (0, logger_1.logInfo)(`✅ Combined results: Average progress ${averageProgress}% across ${results.length} subagents`);
-        (0, logger_1.logInfo)(`   Individual progress reports:`);
-        allProgressReports.forEach((r, i) => {
-            (0, logger_1.logInfo)(`   - Subagent ${i + 1}: ${r.progress}%`);
-        });
-        (0, logger_1.logInfo)(`   - Total Tokens: ${totalInputTokens + totalOutputTokens} (${totalInputTokens} in, ${totalOutputTokens} out)`);
-        (0, logger_1.logInfo)(`   - Duration: ${maxDuration}ms (parallel execution)`);
-        return {
-            progress: averageProgress,
-            summary: combinedSummary,
-            agentResult: combinedResult
-        };
-    }
-}
-exports.SubagentHandler = SubagentHandler;
-SubagentHandler.EXCLUDE_PATTERNS = [
-    /^build\//,
-    /^dist\//,
-    /^node_modules\//,
-    /\.d\.ts$/,
-    /^\.next\//,
-    /^out\//,
-    /^coverage\//,
-    /\.min\.(js|css)$/,
-    /\.map$/,
-    /^\.git\//,
-    /^\.vscode\//,
-    /^\.idea\//
-];
-
-
-/***/ }),
-
-/***/ 5021:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * System Prompt Builder
- * Builds system prompts for progress detection
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SystemPromptBuilder = void 0;
-class SystemPromptBuilder {
-    /**
-     * Build system prompt for progress detection
-     */
-    static build(options) {
-        const issueInfo = options.issueNumber
-            ? `Issue #${options.issueNumber}`
-            : 'the task';
-        const issueDescription = options.issueDescription
-            ? `\n\n**Task Description:**\n${options.issueDescription}`
-            : '';
-        const changedFilesInfo = options.changedFiles && options.changedFiles.length > 0
-            ? `\n\n**Changed Files (${options.changedFiles.length}):**\n${options.changedFiles.map(f => `- ${f.filename} (${f.status})${f.additions && f.deletions ? ` [+${f.additions}/-${f.deletions}]` : ''}`).join('\n')}`
-            : '\n\n**No files have been changed yet.**';
-        return `You are an expert code reviewer and task progress assessor. Your task is to analyze the progress of ${issueInfo} based on the changes made in the codebase compared to the development branch.
-
-${issueDescription}
-
-**Context:**
-- You are analyzing changes made in a feature branch compared to the development branch
-- Your goal is to determine what percentage of the task has been completed
-- Consider both the quantity and quality of changes
-- Look at what was requested vs what has been implemented
-
-${changedFilesInfo}
-
-**Your Task:**
-1. Read and analyze the changed files to understand what has been implemented
-2. Compare the implementation against the task description
-3. Determine what percentage of the task is complete (0-100%)
-4. Consider:
-   - Are the core requirements implemented?
-   - Are edge cases handled?
-   - Is the code complete and functional?
-   - Are there any obvious missing pieces?
-   - Is the implementation aligned with the task description?
-
-**IMPORTANT INSTRUCTIONS:**
-1. **Read ALL changed files** using the read_file tool
-   - Read every file that has been modified, added, or changed
-   - Analyze the actual code, not just file names
-   - Understand what functionality has been implemented
-2. **Compare with task requirements**
-   - Check if the task description requirements are met
-   - Identify what's been done vs what's still needed
-3. **Provide progress assessment**
-   - After analyzing all files, provide a progress percentage (0-100)
-   - Include a brief summary explaining your assessment
-   - Be realistic: 0% means nothing done, 100% means task is complete
-   - Consider partial completion (e.g., if core feature is done but tests are missing, that might be 70-80%)
-
-**CRITICAL - REPORTING PROGRESS:**
-After analyzing all files, you MUST use the report_progress tool to report your progress assessment.
-- Call report_progress ONCE with:
-  - progress: A number between 0-100 (the percentage of task completion)
-  - summary: A brief explanation of why you assigned this percentage
-- **DO NOT provide progress in text format** - you MUST use the report_progress tool
-- After calling report_progress, provide a brief final summary text response and STOP
-- **DO NOT call report_progress multiple times** - call it once with your final assessment, then provide your summary and finish
-
-**Example:**
-After analyzing, call:
-report_progress({
-  progress: 75,
-  summary: "The core functionality has been implemented in the main files. The feature works as described, but unit tests are missing and error handling could be improved. The main requirements are met, but some polish is still needed."
-})
-
-**Remember:**
-- Be thorough: read all changed files before making your assessment
-- Be realistic: don't overestimate or underestimate progress
-- Consider both code quality and completeness
-- If no files have changed, progress is 0%
-- If the task description is unclear or missing, make your best assessment based on the code changes
-
-**CRITICAL INSTRUCTIONS:**
-1. **You MUST read ALL changed files before making your assessment**
-2. **You MUST use the report_progress tool to report progress** - do NOT provide progress in text format
-3. **Call report_progress ONCE** with your final assessment after analyzing all files
-4. **After calling report_progress, provide a brief final summary and STOP**`;
-    }
-}
-exports.SystemPromptBuilder = SystemPromptBuilder;
-
-
-/***/ }),
-
-/***/ 9121:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Base class for all tools
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.BaseTool = void 0;
-class BaseTool {
-    /**
-     * Get tool definition
-     */
-    getDefinition() {
-        return {
-            name: this.getName(),
-            description: this.getDescription(),
-            inputSchema: this.getInputSchema()
-        };
-    }
-    /**
-     * Validate input against schema
-     */
-    validateInput(input) {
-        const schema = this.getInputSchema();
-        // Check required fields
-        for (const required of schema.required) {
-            if (!(required in input)) {
-                return {
-                    valid: false,
-                    error: `Missing required field: ${required}`
-                };
-            }
-        }
-        // Check additional properties
-        if (schema.additionalProperties === false) {
-            const allowedKeys = new Set([
-                ...Object.keys(schema.properties),
-                ...schema.required
-            ]);
-            for (const key of Object.keys(input)) {
-                if (!allowedKeys.has(key)) {
-                    return {
-                        valid: false,
-                        error: `Unexpected field: ${key}`
-                    };
-                }
-            }
-        }
-        return { valid: true };
-    }
-    /**
-     * Execute with validation
-     */
-    async executeWithValidation(input) {
-        const validation = this.validateInput(input);
-        if (!validation.valid) {
-            return {
-                success: false,
-                result: null,
-                error: validation.error
-            };
-        }
-        try {
-            const result = await this.execute(input);
-            return {
-                success: true,
-                result
-            };
-        }
-        catch (error) {
-            return {
-                success: false,
-                result: null,
-                error: error instanceof Error ? error.message : String(error)
-            };
-        }
-    }
-}
-exports.BaseTool = BaseTool;
-
-
-/***/ }),
-
-/***/ 9010:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Read File Tool - Reads file contents from repository or virtual codebase.
- *
- * This tool allows agents to read and examine file contents from either the virtual codebase
- * (in-memory changes) or the original repository files. It provides a unified interface for
- * accessing file content regardless of whether the file has been modified in the virtual codebase.
- *
- * @internal
- * This tool is used by agents to examine code, configuration files, or any file in the codebase
- * during their reasoning process. It checks the virtual codebase first (for modified files) and
- * falls back to repository files if not found.
- *
- * @remarks
- * - Virtual codebase is checked first (for files modified via propose_change)
- * - Falls back to repository files if not found in virtual codebase
- * - Returns formatted response with file path, line count, and code block
- * - Returns error message if file is not found in either location
- *
- * @example
- * ```typescript
- * const tool = new ReadFileTool({
- *   getFileContent: (filePath) => { return 'file content'; },
- *   repositoryFiles: new Map([['src/utils.ts', 'export function util() {}']])
- * });
- *
- * const result = await tool.execute({ file_path: 'src/utils.ts' });
- * // Returns: "File: src/utils.ts\nLines: 1\n\n```\nfile content\n```"
- * ```
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ReadFileTool = void 0;
-const base_tool_1 = __nccwpck_require__(9121);
-const logger_1 = __nccwpck_require__(8836);
-/**
- * ReadFileTool - Tool for reading file contents from repository or virtual codebase.
- *
- * This tool provides a unified interface for accessing file content from either the virtual
- * codebase (modified files) or the original repository files.
- *
- * @internal
- * The tool checks the virtual codebase first, then falls back to repository files. This ensures
- * that agents always see the most recent changes (from propose_change) when reading files.
- */
-class ReadFileTool extends base_tool_1.BaseTool {
-    /**
-     * Creates a new ReadFileTool instance.
-     *
-     * @internal
-     * The options parameter provides callbacks that connect this tool to the virtual codebase
-     * and repository file storage.
-     *
-     * @param options - Configuration object with callbacks for file operations
-     */
-    constructor(options) {
-        super();
-        this.options = options;
-    }
-    /**
-     * Returns the tool name used by the agent system.
-     *
-     * @internal
-     * This name is used when the agent calls the tool via tool calls.
-     *
-     * @returns Tool identifier: 'read_file'
-     */
-    getName() {
-        return 'read_file';
-    }
-    /**
-     * Returns the tool description shown to the agent.
-     *
-     * @internal
-     * This description helps the agent understand when and how to use this tool.
-     * It's included in the agent's available tools list.
-     *
-     * @returns Human-readable description of the tool's purpose
-     */
-    getDescription() {
-        return 'Read the contents of a file from the repository. Use this to examine code, configuration files, or any file in the codebase.';
-    }
-    getInputSchema() {
-        return {
-            type: 'object',
-            properties: {
-                file_path: {
-                    type: 'string',
-                    description: 'Path to the file to read (relative to repository root)'
-                }
-            },
-            required: ['file_path'],
-            additionalProperties: false
-        };
-    }
-    /**
-     * Executes the tool with the provided input.
-     *
-     * This method reads file content from either the virtual codebase or repository files.
-     * It checks the virtual codebase first (for modified files) and falls back to repository
-     * files if not found.
-     *
-     * @internal
-     * The method validates the file_path input and then attempts to retrieve the file content
-     * from two sources in order:
-     * 1. Virtual codebase (via getFileContent callback) - contains files modified via propose_change
-     * 2. Repository files (via repositoryFiles Map) - contains original files
-     *
-     * @param input - Tool input containing file_path
-     * @returns Formatted string with file path, line count, and code block, or error message if file not found
-     *
-     * @throws Error if file_path is missing or not a string
-     *
-     * @remarks
-     * - Virtual codebase is checked first to ensure agents see the most recent changes
-     * - Response format includes file path, line count, and code block for easy reading
-     * - Returns error message (not exception) if file is not found in either location
-     *
-     * @example
-     * ```typescript
-     * const result = await tool.execute({ file_path: 'src/utils.ts' });
-     * // Returns: "File: src/utils.ts\nLines: 10\n\n```\nexport function util() {}\n```"
-     *
-     * const result2 = await tool.execute({ file_path: 'nonexistent.ts' });
-     * // Returns: "Error: File "nonexistent.ts" not found in the repository."
-     * ```
-     */
-    async execute(input) {
-        const filePath = input.file_path;
-        (0, logger_1.logInfo)(`   📖 Reading file: ${filePath}`);
-        // Validate file_path is provided and is a string
-        // @internal file_path is required to identify which file to read
-        if (!filePath || typeof filePath !== 'string') {
-            throw new Error('file_path is required and must be a string');
-        }
-        // Try to get from virtual codebase first
-        // @internal Virtual codebase contains files modified via propose_change, so we check it first
-        // to ensure agents see the most recent changes
-        let content = this.options.getFileContent(filePath);
-        // If not found, try repository files
-        // @internal Fallback to original repository files if file hasn't been modified
-        // Note: We check for undefined/null specifically, not falsy, because empty string is valid content
-        if (content === undefined && this.options.repositoryFiles) {
-            content = this.options.repositoryFiles.get(filePath);
-        }
-        // Return error message if file not found in either location
-        // @internal We return an error message (not exception) so the agent can handle it gracefully
-        // Note: Empty string is valid content, so we only check for undefined
-        if (content === undefined) {
-            return `Error: File "${filePath}" not found in the repository.`;
-        }
-        // Format response with file path, line count, and code block
-        // @internal This format makes it easy for agents to understand file structure and content
-        const lines = content.split('\n').length;
-        return `File: ${filePath}\nLines: ${lines}\n\n\`\`\`\n${content}\n\`\`\``;
-    }
-}
-exports.ReadFileTool = ReadFileTool;
-
-
-/***/ }),
-
-/***/ 1422:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Report Progress Tool - Tool for reporting task progress in structured format.
- *
- * This tool allows agents to report the progress percentage of a task based on code changes
- * analysis. It reports the completion percentage (0-100) and a brief summary of the assessment.
- * This is the primary way for agents to report progress after analyzing changes.
- *
- * @internal
- * This tool is used by the ProgressDetector agent to report task completion percentage. The tool
- * validates progress is within 0-100 range, cleans the summary text to remove markdown formatting,
- * and rounds progress to integer for consistency.
- *
- * @remarks
- * - progress must be a number between 0 and 100 (inclusive)
- * - Progress can be provided as number or string (extracts number from string)
- * - Progress is rounded to integer for consistency
- * - summary is cleaned to remove markdown formatting but preserves newlines
- * - This is the PRIMARY way to report progress - agents MUST use this tool
- *
- * @example
- * ```typescript
- * const tool = new ReportProgressTool({
- *   onProgressReported: (progress, summary) => {
- *     console.log(`Progress: ${progress}%`);
- *   }
- * });
- *
- * await tool.execute({
- *   progress: 75,
- *   summary: 'Most changes are complete, only tests remaining'
- * });
- * ```
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ReportProgressTool = void 0;
-const base_tool_1 = __nccwpck_require__(9121);
-const logger_1 = __nccwpck_require__(8836);
-/**
- * ReportProgressTool - Tool for reporting task progress in structured format.
- *
- * This tool provides a structured interface for agents to report task completion percentage.
- * It validates progress range, cleans summary text, and ensures data consistency.
- *
- * @internal
- * The tool performs validation and cleaning:
- * - Validates progress is within 0-100 range
- * - Parses progress from string if needed (extracts first number)
- * - Rounds progress to integer for consistency
- * - Cleans summary to remove markdown formatting (preserves newlines)
- * - Passes cleaned data to callback
- */
-class ReportProgressTool extends base_tool_1.BaseTool {
-    /**
-     * Creates a new ReportProgressTool instance.
-     *
-     * @internal
-     * The options parameter provides the callback that receives the progress assessment.
-     *
-     * @param options - Configuration object with callback for progress reporting
-     */
-    constructor(options) {
-        super();
-        this.options = options;
-    }
-    /**
-     * Returns the tool name used by the agent system.
-     *
-     * @internal
-     * This name is used when the agent calls the tool via tool calls.
-     *
-     * @returns Tool identifier: 'report_progress'
-     */
-    getName() {
-        return 'report_progress';
-    }
-    getDescription() {
-        return 'Report the progress percentage of a task based on code changes analysis. Use this tool to report the completion percentage (0-100) and a brief summary of your assessment. This is the PRIMARY way to report progress - you MUST use this tool after analyzing the changes.';
-    }
-    getInputSchema() {
-        return {
-            type: 'object',
-            properties: {
-                progress: {
-                    type: 'number',
-                    description: 'Progress percentage as a number between 0 and 100 (inclusive). 0 means nothing done, 100 means task is complete. MUST be a number, not a string.',
-                    minimum: 0,
-                    maximum: 100
-                },
-                summary: {
-                    type: 'string',
-                    description: 'Brief summary explaining why you assigned this progress percentage. Plain text description. Can contain newlines for readability, but NO markdown formatting (NO **, NO *, NO #). Just plain descriptive text explaining the assessment.'
-                }
-            },
-            required: ['progress', 'summary'],
-            additionalProperties: false
-        };
-    }
-    /**
-     * Executes the tool with the provided input.
-     *
-     * This method validates and processes the progress assessment, parses progress from number
-     * or string, validates the range, cleans the summary text, and passes the cleaned data
-     * to the callback.
-     *
-     * @internal
-     * The method performs the following steps:
-     * 1. Validates progress is provided
-     * 2. Parses progress from number or string (extracts first number from string)
-     * 3. Validates progress is within 0-100 range
-     * 4. Rounds progress to integer for consistency
-     * 5. Validates summary is provided and is a string
-     * 6. Cleans summary to remove markdown formatting (preserves newlines)
-     * 7. Passes cleaned data to callback
-     *
-     * @param input - Tool input containing progress and summary
-     * @returns String response indicating success
-     *
-     * @throws Error if progress is missing, invalid, or out of range; or if summary is missing or empty after cleaning
-     *
-     * @remarks
-     * - Progress can be provided as number or string (extracts first number from string)
-     * - Progress is rounded to integer for consistency (e.g., 75.5 becomes 76)
-     * - Summary is cleaned to remove markdown but preserves newlines for readability
-     * - Empty summary after cleaning throws an error
-     *
-     * @example
-     * ```typescript
-     * // With number
-     * const result = await tool.execute({
-     *   progress: 75,
-     *   summary: '**Most changes** are complete'
-     * });
-     * // Progress: 75, Summary: 'Most changes are complete'
-     *
-     * // With string
-     * const result2 = await tool.execute({
-     *   progress: '50%',
-     *   summary: 'Halfway done'
-     * });
-     * // Progress: 50, Summary: 'Halfway done'
-     * ```
-     */
-    async execute(input) {
-        // Validate progress
-        // @internal progress is required to know the completion percentage
-        if (input.progress === undefined || input.progress === null) {
-            throw new Error('progress is required');
-        }
-        let progress;
-        if (typeof input.progress === 'number') {
-            progress = input.progress;
-        }
-        else if (typeof input.progress === 'string') {
-            // Try to extract number from string
-            // @internal Allows flexibility - extracts first number from strings like "50%", "75.5", etc.
-            const match = input.progress.match(/(\d+(?:\.\d+)?)/);
-            if (match) {
-                progress = parseFloat(match[1]);
-            }
-            else {
-                throw new Error(`Invalid progress value: "${input.progress}". Must be a number between 0 and 100.`);
-            }
-        }
-        else {
-            throw new Error(`Invalid progress type: ${typeof input.progress}. Must be a number between 0 and 100.`);
-        }
-        // Validate progress range
-        // @internal Progress must be between 0 and 100 (inclusive)
-        if (isNaN(progress) || progress < 0 || progress > 100) {
-            throw new Error(`Progress must be a number between 0 and 100, got: ${progress}`);
-        }
-        // Round to integer
-        // @internal Rounding ensures consistency - progress is always an integer
-        progress = Math.round(progress);
-        // Validate summary
-        // @internal summary is required to explain the progress assessment
-        if (!input.summary || typeof input.summary !== 'string') {
-            throw new Error('summary is required and must be a string');
-        }
-        // Clean summary - remove markdown but preserve content
-        // @internal Remove markdown formatting to ensure clean plain text, but preserve newlines for readability
-        const summary = String(input.summary)
-            .replace(/\*\*/g, '')
-            .replace(/\*/g, '')
-            .replace(/^#+\s*/gm, '')
-            .replace(/^-\s*/gm, '')
-            .replace(/^\d+\.\s*/gm, '')
-            .replace(/\\n/g, '\n')
-            .trim();
-        if (!summary || summary.length === 0) {
-            throw new Error('summary is required and cannot be empty');
-        }
-        (0, logger_1.logInfo)(`   📊 Progress reported: ${progress}%`);
-        (0, logger_1.logInfo)(`   📝 Summary: ${summary.substring(0, 100)}${summary.length > 100 ? '...' : ''}`);
-        // Notify callback
-        // @internal Pass cleaned and validated data to callback
-        this.options.onProgressReported(progress, summary);
-        return `Successfully reported progress: ${progress}%. Progress has been recorded.`;
-    }
-}
-exports.ReportProgressTool = ReportProgressTool;
-
-
-/***/ }),
-
-/***/ 4293:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-/**
- * Search Files Tool - Searches for files by name or content.
- *
- * This tool allows agents to search for files in the repository by name, path, or content
- * keywords. It returns a list of matching file paths, with optional result limiting for
- * efficiency.
- *
- * @internal
- * This tool is used by agents to find files during their reasoning process. It delegates
- * the actual search logic to the searchFiles callback, which can implement various search
- * strategies (name matching, path patterns, content search, etc.).
- *
- * @remarks
- * - query is required and can be a file name, path pattern, or content keyword
- * - max_results defaults to 1000 but can be set higher (>= 10000 returns all results)
- * - Results are formatted as a numbered list for easy reading
- * - Returns empty message if no files match the query
- *
- * @example
- * ```typescript
- * const tool = new SearchFilesTool({
- *   searchFiles: (query) => {
- *     // Implement search logic
- *     return ['src/utils.ts', 'src/helper.ts'];
- *   }
- * });
- *
- * // Search with default limit
- * await tool.execute({ query: 'utils' });
- *
- * // Search with custom limit
- * await tool.execute({ query: 'test', max_results: 5000 });
- * ```
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.SearchFilesTool = void 0;
-const base_tool_1 = __nccwpck_require__(9121);
-const logger_1 = __nccwpck_require__(8836);
-/**
- * SearchFilesTool - Tool for searching files by name or content.
- *
- * This tool provides a unified interface for file searching, with result limiting and
- * formatting capabilities.
- *
- * @internal
- * The tool validates the query, delegates search to the callback, limits results if needed,
- * and formats the response as a numbered list. For very large max_results (>= 10000), it
- * returns all results without limiting.
- */
-class SearchFilesTool extends base_tool_1.BaseTool {
-    /**
-     * Creates a new SearchFilesTool instance.
-     *
-     * @internal
-     * The options parameter provides callbacks that implement the search logic.
-     *
-     * @param options - Configuration object with callbacks for file search
-     */
-    constructor(options) {
-        super();
-        this.options = options;
-    }
-    /**
-     * Returns the tool name used by the agent system.
-     *
-     * @internal
-     * This name is used when the agent calls the tool via tool calls.
-     *
-     * @returns Tool identifier: 'search_files'
-     */
-    getName() {
-        return 'search_files';
-    }
-    /**
-     * Returns the tool description shown to the agent.
-     *
-     * @internal
-     * This description helps the agent understand when and how to use this tool.
-     * It's included in the agent's available tools list.
-     *
-     * @returns Human-readable description of the tool's purpose
-     */
-    getDescription() {
-        return 'Search for files in the repository by name, path, or content keywords. Returns a list of matching file paths.';
-    }
-    getInputSchema() {
-        return {
-            type: 'object',
-            properties: {
-                query: {
-                    type: 'string',
-                    description: 'Search query. Can be a file name, path pattern, or content keyword.'
-                },
-                max_results: {
-                    type: 'number',
-                    description: 'Maximum number of results to return (default: 1000, use higher values like 5000-10000 for comprehensive searches. No hard limit - use a very high number to get all results)'
-                }
-            },
-            required: ['query'],
-            additionalProperties: false
-        };
-    }
-    /**
-     * Executes the tool with the provided input.
-     *
-     * This method performs a file search based on the query, limits results if needed, and
-     * formats the response as a numbered list.
-     *
-     * @internal
-     * The method performs the following steps:
-     * 1. Validates query is provided and is a string
-     * 2. Validates max_results is at least 1
-     * 3. Delegates search to searchFiles callback
-     * 4. Limits results if max_results is reasonable (< 10000)
-     * 5. Formats results as numbered list or returns empty message
-     *
-     * @param input - Tool input containing query and optional max_results
-     * @returns Formatted string with numbered list of matching files, or empty message if none found
-     *
-     * @throws Error if query is missing or not a string, or if max_results is less than 1
-     *
-     * @remarks
-     * - max_results defaults to 1000 for comprehensive searches
-     * - For max_results >= 10000, all results are returned (no limiting)
-     * - Results are formatted as a numbered list for easy reading
-     * - Returns empty message (not exception) if no files match
-     *
-     * @example
-     * ```typescript
-     * // Search with default limit
-     * const result = await tool.execute({ query: 'utils' });
-     * // Returns: "Found 2 file(s) matching "utils":\n\n1. src/utils.ts\n2. src/utils/helper.ts"
-     *
-     * // Search with custom limit
-     * const result2 = await tool.execute({ query: 'test', max_results: 5000 });
-     *
-     * // No results
-     * const result3 = await tool.execute({ query: 'nonexistent' });
-     * // Returns: "No files found matching query: "nonexistent""
-     * ```
-     */
-    async execute(input) {
-        const query = input.query;
-        (0, logger_1.logInfo)(`   🔍 Searching files with query: "${query}"`);
-        // Use number when valid, otherwise default 1000 (nullish coalescing would treat 0 as valid)
-        const maxResults = typeof input.max_results === 'number' ? input.max_results : 1000;
-        // Validate query is provided and is a string
-        // @internal query is required to know what to search for
-        if (!query || typeof query !== 'string') {
-            throw new Error('query is required and must be a string');
-        }
-        // Validate max_results is at least 1
-        // @internal max_results must be positive to limit results
-        if (maxResults < 1) {
-            throw new Error('max_results must be at least 1');
-        }
-        // Perform search
-        // @internal Delegate actual search logic to callback
-        const results = this.options.searchFiles(query);
-        // Limit results only if maxResults is reasonable (to prevent memory issues)
-        // For very large values (>= 10000), return all results
-        // @internal Very large max_results values indicate comprehensive search, so return all results
-        const limitedResults = maxResults >= 10000 ? results : results.slice(0, maxResults);
-        // Return empty message if no results
-        // @internal Return message (not exception) so agent can handle gracefully
-        if (limitedResults.length === 0) {
-            return `No files found matching query: "${query}"`;
-        }
-        // Format response as numbered list
-        // @internal Numbered list makes it easy for agents to reference specific files
-        const resultList = limitedResults.map((file, index) => `${index + 1}. ${file}`).join('\n');
-        return `Found ${limitedResults.length} file(s) matching "${query}":\n\n${resultList}`;
-    }
-}
-exports.SearchFilesTool = SearchFilesTool;
-
-
-/***/ }),
-
-/***/ 4315:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Tool Executor for Agent SDK
- * Executes tool calls and returns results
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ToolExecutor = void 0;
-class ToolExecutor {
-    constructor(registry) {
-        this.registry = registry;
-    }
-    /**
-     * Execute a single tool call
-     */
-    async execute(toolCall) {
-        const tool = this.registry.get(toolCall.name);
-        if (!tool) {
-            return {
-                toolCallId: toolCall.id,
-                content: `Error: Tool "${toolCall.name}" not found`,
-                isError: true,
-                errorMessage: `Tool "${toolCall.name}" is not registered`
-            };
-        }
-        try {
-            const executionResult = await tool.executeWithValidation(toolCall.input);
-            if (!executionResult.success) {
-                // Provide helpful error message with tool schema info
-                const toolDef = tool.getDefinition();
-                const requiredFields = toolDef.inputSchema.required || [];
-                const errorMsg = executionResult.error || 'Tool execution failed';
-                const helpfulError = `${errorMsg}. Required fields: ${requiredFields.join(', ')}. Available fields: ${Object.keys(toolDef.inputSchema.properties).join(', ')}.`;
-                return {
-                    toolCallId: toolCall.id,
-                    content: helpfulError,
-                    isError: true,
-                    errorMessage: errorMsg
-                };
-            }
-            // Convert result to string if needed
-            const content = typeof executionResult.result === 'string'
-                ? executionResult.result
-                : JSON.stringify(executionResult.result, null, 2);
-            return {
-                toolCallId: toolCall.id,
-                content
-            };
-        }
-        catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            return {
-                toolCallId: toolCall.id,
-                content: `Error executing tool: ${errorMessage}`,
-                isError: true,
-                errorMessage
-            };
-        }
-    }
-    /**
-     * Execute multiple tool calls in parallel
-     */
-    async executeAll(toolCalls) {
-        const promises = toolCalls.map(toolCall => this.execute(toolCall));
-        return Promise.all(promises);
-    }
-    /**
-     * Execute multiple tool calls sequentially
-     */
-    async executeAllSequential(toolCalls) {
-        const results = [];
-        for (const toolCall of toolCalls) {
-            const result = await this.execute(toolCall);
-            results.push(result);
-        }
-        return results;
-    }
-    /**
-     * Check if tool is available
-     */
-    isToolAvailable(name) {
-        return this.registry.has(name);
-    }
-    /**
-     * Get available tool names
-     */
-    getAvailableTools() {
-        return this.registry.getToolNames();
-    }
-    /**
-     * Get all tool definitions
-     */
-    getToolDefinitions() {
-        return this.registry.getAllDefinitions();
-    }
-}
-exports.ToolExecutor = ToolExecutor;
-
-
-/***/ }),
-
-/***/ 4138:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Tool Registry for managing available tools
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ToolRegistry = void 0;
-class ToolRegistry {
-    constructor() {
-        this.tools = new Map();
-    }
-    /**
-     * Register a tool
-     */
-    register(tool) {
-        const name = tool.getName();
-        if (this.tools.has(name)) {
-            throw new Error(`Tool with name "${name}" is already registered`);
-        }
-        this.tools.set(name, tool);
-    }
-    /**
-     * Register multiple tools
-     */
-    registerAll(tools) {
-        for (const tool of tools) {
-            this.register(tool);
-        }
-    }
-    /**
-     * Get tool by name
-     */
-    get(name) {
-        return this.tools.get(name);
-    }
-    /**
-     * Check if tool exists
-     */
-    has(name) {
-        return this.tools.has(name);
-    }
-    /**
-     * Get all tool definitions
-     */
-    getAllDefinitions() {
-        return Array.from(this.tools.values()).map(tool => tool.getDefinition());
-    }
-    /**
-     * Get all registered tool names
-     */
-    getToolNames() {
-        return Array.from(this.tools.keys());
-    }
-    /**
-     * Clear all tools
-     */
-    clear() {
-        this.tools.clear();
-    }
-    /**
-     * Get tool count
-     */
-    getCount() {
-        return this.tools.size;
-    }
-}
-exports.ToolRegistry = ToolRegistry;
-
-
-/***/ }),
-
-/***/ 6515:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * JSON Schema for Agent responses
- * Used with OpenCode JSON mode
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AGENT_RESPONSE_SCHEMA = void 0;
-exports.AGENT_RESPONSE_SCHEMA = {
-    type: "object",
-    properties: {
-        response: {
-            type: "string",
-            description: "Your text response to the user. Explain what you're doing or thinking."
-        },
-        tool_calls: {
-            type: "array",
-            description: "List of tools to call. Empty array [] if no tools are needed.",
-            items: {
-                type: "object",
-                properties: {
-                    id: {
-                        type: "string",
-                        description: "Unique identifier for this tool call (e.g., 'call_1', 'call_2')"
-                    },
-                    name: {
-                        type: "string",
-                        description: "Name of the tool to call (must match one of the available tools)"
-                    },
-                    input: {
-                        type: "object",
-                        description: "Input parameters for the tool (must match the tool's input schema)",
-                        additionalProperties: false // Required by strict mode, but each tool validates its own schema
-                    }
-                },
-                required: ["id", "name", "input"],
-                additionalProperties: false
-            }
-        }
-    },
-    required: ["response", "tool_calls"],
-    additionalProperties: false
-};
-
-
-/***/ }),
-
-/***/ 9907:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Error handler for Agent SDK
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ErrorHandler = exports.ValidationError = exports.APIError = exports.ToolExecutionError = exports.AgentError = void 0;
-class AgentError extends Error {
-    constructor(message, code, context) {
-        super(message);
-        this.code = code;
-        this.context = context;
-        this.name = 'AgentError';
-    }
-}
-exports.AgentError = AgentError;
-class ToolExecutionError extends AgentError {
-    constructor(message, toolName, toolInput) {
-        super(message, 'TOOL_EXECUTION_ERROR', { toolName, toolInput });
-        this.toolName = toolName;
-        this.toolInput = toolInput;
-        this.name = 'ToolExecutionError';
-    }
-}
-exports.ToolExecutionError = ToolExecutionError;
-class APIError extends AgentError {
-    constructor(message, statusCode, response) {
-        super(message, 'API_ERROR', { statusCode, response });
-        this.statusCode = statusCode;
-        this.response = response;
-        this.name = 'APIError';
-    }
-}
-exports.APIError = APIError;
-class ValidationError extends AgentError {
-    constructor(message, field) {
-        super(message, 'VALIDATION_ERROR', { field });
-        this.field = field;
-        this.name = 'ValidationError';
-    }
-}
-exports.ValidationError = ValidationError;
-class ErrorHandler {
-    /**
-     * Handle and format errors
-     */
-    static handle(error) {
-        if (error instanceof AgentError) {
-            return error;
-        }
-        if (error instanceof Error) {
-            return new AgentError(error.message, 'UNKNOWN_ERROR', { originalError: error });
-        }
-        return new AgentError(String(error), 'UNKNOWN_ERROR');
-    }
-    /**
-     * Check if error is retryable
-     */
-    static isRetryable(error) {
-        if (error instanceof APIError) {
-            // Retry on 5xx errors or rate limits
-            return error.statusCode === undefined
-                || (error.statusCode >= 500 && error.statusCode < 600)
-                || error.statusCode === 429;
-        }
-        return false;
-    }
-}
-exports.ErrorHandler = ErrorHandler;
-
-
-/***/ }),
-
-/***/ 3277:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Prompt builder for Agent SDK
- * Builds prompts that include tool definitions and conversation history
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PromptBuilder = void 0;
-class PromptBuilder {
-    /**
-     * Build a complete prompt from messages and tools
-     * This converts the message history into a format suitable for OpenCode
-     */
-    static buildPrompt(messages, tools) {
-        const parts = [];
-        // Add system message if present
-        const systemMessage = messages.find(m => m.role === 'system');
-        if (systemMessage && typeof systemMessage.content === 'string') {
-            parts.push(`## System Instructions\n\n${systemMessage.content}\n\n`);
-        }
-        // Add tools information if available (simplified)
-        if (tools && tools.length > 0) {
-            parts.push(this.buildToolsSection(tools));
-        }
-        // Add conversation history (only last 5 messages to avoid token limit)
-        const recentMessages = messages.filter(m => m.role !== 'system').slice(-5);
-        if (recentMessages.length > 0) {
-            parts.push('## Conversation History\n\n');
-            for (const message of recentMessages) {
-                parts.push(this.formatMessage(message));
-            }
-        }
-        // Add current instruction (simplified)
-        parts.push('\n## Your Response\n\n');
-        parts.push('Respond with JSON: {"response": "your text", "tool_calls": []}');
-        parts.push('\n\nProvide your response now:');
-        return parts.join('\n');
-    }
-    /**
-     * Build tools section for prompt (simplified to save tokens)
-     */
-    static buildToolsSection(tools) {
-        const parts = ['## Available Tools\n\n'];
-        for (const tool of tools) {
-            parts.push(`**${tool.name}**: ${tool.description}\n`);
-            // Simplified schema - just show required fields
-            const required = tool.inputSchema.required || [];
-            if (required.length > 0) {
-                parts.push(`  Required: ${required.join(', ')}\n`);
-            }
-        }
-        parts.push('\n**Instructions**: Use tools via `tool_calls` array. Format: `{"id": "call_1", "name": "tool_name", "input": {...}}`\n');
-        parts.push('\n**CRITICAL**: When calling tools, ensure the "input" object contains ALL required fields shown above. Missing required fields will cause errors.\n\n');
-        return parts.join('\n');
-    }
-    /**
-     * Format a message for the prompt
-     */
-    static formatMessage(message) {
-        const role = message.role.toUpperCase();
-        if (typeof message.content === 'string') {
-            return `**${role}**: ${message.content}\n\n`;
-        }
-        // Handle content blocks
-        const blocks = [];
-        for (const block of message.content) {
-            if (block.type === 'text') {
-                blocks.push(block.text);
-            }
-            else if (block.type === 'tool_use') {
-                const inputStr = JSON.stringify(block.input);
-                blocks.push(`[Called tool: ${block.name}(${inputStr})]`);
-            }
-            else if (block.type === 'tool_result') {
-                const result = typeof block.content === 'string'
-                    ? block.content
-                    : JSON.stringify(block.content, null, 2);
-                const status = block.is_error ? 'ERROR' : 'SUCCESS';
-                blocks.push(`[Tool Result (${status}) for ${block.tool_use_id}]:\n${result}`);
-            }
-        }
-        return `**${role}**: ${blocks.join('\n\n')}\n\n`;
-    }
-    /**
-     * Get response schema for JSON mode
-     */
-    static getResponseSchema() {
-        return {
-            type: 'object',
-            properties: {
-                reasoning: {
-                    type: 'string',
-                    description: 'Your reasoning process for this step (optional)'
-                },
-                response: {
-                    type: 'string',
-                    description: 'Your text response to the user'
-                },
-                tool_calls: {
-                    type: 'array',
-                    description: 'List of tools to call (empty array if no tools needed)',
-                    items: {
-                        type: 'object',
-                        properties: {
-                            id: {
-                                type: 'string',
-                                description: 'Unique identifier for this tool call'
-                            },
-                            name: {
-                                type: 'string',
-                                description: 'Name of the tool to call'
-                            },
-                            input: {
-                                type: 'object',
-                                description: 'Input parameters for the tool'
-                            }
-                        },
-                        required: ['id', 'name', 'input'],
-                        additionalProperties: false
-                    }
-                }
-            },
-            required: ['response', 'tool_calls'],
-            additionalProperties: false
-        };
-    }
-}
-exports.PromptBuilder = PromptBuilder;
-
-
-/***/ }),
-
-/***/ 8952:
-/***/ ((__unused_webpack_module, exports) => {
-
-"use strict";
-
-/**
- * Response parser for OpenCode JSON responses
- */
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ResponseParser = void 0;
-class ResponseParser {
-    /**
-     * Parse JSON response from OpenCode
-     * Expected format:
-     * {
-     *   "reasoning": "...",
-     *   "response": "...",
-     *   "tool_calls": [
-     *     {
-     *       "id": "call_1",
-     *       "name": "read_file",
-     *       "input": { "file_path": "..." }
-     *     }
-     *   ]
-     * }
-     */
-    static parse(jsonResponse) {
-        if (!jsonResponse || typeof jsonResponse !== 'object') {
-            throw new Error('Invalid response format: expected object');
-        }
-        const response = {
-            text: jsonResponse.response || jsonResponse.text || '',
-            reasoning: jsonResponse.reasoning
-        };
-        // Parse tool calls if present
-        if (jsonResponse.tool_calls && Array.isArray(jsonResponse.tool_calls)) {
-            response.toolCalls = jsonResponse.tool_calls.map((tc, index) => {
-                if (!tc.name) {
-                    throw new Error(`Tool call at index ${index} missing 'name' field`);
-                }
-                return {
-                    id: tc.id || this.generateToolCallId(index),
-                    name: tc.name,
-                    input: tc.input || tc.arguments || {}
-                };
-            });
-        }
-        else if (jsonResponse.tool_calls !== undefined && !Array.isArray(jsonResponse.tool_calls)) {
-            // If tool_calls exists but is not an array, treat as empty
-            response.toolCalls = [];
-        }
-        else {
-            // No tool_calls field, assume empty
-            response.toolCalls = [];
-        }
-        return response;
-    }
-    /**
-     * Generate a unique tool call ID
-     */
-    static generateToolCallId(index) {
-        return `call_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-    /**
-     * Validate parsed response
-     */
-    static validate(parsed) {
-        if (!parsed.text && !parsed.toolCalls?.length) {
-            return false;
-        }
-        if (parsed.toolCalls) {
-            for (const toolCall of parsed.toolCalls) {
-                if (!toolCall.id || !toolCall.name) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-}
-exports.ResponseParser = ResponseParser;
-
-
-/***/ }),
-
 /***/ 4470:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -47376,6 +43760,12 @@ class SingleAction {
     get isCheckProgressAction() {
         return this.currentSingleAction === constants_1.ACTIONS.CHECK_PROGRESS;
     }
+    get isDetectErrorsAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.DETECT_ERRORS;
+    }
+    get isRecommendStepsAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.RECOMMEND_STEPS;
+    }
     get enabledSingleAction() {
         return this.currentSingleAction.length > 0;
     }
@@ -47399,6 +43789,8 @@ class SingleAction {
             constants_1.ACTIONS.THINK,
             constants_1.ACTIONS.INITIAL_SETUP,
             constants_1.ACTIONS.CHECK_PROGRESS,
+            constants_1.ACTIONS.DETECT_ERRORS,
+            constants_1.ACTIONS.RECOMMEND_STEPS,
         ];
         /**
          * Actions that throw an error if the last step failed
@@ -47682,7 +44074,7 @@ exports.Workflows = Workflows;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AiRepository = void 0;
+exports.AiRepository = exports.OPENCODE_AGENT_PLAN = void 0;
 const logger_1 = __nccwpck_require__(8836);
 const ai_response_schema_1 = __nccwpck_require__(5968);
 const think_response_schema_1 = __nccwpck_require__(7057);
@@ -47700,6 +44092,8 @@ function extractTextFromParts(parts) {
         .map((p) => p.text)
         .join('');
 }
+/** Default OpenCode agent for analysis/planning (read-only, no file edits). */
+exports.OPENCODE_AGENT_PLAN = 'plan';
 /**
  * OpenCode HTTP API: create session and send message, return assistant parts.
  * Uses fetch to avoid ESM-only SDK with ncc.
@@ -47735,6 +44129,46 @@ async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
     const messageData = (await messageRes.json());
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     return extractTextFromParts(parts);
+}
+/**
+ * Send a message to an OpenCode agent (e.g. "plan") and wait for the full response.
+ * The server runs the agent loop (tools, etc.) and returns when done.
+ * Use this to delegate PR description, progress, error detection, recommendations to OpenCode.
+ */
+async function opencodeMessageWithAgent(baseUrl, options) {
+    const base = ensureNoTrailingSlash(baseUrl);
+    const createRes = await fetch(`${base}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'gbf' }),
+    });
+    if (!createRes.ok) {
+        const err = await createRes.text();
+        throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
+    }
+    const session = (await createRes.json());
+    const sessionId = session?.id ?? session?.data?.id;
+    if (!sessionId) {
+        throw new Error('OpenCode session.create did not return session id');
+    }
+    const body = {
+        agent: options.agent,
+        model: { providerID: options.providerID, modelID: options.modelID },
+        parts: [{ type: 'text', text: options.promptText }],
+    };
+    const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!messageRes.ok) {
+        const err = await messageRes.text();
+        throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
+    }
+    const messageData = (await messageRes.json());
+    const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
+    const text = extractTextFromParts(parts);
+    return { text, parts };
 }
 class AiRepository {
     constructor() {
@@ -47805,6 +44239,48 @@ class AiRepository {
             }
             catch (error) {
                 (0, logger_1.logError)(`Error querying OpenCode (${model}) for think JSON: ${error}`);
+                return undefined;
+            }
+        };
+        /**
+         * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
+         * Use for: PR description, progress, error detection, recommend steps.
+         * @param ai - AI config (server URL, model)
+         * @param agentId - OpenCode agent id (e.g. OPENCODE_AGENT_PLAN)
+         * @param prompt - User prompt
+         * @param options - expectJson: parse response as JSON; schema/schemaName: optional guidance for JSON shape
+         * @returns Response text, or parsed JSON when expectJson is true
+         */
+        this.askAgent = async (ai, agentId, prompt, options = {}) => {
+            const serverUrl = ai.getOpencodeServerUrl();
+            const model = ai.getOpencodeModel();
+            if (!serverUrl || !model) {
+                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+                return undefined;
+            }
+            try {
+                const { providerID, modelID } = ai.getOpencodeModelParts();
+                let promptText = prompt;
+                if (options.expectJson && options.schema) {
+                    const schemaName = options.schemaName ?? 'response';
+                    promptText = `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`;
+                }
+                const { text } = await opencodeMessageWithAgent(serverUrl, {
+                    providerID,
+                    modelID,
+                    agent: agentId,
+                    promptText,
+                });
+                if (!text)
+                    return undefined;
+                if (options.expectJson) {
+                    const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+                    return JSON.parse(cleaned);
+                }
+                return text;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error querying OpenCode agent ${agentId} (${model}): ${error}`);
                 return undefined;
             }
         };
@@ -50611,12 +47087,22 @@ const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
 const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
-const progress_detector_1 = __nccwpck_require__(7887);
+const ai_repository_1 = __nccwpck_require__(8307);
+const PROGRESS_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        progress: { type: 'number', description: 'Completion percentage 0-100' },
+        summary: { type: 'string', description: 'Short explanation of the assessment' },
+    },
+    required: ['progress', 'summary'],
+    additionalProperties: false,
+};
 class CheckProgressUseCase {
     constructor() {
         this.taskId = 'CheckProgressUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
         this.branchRepository = new branch_repository_1.BranchRepository();
+        this.aiRepository = new ai_repository_1.AiRepository();
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
@@ -50770,51 +47256,27 @@ class CheckProgressUseCase {
                 }));
                 return results;
             }
-            // Create ProgressDetector options
-            const token = param.tokens.token;
-            if (!token || token.length === 0) {
-                (0, logger_1.logError)(`GitHub token is missing or empty. Cannot load repository files.`);
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: [
-                        `GitHub token is missing or empty. Cannot load repository files for progress analysis.`,
-                    ],
-                }));
-                return results;
-            }
-            (0, logger_1.logDebugInfo)(`🔑 Token available: ${token.substring(0, 10)}...${token.substring(token.length - 4)} (length: ${token.length})`);
-            const detectorOptions = {
-                model: param.ai.getOpencodeModel(),
-                serverUrl: param.ai.getOpencodeServerUrl(),
-                personalAccessToken: token,
-                maxTurns: 20,
-                repositoryOwner: param.owner,
-                repositoryName: param.repo,
-                repositoryBranch: branch,
-                developmentBranch: developmentBranch,
-                issueNumber: issueNumber,
-                issueDescription: issueDescription,
-                changedFiles: changedFiles,
-                useSubAgents: false,
-            };
-            // Detect progress
-            (0, logger_1.logInfo)(`🤖 Analyzing progress using AI...`);
-            const detector = new progress_detector_1.ProgressDetector(detectorOptions);
-            const progressResult = await detector.detectProgress(`Analyze the progress of issue #${issueNumber} based on the changes made in branch ${branch} compared to ${developmentBranch}.`);
-            (0, logger_1.logInfo)(`✅ Progress detection completed: ${progressResult.progress}%`);
+            const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch, changedFiles);
+            (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent...`);
+            const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, { expectJson: true, schema: PROGRESS_RESPONSE_SCHEMA, schemaName: 'progress_response' });
+            const progress = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.progress === 'number'
+                ? Math.min(100, Math.max(0, Math.round(agentResponse.progress)))
+                : 0;
+            const summary = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.summary === 'string'
+                ? String(agentResponse.summary)
+                : 'Unable to determine progress.';
+            (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
                 steps: [
-                    `Progress for issue #${issueNumber}: ${progressResult.progress}%`,
-                    progressResult.summary
+                    `Progress for issue #${issueNumber}: ${progress}%`,
+                    summary
                 ],
                 payload: {
-                    progress: progressResult.progress,
-                    summary: progressResult.summary,
+                    progress,
+                    summary,
                     issueNumber,
                     branch,
                     developmentBranch,
@@ -50834,6 +47296,28 @@ class CheckProgressUseCase {
             }));
         }
         return results;
+    }
+    buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch, changedFiles) {
+        const fileList = changedFiles
+            .map((f) => `- ${f.filename} (${f.status}${f.additions != null ? `, +${f.additions}` : ''}${f.deletions != null ? `/-${f.deletions}` : ''})`)
+            .join('\n');
+        const patchesSnippet = changedFiles
+            .filter((f) => f.patch)
+            .slice(0, 15)
+            .map((f) => `### ${f.filename}\n\`\`\`diff\n${(f.patch ?? '').slice(0, 2000)}\n\`\`\``)
+            .join('\n\n');
+        return `Assess the progress of issue #${issueNumber} based on the branch "${branch}" compared to "${developmentBranch}".
+
+**Issue description:**
+${issueDescription}
+
+**Changed files:**
+${fileList}
+
+**Patch excerpts (for context):**
+${patchesSnippet}
+
+Respond with a JSON object: { "progress": <number 0-100>, "summary": "<short explanation>" }.`;
     }
     /**
      * Check if a file should be ignored based on ignore patterns
@@ -51133,6 +47617,116 @@ exports.DeployedActionUseCase = DeployedActionUseCase;
 
 /***/ }),
 
+/***/ 938:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DetectErrorsUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(8836);
+const issue_repository_1 = __nccwpck_require__(57);
+const branch_repository_1 = __nccwpck_require__(7701);
+const ai_repository_1 = __nccwpck_require__(8307);
+class DetectErrorsUseCase {
+    constructor() {
+        this.taskId = 'DetectErrorsUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.branchRepository = new branch_repository_1.BranchRepository();
+        this.aiRepository = new ai_repository_1.AiRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        try {
+            if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: ['Missing OPENCODE_SERVER_URL and OPENCODE_MODEL.'],
+                }));
+                return results;
+            }
+            const issueNumber = param.issueNumber;
+            if (issueNumber === -1) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: ['Issue number not found.'],
+                }));
+                return results;
+            }
+            let branch = param.commit.branch;
+            if (!branch) {
+                const branchTypes = [
+                    param.branches.featureTree,
+                    param.branches.bugfixTree,
+                    param.branches.docsTree,
+                    param.branches.choreTree,
+                ];
+                const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
+                for (const type of branchTypes) {
+                    const prefix = `${type}/${issueNumber}-`;
+                    const found = branches.find((b) => b.indexOf(prefix) > -1);
+                    if (found) {
+                        branch = found;
+                        break;
+                    }
+                }
+            }
+            const developmentBranch = param.branches.development || 'develop';
+            if (!branch) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [`No branch found for issue #${issueNumber}.`],
+                }));
+                return results;
+            }
+            const changes = await this.branchRepository.getChanges(param.owner, param.repo, branch, developmentBranch, param.tokens.token);
+            const prompt = `Review the code changes in branch "${branch}" compared to "${developmentBranch}" and identify potential errors, bugs, or issues.
+
+**Changed files and patches:**
+${changes.files
+                .slice(0, 30)
+                .map((f) => `### ${f.filename} (${f.status})\n\`\`\`diff\n${(f.patch ?? '').slice(0, 1500)}\n\`\`\``)
+                .join('\n\n')}
+
+List potential errors, bugs, or code quality issues. For each: file (if relevant), brief description, and severity if obvious. Use clear bullet points or numbered list.`;
+            (0, logger_1.logInfo)(`🤖 Detecting errors using OpenCode Plan agent...`);
+            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
+            const report = typeof response === 'string'
+                ? response
+                : (response && String(response.report)) || 'No response.';
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: ['Error detection completed (OpenCode Plan agent).', report],
+                payload: { issueNumber, branch, developmentBranch, report },
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error in ${this.taskId}: ${error}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [`Error in ${this.taskId}: ${error}`],
+            }));
+        }
+        return results;
+    }
+}
+exports.DetectErrorsUseCase = DetectErrorsUseCase;
+
+
+/***/ }),
+
 /***/ 3943:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -51332,6 +47926,92 @@ class PublishGithubActionUseCase {
     }
 }
 exports.PublishGithubActionUseCase = PublishGithubActionUseCase;
+
+
+/***/ }),
+
+/***/ 3538:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RecommendStepsUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const logger_1 = __nccwpck_require__(8836);
+const issue_repository_1 = __nccwpck_require__(57);
+const ai_repository_1 = __nccwpck_require__(8307);
+class RecommendStepsUseCase {
+    constructor() {
+        this.taskId = 'RecommendStepsUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.aiRepository = new ai_repository_1.AiRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        try {
+            if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: ['Missing OPENCODE_SERVER_URL and OPENCODE_MODEL.'],
+                }));
+                return results;
+            }
+            const issueNumber = param.issueNumber;
+            if (issueNumber === -1) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: ['Issue number not found.'],
+                }));
+                return results;
+            }
+            const issueDescription = await this.issueRepository.getDescription(param.owner, param.repo, issueNumber, param.tokens.token);
+            if (!issueDescription?.trim()) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [`No description found for issue #${issueNumber}.`],
+                }));
+                return results;
+            }
+            const prompt = `Based on the following issue description, recommend concrete steps to implement or address this issue. Order the steps logically (e.g. setup, implementation, tests, docs). Keep each step clear and actionable.
+
+**Issue #${issueNumber} description:**
+${issueDescription}
+
+Provide a numbered list of recommended steps. You can add brief sub-bullets per step if needed.`;
+            (0, logger_1.logInfo)(`🤖 Recommending steps using OpenCode Plan agent...`);
+            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
+            const steps = typeof response === 'string'
+                ? response
+                : (response && String(response.steps)) || 'No response.';
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: ['Recommended steps (OpenCode Plan agent):', steps],
+                payload: { issueNumber, recommendedSteps: steps },
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error in ${this.taskId}: ${error}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [`Error in ${this.taskId}: ${error}`],
+            }));
+        }
+        return results;
+    }
+}
+exports.RecommendStepsUseCase = RecommendStepsUseCase;
 
 
 /***/ }),
@@ -51647,6 +48327,8 @@ const create_tag_use_case_1 = __nccwpck_require__(5279);
 const think_use_case_1 = __nccwpck_require__(3841);
 const initial_setup_use_case_1 = __nccwpck_require__(3943);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
+const detect_errors_use_case_1 = __nccwpck_require__(938);
+const recommend_steps_use_case_1 = __nccwpck_require__(3538);
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -51679,6 +48361,12 @@ class SingleActionUseCase {
             }
             else if (param.singleAction.isCheckProgressAction) {
                 results.push(...await new check_progress_use_case_1.CheckProgressUseCase().invoke(param));
+            }
+            else if (param.singleAction.isDetectErrorsAction) {
+                results.push(...await new detect_errors_use_case_1.DetectErrorsUseCase().invoke(param));
+            }
+            else if (param.singleAction.isRecommendStepsAction) {
+                results.push(...await new recommend_steps_use_case_1.RecommendStepsUseCase().invoke(param));
             }
         }
         catch (error) {
@@ -54593,7 +51281,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.UpdatePullRequestDescriptionUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
-const file_repository_1 = __nccwpck_require__(1503);
 const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const pull_request_repository_1 = __nccwpck_require__(634);
@@ -54603,7 +51290,6 @@ class UpdatePullRequestDescriptionUseCase {
         this.taskId = 'UpdatePullRequestDescriptionUseCase';
         this.aiRepository = new ai_repository_1.AiRepository();
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
-        this.fileRepository = new file_repository_1.FileRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
@@ -54619,49 +51305,47 @@ class UpdatePullRequestDescriptionUseCase {
                     success: false,
                     executed: false,
                     steps: [
-                        `No issue description found. Skipping update pull request description.`
-                    ]
+                        `No issue description found. Skipping update pull request description.`,
+                    ],
                 }));
                 return result;
             }
             const currentProjectMembers = await this.projectRepository.getAllMembers(param.owner, param.tokens.token);
-            const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0
-                && currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
+            const pullRequestCreatorIsTeamMember = param.pullRequest.creator.length > 0 &&
+                currentProjectMembers.indexOf(param.pullRequest.creator) > -1;
             if (!pullRequestCreatorIsTeamMember && param.ai.getAiMembersOnly()) {
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: false,
                     steps: [
-                        `The pull request creator @${param.pullRequest.creator} is not a team member and \`AI members only\` is enabled. Skipping update pull request description.`
-                    ]
+                        `The pull request creator @${param.pullRequest.creator} is not a team member and \`AI members only\` is enabled. Skipping update pull request description.`,
+                    ],
                 }));
                 return result;
             }
             const changes = await this.pullRequestRepository.getPullRequestChanges(param.owner, param.repo, prNumber, param.tokens.token);
-            const changesDescription = await this.processChanges(changes, param.ai, param.owner, param.repo, param.tokens.token, param.pullRequest.base);
-            const descriptionPrompt = `this an issue descrition.
-define a description for the pull request which closes the issue and avoid the use of titles (#, ##, ###).
-just a text description:\n\n
-${issueDescription}`;
-            const currentDescription = await this.aiRepository.ask(param.ai, descriptionPrompt);
-            // Update pull request description
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, `
-#${param.issueNumber}
-
-## What does this PR do?
-
-${currentDescription}
-
-${changesDescription}
-`, param.tokens.token);
+            const filteredChanges = changes.filter((c) => !this.shouldIgnoreFile(c.filename, param.ai.getAiIgnoreFiles()));
+            const prompt = this.buildPrDescriptionPrompt(issueDescription, filteredChanges);
+            const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
+            const prBody = typeof agentResponse === 'string'
+                ? agentResponse
+                : (agentResponse && String(agentResponse.description)) || '';
+            if (!prBody.trim()) {
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [`OpenCode Plan agent did not return a PR description.`],
+                }));
+                return result;
+            }
+            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, `#${param.issueNumber}\n\n## What does this PR do?\n\n${prBody.trim()}`, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [
-                    `The description has been updated with AI-generated content.`
-                ]
+                steps: [`The description has been updated with AI-generated content (OpenCode Plan agent).`],
             }));
         }
         catch (error) {
@@ -54670,177 +51354,46 @@ ${changesDescription}
                 id: this.taskId,
                 success: false,
                 executed: true,
-                steps: [
-                    `Error updating pull request description: ${error}`
-                ]
+                steps: [`Error updating pull request description: ${error}`],
             }));
         }
         return result;
     }
+    buildPrDescriptionPrompt(issueDescription, changes) {
+        const changesBlock = changes
+            .map((c) => {
+            const header = `### ${c.filename} (${c.status}, +${c.additions}/-${c.deletions})`;
+            const patch = c.patch ? `\n\`\`\`diff\n${c.patch}\n\`\`\`` : '';
+            return header + patch;
+        })
+            .join('\n\n');
+        return `You are helping write a pull request description. The PR closes an issue.
+
+**Issue description:**
+${issueDescription}
+
+**Changed files and patches:**
+${changesBlock}
+
+**Instructions:**
+- Write one short paragraph describing what this PR does (plain text, no markdown titles like # or ##).
+- Then add a "Summary of Changes" section and a "Detailed Changes" section if there are multiple files.
+- Do not use titles (#, ##, ###) in the first paragraph; only in the summary/detailed sections.
+- Output only the description content (the "What does this PR do?" paragraph plus optional sections).`;
+    }
     shouldIgnoreFile(filename, ignorePatterns) {
-        return ignorePatterns.some(pattern => {
-            // Convert glob pattern to regex
+        if (ignorePatterns.length === 0)
+            return false;
+        return ignorePatterns.some((pattern) => {
             const regexPattern = pattern
-                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
-                .replace(/\*/g, '.*') // Convert * to match anything
-                .replace(/\//g, '\\/'); // Escape forward slashes
-            // Allow pattern ending on /* to ignore also subdirectories and files inside
-            if (pattern.endsWith("/*")) {
-                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                .replace(/\*/g, '.*')
+                .replace(/\//g, '\\/');
+            if (pattern.endsWith('/*')) {
+                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, '(\\/.*)?')}$`).test(filename);
             }
-            const regex = new RegExp(`^${regexPattern}$`);
-            return regex.test(filename);
+            return new RegExp(`^${regexPattern}$`).test(filename);
         });
-    }
-    mergePatchSummaries(summaries) {
-        const mergedMap = new Map();
-        for (const summary of summaries) {
-            const existing = mergedMap.get(summary.filePath);
-            if (existing) {
-                // Merge with existing summary
-                existing.summary = `${existing.summary}\n${summary.summary}`;
-                existing.changes = [...new Set([...existing.changes, ...summary.changes])];
-            }
-            else {
-                // Create new entry
-                mergedMap.set(summary.filePath, {
-                    filePath: summary.filePath,
-                    summary: summary.summary,
-                    changes: [...summary.changes]
-                });
-            }
-        }
-        return Array.from(mergedMap.values());
-    }
-    groupFilesByDirectory(files) {
-        const groups = {
-            root: []
-        };
-        files.forEach(file => {
-            const pathParts = file.filePath.split('/');
-            if (pathParts.length > 1) {
-                const directory = pathParts.slice(0, -1).join('/');
-                if (!groups[directory]) {
-                    groups[directory] = [];
-                }
-                groups[directory].push(file);
-            }
-            else {
-                groups.root.push(file);
-            }
-        });
-        return groups;
-    }
-    formatFileChanges(file) {
-        let output = `#### \`${file.filePath}\`\n\n`;
-        output += `${file.summary}\n\n`;
-        if (file.changes.length > 0) {
-            output += '**Changes:**\n';
-            output += file.changes.map(change => `- ${change}`).join('\n');
-        }
-        output += `\n\n--- \n\n`;
-        return output;
-    }
-    async processFile(change, ai, owner, repo, token, baseBranch) {
-        if (!change.patch) {
-            return [];
-        }
-        // Get the original file content
-        const originalContent = await this.fileRepository.getFileContent(owner, repo, change.filename, token, baseBranch);
-        const filePrompt = `Analyze the following code changes and provide a summary in JSON format.
-
-### **Guidelines**:
-- Output must be a **valid JSON** object.
-- Provide a high-level summary of the changes.
-- List the key changes in detail.
-- Pay attention to the file names, don't make mistakes with uppercase, lowercase, or underscores.
-- Be careful when composing the response JSON, don't make mistakes with unnecessary commas.
-
-### **Output Format Example**:
-\`\`\`json
-{
-    "filePath": "src/utils/logger.ts",
-    "summary": "Refactored logging system for better error handling.",
-    "changes": [
-        "Replaced \`console.error\` with \`logError\`.",
-        "Added support for async logging.",
-        "Removed unused function \`debugLog\`."
-    ]
-}
-\`\`\`
-
-### **Metadata**:
-- **Filename:** ${change.filename}
-- **Status:** ${change.status}
-- **Changes:** +${change.additions} / -${change.deletions}
-
-### **Original File Content**:
-\`\`\`
-${originalContent}
-\`\`\`
-
-### **Patch**:
-${change.patch}`;
-        const response = await this.aiRepository.ask(ai, filePrompt);
-        if (!response) {
-            return [];
-        }
-        try {
-            const cleanResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-            const patchSummary = JSON.parse(cleanResponse);
-            return [patchSummary];
-        }
-        catch (error) {
-            (0, logger_1.logDebugError)(`Response: ${response}`);
-            (0, logger_1.logError)(`Error parsing JSON response: ${error}`);
-            return [];
-        }
-    }
-    async processChanges(changes, ai, owner, repo, token, baseBranch) {
-        (0, logger_1.logDebugInfo)(`Processing ${changes.length} changes`);
-        const processFilePromises = changes.map(async (change) => {
-            try {
-                (0, logger_1.logDebugInfo)(`Processing changes for file ${change.filename}`);
-                const shouldIgnoreFile = this.shouldIgnoreFile(change.filename, ai.getAiIgnoreFiles());
-                if (shouldIgnoreFile) {
-                    (0, logger_1.logDebugInfo)(`File ${change.filename} should be ignored`);
-                    return [];
-                }
-                return await this.processFile(change, ai, owner, repo, token, baseBranch);
-            }
-            catch (error) {
-                (0, logger_1.logError)(error);
-                throw new Error(`Error processing file ${change.filename}: ${error}`);
-            }
-        });
-        const fileDescriptions = (await Promise.all(processFilePromises)).flat();
-        // Merge PatchSummary objects for the same file
-        const mergedFileDescriptions = this.mergePatchSummaries(fileDescriptions);
-        // Group files by directory
-        const groupedFiles = this.groupFilesByDirectory(mergedFileDescriptions);
-        // Generate a structured description
-        let description = '';
-        // Add summary section if there are files
-        if (mergedFileDescriptions.length > 0) {
-            description += '## Summary of Changes\n\n';
-            description += mergedFileDescriptions.map(file => `- **${file.filePath}**: ${file.summary}`).join('\n');
-            description += '\n\n';
-        }
-        // Add detailed changes section
-        description += '## Detailed Changes\n\n';
-        // Process each directory group
-        for (const [directory, files] of Object.entries(groupedFiles)) {
-            if (directory === 'root') {
-                // Files in root directory
-                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
-            }
-            else {
-                // Files in subdirectories
-                description += `### ${directory}\n\n`;
-                description += files.map(file => this.formatFileChanges(file)).join('\n\n') + `\n\n`;
-            }
-        }
-        return description;
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
@@ -55285,6 +51838,8 @@ exports.ACTIONS = {
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
+    DETECT_ERRORS: 'detect_errors_action',
+    RECOMMEND_STEPS: 'recommend_steps_action',
 };
 exports.PROMPTS = {};
 

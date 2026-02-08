@@ -18,6 +18,9 @@ function extractTextFromParts(parts: any): string {
         .join('');
 }
 
+/** Default OpenCode agent for analysis/planning (read-only, no file edits). */
+export const OPENCODE_AGENT_PLAN = 'plan';
+
 /**
  * OpenCode HTTP API: create session and send message, return assistant parts.
  * Uses fetch to avoid ESM-only SDK with ncc.
@@ -58,6 +61,63 @@ async function opencodePrompt(
     const messageData = (await messageRes.json()) as { parts?: any[]; data?: { parts?: any[] } };
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     return extractTextFromParts(parts);
+}
+
+export interface AskAgentOptions {
+    /** Request JSON response and parse it. If schema provided, include it in the prompt. */
+    expectJson?: boolean;
+    /** JSON schema for the response (used when expectJson is true to guide the model). */
+    schema?: Record<string, unknown>;
+    schemaName?: string;
+}
+
+/**
+ * Send a message to an OpenCode agent (e.g. "plan") and wait for the full response.
+ * The server runs the agent loop (tools, etc.) and returns when done.
+ * Use this to delegate PR description, progress, error detection, recommendations to OpenCode.
+ */
+async function opencodeMessageWithAgent(
+    baseUrl: string,
+    options: {
+        providerID: string;
+        modelID: string;
+        agent: string;
+        promptText: string;
+    }
+): Promise<{ text: string; parts: any[] }> {
+    const base = ensureNoTrailingSlash(baseUrl);
+    const createRes = await fetch(`${base}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'gbf' }),
+    });
+    if (!createRes.ok) {
+        const err = await createRes.text();
+        throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
+    }
+    const session = (await createRes.json()) as { id?: string; data?: { id?: string } };
+    const sessionId = session?.id ?? session?.data?.id;
+    if (!sessionId) {
+        throw new Error('OpenCode session.create did not return session id');
+    }
+    const body: Record<string, unknown> = {
+        agent: options.agent,
+        model: { providerID: options.providerID, modelID: options.modelID },
+        parts: [{ type: 'text', text: options.promptText }],
+    };
+    const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!messageRes.ok) {
+        const err = await messageRes.text();
+        throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
+    }
+    const messageData = (await messageRes.json()) as { parts?: any[]; data?: { parts?: any[] } };
+    const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
+    const text = extractTextFromParts(parts);
+    return { text, parts };
 }
 
 export class AiRepository {
@@ -135,6 +195,52 @@ export class AiRepository {
             return JSON.parse(text);
         } catch (error) {
             logError(`Error querying OpenCode (${model}) for think JSON: ${error}`);
+            return undefined;
+        }
+    };
+
+    /**
+     * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
+     * Use for: PR description, progress, error detection, recommend steps.
+     * @param ai - AI config (server URL, model)
+     * @param agentId - OpenCode agent id (e.g. OPENCODE_AGENT_PLAN)
+     * @param prompt - User prompt
+     * @param options - expectJson: parse response as JSON; schema/schemaName: optional guidance for JSON shape
+     * @returns Response text, or parsed JSON when expectJson is true
+     */
+    askAgent = async (
+        ai: Ai,
+        agentId: string,
+        prompt: string,
+        options: AskAgentOptions = {}
+    ): Promise<string | Record<string, unknown> | undefined> => {
+        const serverUrl = ai.getOpencodeServerUrl();
+        const model = ai.getOpencodeModel();
+        if (!serverUrl || !model) {
+            logError('Missing required AI configuration: opencode-server-url and opencode-model');
+            return undefined;
+        }
+        try {
+            const { providerID, modelID } = ai.getOpencodeModelParts();
+            let promptText = prompt;
+            if (options.expectJson && options.schema) {
+                const schemaName = options.schemaName ?? 'response';
+                promptText = `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`;
+            }
+            const { text } = await opencodeMessageWithAgent(serverUrl, {
+                providerID,
+                modelID,
+                agent: agentId,
+                promptText,
+            });
+            if (!text) return undefined;
+            if (options.expectJson) {
+                const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+                return JSON.parse(cleaned) as Record<string, unknown>;
+            }
+            return text;
+        } catch (error) {
+            logError(`Error querying OpenCode agent ${agentId} (${model}): ${error}`);
             return undefined;
         }
     };
