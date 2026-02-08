@@ -197,6 +197,7 @@ export class Copilot {
     return complexKeywords.some(keyword => promptLower.includes(keyword));
   }
 
+
   /**
    * Extract changes from agent result
    * 

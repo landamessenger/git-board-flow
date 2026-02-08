@@ -6,7 +6,7 @@
 import { Agent } from '../../core/agent';
 import { AgentResult } from '../../types';
 import { Task } from '../../core/subagent_manager';
-import { CopilotOptions, CopilotResult } from './types';
+import { CopilotOptions, CopilotResult, ChangePlan } from './types';
 import { ChangeType, TodoStatus } from '../../../data/model/think_response';
 import { ReadFileTool } from '../../tools/builtin_tools/read_file_tool';
 import { SearchFilesTool } from '../../tools/builtin_tools/search_files_tool';
@@ -17,6 +17,7 @@ import { ManageTodosTool } from '../../tools/builtin_tools/manage_todos_tool';
 import { logInfo, logWarn, logError } from '../../../utils/logger';
 import { FilePartitioner } from './file_partitioner';
 import { SystemPromptBuilder } from './system_prompt_builder';
+import { AgentInitializer } from './agent_initializer';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -38,6 +39,10 @@ export class SubagentHandler {
 
   /**
    * Process prompt using subagents for parallel processing
+   * 
+   * Uses a two-phase approach:
+   * Phase 1: Subagents work in parallel (READ-ONLY) - analyze and propose changes
+   * Phase 2: Coordinator agent executes changes sequentially
    */
   static async processPromptWithSubAgents(
     agent: Agent,
@@ -67,10 +72,15 @@ export class SubagentHandler {
     
     logInfo(`📁 Created ${fileGroups.length} file groups for parallel processing`);
     
-    // Create tools for subagents (all files available through tools)
-    const tools = await this.createSubagentTools(repositoryFiles, options);
+    // ============================================
+    // PHASE 1: PARALLEL ANALYSIS (READ-ONLY)
+    // ============================================
+    logInfo(`\n📖 PHASE 1: Parallel analysis (read-only mode)`);
     
-    // Create tasks for each subagent
+    // Create READ-ONLY tools for subagents (no propose_change, no apply_changes, no execute_command)
+    const readOnlyTools = await this.createReadOnlySubagentTools(repositoryFiles, options);
+    
+    // Create tasks for each subagent (read-only phase)
     const systemPrompt = SystemPromptBuilder.build(options);
     
     const tasks: Task[] = fileGroups.map((files, index) => {
@@ -87,35 +97,393 @@ export class SubagentHandler {
         }
       }
       
-      // Add explicit instruction for subagents about applying changes
-      const subagentInstruction = `\n\n**CRITICAL INSTRUCTION FOR SUBAGENTS**: 
-When the user gives orders to CREATE, WRITE, MAKE, BUILD, SET UP, or MODIFY files:
-1. Call propose_change to prepare changes
-2. **IMMEDIATELY** call apply_changes to write files to disk
-3. **DO NOT** stop after propose_change - you MUST call apply_changes
-4. **DO NOT** execute commands until files are on disk
+      // Instructions for read-only phase
+      const readOnlyInstruction = `\n\n**PHASE 1 - READ-ONLY ANALYSIS MODE**:
+You are in READ-ONLY mode. Your task is to:
+1. Read and analyze files using read_file and search_files
+2. Understand the context and requirements
+3. Propose changes using propose_change (changes will be stored in memory, NOT written to disk)
+4. **DO NOT** call apply_changes or execute_command - these are disabled in this phase
+5. Focus on understanding what needs to be changed and propose those changes
 
-If you only propose changes without applying them, you have FAILED your task. Files must exist on disk!`;
+After you propose changes, a coordinator agent will execute them sequentially to avoid conflicts.`;
       
       return {
         name: `copilot-${index + 1}`,
-        prompt: `${userPrompt}${fileListSection}${subagentInstruction}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
+        prompt: `${userPrompt}${fileListSection}${readOnlyInstruction}\n\n**Note:** You are one of ${fileGroups.length} subagents working in parallel. Focus on your assigned files, but you can access all repository files through the tools if needed.`,
         systemPrompt,
-        tools
+        tools: readOnlyTools
       };
     });
     
-    logInfo(`🚀 Executing ${tasks.length} subagents in parallel...`);
-    const results = await agent.executeParallel(tasks);
+    logInfo(`🚀 Executing ${tasks.length} subagents in parallel (read-only)...`);
+    const analysisResults = await agent.executeParallel(tasks);
     
-    logInfo(`✅ All ${results.length} subagents completed`);
+    logInfo(`✅ All ${analysisResults.length} subagents completed analysis`);
     
-    // Combine results from all subagents
-    return this.combineSubagentResults(results);
+    // Extract change plans from subagent results
+    const changePlans = this.extractChangePlans(analysisResults);
+    logInfo(`📋 Extracted ${changePlans.length} change plan(s) from subagents`);
+    
+    // ============================================
+    // PHASE 2: SEQUENTIAL EXECUTION (COORDINATOR)
+    // ============================================
+    if (changePlans.length === 0) {
+      logInfo(`\n📝 PHASE 2: No changes to execute, skipping coordinator phase`);
+      // Combine analysis results only
+      return this.combineSubagentResults(analysisResults);
+    }
+    
+    logInfo(`\n✏️  PHASE 2: Sequential execution (coordinator)`);
+    const coordinatorResult = await this.executeChangesSequentially(
+      agent,
+      repositoryFiles,
+      options,
+      userPrompt,
+      changePlans,
+      shouldApplyChanges
+    );
+    
+    // Combine results from both phases
+    return this.combinePhasesResults(analysisResults, coordinatorResult);
   }
 
   /**
-   * Create tools for subagents
+   * Create READ-ONLY tools for subagents (Phase 1)
+   * Only allows reading files, searching, and proposing changes (in memory)
+   * Does NOT allow applying changes or executing commands
+   */
+  private static async createReadOnlySubagentTools(
+    repositoryFiles: Map<string, string>,
+    options: CopilotOptions
+  ) {
+    const virtualCodebase = new Map<string, string>(repositoryFiles);
+    const workingDir = options.workingDirectory || process.cwd();
+    
+    const readFileTool = new ReadFileTool({
+      getFileContent: (filePath: string) => {
+        // First check virtual codebase
+        if (virtualCodebase.has(filePath)) {
+          return virtualCodebase.get(filePath);
+        }
+        
+        // Then check if file exists on disk (for working directory files)
+        const normalizedWorkingDir = path.resolve(workingDir);
+        let normalizedFilePath: string;
+        if (path.isAbsolute(filePath)) {
+          normalizedFilePath = path.resolve(filePath);
+        } else {
+          normalizedFilePath = path.resolve(normalizedWorkingDir, filePath);
+        }
+        
+        const isInWorkingDir = normalizedFilePath.startsWith(normalizedWorkingDir + path.sep) || 
+                                normalizedFilePath === normalizedWorkingDir;
+        if (isInWorkingDir && fs.existsSync(normalizedFilePath)) {
+          try {
+            return fs.readFileSync(normalizedFilePath, 'utf8');
+          } catch (error) {
+            // Ignore read errors
+          }
+        }
+        
+        // Finally check repository files
+        return repositoryFiles.get(filePath);
+      },
+      repositoryFiles: virtualCodebase
+    });
+
+    const searchFilesTool = new SearchFilesTool({
+      searchFiles: (query: string) => {
+        return this.searchFiles(repositoryFiles, query);
+      },
+      getAllFiles: (): string[] => {
+        return this.getAllFiles(repositoryFiles);
+      }
+    });
+    
+    // Propose change tool - ONLY updates virtual codebase (memory), NO auto-apply
+    const proposeChangeTool = new ProposeChangeTool({
+      applyChange: (change) => {
+        try {
+          if (change.change_type === 'create' || change.change_type === 'modify' || change.change_type === 'refactor') {
+            virtualCodebase.set(change.file_path, change.suggested_code);
+            logInfo(`📝 Proposed change (memory only): ${change.file_path} (${change.description || 'no description'})`);
+            return true;
+          } else if (change.change_type === 'delete') {
+            virtualCodebase.delete(change.file_path);
+            logInfo(`📝 Proposed deletion (memory only): ${change.file_path}`);
+            return true;
+          }
+        } catch (error: any) {
+          logError(`❌ Error proposing change to ${change.file_path}: ${error.message}`);
+          return false;
+        }
+        return false;
+      },
+      onChangeApplied: (change: any) => {
+        logInfo(`✅ Change proposed (memory only): ${change.file_path}`);
+      },
+      getUserPrompt: () => options.userPrompt,
+      getShouldApplyChanges: () => false, // Always false in read-only phase
+      // Disable auto-apply in read-only phase
+      autoApplyToDisk: async () => {
+        logWarn(`⚠️  Auto-apply disabled in read-only phase`);
+        return false;
+      }
+    });
+
+    // Initialize TODO manager for tracking tasks
+    const manageTodosTool = await this.createManageTodosTool();
+    
+    // Return only read-only tools (NO apply_changes, NO execute_command)
+    return [readFileTool, searchFilesTool, proposeChangeTool, manageTodosTool];
+  }
+
+  /**
+   * Extract change plans from subagent results
+   */
+  private static extractChangePlans(
+    results: Array<{ task: string; result: AgentResult }>
+  ): ChangePlan[] {
+    const changePlans: ChangePlan[] = [];
+    
+    for (const { task, result } of results) {
+      // Create a map of toolCallId -> toolResult for quick lookup
+      const toolResultMap = new Map<string, any>();
+      for (const turn of result.turns) {
+        if (turn.toolResults) {
+          for (const toolResult of turn.toolResults) {
+            toolResultMap.set(toolResult.toolCallId, toolResult);
+          }
+        }
+      }
+
+      // Look for propose_change tool calls
+      for (const toolCall of result.toolCalls) {
+        if (toolCall.name === 'propose_change') {
+          const toolResult = toolResultMap.get(toolCall.id);
+          if (toolResult && !toolResult.isError) {
+            try {
+              const changeData = toolCall.input;
+              if (changeData && changeData.file_path) {
+                changePlans.push({
+                  file: changeData.file_path,
+                  changeType: changeData.change_type || 'modify',
+                  description: changeData.description || 'no description',
+                  suggestedCode: changeData.suggested_code || '',
+                  reasoning: changeData.reasoning || '',
+                  proposedBy: task
+                });
+              }
+            } catch (error) {
+              logWarn(`⚠️  Error extracting change plan from ${task}: ${error}`);
+            }
+          }
+        }
+      }
+    }
+    
+    return changePlans;
+  }
+
+  /**
+   * Execute changes sequentially using coordinator agent (Phase 2)
+   */
+  private static async executeChangesSequentially(
+    agent: Agent,
+    repositoryFiles: Map<string, string>,
+    options: CopilotOptions,
+    userPrompt: string,
+    changePlans: ChangePlan[],
+    shouldApplyChanges?: boolean
+  ): Promise<AgentResult> {
+    // Initialize coordinator agent with full tools
+    const optionsWithPrompt = { ...options, userPrompt, shouldApplyChanges };
+    const { agent: coordinatorAgent } = await AgentInitializer.initialize(optionsWithPrompt);
+    
+    // Build prompt for coordinator with all change plans
+    const changePlansSummary = changePlans.map((plan, index) => 
+      `${index + 1}. ${plan.file} (${plan.changeType}) - ${plan.description} [proposed by ${plan.proposedBy}]`
+    ).join('\n');
+    
+    const coordinatorPrompt = `You are the coordinator agent. Your task is to execute the following changes sequentially:
+
+**Change Plans to Execute (${changePlans.length} total):**
+${changePlansSummary}
+
+**Instructions:**
+1. Execute changes ONE BY ONE in the order listed above
+2. For each change:
+   - Call propose_change with the file_path, change_type, description, suggested_code, and reasoning
+   - Then IMMEDIATELY call apply_changes to write to disk
+   - Verify the change was applied correctly
+3. After all changes are applied, you may run tests or commands to verify everything works
+4. Report any errors or issues you encounter
+
+**Original User Request:**
+${userPrompt}
+
+**Important:** Execute changes sequentially to avoid conflicts. Do not skip any changes.`;
+
+    logInfo(`🎯 Coordinator executing ${changePlans.length} change(s) sequentially...`);
+    const result = await coordinatorAgent.query(coordinatorPrompt);
+    
+    logInfo(`✅ Coordinator completed execution`);
+    return result;
+  }
+
+  /**
+   * Combine results from both phases
+   */
+  private static combinePhasesResults(
+    analysisResults: Array<{ task: string; result: AgentResult }>,
+    coordinatorResult: AgentResult
+  ): CopilotResult {
+    // Combine all tool calls and turns
+    const allToolCalls: any[] = [];
+    const allTurns: any[] = [];
+    const allResponses: string[] = [];
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let maxDuration = 0;
+    
+    // Add analysis phase results
+    for (const { result } of analysisResults) {
+      if (result.finalResponse) {
+        allResponses.push(`[Analysis Phase] ${result.finalResponse}`);
+      }
+      allToolCalls.push(...result.toolCalls);
+      allTurns.push(...result.turns);
+      
+      if (result.metrics) {
+        totalInputTokens += result.metrics.totalTokens.input;
+        totalOutputTokens += result.metrics.totalTokens.output;
+        maxDuration = Math.max(maxDuration, result.metrics.totalDuration);
+      }
+    }
+    
+    // Add coordinator phase results
+    if (coordinatorResult.finalResponse) {
+      allResponses.push(`[Execution Phase] ${coordinatorResult.finalResponse}`);
+    }
+    allToolCalls.push(...coordinatorResult.toolCalls);
+    allTurns.push(...coordinatorResult.turns);
+    
+    if (coordinatorResult.metrics) {
+      totalInputTokens += coordinatorResult.metrics.totalTokens.input;
+      totalOutputTokens += coordinatorResult.metrics.totalTokens.output;
+      maxDuration = Math.max(maxDuration, coordinatorResult.metrics.totalDuration);
+    }
+    
+    // Extract changes from coordinator result (these are the actual applied changes)
+    const changes = this.extractChangesFromResult(coordinatorResult);
+    
+    // Combine responses
+    const combinedResponse = allResponses.length > 0
+      ? allResponses.join('\n\n---\n\n')
+      : 'Analysis and execution completed.';
+    
+    // Create combined agent result
+    const combinedResult: AgentResult = {
+      finalResponse: combinedResponse,
+      turns: allTurns,
+      toolCalls: allToolCalls,
+      messages: [...analysisResults.flatMap(r => r.result.messages), ...coordinatorResult.messages],
+      metrics: {
+        totalTokens: {
+          input: totalInputTokens,
+          output: totalOutputTokens
+        },
+        totalDuration: maxDuration,
+        apiCalls: analysisResults.reduce((sum, r) => sum + (r.result.metrics?.apiCalls || 0), 0) + (coordinatorResult.metrics?.apiCalls || 0),
+        toolCalls: allToolCalls.length,
+        errors: analysisResults.reduce((sum, r) => sum + (r.result.metrics?.errors || 0), 0) + (coordinatorResult.metrics?.errors || 0),
+        averageLatency: maxDuration / (allToolCalls.length || 1)
+      }
+    };
+    
+    return {
+      response: combinedResponse,
+      agentResult: combinedResult,
+      changes: changes.length > 0 ? changes : undefined
+    };
+  }
+
+  /**
+   * Extract changes from agent result
+   */
+  private static extractChangesFromResult(result: AgentResult): Array<{
+    file: string;
+    changeType: ChangeType;
+    description?: string;
+  }> {
+    const changes: Array<{
+      file: string;
+      changeType: ChangeType;
+      description?: string;
+    }> = [];
+
+    // Create a map of toolCallId -> toolResult for quick lookup
+    const toolResultMap = new Map<string, any>();
+    for (const turn of result.turns) {
+      if (turn.toolResults) {
+        for (const toolResult of turn.toolResults) {
+          toolResultMap.set(toolResult.toolCallId, toolResult);
+        }
+      }
+    }
+
+    // Look for apply_changes tool calls (these are the ones actually written to disk)
+    for (const toolCall of result.toolCalls) {
+      if (toolCall.name === 'apply_changes') {
+        const toolResult = toolResultMap.get(toolCall.id);
+        if (toolResult && !toolResult.isError) {
+          try {
+            const resultContent = toolResult.content || '';
+            const lines = resultContent.split('\n');
+            for (const line of lines) {
+              const match = line.match(/^\s*-\s*(.+?)\s*\((\w+)\)/);
+              if (match) {
+                const changeType = match[2] as ChangeType;
+                if (Object.values(ChangeType).includes(changeType)) {
+                  changes.push({
+                    file: match[1].trim(),
+                    changeType,
+                    description: `Applied ${match[2]}`
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            // Ignore parsing errors
+          }
+        }
+      } else if (toolCall.name === 'propose_change') {
+        // Also track proposed changes
+        const toolResult = toolResultMap.get(toolCall.id);
+        if (toolResult && !toolResult.isError) {
+          try {
+            const changeData = toolCall.input;
+            if (changeData && changeData.file_path) {
+              changes.push({
+                file: changeData.file_path,
+                changeType: changeData.change_type || 'modify',
+                description: `Proposed: ${changeData.description || 'no description'}`
+              });
+            }
+          } catch (error) {
+            // Ignore parsing errors
+          }
+        }
+      }
+    }
+
+    return changes;
+  }
+
+  /**
+   * Create tools for subagents (DEPRECATED - kept for backward compatibility)
+   * @deprecated Use createReadOnlySubagentTools for Phase 1 instead
    */
   private static async createSubagentTools(
     repositoryFiles: Map<string, string>,

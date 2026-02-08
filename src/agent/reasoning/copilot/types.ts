@@ -25,6 +25,18 @@ export interface CopilotOptions {
 }
 
 /**
+ * Change plan proposed by a subagent (Phase 1: Analysis)
+ */
+export interface ChangePlan {
+  file: string;
+  changeType: ChangeType;
+  description: string;
+  suggestedCode: string;
+  reasoning: string;
+  proposedBy: string; // subagent name
+}
+
+/**
  * Result of Copilot agent execution
  */
 export interface CopilotResult {
