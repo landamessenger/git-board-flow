@@ -38,12 +38,12 @@ Example (using your own OpenCode server):
     opencode-model: 'anthropic/claude-3-5-sonnet'
 ```
 
-Example (action starts and stops OpenCode for you; no separate server needed):
+Example (action starts and stops OpenCode for you; no separate server needed). Pass the provider API key via `env` so the OpenCode server can use it (e.g. `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`):
 
 ```yaml
 - uses: landamessenger/git-board-flow@master
   env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # or OPENROUTER_API_KEY, etc.
   with:
     opencode-start-server: true
     opencode-model: 'opencode/kimi-k2.5'
