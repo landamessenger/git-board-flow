@@ -241,7 +241,7 @@ export class ReportErrorsTool extends BaseTool {
       }
 
       // Clean file path - remove markdown, prefixes, newlines
-      let file = String(error.file)
+      const file = String(error.file)
         .replace(/\*\*/g, '')
         .replace(/\*/g, '')
         .replace(/^File:\s*/i, '')
@@ -289,7 +289,7 @@ export class ReportErrorsTool extends BaseTool {
       }
 
       // Validate and normalize severity
-      let severity = String(error.severity).toLowerCase().trim();
+      const severity = String(error.severity).toLowerCase().trim();
       if (!Object.values(SeverityLevel).includes(severity as SeverityLevel)) {
         throw new Error(`Error at index ${i}: Invalid severity "${error.severity}". Must be one of: ${Object.values(SeverityLevel).join(', ')}`);
       }

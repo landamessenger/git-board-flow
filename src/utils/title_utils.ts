@@ -24,7 +24,7 @@ export const extractIssueNumberFromPush = (branchName: string): number => {
 }
 
 export const extractVersionFromBranch = (branchName: string): string | undefined => {
-    const match = branchName?.match(/^[^\/]+\/(\d+\.\d+\.\d+)$/);
+    const match = branchName?.match(/^[^/]+\/(\d+\.\d+\.\d+)$/);
 
     if (match) {
         return match[1];

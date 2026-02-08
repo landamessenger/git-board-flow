@@ -185,7 +185,7 @@ export class ReportIntentTool extends BaseTool {
 
     // Clean reasoning - remove markdown but preserve content
     // @internal Remove markdown formatting to ensure clean plain text, but preserve newlines for readability
-    let reasoning = String(input.reasoning)
+    const reasoning = String(input.reasoning)
       .replace(/\*\*/g, '')
       .replace(/\*/g, '')
       .replace(/^#+\s*/gm, '')

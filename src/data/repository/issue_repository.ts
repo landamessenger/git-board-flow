@@ -55,7 +55,7 @@ export class IssueRepository {
                 emoji = '❓';
             }
 
-            let sanitizedTitle = issueTitle
+            const sanitizedTitle = issueTitle
                 .replace(/\b\d+(\.\d+){2,}\b/g, '')
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')
@@ -139,7 +139,7 @@ export class IssueRepository {
                 emoji = '❓';
             }
 
-            let sanitizedTitle = issueTitle
+            const sanitizedTitle = issueTitle
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')
                 .replace(/[^\S\r\n]+/g, ' ')
@@ -180,7 +180,7 @@ export class IssueRepository {
         try {
             const octokit = github.getOctokit(token);
 
-            let sanitizedTitle = issueTitle
+            const sanitizedTitle = issueTitle
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')
                 .replace(/[^\S\r\n]+/g, ' ')

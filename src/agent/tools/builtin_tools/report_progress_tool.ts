@@ -213,7 +213,7 @@ export class ReportProgressTool extends BaseTool {
 
     // Clean summary - remove markdown but preserve content
     // @internal Remove markdown formatting to ensure clean plain text, but preserve newlines for readability
-    let summary = String(input.summary)
+    const summary = String(input.summary)
       .replace(/\*\*/g, '')
       .replace(/\*/g, '')
       .replace(/^#+\s*/gm, '')

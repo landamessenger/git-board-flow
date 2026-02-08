@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Git Board Flow – Project Context
 
-**Git Board Flow** is a GitHub Action (and local CLI) that automates branch management, GitHub project linking, and issue/PR tracking using Git-Flow. It uses **OpenCode** for all AI features (progress detection, error detection, PR descriptions, copilot, vector indexing).
+**Git Board Flow** is a GitHub Action (and local CLI) that automates branch management, GitHub project linking, and issue/PR tracking using Git-Flow. It uses **OpenCode** for all AI features (progress detection, error detection, PR descriptions, copilot).
 
 ## Tech stack
 
@@ -23,10 +23,13 @@ npm run build
 npm test
 npm run test:watch
 npm run test:coverage
+npm run lint
+npm run lint:fix
 ```
 
 - **Build**: `npm run build` – compiles `src/actions/github_action.ts` → `build/github_action/`, `src/cli.ts` → `build/cli/`, and sets the CLI as executable.
 - **Tests**: `npm test` – runs Jest (exclude e2e when relevant). Use `npm run test:watch` for watch mode, `npm run test:coverage` for coverage.
+- **Lint**: `npm run lint` – ESLint + typescript-eslint on `src/` (recommended + unused-vars, no-explicit-any). Use `npm run lint:fix` to auto-fix.
 
 ## What to ignore
 

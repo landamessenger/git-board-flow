@@ -10,7 +10,9 @@
     "build": "ncc build src/actions/github_action.ts -o build/github_action && ncc build src/cli.ts -o build/cli && chmod +x build/cli/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix"
   },
   "keywords": [],
   "author": "Landa Messenger",
@@ -34,12 +36,15 @@
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.15.0",
     "@types/dockerode": "^3.3.37",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.9.1",
     "@vercel/ncc": "^0.36.1",
+    "eslint": "^9.15.0",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.5",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "typescript-eslint": "^8.15.0"
   }
 }

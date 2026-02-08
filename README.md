@@ -169,6 +169,17 @@ node build/cli/index.js check-progress -i 123
 
 ---
 
+## Code quality (ESLint)
+
+The project uses **ESLint** with **typescript-eslint** (similar to Detekt/Ktlint for Kotlin) for TypeScript linting:
+
+- `npm run lint` — runs ESLint on `src/`. Reports unused variables, `any` usage, and recommended rules.
+- `npm run lint:fix` — auto-fixes what can be fixed (e.g. `prefer-const`, useless escapes).
+
+Config: `eslint.config.mjs` (flat config). Test files (`*.test.ts`, `__tests__/**`) have relaxed rules for mocks. Fix remaining issues over time so CI can run `npm run lint` without failures.
+
+---
+
 ## Commit prefix transforms
 
 The `commit-prefix-transforms` input defines how branch names are turned into commit prefixes. You can chain several transforms (comma-separated).

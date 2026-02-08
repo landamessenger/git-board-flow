@@ -111,7 +111,7 @@ export class CommentFormatter {
         comment += `\n\n*This section contains the detailed step-by-step reasoning process. It's collapsed by default to keep the main analysis focused.*\n\n`;
         comment += `---\n\n`;
 
-        let proposalIndex = 0;
+        const proposalIndex = 0;
         const proposalShownFlags = new Set<number>();
 
         for (const step of steps) {

@@ -45367,7 +45367,7 @@ class ReportProgressTool extends base_tool_1.BaseTool {
         }
         // Clean summary - remove markdown but preserve content
         // @internal Remove markdown formatting to ensure clean plain text, but preserve newlines for readability
-        let summary = String(input.summary)
+        const summary = String(input.summary)
             .replace(/\*\*/g, '')
             .replace(/\*/g, '')
             .replace(/^#+\s*/gm, '')
@@ -46213,7 +46213,7 @@ class BranchConfiguration {
         this.oid = data['oid'] ?? '';
         this.children = [];
         if (data['children'] !== undefined && data['children'].length > 0) {
-            for (let child of data['children']) {
+            for (const child of data['children']) {
                 this.children.push(new BranchConfiguration(child));
             }
         }
@@ -48791,7 +48791,7 @@ class IssueRepository {
                 else if (labels.isQuestion) {
                     emoji = '❓';
                 }
-                let sanitizedTitle = issueTitle
+                const sanitizedTitle = issueTitle
                     .replace(/\b\d+(\.\d+){2,}\b/g, '')
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                     .replace(/\u200D/g, '')
@@ -48869,7 +48869,7 @@ class IssueRepository {
                 else if (labels.isQuestion) {
                     emoji = '❓';
                 }
-                let sanitizedTitle = issueTitle
+                const sanitizedTitle = issueTitle
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                     .replace(/\u200D/g, '')
                     .replace(/[^\S\r\n]+/g, ' ')
@@ -48899,7 +48899,7 @@ class IssueRepository {
         this.cleanTitle = async (owner, repository, issueTitle, issueNumber, token) => {
             try {
                 const octokit = github.getOctokit(token);
-                let sanitizedTitle = issueTitle
+                const sanitizedTitle = issueTitle
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                     .replace(/\u200D/g, '')
                     .replace(/[^\S\r\n]+/g, ' ')
@@ -52741,7 +52741,7 @@ class UpdateTitleUseCase {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    let _title = await this.issueRepository.getTitle(param.owner, param.repo, param.issue.number, param.tokens.token) ?? param.issue.title;
+                    const _title = await this.issueRepository.getTitle(param.owner, param.repo, param.issue.number, param.tokens.token) ?? param.issue.title;
                     let _version = '';
                     if (param.release.active) {
                         _version = param.release.version ?? 'Unknown Version';
@@ -55871,7 +55871,7 @@ const extractIssueNumberFromPush = (branchName) => {
 };
 exports.extractIssueNumberFromPush = extractIssueNumberFromPush;
 const extractVersionFromBranch = (branchName) => {
-    const match = branchName?.match(/^[^\/]+\/(\d+\.\d+\.\d+)$/);
+    const match = branchName?.match(/^[^/]+\/(\d+\.\d+\.\d+)$/);
     if (match) {
         return match[1];
     }
