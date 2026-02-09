@@ -22,6 +22,27 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
 
         try {
             const prNumber = param.pullRequest.number;
+            const headBranch = param.pullRequest.head;
+            const baseBranch = param.pullRequest.base;
+
+            if (!headBranch || !baseBranch) {
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: false,
+                        steps: [
+                            `Could not determine PR branches (head: ${headBranch ?? 'missing'}, base: ${baseBranch ?? 'missing'}). Skipping update pull request description.`,
+                        ],
+                    })
+                );
+                return result;
+            }
+
+            logDebugInfo(
+                `PR description will be generated from workspace diff: base "${baseBranch}", head "${headBranch}" (OpenCode agent will run git diff).`
+            );
+
             const issueDescription = await this.issueRepository.getIssueDescription(
                 param.owner,
                 param.repo,
@@ -65,18 +86,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 return result;
             }
 
-            const changes = await this.pullRequestRepository.getPullRequestChanges(
-                param.owner,
-                param.repo,
-                prNumber,
-                param.tokens.token
-            );
-
-            const filteredChanges = changes.filter(
-                (c) => !this.shouldIgnoreFile(c.filename, param.ai.getAiIgnoreFiles())
-            );
-
-            const prompt = this.buildPrDescriptionPrompt(issueDescription, filteredChanges);
+            const prompt = this.buildPrDescriptionPrompt(issueDescription, headBranch, baseBranch);
 
             const agentResponse = await this.aiRepository.askAgent(
                 param.ai,
@@ -132,46 +142,33 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
         return result;
     }
 
+    /**
+     * Builds the PR description prompt. We do not send the diff from our side:
+     * we pass the base and head branch so the OpenCode agent can run `git diff`
+     * in the workspace and write a professional summary (not a file-by-file list).
+     */
     private buildPrDescriptionPrompt(
         issueDescription: string,
-        changes: { filename: string; status: string; additions: number; deletions: number; patch?: string }[]
+        headBranch: string,
+        baseBranch: string
     ): string {
-        const changesBlock = changes
-            .map((c) => {
-                const header = `### ${c.filename} (${c.status}, +${c.additions}/-${c.deletions})`;
-                const patch = c.patch ? `\n\`\`\`diff\n${c.patch}\n\`\`\`` : '';
-                return header + patch;
-            })
-            .join('\n\n');
+        return `You are in the repository workspace. Write a pull request description based on the diff between the base (target) branch and the head (source) branch.
 
-        return `You are helping write a pull request description. The PR closes an issue.
+**Branches:**
+- **Base (target) branch:** \`${baseBranch}\`
+- **Head (source) branch:** \`${headBranch}\`
+
+**Instructions:**
+1. Get the full diff by running: \`git diff ${baseBranch}..${headBranch}\` (or \`git diff ${baseBranch}...${headBranch}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
+2. Read the issue description below for context.
+3. Based on the diff and the issue, write a **professional summary** of what this PR does at a high level. Focus on:
+   - The main goal and outcome of the change.
+   - Key or important points (e.g. breaking changes, new capabilities, critical fixes).
+   - Do not list every file or give a change-by-change breakdown; keep it concise and useful for reviewers.
 
 **Issue description:**
 ${issueDescription}
 
-**Changed files and patches:**
-${changesBlock}
-
-**Instructions:**
-- Write one short paragraph describing what this PR does (plain text, no markdown titles like # or ##).
-- Then add a "Summary of Changes" section and a "Detailed Changes" section if there are multiple files.
-- Do not use titles (#, ##, ###) in the first paragraph; only in the summary/detailed sections.
-- Output only the description content (the "What does this PR do?" paragraph plus optional sections).`;
-    }
-
-    private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
-        if (ignorePatterns.length === 0) return false;
-        return ignorePatterns.some((pattern) => {
-            const regexPattern = pattern
-                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-                .replace(/\*/g, '.*')
-                .replace(/\//g, '\\/');
-            if (pattern.endsWith('/*')) {
-                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, '(\\/.*)?')}$`).test(
-                    filename
-                );
-            }
-            return new RegExp(`^${regexPattern}$`).test(filename);
-        });
+Output only the description content: one short paragraph (plain text, no markdown titles in the first paragraph), optionally followed by a "Key points" or "Summary" section if it helps. Do not use # or ## in the first paragraph.`;
     }
 }
