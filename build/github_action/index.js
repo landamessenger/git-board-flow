@@ -47102,7 +47102,7 @@ class CheckProgressUseCase {
                 const truncationNote = this.isReasoningLikelyTruncated(reasoning)
                     ? '\n\n_Reasoning may be truncated by the model._'
                     : '';
-                summaryMessage += `\n\n### 🧠 Reasoning\n${reasoning}${truncationNote}`;
+                summaryMessage += `\n\n## 🧠 Reasoning\n${reasoning}${truncationNote}`;
             }
             const steps = [
                 `Progress updated to: ${progress}%`,
