@@ -51,7 +51,7 @@ When the workflow runs on `pull_request` (opened, edited, etc.):
 | **Project linking** | Adds the PR to the configured GitHub Projects and moves it to the configured column. |
 | **Reviewers** | Assigns up to `desired-reviewers-count` reviewers. |
 | **Priority & size** | Applies priority and size checks (labels and thresholds). |
-| **AI PR description** | If `ai-pull-request-description` is true and OpenCode is configured, generates or updates the PR description by filling the repo's `.github/pull_request_template.md` from the issue and the branch diff (OpenCode Plan agent). See [Pull Requests → AI-generated PR description](/pull-requests#ai-generated-pr-description). |
+| **AI PR description** | If `ai-pull-request-description` is true and OpenCode is configured, generates or updates the PR description by filling the repo's `.github/pull_request_template.md` from the issue and the branch diff (OpenCode Plan agent). See [Pull Requests → AI-generated PR description](/pull-requests/ai-description). |
 | **Comments & images** | Posts comments with optional images per branch type. |
 
 ### 3. Push events (`on: push`)

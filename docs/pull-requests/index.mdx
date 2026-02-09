@@ -1,0 +1,53 @@
+---
+title: Pull Requests
+description: How Git Board Flow handles pull requests
+---
+
+# Pull Request Management
+
+When your workflow runs on `pull_request` events (e.g. opened, edited, labeled, unlabeled), Git Board Flow performs a set of actions so that PRs stay linked to issues, projects, and team workflows.
+
+## Enable the action for pull requests
+
+Create a workflow file (e.g. `.github/workflows/gbf_pull_request.yml`) that runs on `pull_request`:
+
+```yaml
+name: Git Board Flow - Pull Request
+
+on:
+  pull_request:
+    types: [opened, edited, labeled, unlabeled]
+
+jobs:
+  git-board-flow-pull-requests:
+    name: Git Board Flow - Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: landamessenger/git-board-flow@master
+        with:
+          token: ${{ secrets.PAT }}
+          project-ids: '2,3'
+          commit-prefix-transforms: 'replace-slash'
+```
+
+<Info>
+  For **AI-generated PR descriptions**, add `ai-pull-request-description: true` and configure [OpenCode](/opencode-integration). See [AI PR description](/pull-requests/ai-description) for details.
+</Info>
+
+## What the action does on pull requests
+
+| Capability | Description |
+|------------|-------------|
+| **PR–issue linking** | Links the pull request to the issue associated with its branch (from the branch name, e.g. `feature/123-title`) and posts a comment on the PR. |
+| **Project linking** | Adds the PR to the configured GitHub Projects (`project-ids`) and moves it to the configured column (e.g. "In Progress"). |
+| **Reviewers** | Assigns up to `desired-reviewers-count` reviewers. |
+| **Priority & size** | Applies priority labels and size labels (XS–XXL) based on configured thresholds (lines, files, commits). |
+| **AI-generated PR description** | When enabled, generates or updates the PR description using OpenCode and your repo's PR template. See [AI PR description](/pull-requests/ai-description). |
+| **Comments & images** | Posts a comment with optional images per branch type (feature, bugfix, docs, chore, hotfix, release). |
+
+## Next steps
+
+- **[Configuration](/pull-requests/configuration)** — PR-specific inputs (reviewers, columns, images, AI).
+- **[AI PR description](/pull-requests/ai-description)** — How the AI fills your PR template from the issue and diff.
+- [Full configuration reference](/configuration) — All action inputs.

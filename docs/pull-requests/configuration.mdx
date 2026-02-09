@@ -1,0 +1,46 @@
+---
+title: Pull Requests Configuration
+description: Configuration options specific to pull request workflows
+---
+
+# Pull Requests Configuration
+
+These inputs apply when the action runs on `pull_request` events. For the complete list of all action inputs, see [Configuration](/configuration).
+
+## Project and assignees
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `project-ids` | Comma-separated GitHub Project IDs to link PRs to | — |
+| `project-column-pull-request-created` | Column for newly created/linked PRs | "In Progress" |
+| `project-column-pull-request-in-progress` | Column for in-progress PRs | "In Progress" |
+| `desired-reviewers-count` | Number of reviewers to assign (max: 15) | 1 |
+
+## AI (PR description and comments)
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `ai-pull-request-description` | Enable AI-generated PR descriptions (requires OpenCode) | "true" |
+| `pull-requests-locale` | Target locale for PR review comment translation | "en-US" |
+| `ai-members-only` | Restrict AI PR description to org/project members only | "false" |
+
+See [AI PR description](/pull-requests/ai-description) for how the description is generated and [OpenCode (AI)](/opencode-integration) for server and model setup.
+
+## Images on pull requests
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `images-on-pull-request` | Enable images in PR comments | "true" |
+| `images-pull-request-automatic` | Image URLs for automatic PR comments | (built-in) |
+| `images-pull-request-feature` | Image URLs for feature PR comments | (built-in) |
+| `images-pull-request-bugfix` | Image URLs for bugfix PR comments | (built-in) |
+| … | Same pattern for `docs`, `chore`, `hotfix`, `release` | — |
+
+## Other
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `commit-prefix-transforms` | Transforms for commit prefix from branch name (e.g. `replace-slash`) | "replace-slash" |
+| `token` | GitHub PAT (required for linking and project updates) | — |
+
+For size thresholds, priority labels, and branch naming (used when the action infers the issue from the branch), see [Configuration](/configuration).
