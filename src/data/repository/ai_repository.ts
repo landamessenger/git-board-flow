@@ -51,6 +51,63 @@ function ensureNoTrailingSlash(url: string): string {
     return url.replace(/\/+$/, '') || url;
 }
 
+/** Result of validating AI config for OpenCode calls. null when invalid. */
+interface OpenCodeConfig {
+    serverUrl: string;
+    providerID: string;
+    modelID: string;
+    model: string;
+}
+
+function getValidatedOpenCodeConfig(ai: Ai): OpenCodeConfig | null {
+    const serverUrl = ai.getOpencodeServerUrl();
+    const model = ai.getOpencodeModel();
+    if (!serverUrl?.trim() || !model?.trim()) {
+        logError('Missing required AI configuration: opencode-server-url and opencode-model');
+        return null;
+    }
+    const { providerID, modelID } = ai.getOpencodeModelParts();
+    return { serverUrl, providerID, modelID, model };
+}
+
+/**
+ * Parse JSON from agent response text safely. Tries direct parse, then strip markdown code fence if needed.
+ * @throws SyntaxError or Error with clear message if parsing fails
+ */
+function parseJsonFromAgentText(text: string): Record<string, unknown> {
+    const trimmed = text.trim();
+    if (!trimmed) {
+        throw new Error('Agent response text is empty');
+    }
+    try {
+        return JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+        // Model may wrap JSON in ```json ... ``` or ``` ... ```
+        const withoutFence = trimmed
+            .replace(/^```(?:json)?\s*\n?/i, '')
+            .replace(/\n?```\s*$/i, '')
+            .trim();
+        try {
+            return JSON.parse(withoutFence) as Record<string, unknown>;
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new Error(`Agent response is not valid JSON: ${msg}`);
+        }
+    }
+}
+
+/**
+ * Extract text from OpenCode message parts by type (e.g. 'text', 'reasoning'), joined with separator.
+ */
+function extractPartsByType(parts: unknown, type: string, joinWith: string): string {
+    if (!Array.isArray(parts)) return '';
+    return (parts as Array<{ type?: string; text?: string }>)
+        .filter((p) => p?.type === type && typeof p.text === 'string')
+        .map((p) => p.text as string)
+        .join(joinWith)
+        .trim();
+}
+
 const OPENCODE_RESPONSE_LOG_MAX_LEN = 2000;
 
 /** Parse response as JSON; on empty or invalid body throw a clear error with context. */
@@ -78,28 +135,14 @@ async function parseJsonResponse<T>(res: Response, context: string): Promise<T> 
     }
 }
 
-/**
- * Extract plain text from OpenCode message response parts (type === 'text').
- */
+/** Extract plain text from OpenCode message response parts (type === 'text'). */
 function extractTextFromParts(parts: unknown): string {
-    if (!Array.isArray(parts)) return '';
-    return (parts as Array<{ type?: string; text?: string }>)
-        .filter((p) => p?.type === 'text' && typeof p.text === 'string')
-        .map((p) => p.text as string)
-        .join('');
+    return extractPartsByType(parts, 'text', '');
 }
 
-/**
- * Extract reasoning text from OpenCode message response parts (type === 'reasoning').
- * Used to include the agent's full reasoning in comments (e.g. progress detection).
- */
+/** Extract reasoning from OpenCode message parts (type === 'reasoning'). */
 function extractReasoningFromParts(parts: unknown): string {
-    if (!Array.isArray(parts)) return '';
-    return (parts as Array<{ type?: string; text?: string }>)
-        .filter((p) => p?.type === 'reasoning' && typeof p.text === 'string')
-        .map((p) => p.text as string)
-        .join('\n\n')
-        .trim();
+    return extractPartsByType(parts, 'reasoning', '\n\n');
 }
 
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
@@ -290,13 +333,9 @@ export class AiRepository {
         prompt: string,
         options: AskAgentOptions = {}
     ): Promise<string | Record<string, unknown> | undefined> => {
-        const serverUrl = ai.getOpencodeServerUrl();
-        const model = ai.getOpencodeModel();
-        if (!serverUrl || !model) {
-            logError('Missing required AI configuration: opencode-server-url and opencode-model');
-            return undefined;
-        }
-        const { providerID, modelID } = ai.getOpencodeModelParts();
+        const config = getValidatedOpenCodeConfig(ai);
+        if (!config) return undefined;
+        const { serverUrl, providerID, modelID, model } = config;
         const schemaName = options.schemaName ?? 'response';
         const promptText =
             options.expectJson && options.schema
@@ -313,8 +352,7 @@ export class AiRepository {
                 if (!text) throw new Error('Empty response text');
                 const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
                 if (options.expectJson && options.schema) {
-                    const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-                    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+                    const parsed = parseJsonFromAgentText(text);
                     if (options.includeReasoning && reasoning) {
                         return { ...parsed, reasoning };
                     }
@@ -324,14 +362,8 @@ export class AiRepository {
             }, `agent ${agentId}`);
         } catch (error: unknown) {
             const err = error instanceof Error ? error : new Error(String(error));
-            const errWithCause = err as Error & { cause?: unknown };
-            const cause =
-                errWithCause.cause instanceof Error
-                    ? errWithCause.cause.message
-                    : errWithCause.cause != null
-                      ? String(errWithCause.cause)
-                      : '';
-            const detail = cause ? ` (${cause})` : '';
+            const cause = err instanceof Error && (err as Error & { cause?: unknown }).cause;
+            const detail = cause != null ? ` (${cause instanceof Error ? cause.message : String(cause)})` : '';
             logError(`Error querying OpenCode agent ${agentId} (${model}): ${err.message}${detail}`);
             return undefined;
         }
@@ -345,14 +377,10 @@ export class AiRepository {
         ai: Ai,
         prompt: string
     ): Promise<{ text: string; sessionId: string } | undefined> => {
-        const serverUrl = ai.getOpencodeServerUrl();
-        const model = ai.getOpencodeModel();
-        if (!serverUrl || !model) {
-            logError('Missing required AI configuration: opencode-server-url and opencode-model');
-            return undefined;
-        }
+        const config = getValidatedOpenCodeConfig(ai);
+        if (!config) return undefined;
+        const { serverUrl, providerID, modelID, model } = config;
         try {
-            const { providerID, modelID } = ai.getOpencodeModelParts();
             const result = await withOpenCodeRetry(
                 () =>
                     opencodeMessageWithAgentRaw(serverUrl, {

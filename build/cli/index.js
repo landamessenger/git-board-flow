@@ -48887,6 +48887,55 @@ function createTimeoutSignal(ms) {
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, '') || url;
 }
+function getValidatedOpenCodeConfig(ai) {
+    const serverUrl = ai.getOpencodeServerUrl();
+    const model = ai.getOpencodeModel();
+    if (!serverUrl?.trim() || !model?.trim()) {
+        (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+        return null;
+    }
+    const { providerID, modelID } = ai.getOpencodeModelParts();
+    return { serverUrl, providerID, modelID, model };
+}
+/**
+ * Parse JSON from agent response text safely. Tries direct parse, then strip markdown code fence if needed.
+ * @throws SyntaxError or Error with clear message if parsing fails
+ */
+function parseJsonFromAgentText(text) {
+    const trimmed = text.trim();
+    if (!trimmed) {
+        throw new Error('Agent response text is empty');
+    }
+    try {
+        return JSON.parse(trimmed);
+    }
+    catch {
+        // Model may wrap JSON in ```json ... ``` or ``` ... ```
+        const withoutFence = trimmed
+            .replace(/^```(?:json)?\s*\n?/i, '')
+            .replace(/\n?```\s*$/i, '')
+            .trim();
+        try {
+            return JSON.parse(withoutFence);
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new Error(`Agent response is not valid JSON: ${msg}`);
+        }
+    }
+}
+/**
+ * Extract text from OpenCode message parts by type (e.g. 'text', 'reasoning'), joined with separator.
+ */
+function extractPartsByType(parts, type, joinWith) {
+    if (!Array.isArray(parts))
+        return '';
+    return parts
+        .filter((p) => p?.type === type && typeof p.text === 'string')
+        .map((p) => p.text)
+        .join(joinWith)
+        .trim();
+}
 const OPENCODE_RESPONSE_LOG_MAX_LEN = 2000;
 /** Parse response as JSON; on empty or invalid body throw a clear error with context. */
 async function parseJsonResponse(res, context) {
@@ -48909,29 +48958,13 @@ async function parseJsonResponse(res, context) {
         throw err;
     }
 }
-/**
- * Extract plain text from OpenCode message response parts (type === 'text').
- */
+/** Extract plain text from OpenCode message response parts (type === 'text'). */
 function extractTextFromParts(parts) {
-    if (!Array.isArray(parts))
-        return '';
-    return parts
-        .filter((p) => p?.type === 'text' && typeof p.text === 'string')
-        .map((p) => p.text)
-        .join('');
+    return extractPartsByType(parts, 'text', '');
 }
-/**
- * Extract reasoning text from OpenCode message response parts (type === 'reasoning').
- * Used to include the agent's full reasoning in comments (e.g. progress detection).
- */
+/** Extract reasoning from OpenCode message parts (type === 'reasoning'). */
 function extractReasoningFromParts(parts) {
-    if (!Array.isArray(parts))
-        return '';
-    return parts
-        .filter((p) => p?.type === 'reasoning' && typeof p.text === 'string')
-        .map((p) => p.text)
-        .join('\n\n')
-        .trim();
+    return extractPartsByType(parts, 'reasoning', '\n\n');
 }
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 exports.OPENCODE_AGENT_PLAN = 'plan';
@@ -49066,13 +49099,10 @@ class AiRepository {
          * Single retry system: HTTP failures and parse failures both retry up to OPENCODE_MAX_RETRIES.
          */
         this.askAgent = async (ai, agentId, prompt, options = {}) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+            const config = getValidatedOpenCodeConfig(ai);
+            if (!config)
                 return undefined;
-            }
-            const { providerID, modelID } = ai.getOpencodeModelParts();
+            const { serverUrl, providerID, modelID, model } = config;
             const schemaName = options.schemaName ?? 'response';
             const promptText = options.expectJson && options.schema
                 ? `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`
@@ -49089,8 +49119,7 @@ class AiRepository {
                         throw new Error('Empty response text');
                     const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
                     if (options.expectJson && options.schema) {
-                        const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-                        const parsed = JSON.parse(cleaned);
+                        const parsed = parseJsonFromAgentText(text);
                         if (options.includeReasoning && reasoning) {
                             return { ...parsed, reasoning };
                         }
@@ -49101,13 +49130,8 @@ class AiRepository {
             }
             catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                const errWithCause = err;
-                const cause = errWithCause.cause instanceof Error
-                    ? errWithCause.cause.message
-                    : errWithCause.cause != null
-                        ? String(errWithCause.cause)
-                        : '';
-                const detail = cause ? ` (${cause})` : '';
+                const cause = err instanceof Error && err.cause;
+                const detail = cause != null ? ` (${cause instanceof Error ? cause.message : String(cause)})` : '';
                 (0, logger_1.logError)(`Error querying OpenCode agent ${agentId} (${model}): ${err.message}${detail}`);
                 return undefined;
             }
@@ -49117,14 +49141,11 @@ class AiRepository {
          * Uses the same retry system (OPENCODE_MAX_RETRIES).
          */
         this.copilotMessage = async (ai, prompt) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+            const config = getValidatedOpenCodeConfig(ai);
+            if (!config)
                 return undefined;
-            }
+            const { serverUrl, providerID, modelID, model } = config;
             try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
                 const result = await withOpenCodeRetry(() => opencodeMessageWithAgentRaw(serverUrl, {
                     providerID,
                     modelID,
