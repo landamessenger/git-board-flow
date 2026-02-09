@@ -136,6 +136,33 @@ describe('AiRepository', () => {
       expect(result).toEqual({ progress: 100, summary: 'Done' });
     });
 
+    it('parses JSON when agent adds prose before the JSON object (extract first {})', async () => {
+      const ai = createAi();
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => JSON.stringify({ id: 's1' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              parts: [
+                {
+                  type: 'text',
+                  text: 'Based on my comprehensive analysis of the code changes between the branches, here is the assessment.\n\n{"progress": 80, "summary": "Almost done", "remaining": "Final review"}',
+                },
+              ],
+            }),
+        });
+      const result = await repo.askAgent(ai, 'plan', 'Assess', {
+        expectJson: true,
+        schema: {},
+      });
+      expect(result).toEqual({ progress: 80, summary: 'Almost done', remaining: 'Final review' });
+    });
+
     it('includes reasoning in result when includeReasoning is true', async () => {
       const ai = createAi();
       mockFetch

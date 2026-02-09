@@ -43991,146 +43991,8 @@ function ensureNoTrailingSlash(url) {
 function truncate(s, maxLen) {
     return s.length <= maxLen ? s : s.slice(0, maxLen) + '...';
 }
-const OPENCODE_STATUS_POLL_MS = 2000;
 const OPENCODE_PROMPT_LOG_PREVIEW_LEN = 500;
 const OPENCODE_PROMPT_LOG_FULL_LEN = 3000;
-const RATE_LIMIT_MESSAGE_PATTERN = /rate\s*limit/i;
-/**
- * Fetch and parse OpenCode GET /session/status. Single place that consumes the endpoint.
- * Returns null on fetch/parse failure.
- */
-async function getOpenCodeStatus(baseUrl) {
-    const base = ensureNoTrailingSlash(baseUrl);
-    try {
-        const res = await fetch(`${base}/session/status`);
-        if (!res.ok)
-            return null;
-        const data = (await res.json());
-        if (data == null || typeof data !== 'object' || Array.isArray(data))
-            return null;
-        const map = data;
-        const counts = { idle: 0, busy: 0, retry: 0 };
-        const retryMessages = [];
-        for (const entry of Object.values(map)) {
-            if (!entry || typeof entry !== 'object')
-                continue;
-            const type = String(entry.type ?? '').toLowerCase();
-            if (type === 'idle')
-                counts.idle++;
-            else if (type === 'busy')
-                counts.busy++;
-            else if (type === 'retry') {
-                counts.retry++;
-                if (entry.message && RATE_LIMIT_MESSAGE_PATTERN.test(entry.message)) {
-                    retryMessages.push(entry.message);
-                }
-            }
-        }
-        return {
-            counts,
-            hasRateLimit: retryMessages.length > 0,
-            retryMessages,
-        };
-    }
-    catch {
-        return null;
-    }
-}
-/**
- * Wait until OpenCode status shows no rate limit (no retry sessions with "rate limit" message),
- * polling every OPENCODE_RATELIMIT_POLL_MS. Resolves when clear or after OPENCODE_RATELIMIT_MAX_WAIT_MS.
- */
-async function waitForOpenCodeRateLimitClear(baseUrl) {
-    const start = Date.now();
-    while (Date.now() - start < constants_1.OPENCODE_RATELIMIT_MAX_WAIT_MS) {
-        const status = await getOpenCodeStatus(baseUrl);
-        if (!status?.hasRateLimit)
-            return;
-        (0, logger_1.logInfo)(`OpenCode rate limit active (${status.counts.retry} retry, ${status.retryMessages[0] ?? 'retry'}). Waiting ${constants_1.OPENCODE_RATELIMIT_POLL_MS / 1000}s...`);
-        await delay(constants_1.OPENCODE_RATELIMIT_POLL_MS);
-    }
-    (0, logger_1.logInfo)('OpenCode rate limit wait timed out; proceeding with request.');
-}
-/** Basename from full path (e.g. /a/b/file.ts -> file.ts). */
-function pathBasename(path) {
-    const last = path.replace(/\/+$/, '').split('/').pop();
-    return last ?? path;
-}
-/**
- * Start OpenCode progress display: poll session/status and subscribe to /event for lsp.client.diagnostics.
- * Shows one line: "OpenCode: idle=X busy=Y retry=Z | Reading file.ts" (reading updates when LSP analyzes a file).
- * Only runs when stdout is a TTY. Returns a stop function.
- */
-function startOpenCodeProgressDisplay(baseUrl) {
-    if (!process.stdout.isTTY)
-        return () => { };
-    const base = ensureNoTrailingSlash(baseUrl);
-    const state = { statusLine: 'OpenCode: …', reading: '' };
-    const ac = new AbortController();
-    function redraw() {
-        const parts = [state.statusLine];
-        if (state.reading)
-            parts.push(`Reading ${state.reading}...`);
-        (0, logger_1.logSingleLine)(parts.join(' | '));
-    }
-    const interval = setInterval(() => {
-        getOpenCodeStatus(baseUrl).then((summary) => {
-            if (!summary)
-                return;
-            const { counts } = summary;
-            state.statusLine = `OpenCode: idle=${counts.idle} busy=${counts.busy} retry=${counts.retry}`;
-            if (summary.hasRateLimit && summary.retryMessages[0]) {
-                state.statusLine += ` | ${summary.retryMessages[0]}`;
-            }
-            redraw();
-        });
-    }, OPENCODE_STATUS_POLL_MS);
-    /** SSE client: /event stream, on lsp.client.diagnostics show "Reading <file>...". */
-    (async () => {
-        try {
-            const res = await fetch(`${base}/event`, {
-                headers: { Accept: 'text/event-stream' },
-                signal: ac.signal,
-            });
-            if (!res.ok || !res.body)
-                return;
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done)
-                    break;
-                buffer += decoder.decode(value, { stream: true });
-                const chunks = buffer.split('\n\n');
-                buffer = chunks.pop() ?? '';
-                for (const chunk of chunks) {
-                    const dataLine = chunk.split('\n').find((l) => l.startsWith('data:'));
-                    if (!dataLine)
-                        continue;
-                    try {
-                        const json = JSON.parse(dataLine.slice(5).trim());
-                        if (json.type === 'lsp.client.diagnostics' && json.properties?.path) {
-                            state.reading = pathBasename(json.properties.path);
-                            redraw();
-                        }
-                    }
-                    catch {
-                        // ignore parse errors
-                    }
-                }
-            }
-        }
-        catch {
-            // aborted or network error
-        }
-    })();
-    return () => {
-        clearInterval(interval);
-        ac.abort();
-        process.stdout.write('\n');
-    };
-}
 function getValidatedOpenCodeConfig(ai) {
     const serverUrl = ai.getOpencodeServerUrl();
     const model = ai.getOpencodeModel();
@@ -44142,19 +44004,63 @@ function getValidatedOpenCodeConfig(ai) {
     return { serverUrl, providerID, modelID, model };
 }
 /**
- * Parse JSON from agent response text safely. Tries direct parse, then strip markdown code fence if needed.
- * @throws SyntaxError or Error with clear message if parsing fails
+ * Try to extract the first complete JSON object from text (from first `{` with balanced braces).
+ * Handles being inside a double-quoted string so we don't count braces there.
+ */
+function extractFirstJsonObject(text) {
+    const start = text.indexOf('{');
+    if (start === -1)
+        return null;
+    let depth = 1;
+    let inString = false;
+    let escape = false;
+    let quoteChar = '"';
+    for (let i = start + 1; i < text.length; i++) {
+        const c = text[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (c === '\\' && inString) {
+            escape = true;
+            continue;
+        }
+        if (inString) {
+            if (c === quoteChar)
+                inString = false;
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            inString = true;
+            quoteChar = c;
+            continue;
+        }
+        if (c === '{')
+            depth++;
+        else if (c === '}') {
+            depth--;
+            if (depth === 0)
+                return text.slice(start, i + 1);
+        }
+    }
+    return null;
+}
+/**
+ * Parse JSON from agent response text safely.
+ * Tries: (1) direct parse, (2) strip markdown code fence, (3) extract first JSON object from text (model often adds prose before JSON).
+ * @throws Error with clear message if parsing fails
  */
 function parseJsonFromAgentText(text) {
     const trimmed = text.trim();
     if (!trimmed) {
         throw new Error('Agent response text is empty');
     }
+    // 1) Direct parse
     try {
         return JSON.parse(trimmed);
     }
     catch {
-        // Model may wrap JSON in ```json ... ``` or ``` ... ```
+        // 2) Model may wrap JSON in ```json ... ``` or ``` ... ```
         const withoutFence = trimmed
             .replace(/^```(?:json)?\s*\n?/i, '')
             .replace(/\n?```\s*$/i, '')
@@ -44162,9 +44068,25 @@ function parseJsonFromAgentText(text) {
         try {
             return JSON.parse(withoutFence);
         }
-        catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            throw new Error(`Agent response is not valid JSON: ${msg}`);
+        catch {
+            // 3) Model may add prose before the JSON (e.g. "Based on my analysis... { ... }")
+            const extracted = extractFirstJsonObject(trimmed);
+            if (extracted) {
+                try {
+                    return JSON.parse(extracted);
+                }
+                catch (e) {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): failed to parse extracted JSON. Full text length=${trimmed.length} firstChars=${JSON.stringify(trimmed.slice(0, 200))}`);
+                    throw new Error(`Agent response is not valid JSON: ${msg}`);
+                }
+            }
+            const previewLen = 500;
+            const msg = trimmed.length > previewLen ? `${trimmed.slice(0, previewLen)}...` : trimmed;
+            const fullTruncated = trimmed.length > 3000 ? `${trimmed.slice(0, 3000)}... [total ${trimmed.length} chars]` : trimmed;
+            (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): no JSON object found. length=${trimmed.length} preview=${JSON.stringify(msg)}`);
+            (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson) full text for debugging:\n${fullTruncated}`);
+            throw new Error(`Agent response is not valid JSON: no JSON object found. Response starts with: ${msg.slice(0, 150)}`);
         }
     }
 }
@@ -44379,8 +44301,6 @@ class AiRepository {
             const promptText = options.expectJson && options.schema
                 ? `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`
                 : prompt;
-            await waitForOpenCodeRateLimitClear(serverUrl);
-            const stopProgressDisplay = startOpenCodeProgressDisplay(serverUrl);
             try {
                 return await withOpenCodeRetry(async () => {
                     const { text, parts } = await opencodeMessageWithAgentRaw(serverUrl, {
@@ -44393,6 +44313,9 @@ class AiRepository {
                         throw new Error('Empty response text');
                     const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
                     if (options.expectJson && options.schema) {
+                        const maxLogLen = 5000000;
+                        const toLog = text.length > maxLogLen ? `${text.slice(0, maxLogLen)}\n... [truncated, total ${text.length} chars]` : text;
+                        (0, logger_1.logInfo)(`OpenCode agent response (full text, expectJson=true) length=${text.length}:\n${toLog}`);
                         const parsed = parseJsonFromAgentText(text);
                         if (options.includeReasoning && reasoning) {
                             return { ...parsed, reasoning };
@@ -44409,9 +44332,6 @@ class AiRepository {
                 (0, logger_1.logError)(`Error querying OpenCode agent ${agentId} (${model}): ${err.message}${detail}`);
                 return undefined;
             }
-            finally {
-                stopProgressDisplay();
-            }
         };
         /**
          * Run the OpenCode "build" agent for the copilot command. Returns the final message and sessionId.
@@ -44422,8 +44342,6 @@ class AiRepository {
             if (!config)
                 return undefined;
             const { serverUrl, providerID, modelID, model } = config;
-            await waitForOpenCodeRateLimitClear(serverUrl);
-            const stopProgressDisplay = startOpenCodeProgressDisplay(serverUrl);
             try {
                 const result = await withOpenCodeRetry(() => opencodeMessageWithAgentRaw(serverUrl, {
                     providerID,
@@ -44437,9 +44355,6 @@ class AiRepository {
                 const err = error instanceof Error ? error : new Error(String(error));
                 (0, logger_1.logError)(`Error querying OpenCode build agent (${model}): ${err.message}`);
                 return undefined;
-            }
-            finally {
-                stopProgressDisplay();
             }
         };
     }
@@ -48085,9 +48000,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommitUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
-const check_progress_use_case_1 = __nccwpck_require__(7744);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(8020);
-const check_changes_issue_size_use_case_1 = __nccwpck_require__(5863);
 const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class CommitUseCase {
     constructor() {
@@ -48105,8 +48018,8 @@ class CommitUseCase {
             (0, logger_1.logDebugInfo)(`Commits detected: ${param.commit.commits.length}`);
             (0, logger_1.logDebugInfo)(`Issue number: ${param.issueNumber}`);
             results.push(...(await new notify_new_commit_on_issue_use_case_1.NotifyNewCommitOnIssueUseCase().invoke(param)));
-            results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
-            results.push(...(await new check_progress_use_case_1.CheckProgressUseCase().invoke(param)));
+            // results.push(...(await new CheckChangesIssueSizeUseCase().invoke(param)));
+            // results.push(...(await new CheckProgressUseCase().invoke(param)));
             results.push(...(await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param)));
         }
         catch (error) {
@@ -48445,101 +48358,6 @@ class SingleActionUseCase {
     }
 }
 exports.SingleActionUseCase = SingleActionUseCase;
-
-
-/***/ }),
-
-/***/ 5863:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CheckChangesIssueSizeUseCase = void 0;
-const result_1 = __nccwpck_require__(7305);
-const branch_repository_1 = __nccwpck_require__(7701);
-const issue_repository_1 = __nccwpck_require__(57);
-const project_repository_1 = __nccwpck_require__(7917);
-const pull_request_repository_1 = __nccwpck_require__(634);
-const logger_1 = __nccwpck_require__(8836);
-class CheckChangesIssueSizeUseCase {
-    constructor() {
-        this.taskId = 'CheckChangesIssueSizeUseCase';
-        this.branchRepository = new branch_repository_1.BranchRepository();
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.projectRepository = new project_repository_1.ProjectRepository();
-        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
-    }
-    async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
-        const result = [];
-        try {
-            if (param.currentConfiguration.parentBranch === undefined) {
-                (0, logger_1.logDebugInfo)(`Parent branch is undefined.`);
-                return result;
-            }
-            const headBranch = param.commit.branch;
-            const baseBranch = param.currentConfiguration.parentBranch;
-            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.token);
-            (0, logger_1.logDebugInfo)(`Size: ${size}`);
-            (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
-            (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
-            (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnIssue}`);
-            if (param.labels.sizedLabelOnIssue !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter((name) => param.labels.sizeLabels.indexOf(name) === -1);
-                labelNames.push(size);
-                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
-                for (const project of param.project.getProjects()) {
-                    await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.issueNumber, githubSize, param.tokens.token);
-                }
-                const openPrNumbers = await this.pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(param.owner, param.repo, headBranch, param.tokens.token);
-                for (const prNumber of openPrNumbers) {
-                    const prLabels = await this.issueRepository.getLabels(param.owner, param.repo, prNumber, param.tokens.token);
-                    const prLabelNames = prLabels.filter((name) => param.labels.sizeLabels.indexOf(name) === -1);
-                    prLabelNames.push(size);
-                    await this.issueRepository.setLabels(param.owner, param.repo, prNumber, prLabelNames, param.tokens.token);
-                    for (const project of param.project.getProjects()) {
-                        await this.projectRepository.setTaskSize(project, param.owner, param.repo, prNumber, githubSize, param.tokens.token);
-                    }
-                    (0, logger_1.logDebugInfo)(`Updated size label on PR #${prNumber} to ${size}.`);
-                }
-                (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.issueNumber}:`);
-                (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `${reason}, so the issue was resized to ${size}.` +
-                            (openPrNumbers.length > 0 ? ` Same label applied to ${openPrNumbers.length} open PR(s).` : ''),
-                    ],
-                }));
-            }
-            else {
-                (0, logger_1.logDebugInfo)(`The issue is already at the correct size.`);
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                }));
-            }
-        }
-        catch (error) {
-            (0, logger_1.logError)(error);
-            result.push(new result_1.Result({
-                id: this.taskId,
-                success: false,
-                executed: true,
-                steps: [
-                    `Tried to check the size of the changes, but there was a problem.`,
-                ],
-                errors: [error?.toString() ?? 'Unknown error'],
-            }));
-        }
-        return result;
-    }
-}
-exports.CheckChangesIssueSizeUseCase = CheckChangesIssueSizeUseCase;
 
 
 /***/ }),
@@ -51937,7 +51755,7 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RATELIMIT_MAX_WAIT_MS = exports.OPENCODE_RATELIMIT_POLL_MS = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
@@ -51949,10 +51767,6 @@ exports.OPENCODE_REQUEST_TIMEOUT_MS = 600000;
 exports.OPENCODE_MAX_RETRIES = 5;
 /** Delay in ms between OpenCode retry attempts. */
 exports.OPENCODE_RETRY_DELAY_MS = 2000;
-/** Interval in ms when waiting for OpenCode rate limit to clear (status poll). */
-exports.OPENCODE_RATELIMIT_POLL_MS = 5000;
-/** Max time to wait for OpenCode rate limit to clear before proceeding anyway. */
-exports.OPENCODE_RATELIMIT_MAX_WAIT_MS = 600000;
 exports.DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [

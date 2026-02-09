@@ -78,27 +78,89 @@ function getValidatedOpenCodeConfig(ai: Ai): OpenCodeConfig | null {
 }
 
 /**
- * Parse JSON from agent response text safely. Tries direct parse, then strip markdown code fence if needed.
- * @throws SyntaxError or Error with clear message if parsing fails
+ * Try to extract the first complete JSON object from text (from first `{` with balanced braces).
+ * Handles being inside a double-quoted string so we don't count braces there.
+ */
+function extractFirstJsonObject(text: string): string | null {
+    const start = text.indexOf('{');
+    if (start === -1) return null;
+    let depth = 1;
+    let inString = false;
+    let escape = false;
+    let quoteChar = '"';
+    for (let i = start + 1; i < text.length; i++) {
+        const c = text[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (c === '\\' && inString) {
+            escape = true;
+            continue;
+        }
+        if (inString) {
+            if (c === quoteChar) inString = false;
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            inString = true;
+            quoteChar = c;
+            continue;
+        }
+        if (c === '{') depth++;
+        else if (c === '}') {
+            depth--;
+            if (depth === 0) return text.slice(start, i + 1);
+        }
+    }
+    return null;
+}
+
+/**
+ * Parse JSON from agent response text safely.
+ * Tries: (1) direct parse, (2) strip markdown code fence, (3) extract first JSON object from text (model often adds prose before JSON).
+ * @throws Error with clear message if parsing fails
  */
 function parseJsonFromAgentText(text: string): Record<string, unknown> {
     const trimmed = text.trim();
     if (!trimmed) {
         throw new Error('Agent response text is empty');
     }
+    // 1) Direct parse
     try {
         return JSON.parse(trimmed) as Record<string, unknown>;
     } catch {
-        // Model may wrap JSON in ```json ... ``` or ``` ... ```
+        // 2) Model may wrap JSON in ```json ... ``` or ``` ... ```
         const withoutFence = trimmed
             .replace(/^```(?:json)?\s*\n?/i, '')
             .replace(/\n?```\s*$/i, '')
             .trim();
         try {
             return JSON.parse(withoutFence) as Record<string, unknown>;
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            throw new Error(`Agent response is not valid JSON: ${msg}`);
+        } catch {
+            // 3) Model may add prose before the JSON (e.g. "Based on my analysis... { ... }")
+            const extracted = extractFirstJsonObject(trimmed);
+            if (extracted) {
+                try {
+                    return JSON.parse(extracted) as Record<string, unknown>;
+                } catch (e) {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    logDebugInfo(
+                        `OpenCode agent response (expectJson): failed to parse extracted JSON. Full text length=${trimmed.length} firstChars=${JSON.stringify(trimmed.slice(0, 200))}`
+                    );
+                    throw new Error(`Agent response is not valid JSON: ${msg}`);
+                }
+            }
+            const previewLen = 500;
+            const msg = trimmed.length > previewLen ? `${trimmed.slice(0, previewLen)}...` : trimmed;
+            const fullTruncated = trimmed.length > 3000 ? `${trimmed.slice(0, 3000)}... [total ${trimmed.length} chars]` : trimmed;
+            logDebugInfo(
+                `OpenCode agent response (expectJson): no JSON object found. length=${trimmed.length} preview=${JSON.stringify(msg)}`
+            );
+            logDebugInfo(`OpenCode agent response (expectJson) full text for debugging:\n${fullTruncated}`);
+            throw new Error(
+                `Agent response is not valid JSON: no JSON object found. Response starts with: ${msg.slice(0, 150)}`
+            );
         }
     }
 }
@@ -392,6 +454,9 @@ export class AiRepository {
                 if (!text) throw new Error('Empty response text');
                 const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
                 if (options.expectJson && options.schema) {
+                    const maxLogLen = 5000000;
+                    const toLog = text.length > maxLogLen ? `${text.slice(0, maxLogLen)}\n... [truncated, total ${text.length} chars]` : text;
+                    logInfo(`OpenCode agent response (full text, expectJson=true) length=${text.length}:\n${toLog}`);
                     const parsed = parseJsonFromAgentText(text);
                     if (options.includeReasoning && reasoning) {
                         return { ...parsed, reasoning };

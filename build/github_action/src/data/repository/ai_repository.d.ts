@@ -1,22 +1,4 @@
 import { Ai } from '../model/ai';
-/** One session entry from OpenCode GET /session/status. */
-export interface OpenCodeSessionStatusEntry {
-    type: string;
-    attempt?: number;
-    message?: string;
-    next?: number;
-}
-/** Status response: session id -> status entry. */
-export type OpenCodeSessionStatusMap = Record<string, OpenCodeSessionStatusEntry>;
-export interface OpenCodeStatusSummary {
-    counts: {
-        idle: number;
-        busy: number;
-        retry: number;
-    };
-    hasRateLimit: boolean;
-    retryMessages: string[];
-}
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 export declare const OPENCODE_AGENT_PLAN = "plan";
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
