@@ -52303,12 +52303,18 @@ class DeployedActionUseCase {
             await this.issueRepository.setLabels(param.owner, param.repo, param.singleAction.issue, labelNames, param.tokens.token);
             (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.singleAction.issue}:`);
             (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
+            const issueNumber = Number(param.singleAction.issue);
+            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, issueNumber, param.tokens.token);
+            if (closed) {
+                (0, logger_1.logDebugInfo)(`Issue #${issueNumber} closed after successful deployment.`);
+            }
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
                 steps: [
                     `Label \`${param.labels.deployed}\` added after a success deploy.`,
+                    ...(closed ? [`Issue #${issueNumber} closed.`] : []),
                 ],
             }));
             if (param.currentConfiguration.releaseBranch) {
@@ -54505,6 +54511,7 @@ const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const content_utils_1 = __nccwpck_require__(7873);
 const logger_1 = __nccwpck_require__(8836);
+const move_issue_to_in_progress_1 = __nccwpck_require__(8203);
 class DeployAddedUseCase {
     constructor() {
         this.taskId = 'DeployAddedUseCase';
@@ -54517,6 +54524,7 @@ class DeployAddedUseCase {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
                 (0, logger_1.logDebugInfo)(`Deploying requested.`);
                 if (param.release.active && param.release.branch !== undefined) {
+                    result.push(...await new move_issue_to_in_progress_1.MoveIssueToInProgressUseCase().invoke(param));
                     const sanitizedTitle = param.issue.title
                         .replace(/\b\d+(\.\d+){2,}\b/g, '')
                         .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
@@ -54527,13 +54535,12 @@ class DeployAddedUseCase {
                         .replace(/- -/g, '-').trim()
                         .replace(/-+/g, '-')
                         .trim();
-                    const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    const escapedDescription = description.replace(/\n/g, '\\n');
+                    const changelogBody = (0, content_utils_1.extractChangelogUpToAdditionalContext)(param.issue.body, 'Changelog');
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
                         version: param.release.version,
                         title: sanitizedTitle,
-                        changelog: escapedDescription,
+                        changelog: changelogBody,
                         issue: `${param.issue.number}`,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.release.branch, param.workflows.release, parameters, param.tokens.token);
@@ -54549,6 +54556,7 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                     }));
                 }
                 else if (param.hotfix.active && param.hotfix.branch !== undefined) {
+                    result.push(...await new move_issue_to_in_progress_1.MoveIssueToInProgressUseCase().invoke(param));
                     const sanitizedTitle = param.issue.title
                         .replace(/\b\d+(\.\d+){2,}\b/g, '')
                         .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
@@ -54559,13 +54567,12 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                         .replace(/- -/g, '-').trim()
                         .replace(/-+/g, '-')
                         .trim();
-                    const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    const escapedDescription = description.replace(/\n/g, '\\n');
+                    const changelogBody = (0, content_utils_1.extractChangelogUpToAdditionalContext)(param.issue.body, 'Hotfix Solution');
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
                         title: sanitizedTitle,
-                        changelog: escapedDescription,
+                        changelog: changelogBody,
                         issue: param.issue.number,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.release, parameters, param.tokens.token);
@@ -56473,7 +56480,7 @@ exports.PROMPTS = {};
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.injectJsonAsMarkdownBlock = exports.extractReleaseType = exports.extractVersion = void 0;
+exports.injectJsonAsMarkdownBlock = exports.extractChangelogUpToAdditionalContext = exports.extractReleaseType = exports.extractVersion = void 0;
 const extractVersion = (pattern, text) => {
     const versionPattern = new RegExp(`###\\s*${pattern}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
     const match = text.match(versionPattern);
@@ -56486,6 +56493,22 @@ const extractReleaseType = (pattern, text) => {
     return match ? match[1] : undefined;
 };
 exports.extractReleaseType = extractReleaseType;
+/**
+ * Extracts changelog content from an issue body: from the given section heading (e.g. "Changelog" or "Hotfix Solution")
+ * up to but not including the "Additional Context" section. Used for release/hotfix deployment bodies.
+ */
+const extractChangelogUpToAdditionalContext = (body, sectionTitle) => {
+    if (body == null || body === '') {
+        return 'No changelog provided';
+    }
+    const escaped = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`(?:###|##)\\s*${escaped}\\s*\\n\\n([\\s\\S]*?)` +
+        `(?=\\n(?:###|##)\\s*Additional Context\\s*|$)`, 'i');
+    const match = body.match(pattern);
+    const content = match?.[1]?.trim();
+    return content ?? 'No changelog provided';
+};
+exports.extractChangelogUpToAdditionalContext = extractChangelogUpToAdditionalContext;
 const injectJsonAsMarkdownBlock = (title, json) => {
     const formattedJson = JSON.stringify(json, null, 4) // Pretty-print the JSON with 4 spaces.
         .split('\n') // Split into lines.
