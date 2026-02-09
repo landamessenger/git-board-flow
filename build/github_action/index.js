@@ -44402,6 +44402,7 @@ class BranchRepository {
                  * Default base branch name. (ex. [develop])
                  */
                 let baseBranchName = developmentBranch;
+                let isRenamingBranch = false;
                 if (!isHotfix) {
                     /**
                      * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
@@ -44417,6 +44418,7 @@ class BranchRepository {
                             const matchingBranch = data.find(branch => branch.name.indexOf(prefix) > -1);
                             if (matchingBranch) {
                                 baseBranchName = matchingBranch.name;
+                                isRenamingBranch = true;
                                 (0, logger_1.logDebugInfo)(`Found previous issue branch: ${baseBranchName}`);
                                 // TODO replacedBranchName = baseBranchName
                                 break;
@@ -44439,7 +44441,9 @@ class BranchRepository {
                 else {
                     baseBranchName = hotfixBranch ?? developmentBranch;
                 }
-                param.currentConfiguration.parentBranch = baseBranchName;
+                if (!isRenamingBranch) {
+                    param.currentConfiguration.parentBranch = baseBranchName;
+                }
                 (0, logger_1.logDebugInfo)(`============================================================================================`);
                 (0, logger_1.logDebugInfo)(`Base branch: ${baseBranchName}`);
                 (0, logger_1.logDebugInfo)(`New branch: ${newBranchName}`);
@@ -49303,6 +49307,9 @@ ${footer}
             }
             else if (param.isPullRequest) {
                 await this.issueRepository.addComment(param.owner, param.repo, param.pullRequest.number, commentBody, param.tokens.token);
+            }
+            else if (param.isPush && param.issueNumber > 0) {
+                await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
             }
         }
         catch (error) {
