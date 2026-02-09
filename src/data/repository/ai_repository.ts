@@ -1,11 +1,9 @@
 import {
     OPENCODE_MAX_RETRIES,
-    OPENCODE_RATELIMIT_MAX_WAIT_MS,
-    OPENCODE_RATELIMIT_POLL_MS,
     OPENCODE_REQUEST_TIMEOUT_MS,
     OPENCODE_RETRY_DELAY_MS,
 } from '../../utils/constants';
-import { logDebugInfo, logError, logInfo, logSingleLine } from '../../utils/logger';
+import { logDebugInfo, logError, logInfo } from '../../utils/logger';
 import { Ai } from '../model/ai';
 
 function delay(ms: number): Promise<void> {
@@ -57,164 +55,8 @@ function truncate(s: string, maxLen: number): string {
     return s.length <= maxLen ? s : s.slice(0, maxLen) + '...';
 }
 
-/** One session entry from OpenCode GET /session/status. */
-export interface OpenCodeSessionStatusEntry {
-    type: string;
-    attempt?: number;
-    message?: string;
-    next?: number;
-}
-
-/** Status response: session id -> status entry. */
-export type OpenCodeSessionStatusMap = Record<string, OpenCodeSessionStatusEntry>;
-
-export interface OpenCodeStatusSummary {
-    counts: { idle: number; busy: number; retry: number };
-    hasRateLimit: boolean;
-    retryMessages: string[];
-}
-
-const OPENCODE_STATUS_POLL_MS = 2000;
 const OPENCODE_PROMPT_LOG_PREVIEW_LEN = 500;
 const OPENCODE_PROMPT_LOG_FULL_LEN = 3000;
-const RATE_LIMIT_MESSAGE_PATTERN = /rate\s*limit/i;
-
-/**
- * Fetch and parse OpenCode GET /session/status. Single place that consumes the endpoint.
- * Returns null on fetch/parse failure.
- */
-async function getOpenCodeStatus(baseUrl: string): Promise<OpenCodeStatusSummary | null> {
-    const base = ensureNoTrailingSlash(baseUrl);
-    try {
-        const res = await fetch(`${base}/session/status`);
-        if (!res.ok) return null;
-        const data = (await res.json()) as unknown;
-        if (data == null || typeof data !== 'object' || Array.isArray(data)) return null;
-        const map = data as OpenCodeSessionStatusMap;
-        const counts = { idle: 0, busy: 0, retry: 0 };
-        const retryMessages: string[] = [];
-        for (const entry of Object.values(map)) {
-            if (!entry || typeof entry !== 'object') continue;
-            const type = String(entry.type ?? '').toLowerCase();
-            if (type === 'idle') counts.idle++;
-            else if (type === 'busy') counts.busy++;
-            else if (type === 'retry') {
-                counts.retry++;
-                if (entry.message && RATE_LIMIT_MESSAGE_PATTERN.test(entry.message)) {
-                    retryMessages.push(entry.message);
-                }
-            }
-        }
-        return {
-            counts,
-            hasRateLimit: retryMessages.length > 0,
-            retryMessages,
-        };
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Wait until OpenCode status shows no rate limit (no retry sessions with "rate limit" message),
- * polling every OPENCODE_RATELIMIT_POLL_MS. Resolves when clear or after OPENCODE_RATELIMIT_MAX_WAIT_MS.
- */
-async function waitForOpenCodeRateLimitClear(baseUrl: string): Promise<void> {
-    const start = Date.now();
-    while (Date.now() - start < OPENCODE_RATELIMIT_MAX_WAIT_MS) {
-        const status = await getOpenCodeStatus(baseUrl);
-        if (!status?.hasRateLimit) return;
-        logInfo(
-            `OpenCode rate limit active (${status.counts.retry} retry, ${status.retryMessages[0] ?? 'retry'}). Waiting ${OPENCODE_RATELIMIT_POLL_MS / 1000}s...`
-        );
-        await delay(OPENCODE_RATELIMIT_POLL_MS);
-    }
-    logInfo('OpenCode rate limit wait timed out; proceeding with request.');
-}
-
-/** Basename from full path (e.g. /a/b/file.ts -> file.ts). */
-function pathBasename(path: string): string {
-    const last = path.replace(/\/+$/, '').split('/').pop();
-    return last ?? path;
-}
-
-/** Progress state shared between status poller and SSE "reading" events. */
-interface OpenCodeProgressState {
-    statusLine: string;
-    reading: string;
-}
-
-/**
- * Start OpenCode progress display: poll session/status and subscribe to /event for lsp.client.diagnostics.
- * Shows one line: "OpenCode: idle=X busy=Y retry=Z | Reading file.ts" (reading updates when LSP analyzes a file).
- * Only runs when stdout is a TTY. Returns a stop function.
- */
-function startOpenCodeProgressDisplay(baseUrl: string): () => void {
-    if (!process.stdout.isTTY) return () => {};
-    const base = ensureNoTrailingSlash(baseUrl);
-    const state: OpenCodeProgressState = { statusLine: 'OpenCode: …', reading: '' };
-    const ac = new AbortController();
-
-    function redraw(): void {
-        const parts = [state.statusLine];
-        if (state.reading) parts.push(`Reading ${state.reading}...`);
-        logSingleLine(parts.join(' | '));
-    }
-
-    const interval = setInterval(() => {
-        getOpenCodeStatus(baseUrl).then((summary) => {
-            if (!summary) return;
-            const { counts } = summary;
-            state.statusLine = `OpenCode: idle=${counts.idle} busy=${counts.busy} retry=${counts.retry}`;
-            if (summary.hasRateLimit && summary.retryMessages[0]) {
-                state.statusLine += ` | ${summary.retryMessages[0]}`;
-            }
-            redraw();
-        });
-    }, OPENCODE_STATUS_POLL_MS);
-
-    /** SSE client: /event stream, on lsp.client.diagnostics show "Reading <file>...". */
-    (async () => {
-        try {
-            const res = await fetch(`${base}/event`, {
-                headers: { Accept: 'text/event-stream' },
-                signal: ac.signal,
-            });
-            if (!res.ok || !res.body) return;
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const chunks = buffer.split('\n\n');
-                buffer = chunks.pop() ?? '';
-                for (const chunk of chunks) {
-                    const dataLine = chunk.split('\n').find((l) => l.startsWith('data:'));
-                    if (!dataLine) continue;
-                    try {
-                        const json = JSON.parse(dataLine.slice(5).trim()) as { type?: string; properties?: { path?: string } };
-                        if (json.type === 'lsp.client.diagnostics' && json.properties?.path) {
-                            state.reading = pathBasename(json.properties.path);
-                            redraw();
-                        }
-                    } catch {
-                        // ignore parse errors
-                    }
-                }
-            }
-        } catch {
-            // aborted or network error
-        }
-    })();
-
-    return () => {
-        clearInterval(interval);
-        ac.abort();
-        process.stdout.write('\n');
-    };
-}
 
 /** Result of validating AI config for OpenCode calls. null when invalid. */
 interface OpenCodeConfig {
@@ -539,8 +381,6 @@ export class AiRepository {
             options.expectJson && options.schema
                 ? `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`
                 : prompt;
-        await waitForOpenCodeRateLimitClear(serverUrl);
-        const stopProgressDisplay = startOpenCodeProgressDisplay(serverUrl);
         try {
             return await withOpenCodeRetry(async () => {
                 const { text, parts } = await opencodeMessageWithAgentRaw(serverUrl, {
@@ -566,8 +406,6 @@ export class AiRepository {
             const detail = cause != null ? ` (${cause instanceof Error ? cause.message : String(cause)})` : '';
             logError(`Error querying OpenCode agent ${agentId} (${model}): ${err.message}${detail}`);
             return undefined;
-        } finally {
-            stopProgressDisplay();
         }
     };
 
@@ -582,8 +420,6 @@ export class AiRepository {
         const config = getValidatedOpenCodeConfig(ai);
         if (!config) return undefined;
         const { serverUrl, providerID, modelID, model } = config;
-        await waitForOpenCodeRateLimitClear(serverUrl);
-        const stopProgressDisplay = startOpenCodeProgressDisplay(serverUrl);
         try {
             const result = await withOpenCodeRetry(
                 () =>
@@ -600,8 +436,6 @@ export class AiRepository {
             const err = error instanceof Error ? error : new Error(String(error));
             logError(`Error querying OpenCode build agent (${model}): ${err.message}`);
             return undefined;
-        } finally {
-            stopProgressDisplay();
         }
     };
 }
