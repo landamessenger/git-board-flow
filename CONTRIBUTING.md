@@ -62,7 +62,8 @@ npm run build
 
 - Update the relevant docs in `docs/` when changing behavior or adding features.
 - For user-facing changes, update `README.md` and the docs at [docs.page/landamessenger/git-board-flow](https://docs.page/landamessenger/git-board-flow).
-- The project uses [Mintlify](https://mintlify.com/) for docs; see `docs.json` for sidebar structure.
+- The project uses [Mintlify](https://mintlify.com/) (docs.page) for docs; see `docs.json` for sidebar structure.
+- Use Mintlify components for a consistent, readable UI: **Card**, **Card** inside **Columns**, **Tabs**, **Accordion** / **AccordionGroup**, **Steps**, **Info** / **Warning** / **Tip** / **Note**. See [Mintlify Components](https://mintlify.com/docs/components).
 
 ## Submitting Changes
 

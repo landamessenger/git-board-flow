@@ -46,14 +46,18 @@ The AI is instructed to use your repository's **pull request template** as the s
 
 If you don't have a template, the agent will still produce a structured description, but defining a template ensures consistent, professional PR descriptions that match your team's expectations (e.g. Summary, Related Issues, Scope of Changes, Technical Details, How to Test, Breaking Changes, Deployment Notes, etc.).
 
-**Recommendation:** Add a `.github/pull_request_template.md` in your repo with the sections you want (summary, scope, testing, breaking changes, etc.). The AI will use it as a guide and fill it with the information from the issue and the branch diff.
+<Tip>
+  **Recommendation:** Add a `.github/pull_request_template.md` in your repo with the sections you want (summary, scope, testing, breaking changes, etc.). The AI will use it as a guide and fill it with the information from the issue and the branch diff.
+</Tip>
 
 ### When the AI description runs
 
-- The PR must have an **issue linked** (branch name follows the pattern that includes the issue number, e.g. `feature/123-add-feature`).
-- The linked issue must have a **non-empty description** (used as context).
-- If `ai-members-only` is enabled (default: false), the PR author must be a **project/org member**; otherwise the step is skipped.
-- The action runs on the same `pull_request` events as the rest of the PR pipeline (e.g. opened, edited).
+<Info>
+  - The PR must have an **issue linked** (branch name follows the pattern that includes the issue number, e.g. `feature/123-add-feature`).
+  - The linked issue must have a **non-empty description** (used as context).
+  - If `ai-members-only` is enabled (default: false), the PR author must be a **project/org member**; otherwise the step is skipped.
+  - The action runs on the same `pull_request` events as the rest of the PR pipeline (e.g. opened, edited).
+</Info>
 
 To enable: set `ai-pull-request-description: true` in your workflow and configure OpenCode. See [Configuration → AI Features](/configuration#ai-features) and [OpenCode (AI)](/opencode-integration).
 

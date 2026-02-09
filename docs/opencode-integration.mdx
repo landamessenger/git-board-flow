@@ -23,18 +23,20 @@ Git Board Flow uses **OpenCode** for all AI-backed features: code analysis, prog
 
 OpenCode reads provider API keys and options from **environment variables** (and optionally from `~/.local/share/opencode/auth.json` when using the `/connect` command in the TUI).
 
-**In GitHub Actions with `opencode-start-server: true`:** the action starts a **headless** OpenCode server (`opencode serve`). There is no TUI and **`/connect` is not available** during the run. Credentials must be provided **only via environment variables** in the job's `env` (e.g. secrets). The action passes the job's `env` to the OpenCode process so any variable you set in the workflow is available to OpenCode.
+<Info>
+  **In GitHub Actions with `opencode-start-server: true`:** the action starts a **headless** OpenCode server (`opencode serve`). There is no TUI and **`/connect` is not available** during the run. Credentials must be provided **only via environment variables** in the job's `env` (e.g. secrets). The action passes the job's `env` to the OpenCode process so any variable you set in the workflow is available to OpenCode.
+</Info>
 
 You can also reference env vars in an `opencode.json` config via `{env:VAR_NAME}` (see [OpenCode Config – Variables](https://opencode.ai/docs/config#env-vars)).
 
-#### If you need `/connect` or providers not exposed via env
+<Accordion title="If you need `/connect` or providers not exposed via env" icon="key">
+  Some providers are typically configured in OpenCode via the interactive `/connect` command (TUI). If you need those in CI and cannot pass credentials by env:
 
-Some providers are typically configured in OpenCode via the interactive `/connect` command (TUI). If you need those in CI and cannot pass credentials by env:
+  1. **Self-hosted runner with OpenCode running locally** – Run OpenCode on a machine (or container) that you control, use the TUI there to run `/connect` and add your providers. Point the action at that server with `opencode-server-url` (and leave `opencode-start-server: false`). Use a [self-hosted GitHub Actions runner](https://docs.github.com/en/actions/using-github-hosted-runners/using-self-hosted-runners) on the same network so the job can reach that OpenCode instance.
+  2. **Another GitHub Action that connects to those providers** – Use a different action or workflow that starts or configures an OpenCode-compatible server (or gateway) with access to the providers you need, then set `opencode-server-url` in this action to that service.
 
-1. **Self-hosted runner with OpenCode running locally** – Run OpenCode on a machine (or container) that you control, use the TUI there to run `/connect` and add your providers. Point the action at that server with `opencode-server-url` (and leave `opencode-start-server: false`). Use a [self-hosted GitHub Actions runner](https://docs.github.com/en/actions/using-github-hosted-runners/using-self-hosted-runners) on the same network so the job can reach that OpenCode instance.
-2. **Another GitHub Action that connects to those providers** – Use a different action or workflow that starts or configures an OpenCode-compatible server (or gateway) with access to the providers you need, then set `opencode-server-url` in this action to that service.
-
-In both cases you use **your own** OpenCode server (or a server set up by another action) instead of `opencode-start-server: true`, so credentials are managed outside this action.
+  In both cases you use **your own** OpenCode server (or a server set up by another action) instead of `opencode-start-server: true`, so credentials are managed outside this action.
+</Accordion>
 
 #### Provider credentials reference
 
