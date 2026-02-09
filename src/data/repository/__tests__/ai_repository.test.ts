@@ -36,139 +36,6 @@ describe('AiRepository', () => {
     jest.useRealTimers();
   });
 
-  describe('ask', () => {
-    it('returns undefined when server URL is missing', async () => {
-      const ai = createAi('', 'opencode/model');
-      const result = await repo.ask(ai, 'Hello');
-      expect(result).toBeUndefined();
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('returns undefined when model is empty', async () => {
-      const ai = createAi('http://localhost:4096', '');
-      const result = await repo.ask(ai, 'Hello');
-      expect(result).toBeUndefined();
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('returns undefined when session create fails after all retries', async () => {
-      const ai = createAi();
-      mockFetch.mockResolvedValue({ ok: false, status: 500, text: async () => 'Server error' });
-      const promise = repo.ask(ai, 'Hello');
-      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
-      const result = await promise;
-      expect(result).toBeUndefined();
-      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES);
-    });
-
-    it('returns undefined when message request fails after all retries', async () => {
-      const ai = createAi();
-      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 'sess-1' }) };
-      const messageFail = { ok: false, status: 502, text: async () => 'Bad gateway' };
-      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
-        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageFail);
-      }
-      const promise = repo.ask(ai, 'Hello');
-      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
-      const result = await promise;
-      expect(result).toBeUndefined();
-      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES * 2);
-    });
-
-    it('returns undefined when response body is empty after all retries', async () => {
-      const ai = createAi();
-      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 'sess-1' }) };
-      const emptyBody = { ok: true, status: 200, text: async () => '' };
-      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
-        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(emptyBody);
-      }
-      const promise = repo.ask(ai, 'Hello');
-      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
-      const result = await promise;
-      expect(result).toBeUndefined();
-      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES * 2);
-    });
-
-    it('returns undefined when message response is invalid JSON after all retries', async () => {
-      const ai = createAi();
-      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 'sess-1' }) };
-      const invalidJson = { ok: true, status: 200, text: async () => 'not json' };
-      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
-        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(invalidJson);
-      }
-      const promise = repo.ask(ai, 'Hello');
-      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
-      const result = await promise;
-      expect(result).toBeUndefined();
-      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES * 2);
-    });
-
-    it('returns extracted text from parts on success', async () => {
-      const ai = createAi();
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => JSON.stringify({ id: 'sess-1' }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          text: async () =>
-            JSON.stringify({
-              parts: [
-                { type: 'text', text: 'Hello back' },
-                { type: 'other', data: 'ignored' },
-              ],
-            }),
-        });
-      const result = await repo.ask(ai, 'Hello');
-      expect(result).toBe('Hello back');
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-    });
-
-    it('handles session response with data.id', async () => {
-      const ai = createAi();
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => JSON.stringify({ data: { id: 'sess-alt' } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          text: async () => JSON.stringify({ parts: [{ type: 'text', text: 'OK' }] }),
-        });
-      const result = await repo.ask(ai, 'Hi');
-      expect(result).toBe('OK');
-      expect(mockFetch).toHaveBeenNthCalledWith(
-        2,
-        'http://localhost:4096/session/sess-alt/message',
-        expect.any(Object)
-      );
-    });
-
-    it('succeeds on retry after initial session create failure', async () => {
-      const ai = createAi();
-      mockFetch
-        .mockResolvedValueOnce({ ok: false, status: 503, text: async () => 'Unavailable' })
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => JSON.stringify({ id: 'sess-1' }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          text: async () =>
-            JSON.stringify({ parts: [{ type: 'text', text: 'Recovered' }] }),
-        });
-      const promise = repo.ask(ai, 'Hello');
-      await jest.advanceTimersByTimeAsync(OPENCODE_RETRY_DELAY_MS);
-      const result = await promise;
-      expect(result).toBe('Recovered');
-      expect(mockFetch).toHaveBeenCalledTimes(3);
-    });
-  });
-
   describe('askAgent', () => {
     it('returns undefined when server URL is missing', async () => {
       const ai = createAi('', 'opencode/model');
@@ -299,23 +166,54 @@ describe('AiRepository', () => {
       });
     });
 
-    it('returns undefined when expectJson is true but response is invalid JSON', async () => {
+    it('returns undefined when expectJson is true but response is invalid JSON after all retries', async () => {
       const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageInvalidJson = {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            parts: [{ type: 'text', text: 'not valid json at all' }],
+          }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageInvalidJson);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'Assess', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES * 2);
+    });
+
+    it('succeeds on parse retry when first response is invalid JSON and second is valid', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => JSON.stringify({ id: 's1' }),
-        })
+        .mockResolvedValueOnce(sessionOk)
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
           text: async () =>
             JSON.stringify({
-              parts: [{ type: 'text', text: 'not valid json at all' }],
+              parts: [{ type: 'text', text: 'not valid json' }],
+            }),
+        })
+        .mockResolvedValueOnce(sessionOk)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              parts: [{ type: 'text', text: '{"progress": 80, "summary": "Done"}' }],
             }),
         });
-      const result = await repo.askAgent(ai, 'plan', 'Assess', { expectJson: true, schema: {} });
-      expect(result).toBeUndefined();
+      const promise = repo.askAgent(ai, 'plan', 'Assess', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync(OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toEqual({ progress: 80, summary: 'Done' });
+      expect(mockFetch).toHaveBeenCalledTimes(4);
     });
 
     it('removes trailing slash from server URL', async () => {

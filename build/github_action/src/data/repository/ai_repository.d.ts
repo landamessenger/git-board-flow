@@ -19,6 +19,31 @@ export declare const TRANSLATION_RESPONSE_SCHEMA: {
     readonly required: readonly ["translatedText"];
     readonly additionalProperties: false;
 };
+/** JSON schema for Think (Q&A) responses: single answer field. */
+export declare const THINK_RESPONSE_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly answer: {
+            readonly type: "string";
+            readonly description: "The concise answer to the user question. Required.";
+        };
+    };
+    readonly required: readonly ["answer"];
+    readonly additionalProperties: false;
+};
+/** JSON schema for language check: done (already in locale) or must_translate. */
+export declare const LANGUAGE_CHECK_RESPONSE_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly status: {
+            readonly type: "string";
+            readonly enum: readonly ["done", "must_translate"];
+            readonly description: "done if text is in the requested locale, must_translate otherwise.";
+        };
+    };
+    readonly required: readonly ["status"];
+    readonly additionalProperties: false;
+};
 export interface AskAgentOptions {
     /** Request JSON response and parse it. If schema provided, include it in the prompt. */
     expectJson?: boolean;
@@ -41,19 +66,14 @@ export interface OpenCodeFileDiff {
  */
 export declare function getSessionDiff(baseUrl: string, sessionId: string): Promise<OpenCodeFileDiff[]>;
 export declare class AiRepository {
-    ask: (ai: Ai, prompt: string) => Promise<string | undefined>;
     /**
-     * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
-     * Returns the final message (including reasoning in parts when includeReasoning is true).
-     * @param ai - AI config (server URL, model)
-     * @param agentId - OpenCode agent id (e.g. OPENCODE_AGENT_PLAN)
-     * @param prompt - User prompt
-     * @param options - expectJson, schema, includeReasoning
-     * @returns Response text, or parsed JSON when expectJson is true
+     * Ask an OpenCode agent (e.g. Plan) to perform a task. All calls use strict response (expectJson + schema).
+     * Single retry system: HTTP failures and parse failures both retry up to OPENCODE_MAX_RETRIES.
      */
     askAgent: (ai: Ai, agentId: string, prompt: string, options?: AskAgentOptions) => Promise<string | Record<string, unknown> | undefined>;
     /**
      * Run the OpenCode "build" agent for the copilot command. Returns the final message and sessionId.
+     * Uses the same retry system (OPENCODE_MAX_RETRIES).
      */
     copilotMessage: (ai: Ai, prompt: string) => Promise<{
         text: string;

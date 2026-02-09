@@ -43941,7 +43941,7 @@ exports.Workflows = Workflows;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AiRepository = exports.TRANSLATION_RESPONSE_SCHEMA = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
+exports.AiRepository = exports.LANGUAGE_CHECK_RESPONSE_SCHEMA = exports.THINK_RESPONSE_SCHEMA = exports.TRANSLATION_RESPONSE_SCHEMA = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
 exports.getSessionDiff = getSessionDiff;
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
@@ -43950,7 +43950,15 @@ function delay(ms) {
 }
 /**
  * Runs an async OpenCode operation with retries. On failure, logs and retries up to OPENCODE_MAX_RETRIES.
- * Callers do not need to implement retry logic; it is applied here for all OpenCode HTTP calls.
+ * Single retry system for all OpenCode interactions: no parallel retry logic.
+ *
+ * Retries when the operation throws, including:
+ * - Network errors (fetch fails, connection refused, etc.)
+ * - HTTP errors (4xx/5xx from session create or message)
+ * - Timeout (OPENCODE_REQUEST_TIMEOUT_MS)
+ * - Empty or invalid JSON response body (parseJsonResponse throws)
+ * - Missing session id in create response
+ * - Parse failure of expected format (e.g. expectJson but text is not valid JSON) when parse is done inside the callback
  */
 async function withOpenCodeRetry(fn, context) {
     let lastError;
@@ -44046,92 +44054,74 @@ exports.TRANSLATION_RESPONSE_SCHEMA = {
     required: ['translatedText'],
     additionalProperties: false,
 };
-/**
- * OpenCode HTTP API: create session and send message, return assistant parts.
- * Uses fetch to avoid ESM-only SDK with ncc. Wrapped with retries (OPENCODE_MAX_RETRIES).
- */
-async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
-    return withOpenCodeRetry(async () => {
-        const base = ensureNoTrailingSlash(baseUrl);
-        const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-        const createRes = await fetch(`${base}/session`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'gbf' }),
-            signal,
-        });
-        if (!createRes.ok) {
-            const err = await createRes.text();
-            throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
-        }
-        const session = await parseJsonResponse(createRes, 'OpenCode session.create');
-        const sessionId = session?.id ?? session?.data?.id;
-        if (!sessionId) {
-            throw new Error('OpenCode session.create did not return session id');
-        }
-        const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: { providerID, modelID },
-                parts: [{ type: 'text', text: promptText }],
-            }),
-            signal,
-        });
-        if (!messageRes.ok) {
-            const err = await messageRes.text();
-            throw new Error(`OpenCode message failed: ${messageRes.status} ${err}`);
-        }
-        const messageData = await parseJsonResponse(messageRes, 'OpenCode message');
-        const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-        return extractTextFromParts(parts);
-    }, 'session+message');
-}
+/** JSON schema for Think (Q&A) responses: single answer field. */
+exports.THINK_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        answer: {
+            type: 'string',
+            description: 'The concise answer to the user question. Required.',
+        },
+    },
+    required: ['answer'],
+    additionalProperties: false,
+};
+/** JSON schema for language check: done (already in locale) or must_translate. */
+exports.LANGUAGE_CHECK_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        status: {
+            type: 'string',
+            enum: ['done', 'must_translate'],
+            description: 'done if text is in the requested locale, must_translate otherwise.',
+        },
+    },
+    required: ['status'],
+    additionalProperties: false,
+};
 /**
  * Send a message to an OpenCode agent (e.g. "plan", "build") and wait for the full response.
- * The server runs the agent loop (tools, etc.) and returns when done.
- * Use this to delegate PR description, progress, error detection, recommendations, or copilot (build) to OpenCode.
- * Wrapped with retries (OPENCODE_MAX_RETRIES).
+ * Raw call: no retries. Callers (askAgent, copilotMessage) wrap in withOpenCodeRetry.
  */
-async function opencodeMessageWithAgent(baseUrl, options) {
-    return withOpenCodeRetry(async () => {
-        const base = ensureNoTrailingSlash(baseUrl);
-        const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-        const createRes = await fetch(`${base}/session`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'gbf' }),
-            signal,
-        });
-        if (!createRes.ok) {
-            const err = await createRes.text();
-            throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
-        }
-        const session = await parseJsonResponse(createRes, 'OpenCode session.create');
-        const sessionId = session?.id ?? session?.data?.id;
-        if (!sessionId) {
-            throw new Error('OpenCode session.create did not return session id');
-        }
-        const body = {
-            agent: options.agent,
-            model: { providerID: options.providerID, modelID: options.modelID },
-            parts: [{ type: 'text', text: options.promptText }],
-        };
-        const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal,
-        });
-        if (!messageRes.ok) {
-            const err = await messageRes.text();
-            throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
-        }
-        const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
-        const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-        const text = extractTextFromParts(parts);
-        return { text, parts, sessionId };
-    }, `agent ${options.agent}`);
+async function opencodeMessageWithAgentRaw(baseUrl, options) {
+    (0, logger_1.logInfo)(`OpenCode request [agent ${options.agent}] model=${options.providerID}/${options.modelID} promptLength=${options.promptText.length}`);
+    const base = ensureNoTrailingSlash(baseUrl);
+    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
+    const createRes = await fetch(`${base}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'gbf' }),
+        signal,
+    });
+    if (!createRes.ok) {
+        const err = await createRes.text();
+        throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
+    }
+    const session = await parseJsonResponse(createRes, 'OpenCode session.create');
+    const sessionId = session?.id ?? session?.data?.id;
+    if (!sessionId) {
+        throw new Error('OpenCode session.create did not return session id');
+    }
+    const body = {
+        agent: options.agent,
+        model: { providerID: options.providerID, modelID: options.modelID },
+        parts: [{ type: 'text', text: options.promptText }],
+    };
+    const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+    });
+    if (!messageRes.ok) {
+        const err = await messageRes.text();
+        throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
+    }
+    const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
+    const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
+    const text = extractTextFromParts(parts);
+    (0, logger_1.logInfo)(`OpenCode response [agent ${options.agent}] responseLength=${text.length} sessionId=${sessionId}`);
+    return { text, parts, sessionId };
 }
 /**
  * Get the diff for an OpenCode session (files changed by the agent).
@@ -44140,55 +44130,41 @@ async function opencodeMessageWithAgent(baseUrl, options) {
  */
 async function getSessionDiff(baseUrl, sessionId) {
     return withOpenCodeRetry(async () => {
+        (0, logger_1.logInfo)(`OpenCode request [session diff] sessionId=${sessionId}`);
         const base = ensureNoTrailingSlash(baseUrl);
         const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
         const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET', signal });
-        if (!res.ok)
-            return []; // 404 / 4xx: no diff or not supported; do not retry
-        const raw = await res.text();
-        if (!raw?.trim())
+        if (!res.ok) {
+            (0, logger_1.logInfo)(`OpenCode response [session diff] fileCount=0 (status ${res.status})`);
             return [];
+        }
+        const raw = await res.text();
+        if (!raw?.trim()) {
+            (0, logger_1.logInfo)('OpenCode response [session diff] fileCount=0 (empty body)');
+            return [];
+        }
         let data;
         try {
             data = JSON.parse(raw);
         }
         catch {
+            (0, logger_1.logInfo)('OpenCode response [session diff] fileCount=0 (invalid JSON)');
             return [];
         }
-        if (Array.isArray(data))
-            return data;
-        if (Array.isArray(data.data))
-            return data.data;
-        return [];
+        const list = Array.isArray(data)
+            ? data
+            : Array.isArray(data.data)
+                ? data.data
+                : [];
+        (0, logger_1.logInfo)(`OpenCode response [session diff] fileCount=${list.length}`);
+        return list;
     }, 'session diff');
 }
 class AiRepository {
     constructor() {
-        this.ask = async (ai, prompt) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
-                return undefined;
-            }
-            try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
-                const text = await opencodePrompt(serverUrl, providerID, modelID, prompt);
-                return text || undefined;
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error querying OpenCode (${model}): ${error}`);
-                return undefined;
-            }
-        };
         /**
-         * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
-         * Returns the final message (including reasoning in parts when includeReasoning is true).
-         * @param ai - AI config (server URL, model)
-         * @param agentId - OpenCode agent id (e.g. OPENCODE_AGENT_PLAN)
-         * @param prompt - User prompt
-         * @param options - expectJson, schema, includeReasoning
-         * @returns Response text, or parsed JSON when expectJson is true
+         * Ask an OpenCode agent (e.g. Plan) to perform a task. All calls use strict response (expectJson + schema).
+         * Single retry system: HTTP failures and parse failures both retry up to OPENCODE_MAX_RETRIES.
          */
         this.askAgent = async (ai, agentId, prompt, options = {}) => {
             const serverUrl = ai.getOpencodeServerUrl();
@@ -44197,31 +44173,32 @@ class AiRepository {
                 (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
                 return undefined;
             }
+            const { providerID, modelID } = ai.getOpencodeModelParts();
+            const schemaName = options.schemaName ?? 'response';
+            const promptText = options.expectJson && options.schema
+                ? `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`
+                : prompt;
             try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
-                let promptText = prompt;
-                if (options.expectJson && options.schema) {
-                    const schemaName = options.schemaName ?? 'response';
-                    promptText = `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`;
-                }
-                const { text, parts } = await opencodeMessageWithAgent(serverUrl, {
-                    providerID,
-                    modelID,
-                    agent: agentId,
-                    promptText,
-                });
-                if (!text)
-                    return undefined;
-                const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
-                if (options.expectJson) {
-                    const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-                    const parsed = JSON.parse(cleaned);
-                    if (options.includeReasoning && reasoning) {
-                        return { ...parsed, reasoning };
+                return await withOpenCodeRetry(async () => {
+                    const { text, parts } = await opencodeMessageWithAgentRaw(serverUrl, {
+                        providerID,
+                        modelID,
+                        agent: agentId,
+                        promptText,
+                    });
+                    if (!text)
+                        throw new Error('Empty response text');
+                    const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
+                    if (options.expectJson && options.schema) {
+                        const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+                        const parsed = JSON.parse(cleaned);
+                        if (options.includeReasoning && reasoning) {
+                            return { ...parsed, reasoning };
+                        }
+                        return parsed;
                     }
-                    return parsed;
-                }
-                return text;
+                    return text;
+                }, `agent ${agentId}`);
             }
             catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
@@ -44238,6 +44215,7 @@ class AiRepository {
         };
         /**
          * Run the OpenCode "build" agent for the copilot command. Returns the final message and sessionId.
+         * Uses the same retry system (OPENCODE_MAX_RETRIES).
          */
         this.copilotMessage = async (ai, prompt) => {
             const serverUrl = ai.getOpencodeServerUrl();
@@ -44248,24 +44226,17 @@ class AiRepository {
             }
             try {
                 const { providerID, modelID } = ai.getOpencodeModelParts();
-                const result = await opencodeMessageWithAgent(serverUrl, {
+                const result = await withOpenCodeRetry(() => opencodeMessageWithAgentRaw(serverUrl, {
                     providerID,
                     modelID,
                     agent: exports.OPENCODE_AGENT_BUILD,
                     promptText: prompt,
-                });
+                }), `agent ${exports.OPENCODE_AGENT_BUILD}`);
                 return { text: result.text, sessionId: result.sessionId };
             }
             catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                const errWithCause = err;
-                const cause = errWithCause.cause instanceof Error
-                    ? errWithCause.cause.message
-                    : errWithCause.cause != null
-                        ? String(errWithCause.cause)
-                        : '';
-                const detail = cause ? ` (${cause})` : '';
-                (0, logger_1.logError)(`Error querying OpenCode build agent (${model}): ${err.message}${detail}`);
+                (0, logger_1.logError)(`Error querying OpenCode build agent (${model}): ${err.message}`);
                 return undefined;
             }
         };
@@ -49552,8 +49523,17 @@ class ThinkUseCase {
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
             const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.${contextBlock}Question: ${question}`;
-            const answer = await this.aiRepository.ask(param.ai, prompt);
-            if (answer === undefined || !answer.trim()) {
+            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+                expectJson: true,
+                schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
+                schemaName: 'think_response',
+            });
+            const answer = response != null &&
+                typeof response === 'object' &&
+                typeof response.answer === 'string'
+                ? response.answer.trim()
+                : '';
+            if (!answer) {
                 (0, logger_1.logError)('OpenCode returned no answer for Think.');
                 results.push(new result_1.Result({
                     id: this.taskId,
@@ -51062,8 +51042,17 @@ If you'd like this comment to be translated again, please delete the entire comm
         
         The text is: ${commentBody}
         `;
-        let result = await this.aiRepository.ask(param.ai, prompt);
-        if (result === "done") {
+        const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+            expectJson: true,
+            schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
+            schemaName: 'language_check_response',
+        });
+        const status = checkResponse != null &&
+            typeof checkResponse === 'object' &&
+            typeof checkResponse.status === 'string'
+            ? checkResponse.status
+            : '';
+        if (status === 'done') {
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -51675,8 +51664,17 @@ If you'd like this comment to be translated again, please delete the entire comm
         
         The text is: ${commentBody}
         `;
-        let result = await this.aiRepository.ask(param.ai, prompt);
-        if (result === "done") {
+        const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+            expectJson: true,
+            schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
+            schemaName: 'language_check_response',
+        });
+        const status = checkResponse != null &&
+            typeof checkResponse === 'object' &&
+            typeof checkResponse.status === 'string'
+            ? checkResponse.status
+            : '';
+        if (status === 'done') {
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
