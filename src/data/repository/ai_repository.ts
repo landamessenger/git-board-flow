@@ -145,6 +145,29 @@ function extractReasoningFromParts(parts: unknown): string {
     return extractPartsByType(parts, 'reasoning', '\n\n');
 }
 
+/** Max length of per-part text preview in debug log (to avoid huge log lines). */
+const OPENCODE_PART_PREVIEW_LEN = 80;
+
+/**
+ * Build a short summary of OpenCode message parts for debug logs (types, text lengths, and short preview).
+ */
+function summarizePartsForLog(parts: unknown[], context: string): string {
+    if (!Array.isArray(parts) || parts.length === 0) {
+        return `${context}: 0 parts`;
+    }
+    const items = (parts as Array<{ type?: string; text?: string }>).map((p, i) => {
+        const type = p?.type ?? '(missing type)';
+        const text = typeof p?.text === 'string' ? p.text : '';
+        const len = text.length;
+        const preview =
+            len > OPENCODE_PART_PREVIEW_LEN
+                ? `${text.slice(0, OPENCODE_PART_PREVIEW_LEN).replace(/\n/g, ' ')}...`
+                : text.replace(/\n/g, ' ');
+        return `[${i}] type=${type} length=${len}${preview ? ` preview=${JSON.stringify(preview)}` : ''}`;
+    });
+    return `${context}: ${parts.length} part(s) — ${items.join(' | ')}`;
+}
+
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 export const OPENCODE_AGENT_PLAN = 'plan';
 
@@ -268,11 +291,13 @@ async function opencodeMessageWithAgentRaw(
         `OpenCode agent "${options.agent}" message`
     );
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-    const text = extractTextFromParts(parts);
+    const partsArray = Array.isArray(parts) ? parts : [];
+    logDebugInfo(summarizePartsForLog(partsArray, `OpenCode agent "${options.agent}" message parts`));
+    const text = extractTextFromParts(partsArray);
     logInfo(
         `OpenCode response [agent ${options.agent}] responseLength=${text.length} sessionId=${sessionId}`
     );
-    return { text, parts, sessionId };
+    return { text, parts: partsArray, sessionId };
 }
 
 /** File diff from OpenCode GET /session/:id/diff */

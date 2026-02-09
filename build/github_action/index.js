@@ -44067,6 +44067,26 @@ function extractTextFromParts(parts) {
 function extractReasoningFromParts(parts) {
     return extractPartsByType(parts, 'reasoning', '\n\n');
 }
+/** Max length of per-part text preview in debug log (to avoid huge log lines). */
+const OPENCODE_PART_PREVIEW_LEN = 80;
+/**
+ * Build a short summary of OpenCode message parts for debug logs (types, text lengths, and short preview).
+ */
+function summarizePartsForLog(parts, context) {
+    if (!Array.isArray(parts) || parts.length === 0) {
+        return `${context}: 0 parts`;
+    }
+    const items = parts.map((p, i) => {
+        const type = p?.type ?? '(missing type)';
+        const text = typeof p?.text === 'string' ? p.text : '';
+        const len = text.length;
+        const preview = len > OPENCODE_PART_PREVIEW_LEN
+            ? `${text.slice(0, OPENCODE_PART_PREVIEW_LEN).replace(/\n/g, ' ')}...`
+            : text.replace(/\n/g, ' ');
+        return `[${i}] type=${type} length=${len}${preview ? ` preview=${JSON.stringify(preview)}` : ''}`;
+    });
+    return `${context}: ${parts.length} part(s) — ${items.join(' | ')}`;
+}
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 exports.OPENCODE_AGENT_PLAN = 'plan';
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
@@ -44152,9 +44172,11 @@ async function opencodeMessageWithAgentRaw(baseUrl, options) {
     }
     const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-    const text = extractTextFromParts(parts);
+    const partsArray = Array.isArray(parts) ? parts : [];
+    (0, logger_1.logDebugInfo)(summarizePartsForLog(partsArray, `OpenCode agent "${options.agent}" message parts`));
+    const text = extractTextFromParts(partsArray);
     (0, logger_1.logInfo)(`OpenCode response [agent ${options.agent}] responseLength=${text.length} sessionId=${sessionId}`);
-    return { text, parts, sessionId };
+    return { text, parts: partsArray, sessionId };
 }
 /**
  * Get the diff for an OpenCode session (files changed by the agent).
