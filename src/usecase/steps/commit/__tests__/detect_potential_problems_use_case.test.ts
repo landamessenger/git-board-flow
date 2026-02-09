@@ -580,5 +580,34 @@ describe('DetectPotentialProblemsUseCase', () => {
       expect(updatedBody).toContain('resolved:true');
       expect(updatedBody).toContain(findingId);
     });
+
+    it('sanitizes finding id so HTML comment-breaking chars do not appear in marker', async () => {
+      const findingWithBadChars = 'file.ts:1:bad-->id<!with<newline>\nhere';
+      mockAskAgent.mockResolvedValue({
+        findings: [
+          {
+            id: findingWithBadChars,
+            title: 'Sanitized ID',
+            description: 'Finding with unsafe ID chars.',
+          },
+        ],
+      });
+
+      await useCase.invoke(baseParam());
+
+      expect(mockAddComment).toHaveBeenCalledTimes(1);
+      const body = mockAddComment.mock.calls[0][3];
+      expect(body).toContain('gbf-bugbot');
+      const markerMatch = body.match(/<!--\s*gbf-bugbot\s+finding_id:\s*"([^"]+)"\s+resolved:/);
+      expect(markerMatch).toBeTruthy();
+      const storedId = markerMatch![1];
+      expect(storedId).not.toContain('-->');
+      expect(storedId).not.toContain('<!');
+      expect(storedId).not.toContain('<');
+      expect(storedId).not.toContain('>');
+      expect(storedId).not.toContain('\n');
+      expect(storedId).toBe('file.ts:1:badidwithnewlinehere');
+      expect(body).toMatch(/<!--\s*gbf-bugbot\s+finding_id:\s*"file\.ts:1:badidwithnewlinehere"\s+resolved:false\s*-->/);
+    });
   });
 });

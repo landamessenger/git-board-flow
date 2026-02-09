@@ -50,8 +50,21 @@ const BUGBOT_RESPONSE_SCHEMA = {
     additionalProperties: false,
 } as const;
 
+/** Sanitize finding ID so it cannot break HTML comment syntax (e.g. -->, <!, <, >, newlines, quotes). */
+function sanitizeFindingIdForMarker(findingId: string): string {
+    return findingId
+        .replace(/-->/g, '')
+        .replace(/<!/g, '')
+        .replace(/</g, '')
+        .replace(/>/g, '')
+        .replace(/"/g, '')
+        .replace(/\r\n|\r|\n/g, '')
+        .trim();
+}
+
 function buildMarker(findingId: string, resolved: boolean): string {
-    return `<!-- ${BUGBOT_MARKER_PREFIX} finding_id:"${findingId.replace(/"/g, '')}" resolved:${resolved} -->`;
+    const safeId = sanitizeFindingIdForMarker(findingId);
+    return `<!-- ${BUGBOT_MARKER_PREFIX} finding_id:"${safeId}" resolved:${resolved} -->`;
 }
 
 function parseMarker(body: string | null): Array<{ findingId: string; resolved: boolean }> {
@@ -70,7 +83,8 @@ function parseMarker(body: string | null): Array<{ findingId: string; resolved: 
 
 /** Regex to match the marker for a specific finding (same flexible format as parseMarker). */
 function markerRegexForFinding(findingId: string): RegExp {
-    const escapedId = findingId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const safeId = sanitizeFindingIdForMarker(findingId);
+    const escapedId = safeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(
         `<!--\\s*${BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"${escapedId}"\\s+resolved:(?:true|false)\\s*-->`,
         'g'
