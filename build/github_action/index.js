@@ -51344,7 +51344,7 @@ class UpdatePullRequestDescriptionUseCase {
                 }));
                 return result;
             }
-            const prompt = this.buildPrDescriptionPrompt(issueDescription, headBranch, baseBranch);
+            const prompt = this.buildPrDescriptionPrompt(param.issueNumber, issueDescription, headBranch, baseBranch);
             const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
             const prBody = typeof agentResponse === 'string'
                 ? agentResponse
@@ -51358,7 +51358,7 @@ class UpdatePullRequestDescriptionUseCase {
                 }));
                 return result;
             }
-            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, `#${param.issueNumber}\n\n## What does this PR do?\n\n${prBody.trim()}`, param.tokens.token);
+            await this.pullRequestRepository.updateDescription(param.owner, param.repo, prNumber, prBody, param.tokens.token);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -51380,27 +51380,38 @@ class UpdatePullRequestDescriptionUseCase {
     /**
      * Builds the PR description prompt. We do not send the diff from our side:
      * we pass the base and head branch so the OpenCode agent can run `git diff`
-     * in the workspace and write a professional summary (not a file-by-file list).
+     * in the workspace. The agent must read the repo's PR template and fill it
+     * with the same structure (sections, headings, checkboxes).
      */
-    buildPrDescriptionPrompt(issueDescription, headBranch, baseBranch) {
-        return `You are in the repository workspace. Write a pull request description based on the diff between the base (target) branch and the head (source) branch.
+    buildPrDescriptionPrompt(issueNumber, issueDescription, headBranch, baseBranch) {
+        return `You are in the repository workspace. Your task is to produce a pull request description by filling the project's PR template with information from the branch diff and the issue.
 
 **Branches:**
 - **Base (target) branch:** \`${baseBranch}\`
 - **Head (source) branch:** \`${headBranch}\`
 
 **Instructions:**
-1. Get the full diff by running: \`git diff ${baseBranch}..${headBranch}\` (or \`git diff ${baseBranch}...${headBranch}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
-2. Read the issue description below for context.
-3. Based on the diff and the issue, write a **professional summary** of what this PR does at a high level. Focus on:
-   - The main goal and outcome of the change.
-   - Key or important points (e.g. breaking changes, new capabilities, critical fixes).
-   - Do not list every file or give a change-by-change breakdown; keep it concise and useful for reviewers.
+1. Read the pull request template file: \`.github/pull_request_template.md\`. Use its exact structure (headings, bullet lists, checkboxes, separators) as the skeleton for your output.
+2. Get the full diff by running: \`git diff ${baseBranch}..${headBranch}\` (or \`git diff ${baseBranch}...${headBranch}\` for merge-base). Use the diff to understand what changed.
+3. Use the issue description below for context and intent.
+4. Fill each section of the template with concrete content derived from the diff and the issue. Keep the same markdown structure as the template:
+   - **Summary:** brief explanation of what the PR does and why (intent, not implementation details).
+   - **Related Issues:** include \`Closes #${issueNumber}\` and "Related to #" only if relevant.
+   - **Scope of Changes:** use Added / Updated / Removed / Refactored with short bullet points (high level, not file-by-file).
+   - **Technical Details:** important decisions, trade-offs, or non-obvious aspects.
+   - **How to Test:** steps a reviewer can follow (infer from the changes when possible).
+   - **Test Coverage:** check the appropriate checkboxes based on what the diff shows (e.g. new test files).
+   - **Breaking Changes:** list any, or "None".
+   - **Deployment Notes:** check the relevant boxes and add details if needed.
+   - **Security / Performance / Notes for Reviewers:** fill only if the diff or issue clearly implies something; otherwise keep a short placeholder or "N/A".
+   - **Checklist:** leave as in the template (author will confirm).
+   - **Additional Context:** optional links or follow-up; can be minimal.
+5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules, checkboxes \`- [ ]\` / \`- [x]\`).
 
 **Issue description:**
 ${issueDescription}
 
-Output only the description content: one short paragraph (plain text, no markdown titles in the first paragraph), optionally followed by a "Key points" or "Summary" section if it helps. Do not use # or ## in the first paragraph.`;
+Output only the filled template content (the PR description body), starting with the first heading of the template (e.g. # Summary). Do not wrap it in code blocks or add extra commentary.`;
     }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
