@@ -37,6 +37,7 @@ export interface OpenCodeFileDiff {
 /**
  * Get the diff for an OpenCode session (files changed by the agent).
  * Call after opencodeMessageWithAgent when using the "build" agent so the user can see what was edited.
+ * Wrapped with retries (OPENCODE_MAX_RETRIES).
  */
 export declare function getSessionDiff(baseUrl: string, sessionId: string): Promise<OpenCodeFileDiff[]>;
 export declare class AiRepository {

@@ -8,6 +8,12 @@ export const OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free'
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
 export const OPENCODE_REQUEST_TIMEOUT_MS = 600_000
 
+/** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
+export const OPENCODE_MAX_RETRIES = 5
+
+/** Delay in ms between OpenCode retry attempts. */
+export const OPENCODE_RETRY_DELAY_MS = 2000
+
 export const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [

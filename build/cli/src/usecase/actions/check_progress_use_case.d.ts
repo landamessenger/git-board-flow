@@ -10,7 +10,7 @@ export declare class CheckProgressUseCase implements ParamUseCase<Execution, Res
     invoke(param: Execution): Promise<Result[]>;
     /**
      * Calls the OpenCode agent once and returns parsed progress, summary, and reasoning.
-     * Used inside the retry loop when progress is 0%.
+     * HTTP-level retries are handled by AiRepository (OPENCODE_MAX_RETRIES).
      */
     private fetchProgressAttempt;
     /**

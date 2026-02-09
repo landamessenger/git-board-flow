@@ -5,6 +5,10 @@ export declare const REPO_URL = "https://github.com/landamessenger/git-board-flo
 export declare const OPENCODE_DEFAULT_MODEL = "opencode/kimi-k2.5-free";
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
 export declare const OPENCODE_REQUEST_TIMEOUT_MS = 600000;
+/** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
+export declare const OPENCODE_MAX_RETRIES = 5;
+/** Delay in ms between OpenCode retry attempts. */
+export declare const OPENCODE_RETRY_DELAY_MS = 2000;
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
         automatic: string[];
@@ -193,7 +197,6 @@ export declare const ACTIONS: {
     readonly THINK: "think_action";
     readonly INITIAL_SETUP: "initial_setup";
     readonly CHECK_PROGRESS: "check_progress_action";
-    readonly DETECT_ERRORS: "detect_errors_action";
     readonly DETECT_POTENTIAL_PROBLEMS: "detect_potential_problems_action";
     readonly RECOMMEND_STEPS: "recommend_steps_action";
 };

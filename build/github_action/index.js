@@ -43745,9 +43745,6 @@ class SingleAction {
     get isCheckProgressAction() {
         return this.currentSingleAction === constants_1.ACTIONS.CHECK_PROGRESS;
     }
-    get isDetectErrorsAction() {
-        return this.currentSingleAction === constants_1.ACTIONS.DETECT_ERRORS;
-    }
     get isDetectPotentialProblemsAction() {
         return this.currentSingleAction === constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS;
     }
@@ -43777,7 +43774,6 @@ class SingleAction {
             constants_1.ACTIONS.THINK,
             constants_1.ACTIONS.INITIAL_SETUP,
             constants_1.ACTIONS.CHECK_PROGRESS,
-            constants_1.ACTIONS.DETECT_ERRORS,
             constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS,
             constants_1.ACTIONS.RECOMMEND_STEPS,
         ];
@@ -43949,6 +43945,33 @@ exports.AiRepository = exports.TRANSLATION_RESPONSE_SCHEMA = exports.OPENCODE_AG
 exports.getSessionDiff = getSessionDiff;
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+/**
+ * Runs an async OpenCode operation with retries. On failure, logs and retries up to OPENCODE_MAX_RETRIES.
+ * Callers do not need to implement retry logic; it is applied here for all OpenCode HTTP calls.
+ */
+async function withOpenCodeRetry(fn, context) {
+    let lastError;
+    for (let attempt = 1; attempt <= constants_1.OPENCODE_MAX_RETRIES; attempt++) {
+        try {
+            return await fn();
+        }
+        catch (error) {
+            lastError = error;
+            const message = error instanceof Error ? error.message : String(error);
+            if (attempt < constants_1.OPENCODE_MAX_RETRIES) {
+                (0, logger_1.logInfo)(`OpenCode [${context}] attempt ${attempt}/${constants_1.OPENCODE_MAX_RETRIES} failed: ${message}. Retrying in ${constants_1.OPENCODE_RETRY_DELAY_MS}ms...`);
+                await delay(constants_1.OPENCODE_RETRY_DELAY_MS);
+            }
+            else {
+                (0, logger_1.logError)(`OpenCode [${context}] failed after ${constants_1.OPENCODE_MAX_RETRIES} attempts: ${message}`);
+            }
+        }
+    }
+    throw lastError;
+}
 function createTimeoutSignal(ms) {
     const controller = new AbortController();
     setTimeout(() => controller.abort(new Error(`OpenCode request timeout after ${ms}ms`)), ms);
@@ -44025,111 +44048,119 @@ exports.TRANSLATION_RESPONSE_SCHEMA = {
 };
 /**
  * OpenCode HTTP API: create session and send message, return assistant parts.
- * Uses fetch to avoid ESM-only SDK with ncc.
+ * Uses fetch to avoid ESM-only SDK with ncc. Wrapped with retries (OPENCODE_MAX_RETRIES).
  */
 async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
-    const base = ensureNoTrailingSlash(baseUrl);
-    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-    const createRes = await fetch(`${base}/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'gbf' }),
-        signal,
-    });
-    if (!createRes.ok) {
-        const err = await createRes.text();
-        throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
-    }
-    const session = await parseJsonResponse(createRes, 'OpenCode session.create');
-    const sessionId = session?.id ?? session?.data?.id;
-    if (!sessionId) {
-        throw new Error('OpenCode session.create did not return session id');
-    }
-    const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: { providerID, modelID },
-            parts: [{ type: 'text', text: promptText }],
-        }),
-        signal,
-    });
-    if (!messageRes.ok) {
-        const err = await messageRes.text();
-        throw new Error(`OpenCode message failed: ${messageRes.status} ${err}`);
-    }
-    const messageData = await parseJsonResponse(messageRes, 'OpenCode message');
-    const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-    return extractTextFromParts(parts);
+    return withOpenCodeRetry(async () => {
+        const base = ensureNoTrailingSlash(baseUrl);
+        const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
+        const createRes = await fetch(`${base}/session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'gbf' }),
+            signal,
+        });
+        if (!createRes.ok) {
+            const err = await createRes.text();
+            throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
+        }
+        const session = await parseJsonResponse(createRes, 'OpenCode session.create');
+        const sessionId = session?.id ?? session?.data?.id;
+        if (!sessionId) {
+            throw new Error('OpenCode session.create did not return session id');
+        }
+        const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: { providerID, modelID },
+                parts: [{ type: 'text', text: promptText }],
+            }),
+            signal,
+        });
+        if (!messageRes.ok) {
+            const err = await messageRes.text();
+            throw new Error(`OpenCode message failed: ${messageRes.status} ${err}`);
+        }
+        const messageData = await parseJsonResponse(messageRes, 'OpenCode message');
+        const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
+        return extractTextFromParts(parts);
+    }, 'session+message');
 }
 /**
  * Send a message to an OpenCode agent (e.g. "plan", "build") and wait for the full response.
  * The server runs the agent loop (tools, etc.) and returns when done.
  * Use this to delegate PR description, progress, error detection, recommendations, or copilot (build) to OpenCode.
+ * Wrapped with retries (OPENCODE_MAX_RETRIES).
  */
 async function opencodeMessageWithAgent(baseUrl, options) {
-    const base = ensureNoTrailingSlash(baseUrl);
-    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-    const createRes = await fetch(`${base}/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'gbf' }),
-        signal,
-    });
-    if (!createRes.ok) {
-        const err = await createRes.text();
-        throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
-    }
-    const session = await parseJsonResponse(createRes, 'OpenCode session.create');
-    const sessionId = session?.id ?? session?.data?.id;
-    if (!sessionId) {
-        throw new Error('OpenCode session.create did not return session id');
-    }
-    const body = {
-        agent: options.agent,
-        model: { providerID: options.providerID, modelID: options.modelID },
-        parts: [{ type: 'text', text: options.promptText }],
-    };
-    const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal,
-    });
-    if (!messageRes.ok) {
-        const err = await messageRes.text();
-        throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
-    }
-    const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
-    const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-    const text = extractTextFromParts(parts);
-    return { text, parts, sessionId };
+    return withOpenCodeRetry(async () => {
+        const base = ensureNoTrailingSlash(baseUrl);
+        const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
+        const createRes = await fetch(`${base}/session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'gbf' }),
+            signal,
+        });
+        if (!createRes.ok) {
+            const err = await createRes.text();
+            throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
+        }
+        const session = await parseJsonResponse(createRes, 'OpenCode session.create');
+        const sessionId = session?.id ?? session?.data?.id;
+        if (!sessionId) {
+            throw new Error('OpenCode session.create did not return session id');
+        }
+        const body = {
+            agent: options.agent,
+            model: { providerID: options.providerID, modelID: options.modelID },
+            parts: [{ type: 'text', text: options.promptText }],
+        };
+        const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal,
+        });
+        if (!messageRes.ok) {
+            const err = await messageRes.text();
+            throw new Error(`OpenCode message failed (agent=${options.agent}): ${messageRes.status} ${err}`);
+        }
+        const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
+        const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
+        const text = extractTextFromParts(parts);
+        return { text, parts, sessionId };
+    }, `agent ${options.agent}`);
 }
 /**
  * Get the diff for an OpenCode session (files changed by the agent).
  * Call after opencodeMessageWithAgent when using the "build" agent so the user can see what was edited.
+ * Wrapped with retries (OPENCODE_MAX_RETRIES).
  */
 async function getSessionDiff(baseUrl, sessionId) {
-    const base = ensureNoTrailingSlash(baseUrl);
-    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET', signal });
-    if (!res.ok)
+    return withOpenCodeRetry(async () => {
+        const base = ensureNoTrailingSlash(baseUrl);
+        const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
+        const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET', signal });
+        if (!res.ok)
+            return []; // 404 / 4xx: no diff or not supported; do not retry
+        const raw = await res.text();
+        if (!raw?.trim())
+            return [];
+        let data;
+        try {
+            data = JSON.parse(raw);
+        }
+        catch {
+            return [];
+        }
+        if (Array.isArray(data))
+            return data;
+        if (Array.isArray(data.data))
+            return data.data;
         return [];
-    const raw = await res.text();
-    if (!raw?.trim())
-        return [];
-    let data;
-    try {
-        data = JSON.parse(raw);
-    }
-    catch {
-        return [];
-    }
-    if (Array.isArray(data))
-        return data;
-    if (Array.isArray(data.data))
-        return data.data;
-    return [];
+    }, 'session diff');
 }
 class AiRepository {
     constructor() {
@@ -47032,7 +47063,6 @@ const PROGRESS_RESPONSE_SCHEMA = {
     required: ['progress', 'summary'],
     additionalProperties: false,
 };
-const MAX_PROGRESS_ATTEMPTS = 3;
 class CheckProgressUseCase {
     constructor() {
         this.taskId = 'CheckProgressUseCase';
@@ -47128,28 +47158,18 @@ class CheckProgressUseCase {
             const developmentBranch = param.branches.development || 'develop';
             (0, logger_1.logInfo)(`📦 Progress will be assessed from workspace diff: base branch "${developmentBranch}", current branch "${branch}" (OpenCode agent will run git diff).`);
             const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
-            let progress = 0;
-            let summary = 'Unable to determine progress.';
-            let reasoning = '';
-            let remaining = '';
-            for (let attempt = 1; attempt <= MAX_PROGRESS_ATTEMPTS; attempt++) {
-                (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent... (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS})`);
-                const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
-                progress = attemptResult.progress;
-                summary = attemptResult.summary;
-                reasoning = attemptResult.reasoning;
-                remaining = attemptResult.remaining;
-                if (progress > 0) {
-                    (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
-                    break;
-                }
-                if (attempt < MAX_PROGRESS_ATTEMPTS) {
-                    (0, logger_1.logInfo)(`⚠️ Progress returned 0% (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS}), retrying...`);
-                }
+            (0, logger_1.logInfo)('🤖 Analyzing progress using OpenCode Plan agent...');
+            const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
+            const progress = attemptResult.progress;
+            const summary = attemptResult.summary;
+            const reasoning = attemptResult.reasoning;
+            const remaining = attemptResult.remaining;
+            if (progress > 0) {
+                (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
             }
-            const progressFailedAfterRetries = progress === 0;
-            if (progressFailedAfterRetries) {
-                (0, logger_1.logError)(`Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error.`);
+            const progressFailed = progress === 0;
+            if (progressFailed) {
+                (0, logger_1.logError)('Progress detection returned 0%. This may be due to a model error or no changes detected.');
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -47159,7 +47179,7 @@ class CheckProgressUseCase {
                         summary,
                     ],
                     errors: [
-                        `Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error. There are changes on the branch; consider re-running the check.`,
+                        'Progress detection returned 0%. This may be due to a model error or no changes detected. Consider re-running the check.',
                     ],
                     payload: {
                         progress: 0,
@@ -47230,7 +47250,7 @@ class CheckProgressUseCase {
     }
     /**
      * Calls the OpenCode agent once and returns parsed progress, summary, and reasoning.
-     * Used inside the retry loop when progress is 0%.
+     * HTTP-level retries are handled by AiRepository (OPENCODE_MAX_RETRIES).
      */
     async fetchProgressAttempt(ai, prompt) {
         const agentResponse = await this.aiRepository.askAgent(ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
@@ -47570,116 +47590,6 @@ class DeployedActionUseCase {
     }
 }
 exports.DeployedActionUseCase = DeployedActionUseCase;
-
-
-/***/ }),
-
-/***/ 938:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DetectErrorsUseCase = void 0;
-const result_1 = __nccwpck_require__(7305);
-const logger_1 = __nccwpck_require__(8836);
-const issue_repository_1 = __nccwpck_require__(57);
-const branch_repository_1 = __nccwpck_require__(7701);
-const ai_repository_1 = __nccwpck_require__(8307);
-class DetectErrorsUseCase {
-    constructor() {
-        this.taskId = 'DetectErrorsUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.branchRepository = new branch_repository_1.BranchRepository();
-        this.aiRepository = new ai_repository_1.AiRepository();
-    }
-    async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
-        const results = [];
-        try {
-            if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: ['Missing OPENCODE_SERVER_URL and OPENCODE_MODEL.'],
-                }));
-                return results;
-            }
-            const issueNumber = param.issueNumber;
-            if (issueNumber === -1) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: ['Issue number not found.'],
-                }));
-                return results;
-            }
-            let branch = param.commit.branch;
-            if (!branch) {
-                const branchTypes = [
-                    param.branches.featureTree,
-                    param.branches.bugfixTree,
-                    param.branches.docsTree,
-                    param.branches.choreTree,
-                ];
-                const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-                for (const type of branchTypes) {
-                    const prefix = `${type}/${issueNumber}-`;
-                    const found = branches.find((b) => b.indexOf(prefix) > -1);
-                    if (found) {
-                        branch = found;
-                        break;
-                    }
-                }
-            }
-            const developmentBranch = param.branches.development || 'develop';
-            if (!branch) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: [`No branch found for issue #${issueNumber}.`],
-                }));
-                return results;
-            }
-            const changes = await this.branchRepository.getChanges(param.owner, param.repo, branch, developmentBranch, param.tokens.token);
-            const prompt = `Review the code changes in branch "${branch}" compared to "${developmentBranch}" and identify potential errors, bugs, or issues.
-
-**Changed files and patches:**
-${changes.files
-                .slice(0, 30)
-                .map((f) => `### ${f.filename} (${f.status})\n\`\`\`diff\n${(f.patch ?? '').slice(0, 1500)}\n\`\`\``)
-                .join('\n\n')}
-
-List potential errors, bugs, or code quality issues. For each: file (if relevant), brief description, and severity if obvious. Use clear bullet points or numbered list.`;
-            (0, logger_1.logInfo)(`🤖 Detecting errors using OpenCode Plan agent...`);
-            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
-            const report = typeof response === 'string'
-                ? response
-                : (response && String(response.report)) || 'No response.';
-            results.push(new result_1.Result({
-                id: this.taskId,
-                success: true,
-                executed: true,
-                steps: ['Error detection completed (OpenCode Plan agent).', report],
-                payload: { issueNumber, branch, developmentBranch, report },
-            }));
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Error in ${this.taskId}: ${error}`);
-            results.push(new result_1.Result({
-                id: this.taskId,
-                success: false,
-                executed: true,
-                errors: [`Error in ${this.taskId}: ${error}`],
-            }));
-        }
-        return results;
-    }
-}
-exports.DetectErrorsUseCase = DetectErrorsUseCase;
 
 
 /***/ }),
@@ -48304,7 +48214,6 @@ const create_tag_use_case_1 = __nccwpck_require__(5279);
 const think_use_case_1 = __nccwpck_require__(3841);
 const initial_setup_use_case_1 = __nccwpck_require__(3943);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
-const detect_errors_use_case_1 = __nccwpck_require__(938);
 const recommend_steps_use_case_1 = __nccwpck_require__(3538);
 const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class SingleActionUseCase {
@@ -48339,9 +48248,6 @@ class SingleActionUseCase {
             }
             else if (param.singleAction.isCheckProgressAction) {
                 results.push(...await new check_progress_use_case_1.CheckProgressUseCase().invoke(param));
-            }
-            else if (param.singleAction.isDetectErrorsAction) {
-                results.push(...await new detect_errors_use_case_1.DetectErrorsUseCase().invoke(param));
             }
             else if (param.singleAction.isDetectPotentialProblemsAction) {
                 results.push(...await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param));
@@ -51831,7 +51737,7 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
@@ -51839,6 +51745,10 @@ exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
 exports.OPENCODE_REQUEST_TIMEOUT_MS = 600000;
+/** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
+exports.OPENCODE_MAX_RETRIES = 5;
+/** Delay in ms between OpenCode retry attempts. */
+exports.OPENCODE_RETRY_DELAY_MS = 2000;
 exports.DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -52189,7 +52099,6 @@ exports.ACTIONS = {
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
-    DETECT_ERRORS: 'detect_errors_action',
     DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 };
