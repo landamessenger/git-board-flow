@@ -297,7 +297,17 @@ program
       `Checking progress for issue #${parsedIssueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`,
     ];
 
-    await runLocalAction(params);
+    try {
+      await runLocalAction(params);
+      process.exit(0);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error('❌ Error checking progress:', error.message);
+      if (options.debug) {
+        console.error(err);
+      }
+      process.exit(1);
+    }
   });
 
 /**

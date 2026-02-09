@@ -44132,11 +44132,11 @@ class AiRepository {
         };
         /**
          * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
-         * Use for: PR description, progress, error detection, recommend steps.
+         * Returns the final message (including reasoning in parts when includeReasoning is true).
          * @param ai - AI config (server URL, model)
          * @param agentId - OpenCode agent id (e.g. OPENCODE_AGENT_PLAN)
          * @param prompt - User prompt
-         * @param options - expectJson: parse response as JSON; schema/schemaName: optional guidance for JSON shape
+         * @param options - expectJson, schema, includeReasoning
          * @returns Response text, or parsed JSON when expectJson is true
          */
         this.askAgent = async (ai, agentId, prompt, options = {}) => {
@@ -44186,9 +44186,7 @@ class AiRepository {
             }
         };
         /**
-         * Run the OpenCode "build" agent for the copilot command. The build agent can read and write
-         * files when the OpenCode server is run locally with the project as workspace (e.g. opencode serve
-         * from the repo). Returns the assistant text and sessionId so the CLI can optionally fetch the session diff.
+         * Run the OpenCode "build" agent for the copilot command. Returns the final message and sessionId.
          */
         this.copilotMessage = async (ai, prompt) => {
             const serverUrl = ai.getOpencodeServerUrl();
@@ -45154,6 +45152,7 @@ exports.IssueRepository = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
+const title_utils_1 = __nccwpck_require__(6676);
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
@@ -45306,6 +45305,27 @@ class IssueRepository {
             }
             catch (error) {
                 core.setFailed(`Failed to check or update issue title: ${error}`);
+                return undefined;
+            }
+        };
+        this.updateIssueTitleWithProgress = async (owner, repository, issueNumber, currentTitle, progress, token) => {
+            try {
+                const formattedTitle = (0, title_utils_1.formatTitleWithProgress)(currentTitle, progress);
+                if (formattedTitle === currentTitle) {
+                    return undefined;
+                }
+                const octokit = github.getOctokit(token);
+                await octokit.rest.issues.update({
+                    owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                    title: formattedTitle,
+                });
+                (0, logger_1.logDebugInfo)(`Issue title updated with progress to: ${formattedTitle}`);
+                return formattedTitle;
+            }
+            catch (error) {
+                core.setFailed(`Failed to update issue title with progress: ${error}`);
                 return undefined;
             }
         };
@@ -47057,8 +47077,6 @@ class CheckProgressUseCase {
                 }));
                 return results;
             }
-            const ignoreFiles = param.ai.getAiIgnoreFiles();
-            (0, logger_1.logInfo)(`🔍 Ignore patterns: ${ignoreFiles.length > 0 ? ignoreFiles.join(', ') : 'none'}`);
             // Get issue number
             const issueNumber = param.issueNumber;
             if (issueNumber === -1) {
@@ -47125,74 +47143,10 @@ class CheckProgressUseCase {
                 }));
                 return results;
             }
-            // Get development branch
+            // Get development (parent) branch – we pass this so the OpenCode agent can compute the diff
             const developmentBranch = param.branches.development || 'develop';
-            (0, logger_1.logInfo)(`📦 Comparing branch ${branch} with ${developmentBranch}`);
-            // Get changed files between branch and development branch
-            let changedFiles = [];
-            try {
-                const changes = await this.branchRepository.getChanges(param.owner, param.repo, branch, developmentBranch, param.tokens.token);
-                const allFiles = changes.files.map(file => ({
-                    filename: file.filename,
-                    status: file.status,
-                    additions: file.additions,
-                    deletions: file.deletions,
-                    patch: file.patch
-                }));
-                // Debug: show first few files being checked
-                if (allFiles.length > 0) {
-                    (0, logger_1.logDebugInfo)(`Checking ${allFiles.length} files against ${ignoreFiles.length} ignore patterns`);
-                    const sampleFiles = allFiles.slice(0, 5).map(f => f.filename);
-                    (0, logger_1.logDebugInfo)(`Sample files: ${sampleFiles.join(', ')}`);
-                }
-                changedFiles = allFiles.filter(file => {
-                    const shouldIgnore = this.shouldIgnoreFile(file.filename, ignoreFiles);
-                    if (shouldIgnore) {
-                        (0, logger_1.logDebugInfo)(`⏭️  Ignoring file: ${file.filename}`);
-                    }
-                    return !shouldIgnore;
-                });
-                const ignoredCount = allFiles.length - changedFiles.length;
-                if (ignoredCount > 0) {
-                    (0, logger_1.logInfo)(`📄 Found ${changedFiles.length} changed file(s) (${ignoredCount} ignored)`);
-                }
-                else {
-                    (0, logger_1.logInfo)(`📄 Found ${changedFiles.length} changed file(s)`);
-                }
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error getting changed files: ${JSON.stringify(error, null, 2)}`);
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: [
-                        `Error getting changed files: ${JSON.stringify(error, null, 2)}`,
-                    ],
-                }));
-                return results;
-            }
-            // If no files changed, progress is 0%
-            if (changedFiles.length === 0) {
-                (0, logger_1.logInfo)(`📊 No files changed. Progress: 0%`);
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `No files have been changed yet. Progress: 0%`,
-                    ],
-                    payload: {
-                        progress: 0,
-                        summary: 'No files have been changed yet.',
-                        issueNumber,
-                        branch,
-                        changedFilesCount: 0
-                    }
-                }));
-                return results;
-            }
-            const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch, changedFiles);
+            (0, logger_1.logInfo)(`📦 Progress will be assessed from workspace diff: base branch "${developmentBranch}", current branch "${branch}" (OpenCode agent will run git diff).`);
+            const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
             (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent...`);
             const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
@@ -47210,12 +47164,34 @@ class CheckProgressUseCase {
                 ? String(agentResponse.reasoning).trim()
                 : '';
             (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
+            const issueLabels = await this.issueRepository.getLabels(param.owner, param.repo, issueNumber, param.tokens.token);
+            const branchedLabel = param.labels.branchManagementLauncherLabel?.trim() ?? '';
+            const releaseLabel = param.labels.release?.trim() ?? '';
+            const hasBranched = branchedLabel.length > 0 && issueLabels.includes(branchedLabel);
+            const hasRelease = releaseLabel.length > 0 && issueLabels.includes(releaseLabel);
+            const shouldUpdateTitleWithProgress = hasBranched && !hasRelease;
+            let updatedTitle;
+            if (shouldUpdateTitleWithProgress) {
+                const currentTitle = await this.issueRepository.getTitle(param.owner, param.repo, issueNumber, param.tokens.token);
+                if (currentTitle) {
+                    updatedTitle = await this.issueRepository.updateIssueTitleWithProgress(param.owner, param.repo, issueNumber, currentTitle, progress, param.tokens.token);
+                    if (updatedTitle) {
+                        (0, logger_1.logInfo)(`📝 Issue title updated to: ${updatedTitle}`);
+                    }
+                }
+            }
             const steps = [
                 `Progress for issue #${issueNumber}: ${progress}%`,
                 summary,
             ];
+            if (updatedTitle) {
+                steps.push(`Issue title updated to \`${updatedTitle}\` to reflect progress.`);
+            }
             if (reasoning) {
-                steps.push(`**Reasoning:**\n\n${reasoning}`);
+                const truncationNote = this.isReasoningLikelyTruncated(reasoning)
+                    ? '\n\n_Reasoning may be truncated by the model._'
+                    : '';
+                steps.push(`**Reasoning:**\n\n${reasoning}${truncationNote}`);
             }
             results.push(new result_1.Result({
                 id: this.taskId,
@@ -47228,8 +47204,7 @@ class CheckProgressUseCase {
                     reasoning: reasoning || undefined,
                     issueNumber,
                     branch,
-                    developmentBranch,
-                    changedFilesCount: changedFiles.length
+                    developmentBranch
                 }
             }));
         }
@@ -47246,53 +47221,40 @@ class CheckProgressUseCase {
         }
         return results;
     }
-    buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch, changedFiles) {
-        const fileList = changedFiles
-            .map((f) => `- ${f.filename} (${f.status}${f.additions != null ? `, +${f.additions}` : ''}${f.deletions != null ? `/-${f.deletions}` : ''})`)
-            .join('\n');
-        const patchesSnippet = changedFiles
-            .filter((f) => f.patch)
-            .slice(0, 15)
-            .map((f) => `### ${f.filename}\n\`\`\`diff\n${(f.patch ?? '').slice(0, 2000)}\n\`\`\``)
-            .join('\n\n');
-        return `Assess the progress of issue #${issueNumber} based on the branch "${branch}" compared to "${developmentBranch}".
+    /**
+     * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
+     * we tell the agent the base (parent) branch and current branch so it can run `git diff`
+     * in the workspace and compute the full diff itself.
+     */
+    buildProgressPrompt(issueNumber, issueDescription, currentBranch, baseBranch) {
+        return `You are in the repository workspace. Assess the progress of issue #${issueNumber} using the full diff between the base (parent) branch and the current branch.
+
+**Branches:**
+- **Base (parent) branch:** \`${baseBranch}\`
+- **Current branch:** \`${currentBranch}\`
+
+**Instructions:**
+1. Get the full diff by running: \`git diff ${baseBranch}..${currentBranch}\` (or \`git diff ${baseBranch}...${currentBranch}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
+2. Optionally confirm the current branch with \`git branch --show-current\` if needed.
+3. Based on the full diff and the issue description below, assess completion progress (0-100%) and write a short summary.
 
 **Issue description:**
 ${issueDescription}
 
-**Changed files:**
-${fileList}
-
-**Patch excerpts (for context):**
-${patchesSnippet}
-
-Respond with a JSON object: { "progress": <number 0-100>, "summary": "<short explanation>" }.`;
+Respond with a single JSON object: { "progress": <number 0-100>, "summary": "<short explanation>" }.`;
     }
     /**
-     * Check if a file should be ignored based on ignore patterns
-     * This method matches the implementation in FileRepository.shouldIgnoreFile
+     * Returns true if the reasoning text looks truncated (e.g. ends with ":" or trailing spaces,
+     * or no sentence-ending punctuation), so we can append a note in the comment.
      */
-    shouldIgnoreFile(filename, ignorePatterns) {
-        // First check for .DS_Store
-        if (filename.endsWith('.DS_Store')) {
-            return true;
-        }
-        if (ignorePatterns.length === 0) {
+    isReasoningLikelyTruncated(reasoning) {
+        const t = reasoning.trim();
+        if (t.length === 0)
             return false;
-        }
-        return ignorePatterns.some(pattern => {
-            // Convert glob pattern to regex
-            const regexPattern = pattern
-                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
-                .replace(/\*/g, '.*') // Convert * to match anything
-                .replace(/\//g, '\\/'); // Escape forward slashes
-            // Allow pattern ending on /* to ignore also subdirectories and files inside
-            if (pattern.endsWith("/*")) {
-                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
-            }
-            const regex = new RegExp(`^${regexPattern}$`);
-            return regex.test(filename);
-        });
+        const lastChar = t.slice(-1);
+        const sentenceEnd = /[.!?\n]$/;
+        const endsWithColonOrSpace = /[:\s]$/.test(t);
+        return endsWithColonOrSpace || !sentenceEnd.test(lastChar);
     }
 }
 exports.CheckProgressUseCase = CheckProgressUseCase;
@@ -52357,7 +52319,7 @@ exports.ReasoningVisualizer = ReasoningVisualizer;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractVersionFromBranch = exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
+exports.formatTitleWithProgress = exports.extractVersionFromBranch = exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
 const logger_1 = __nccwpck_require__(8836);
 const extractIssueNumberFromBranch = (branchName) => {
     const match = branchName?.match(/[a-zA-Z]+\/([0-9]+)-.*/);
@@ -52392,6 +52354,23 @@ const extractVersionFromBranch = (branchName) => {
     }
 };
 exports.extractVersionFromBranch = extractVersionFromBranch;
+/**
+ * Formats an issue title to include progress tracking after the emoji prefix.
+ * Example: "✨🧑‍💻 - Introduce the new Copilot agent" → "✨🧑‍💻 - [65%] - Introduce the new Copilot agent"
+ * Removes any existing [X%] marker before inserting the new one.
+ */
+const formatTitleWithProgress = (currentTitle, progress) => {
+    const progressStr = `[${progress}%]`;
+    const withoutExistingProgress = currentTitle.replace(/\s*-\s*\[\d+%\]\s*/g, '').trim();
+    const match = withoutExistingProgress.match(/^(.+?)\s*-\s+(.+)$/);
+    if (!match) {
+        return `${progressStr} - ${withoutExistingProgress}`;
+    }
+    const emojiPart = match[1].trim();
+    const rest = match[2].trim();
+    return rest ? `${emojiPart} - ${progressStr} - ${rest}` : `${emojiPart} - ${progressStr}`;
+};
+exports.formatTitleWithProgress = formatTitleWithProgress;
 
 
 /***/ }),

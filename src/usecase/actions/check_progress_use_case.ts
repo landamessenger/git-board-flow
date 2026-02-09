@@ -1,6 +1,6 @@
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
-import { logError, logInfo, logDebugInfo } from '../../utils/logger';
+import { logError, logInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
 import { IssueRepository } from '../../data/repository/issue_repository';
 import { BranchRepository } from '../../data/repository/branch_repository';
@@ -43,9 +43,6 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 );
                 return results;
             }
-
-            const ignoreFiles = param.ai.getAiIgnoreFiles();
-            logInfo(`🔍 Ignore patterns: ${ignoreFiles.length > 0 ? ignoreFiles.join(', ') : 'none'}`);
 
             // Get issue number
             const issueNumber = param.issueNumber;
@@ -138,103 +135,12 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            // Get development branch
+            // Get development (parent) branch – we pass this so the OpenCode agent can compute the diff
             const developmentBranch = param.branches.development || 'develop';
 
-            logInfo(`📦 Comparing branch ${branch} with ${developmentBranch}`);
+            logInfo(`📦 Progress will be assessed from workspace diff: base branch "${developmentBranch}", current branch "${branch}" (OpenCode agent will run git diff).`);
 
-            // Get changed files between branch and development branch
-            let changedFiles: Array<{
-                filename: string;
-                status: 'added' | 'modified' | 'removed' | 'renamed';
-                additions?: number;
-                deletions?: number;
-                patch?: string;
-            }> = [];
-
-            try {
-                const changes = await this.branchRepository.getChanges(
-                    param.owner,
-                    param.repo,
-                    branch,
-                    developmentBranch,
-                    param.tokens.token
-                );
-
-                const allFiles = changes.files.map(file => ({
-                    filename: file.filename,
-                    status: file.status as 'added' | 'modified' | 'removed' | 'renamed',
-                    additions: file.additions,
-                    deletions: file.deletions,
-                    patch: file.patch
-                }));
-
-                // Debug: show first few files being checked
-                if (allFiles.length > 0) {
-                    logDebugInfo(`Checking ${allFiles.length} files against ${ignoreFiles.length} ignore patterns`);
-                    const sampleFiles = allFiles.slice(0, 5).map(f => f.filename);
-                    logDebugInfo(`Sample files: ${sampleFiles.join(', ')}`);
-                }
-
-                changedFiles = allFiles.filter(file => {
-                    const shouldIgnore = this.shouldIgnoreFile(file.filename, ignoreFiles);
-                    if (shouldIgnore) {
-                        logDebugInfo(`⏭️  Ignoring file: ${file.filename}`);
-                    }
-                    return !shouldIgnore;
-                });
-
-                const ignoredCount = allFiles.length - changedFiles.length;
-                if (ignoredCount > 0) {
-                    logInfo(`📄 Found ${changedFiles.length} changed file(s) (${ignoredCount} ignored)`);
-                } else {
-                    logInfo(`📄 Found ${changedFiles.length} changed file(s)`);
-                }
-            } catch (error) {
-                logError(`Error getting changed files: ${JSON.stringify(error, null, 2)}`);
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        errors: [
-                            `Error getting changed files: ${JSON.stringify(error, null, 2)}`,
-                        ],
-                    })
-                );
-                return results;
-            }
-
-            // If no files changed, progress is 0%
-            if (changedFiles.length === 0) {
-                logInfo(`📊 No files changed. Progress: 0%`);
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `No files have been changed yet. Progress: 0%`,
-                        ],
-                        payload: {
-                            progress: 0,
-                            summary: 'No files have been changed yet.',
-                            issueNumber,
-                            branch,
-                            changedFilesCount: 0
-                        }
-                    })
-                );
-                return results;
-            }
-
-            const prompt = this.buildProgressPrompt(
-                issueNumber,
-                issueDescription,
-                branch,
-                developmentBranch,
-                changedFiles
-            );
+            const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
 
             logInfo(`🤖 Analyzing progress using OpenCode Plan agent...`);
             const agentResponse = await this.aiRepository.askAgent(
@@ -263,12 +169,53 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`✅ Progress detection completed: ${progress}%`);
 
+            const issueLabels = await this.issueRepository.getLabels(
+                param.owner,
+                param.repo,
+                issueNumber,
+                param.tokens.token,
+            );
+            const branchedLabel = param.labels.branchManagementLauncherLabel?.trim() ?? '';
+            const releaseLabel = param.labels.release?.trim() ?? '';
+            const hasBranched = branchedLabel.length > 0 && issueLabels.includes(branchedLabel);
+            const hasRelease = releaseLabel.length > 0 && issueLabels.includes(releaseLabel);
+            const shouldUpdateTitleWithProgress = hasBranched && !hasRelease;
+
+            let updatedTitle: string | undefined;
+            if (shouldUpdateTitleWithProgress) {
+                const currentTitle = await this.issueRepository.getTitle(
+                    param.owner,
+                    param.repo,
+                    issueNumber,
+                    param.tokens.token,
+                );
+                if (currentTitle) {
+                    updatedTitle = await this.issueRepository.updateIssueTitleWithProgress(
+                        param.owner,
+                        param.repo,
+                        issueNumber,
+                        currentTitle,
+                        progress,
+                        param.tokens.token,
+                    );
+                    if (updatedTitle) {
+                        logInfo(`📝 Issue title updated to: ${updatedTitle}`);
+                    }
+                }
+            }
+
             const steps: string[] = [
                 `Progress for issue #${issueNumber}: ${progress}%`,
                 summary,
             ];
+            if (updatedTitle) {
+                steps.push(`Issue title updated to \`${updatedTitle}\` to reflect progress.`);
+            }
             if (reasoning) {
-                steps.push(`**Reasoning:**\n\n${reasoning}`);
+                const truncationNote = this.isReasoningLikelyTruncated(reasoning)
+                    ? '\n\n_Reasoning may be truncated by the model._'
+                    : '';
+                steps.push(`**Reasoning:**\n\n${reasoning}${truncationNote}`);
             }
 
             results.push(
@@ -283,8 +230,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                         reasoning: reasoning || undefined,
                         issueNumber,
                         branch,
-                        developmentBranch,
-                        changedFilesCount: changedFiles.length
+                        developmentBranch
                     }
                 })
             );
@@ -306,64 +252,45 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
         return results;
     }
 
+    /**
+     * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
+     * we tell the agent the base (parent) branch and current branch so it can run `git diff`
+     * in the workspace and compute the full diff itself.
+     */
     private buildProgressPrompt(
         issueNumber: number,
         issueDescription: string,
-        branch: string,
-        developmentBranch: string,
-        changedFiles: Array<{ filename: string; status: string; additions?: number; deletions?: number; patch?: string }>
+        currentBranch: string,
+        baseBranch: string
     ): string {
-        const fileList = changedFiles
-            .map((f) => `- ${f.filename} (${f.status}${f.additions != null ? `, +${f.additions}` : ''}${f.deletions != null ? `/-${f.deletions}` : ''})`)
-            .join('\n');
-        const patchesSnippet = changedFiles
-            .filter((f) => f.patch)
-            .slice(0, 15)
-            .map((f) => `### ${f.filename}\n\`\`\`diff\n${(f.patch ?? '').slice(0, 2000)}\n\`\`\``)
-            .join('\n\n');
-        return `Assess the progress of issue #${issueNumber} based on the branch "${branch}" compared to "${developmentBranch}".
+        return `You are in the repository workspace. Assess the progress of issue #${issueNumber} using the full diff between the base (parent) branch and the current branch.
+
+**Branches:**
+- **Base (parent) branch:** \`${baseBranch}\`
+- **Current branch:** \`${currentBranch}\`
+
+**Instructions:**
+1. Get the full diff by running: \`git diff ${baseBranch}..${currentBranch}\` (or \`git diff ${baseBranch}...${currentBranch}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
+2. Optionally confirm the current branch with \`git branch --show-current\` if needed.
+3. Based on the full diff and the issue description below, assess completion progress (0-100%) and write a short summary.
 
 **Issue description:**
 ${issueDescription}
 
-**Changed files:**
-${fileList}
-
-**Patch excerpts (for context):**
-${patchesSnippet}
-
-Respond with a JSON object: { "progress": <number 0-100>, "summary": "<short explanation>" }.`;
+Respond with a single JSON object: { "progress": <number 0-100>, "summary": "<short explanation>" }.`;
     }
 
     /**
-     * Check if a file should be ignored based on ignore patterns
-     * This method matches the implementation in FileRepository.shouldIgnoreFile
+     * Returns true if the reasoning text looks truncated (e.g. ends with ":" or trailing spaces,
+     * or no sentence-ending punctuation), so we can append a note in the comment.
      */
-    private shouldIgnoreFile(filename: string, ignorePatterns: string[]): boolean {
-        // First check for .DS_Store
-        if (filename.endsWith('.DS_Store')) {
-            return true;
-        }
-
-        if (ignorePatterns.length === 0) {
-            return false;
-        }
-
-        return ignorePatterns.some(pattern => {
-            // Convert glob pattern to regex
-            const regexPattern = pattern
-                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
-                .replace(/\*/g, '.*') // Convert * to match anything
-                .replace(/\//g, '\\/'); // Escape forward slashes
-    
-            // Allow pattern ending on /* to ignore also subdirectories and files inside
-            if (pattern.endsWith("/*")) {
-                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
-            }
-    
-            const regex = new RegExp(`^${regexPattern}$`);
-            return regex.test(filename);
-        });
+    private isReasoningLikelyTruncated(reasoning: string): boolean {
+        const t = reasoning.trim();
+        if (t.length === 0) return false;
+        const lastChar = t.slice(-1);
+        const sentenceEnd = /[.!?\n]$/;
+        const endsWithColonOrSpace = /[:\s]$/.test(t);
+        return endsWithColonOrSpace || !sentenceEnd.test(lastChar);
     }
 }
 

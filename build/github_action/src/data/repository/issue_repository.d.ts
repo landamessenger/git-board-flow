@@ -4,6 +4,7 @@ import { IssueTypes } from "../model/issue_types";
 export declare class IssueRepository {
     updateTitleIssueFormat: (owner: string, repository: string, version: string, issueTitle: string, issueNumber: number, branchManagementAlways: boolean, branchManagementEmoji: string, labels: Labels, token: string) => Promise<string | undefined>;
     updateTitlePullRequestFormat: (owner: string, repository: string, pullRequestTitle: string, issueTitle: string, issueNumber: number, pullRequestNumber: number, branchManagementAlways: boolean, branchManagementEmoji: string, labels: Labels, token: string) => Promise<string | undefined>;
+    updateIssueTitleWithProgress: (owner: string, repository: string, issueNumber: number, currentTitle: string, progress: number, token: string) => Promise<string | undefined>;
     cleanTitle: (owner: string, repository: string, issueTitle: string, issueNumber: number, token: string) => Promise<string | undefined>;
     updateDescription: (owner: string, repo: string, issueNumber: number, description: string, token: string) => Promise<void>;
     getDescription: (owner: string, repo: string, issueNumber: number, token: string) => Promise<string | undefined>;

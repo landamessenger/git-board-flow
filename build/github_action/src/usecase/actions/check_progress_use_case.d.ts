@@ -7,10 +7,15 @@ export declare class CheckProgressUseCase implements ParamUseCase<Execution, Res
     private branchRepository;
     private aiRepository;
     invoke(param: Execution): Promise<Result[]>;
+    /**
+     * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
+     * we tell the agent the base (parent) branch and current branch so it can run `git diff`
+     * in the workspace and compute the full diff itself.
+     */
     private buildProgressPrompt;
     /**
-     * Check if a file should be ignored based on ignore patterns
-     * This method matches the implementation in FileRepository.shouldIgnoreFile
+     * Returns true if the reasoning text looks truncated (e.g. ends with ":" or trailing spaces,
+     * or no sentence-ending punctuation), so we can append a note in the comment.
      */
-    private shouldIgnoreFile;
+    private isReasoningLikelyTruncated;
 }

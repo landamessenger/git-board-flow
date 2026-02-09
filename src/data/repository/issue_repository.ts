@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { logDebugInfo, logError } from "../../utils/logger";
+import { formatTitleWithProgress } from "../../utils/title_utils";
 import { Labels } from "../model/labels";
 import { Milestone } from "../model/milestone";
 import { IssueTypes } from "../model/issue_types";
@@ -166,6 +167,34 @@ export class IssueRepository {
             return undefined;
         } catch (error) {
             core.setFailed(`Failed to check or update issue title: ${error}`);
+            return undefined;
+        }
+    };
+
+    updateIssueTitleWithProgress = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        currentTitle: string,
+        progress: number,
+        token: string,
+    ): Promise<string | undefined> => {
+        try {
+            const formattedTitle = formatTitleWithProgress(currentTitle, progress);
+            if (formattedTitle === currentTitle) {
+                return undefined;
+            }
+            const octokit = github.getOctokit(token);
+            await octokit.rest.issues.update({
+                owner,
+                repo: repository,
+                issue_number: issueNumber,
+                title: formattedTitle,
+            });
+            logDebugInfo(`Issue title updated with progress to: ${formattedTitle}`);
+            return formattedTitle;
+        } catch (error) {
+            core.setFailed(`Failed to update issue title with progress: ${error}`);
             return undefined;
         }
     };

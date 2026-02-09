@@ -27,18 +27,16 @@ export declare class AiRepository {
     ask: (ai: Ai, prompt: string) => Promise<string | undefined>;
     /**
      * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
-     * Use for: PR description, progress, error detection, recommend steps.
+     * Returns the final message (including reasoning in parts when includeReasoning is true).
      * @param ai - AI config (server URL, model)
      * @param agentId - OpenCode agent id (e.g. OPENCODE_AGENT_PLAN)
      * @param prompt - User prompt
-     * @param options - expectJson: parse response as JSON; schema/schemaName: optional guidance for JSON shape
+     * @param options - expectJson, schema, includeReasoning
      * @returns Response text, or parsed JSON when expectJson is true
      */
     askAgent: (ai: Ai, agentId: string, prompt: string, options?: AskAgentOptions) => Promise<string | Record<string, unknown> | undefined>;
     /**
-     * Run the OpenCode "build" agent for the copilot command. The build agent can read and write
-     * files when the OpenCode server is run locally with the project as workspace (e.g. opencode serve
-     * from the repo). Returns the assistant text and sessionId so the CLI can optionally fetch the session diff.
+     * Run the OpenCode "build" agent for the copilot command. Returns the final message and sessionId.
      */
     copilotMessage: (ai: Ai, prompt: string) => Promise<{
         text: string;
