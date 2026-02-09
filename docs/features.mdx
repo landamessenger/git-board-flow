@@ -75,7 +75,7 @@ When you set `single-action` (and, when required, `single-action-issue`, `single
 | Single action value | Inputs required | Description |
 |--------------------|----------------|-------------|
 | **`check_progress_action`** | `single-action-issue` | Runs progress check on demand (e.g. without pushing). Progress is normally updated automatically on every push; use this to re-run the check or when no push workflow is configured. |
-| **`detect_errors_action`** | `single-action-issue` | Uses OpenCode Plan to detect potential errors in the branch vs base; posts a comment on the issue. |
+| **`detect_potential_problems_action`** | `single-action-issue` | Bugbot: OpenCode analyzes the branch vs base, reports findings as comments on the issue and open PR; can mark previously reported issues as resolved. |
 | **`recommend_steps_action`** | `single-action-issue` | Uses OpenCode Plan to recommend implementation steps from the issue description; posts a comment on the issue. |
 | **`think_action`** | — | Uses OpenCode Plan for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
 | **`initial_setup`** | — | Performs initial setup steps (e.g. for repo or project). No issue required. |

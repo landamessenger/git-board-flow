@@ -46989,6 +46989,15 @@ function getGitInfo() {
         return { error: constants_1.ERRORS.GIT_REPOSITORY_NOT_FOUND };
     }
 }
+/** Get current git branch (for CLI commands that need a branch when -b is omitted). */
+function getCurrentBranch() {
+    try {
+        return (0, child_process_1.execSync)('git rev-parse --abbrev-ref HEAD').toString().trim() || 'main';
+    }
+    catch {
+        return 'main';
+    }
+}
 /**
  * Run the thinking AI scenario for deep code analysis and proposals.
  */
@@ -47309,6 +47318,61 @@ program
     params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '📋 Recommend steps';
     params[constants_1.INPUT_KEYS.WELCOME_MESSAGES] = [`Recommending steps for issue #${issueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`];
     await (0, local_action_1.runLocalAction)(params);
+});
+/**
+ * Detect potential problems (bugbot): OpenCode analyzes branch vs base, reports findings
+ * as comments on the issue and open PR. Previously reported findings can be marked resolved.
+ */
+program
+    .command('detect-potential-problems')
+    .description(`${constants_1.TITLE} - Detect potential problems in the branch (bugbot): report as comments on issue and PR`)
+    .option('-i, --issue <number>', 'Issue number (required)', '')
+    .option('-b, --branch <name>', 'Branch name (optional, defaults to current git branch)', '')
+    .option('-d, --debug', 'Debug mode', false)
+    .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+    .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
+    .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+    .action(async (options) => {
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+        console.log(gitInfo.error);
+        return;
+    }
+    const cleanArg = (v) => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const issueNumber = cleanArg(options.issue);
+    if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
+        console.log('❌ Provide a valid issue number with -i or --issue');
+        return;
+    }
+    const branch = (cleanArg(options.branch) || getCurrentBranch()).trim() || 'main';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
+    const params = {
+        [constants_1.INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
+        [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS,
+        [constants_1.INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
+        [constants_1.INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+        [constants_1.INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
+        [constants_1.INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || constants_1.OPENCODE_DEFAULT_MODEL,
+        repo: { owner: gitInfo.owner, repo: gitInfo.repo },
+        issue: { number: parseInt(issueNumber) },
+        commits: { ref: `refs/heads/${branch}` },
+    };
+    params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '🐛 Detect potential problems (bugbot)';
+    params[constants_1.INPUT_KEYS.WELCOME_MESSAGES] = [
+        `Detecting potential problems for issue #${issueNumber} on branch ${branch} in ${gitInfo.owner}/${gitInfo.repo}...`,
+    ];
+    try {
+        await (0, local_action_1.runLocalAction)(params);
+        process.exit(0);
+    }
+    catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error('❌ Error running detect-potential-problems:', error.message);
+        if (options.debug) {
+            console.error(err);
+        }
+        process.exit(1);
+    }
 });
 /**
  * Run the initial setup to configure labels, issue types, and verify access.
@@ -48603,6 +48667,9 @@ class SingleAction {
     get isDetectErrorsAction() {
         return this.currentSingleAction === constants_1.ACTIONS.DETECT_ERRORS;
     }
+    get isDetectPotentialProblemsAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS;
+    }
     get isRecommendStepsAction() {
         return this.currentSingleAction === constants_1.ACTIONS.RECOMMEND_STEPS;
     }
@@ -48630,6 +48697,7 @@ class SingleAction {
             constants_1.ACTIONS.INITIAL_SETUP,
             constants_1.ACTIONS.CHECK_PROGRESS,
             constants_1.ACTIONS.DETECT_ERRORS,
+            constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS,
             constants_1.ACTIONS.RECOMMEND_STEPS,
         ];
         /**
@@ -53175,6 +53243,7 @@ const initial_setup_use_case_1 = __nccwpck_require__(3943);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
 const detect_errors_use_case_1 = __nccwpck_require__(938);
 const recommend_steps_use_case_1 = __nccwpck_require__(3538);
+const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -53210,6 +53279,9 @@ class SingleActionUseCase {
             }
             else if (param.singleAction.isDetectErrorsAction) {
                 results.push(...await new detect_errors_use_case_1.DetectErrorsUseCase().invoke(param));
+            }
+            else if (param.singleAction.isDetectPotentialProblemsAction) {
+                results.push(...await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param));
             }
             else if (param.singleAction.isRecommendStepsAction) {
                 results.push(...await new recommend_steps_use_case_1.RecommendStepsUseCase().invoke(param));
@@ -56838,6 +56910,7 @@ exports.ACTIONS = {
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
     DETECT_ERRORS: 'detect_errors_action',
+    DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 };
 /** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */

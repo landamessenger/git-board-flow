@@ -388,7 +388,7 @@ export const ACTIONS = {
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
-    DETECT_ERRORS: 'detect_errors_action',
+    DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 } as const; 
 

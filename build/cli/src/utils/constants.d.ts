@@ -194,6 +194,7 @@ export declare const ACTIONS: {
     readonly INITIAL_SETUP: "initial_setup";
     readonly CHECK_PROGRESS: "check_progress_action";
     readonly DETECT_ERRORS: "detect_errors_action";
+    readonly DETECT_POTENTIAL_PROBLEMS: "detect_potential_problems_action";
     readonly RECOMMEND_STEPS: "recommend_steps_action";
 };
 /** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */

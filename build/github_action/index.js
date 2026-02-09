@@ -43748,6 +43748,9 @@ class SingleAction {
     get isDetectErrorsAction() {
         return this.currentSingleAction === constants_1.ACTIONS.DETECT_ERRORS;
     }
+    get isDetectPotentialProblemsAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS;
+    }
     get isRecommendStepsAction() {
         return this.currentSingleAction === constants_1.ACTIONS.RECOMMEND_STEPS;
     }
@@ -43775,6 +43778,7 @@ class SingleAction {
             constants_1.ACTIONS.INITIAL_SETUP,
             constants_1.ACTIONS.CHECK_PROGRESS,
             constants_1.ACTIONS.DETECT_ERRORS,
+            constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS,
             constants_1.ACTIONS.RECOMMEND_STEPS,
         ];
         /**
@@ -48302,6 +48306,7 @@ const initial_setup_use_case_1 = __nccwpck_require__(3943);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
 const detect_errors_use_case_1 = __nccwpck_require__(938);
 const recommend_steps_use_case_1 = __nccwpck_require__(3538);
+const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -48337,6 +48342,9 @@ class SingleActionUseCase {
             }
             else if (param.singleAction.isDetectErrorsAction) {
                 results.push(...await new detect_errors_use_case_1.DetectErrorsUseCase().invoke(param));
+            }
+            else if (param.singleAction.isDetectPotentialProblemsAction) {
+                results.push(...await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param));
             }
             else if (param.singleAction.isRecommendStepsAction) {
                 results.push(...await new recommend_steps_use_case_1.RecommendStepsUseCase().invoke(param));
@@ -52182,6 +52190,7 @@ exports.ACTIONS = {
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
     DETECT_ERRORS: 'detect_errors_action',
+    DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 };
 /** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */

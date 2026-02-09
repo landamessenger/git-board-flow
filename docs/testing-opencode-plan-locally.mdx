@@ -1,11 +1,11 @@
 ---
 title: Testing OpenCode Plan Locally
-description: Step-by-step guide to test check-progress, detect-errors, and recommend-steps locally using the CLI
+description: Step-by-step guide to test check-progress, detect-potential-problems, and recommend-steps locally using the CLI
 ---
 
 # Testing OpenCode Plan Locally
 
-This guide walks you through testing the OpenCode Plan flows (`check-progress`, `detect-errors`, `recommend-steps`) locally using the `giik` CLI, without running GitHub Actions.
+This guide walks you through testing the OpenCode Plan flows (`check-progress`, `detect-potential-problems`, `recommend-steps`) locally using the `giik` CLI, without running GitHub Actions.
 
 ## Prerequisites
 
@@ -58,12 +58,13 @@ Options:
 - `--opencode-model <model>` – Override model (e.g. `opencode/kimi-k2.5-free`, `anthropic/claude-3-5-sonnet`)
 - `-d, --debug` – Verbose logs
 
-### Detect errors
+### Detect potential problems (bugbot)
 
-Detects potential errors in the branch vs base using OpenCode Plan:
+Detects potential problems in the branch vs base; reports on the issue and open PR, and can mark previously reported issues as resolved:
 
 ```bash
-node build/cli/index.js detect-errors -i <issue-number> -t <PAT>
+node build/cli/index.js detect-potential-problems -i <issue-number> -t <PAT>
+# Optional: -b <branch> (defaults to current git branch)
 ```
 
 ### Recommend steps

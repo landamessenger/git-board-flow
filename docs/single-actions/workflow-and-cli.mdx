@@ -46,7 +46,7 @@ giik <command> [options]
 |-------------|---------------------------|-----------------|-------------|
 | `setup` | `initial_setup` | — | Labels, issue types, verify access |
 | `check-progress` | `check_progress_action` | `-i <issue>` | Progress check on demand |
-| `detect-errors` | `detect_errors_action` | `-i <issue>` | Detect errors in branch vs base (OpenCode) |
+| `detect-potential-problems` | `detect_potential_problems_action` | `-i <issue>` [-b \<branch\>] | Bugbot: detect potential problems, report on issue and PR (OpenCode) |
 | `recommend-steps` | `recommend_steps_action` | `-i <issue>` | Recommend steps from issue (OpenCode) |
 | `think` | `think_action` | `-q "<question>"` | Deep code analysis (OpenCode) |
 | `copilot` | (CLI only) | `-p "<prompt>"` | AI assistant: analyze/modify code (OpenCode Build) |
@@ -59,8 +59,8 @@ Common options: `-t` / `--token` (PAT), `-d` / `--debug`, `--opencode-server-url
 # Progress check for issue 123
 node build/cli/index.js check-progress -i 123 -t $PAT
 
-# Detect errors on the current branch for issue 456
-node build/cli/index.js detect-errors -i 456 -t $PAT
+# Detect potential problems (bugbot) for issue 456 on current branch
+node build/cli/index.js detect-potential-problems -i 456 -t $PAT
 
 # Think / reasoning with a question
 node build/cli/index.js think -q "Where is authentication validated?" -t $PAT

@@ -146,14 +146,14 @@ giik <command> [options]
 |--------|-------------|--------|
 | `setup` | Initial setup: labels, issue types, verify access | `node build/cli/index.js setup -t <PAT>` |
 | `check-progress` | Run progress check on demand (progress is also updated automatically on every push) | `node build/cli/index.js check-progress -i 123 -t <PAT>` |
-| `detect-errors` | Detect potential errors in the branch vs base (OpenCode Plan) | `node build/cli/index.js detect-errors -i 123 -t <PAT>` |
+| `detect-potential-problems` | Bugbot: detect potential problems, report on issue and PR (OpenCode) | `node build/cli/index.js detect-potential-problems -i 123 -t <PAT>` |
 | `recommend-steps` | Recommend implementation steps for an issue (OpenCode Plan) | `node build/cli/index.js recommend-steps -i 123 -t <PAT>` |
 | `think` | Deep code analysis / reasoning (needs a question) | `node build/cli/index.js think -q "Where is auth validated?" -t <PAT>` |
 | `copilot` | AI development assistant (analyze/modify code) | `node build/cli/index.js copilot -p "Explain src/cli.ts" -t <PAT>` |
 
 Add `-d` or `--debug` for verbose logs. For OpenCode, use `--opencode-server-url` and `--opencode-model` if you don’t set env vars.
 
-For a step-by-step guide to testing the OpenCode Plan flows (check-progress, detect-errors, recommend-steps) locally, see [Testing OpenCode Plan Locally](https://docs.page/landamessenger/git-board-flow/testing-opencode-plan-locally).
+For a step-by-step guide to testing the OpenCode Plan flows (check-progress, detect-potential-problems, recommend-steps) locally, see [Testing OpenCode Plan Locally](https://docs.page/landamessenger/git-board-flow/testing-opencode-plan-locally).
 
 ### 4. Optional: `.env` in repo root
 
