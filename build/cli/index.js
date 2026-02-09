@@ -49330,7 +49330,7 @@ class BranchRepository {
                 else {
                     baseBranchName = hotfixBranch ?? developmentBranch;
                 }
-                if (!isRenamingBranch) {
+                if (!isRenamingBranch || param.currentConfiguration.parentBranch === undefined) {
                     param.currentConfiguration.parentBranch = baseBranchName;
                 }
                 (0, logger_1.logDebugInfo)(`============================================================================================`);
@@ -53882,23 +53882,26 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            if (!param.tokenUser?.trim()) {
-                (0, logger_1.logInfo)('Bot username (tokenUser) not set; skipping Think response.');
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: false,
-                }));
-                return results;
-            }
-            if (!commentBody.includes(`@${param.tokenUser}`)) {
-                (0, logger_1.logInfo)(`Comment does not mention @${param.tokenUser}; skipping.`);
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: false,
-                }));
-                return results;
+            const isHelpOrQuestionIssue = param.labels.isQuestion || param.labels.isHelp;
+            if (!isHelpOrQuestionIssue) {
+                if (!param.tokenUser?.trim()) {
+                    (0, logger_1.logInfo)('Bot username (tokenUser) not set; skipping Think response.');
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    }));
+                    return results;
+                }
+                if (!commentBody.includes(`@${param.tokenUser}`)) {
+                    (0, logger_1.logInfo)(`Comment does not mention @${param.tokenUser}; skipping.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    }));
+                    return results;
+                }
             }
             if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
                 results.push(new result_1.Result({
@@ -53909,7 +53912,9 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            const question = isHelpOrQuestionIssue
+                ? commentBody.trim()
+                : commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
             if (!question) {
                 results.push(new result_1.Result({
                     id: this.taskId,

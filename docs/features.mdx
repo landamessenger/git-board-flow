@@ -83,7 +83,8 @@ All AI features go through **OpenCode** (one server URL + model). You can use 75
 | Feature | Where it runs | Description |
 |--------|----------------|-------------|
 | **Check progress** | Push (commit) pipeline; optional single action `check_progress_action` / CLI `check-progress` | On every push, OpenCode Plan compares issue vs branch diff and updates the progress label on the issue and on any open PRs for that branch. You can also run it on demand via single action or CLI. |
-| **Think / reasoning** | Single action `think_action` | Deep code analysis and change proposals (OpenCode Plan agent). |
+| **Think / reasoning** | Issue/PR comment pipeline; single action `think_action` | Deep code analysis and change proposals (OpenCode Plan agent). On comments: answers when mentioned (or on any comment for question/help issues). |
+| **Comment translation** | Issue comment; PR review comment | Translates comments to the configured locale (`issues-locale`, `pull-requests-locale`) when they are written in another language. |
 | **AI PR description** | Pull request pipeline | Fills the repo's `.github/pull_request_template.md` from issue and branch diff (OpenCode Plan agent). |
 | **Copilot** | CLI `giik copilot` | Code analysis and file edits via OpenCode Build agent. |
 | **Error detection** | Single action / CLI | Detects potential bugs and issues in the codebase (OpenCode Plan agent). |

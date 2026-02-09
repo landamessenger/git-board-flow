@@ -27,6 +27,7 @@ function baseParam(overrides: Record<string, unknown> = {}) {
     tokenUser: 'bot',
     tokens: { token: 't' },
     ai: new Ai('https://opencode.example.com', 'model-x', false, false, [], false),
+    labels: { isQuestion: false, isHelp: false },
     issue: {
       isIssueComment: true,
       isIssue: false,
@@ -89,6 +90,42 @@ describe('ThinkUseCase', () => {
     expect(results[0].executed).toBe(false);
     expect(mockAsk).not.toHaveBeenCalled();
     expect(mockAddComment).not.toHaveBeenCalled();
+  });
+
+  it('responds without mention when issue has question label', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAsk.mockResolvedValue('Here is the answer.');
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      labels: { isQuestion: true, isHelp: false },
+      issue: { ...baseParam().issue, commentBody: 'how do I configure the webhook?' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAsk.mock.calls[0][1]).toContain('how do I configure the webhook?');
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'Here is the answer.', 't');
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+  });
+
+  it('responds without mention when issue has help label', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAsk.mockResolvedValue('I can help with that.');
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      labels: { isQuestion: false, isHelp: true },
+      issue: { ...baseParam().issue, commentBody: 'I need help with deployment' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAsk.mock.calls[0][1]).toContain('I need help with deployment');
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'I can help with that.', 't');
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
   });
 
   it('returns error when OpenCode model is empty', async () => {

@@ -32,28 +32,33 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (!param.tokenUser?.trim()) {
-                logInfo('Bot username (tokenUser) not set; skipping Think response.');
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    })
-                );
-                return results;
-            }
+            const isHelpOrQuestionIssue =
+                param.labels.isQuestion || param.labels.isHelp;
 
-            if (!commentBody.includes(`@${param.tokenUser}`)) {
-                logInfo(`Comment does not mention @${param.tokenUser}; skipping.`);
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    })
-                );
-                return results;
+            if (!isHelpOrQuestionIssue) {
+                if (!param.tokenUser?.trim()) {
+                    logInfo('Bot username (tokenUser) not set; skipping Think response.');
+                    results.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        })
+                    );
+                    return results;
+                }
+
+                if (!commentBody.includes(`@${param.tokenUser}`)) {
+                    logInfo(`Comment does not mention @${param.tokenUser}; skipping.`);
+                    results.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        })
+                    );
+                    return results;
+                }
             }
 
             if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
@@ -68,7 +73,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            const question = isHelpOrQuestionIssue
+                ? commentBody.trim()
+                : commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
             if (!question) {
                 results.push(
                     new Result({

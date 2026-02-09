@@ -194,12 +194,26 @@ For the `copilot` command:
 
 - **AI pull request description** – Generates PR descriptions from issue and diff.
 - **Think / reasoning** – Deep code analysis and change proposals (OpenCode Plan agent).
+- **Comment translation** – Automatically translates issue and PR review comments to the configured locale (e.g. English, Spanish) when they are written in another language. Uses `issues-locale` and `pull-requests-locale` inputs.
 - **Check progress** – Progress detection from branch vs issue description (OpenCode Plan agent).
 - **Copilot** – Code analysis and manipulation agent (OpenCode Build agent).
 - **Error detection** – Potential bugs and issues in the codebase (OpenCode Plan agent).
 - **Recommend steps** – Suggests implementation steps from the issue description (OpenCode Plan agent).
 
 All of these use the same OpenCode server and model configuration.
+
+## How Think works on issue comments
+
+When someone comments on an **issue** or **PR review**, OpenCode can reply with AI-generated answers (Think feature). The trigger depends on the issue type:
+
+- **Issues labeled `question` or `help`**: OpenCode responds to **any comment** on the issue. No mention required — if the user needs help, simply add a comment and OpenCode will answer.
+- **Other issues**: You must **mention the bot user** (the user of the PAT) in the comment, e.g. `@your-bot-user how do I configure X?` Only then does OpenCode respond.
+
+This lets question/help issues behave as a support channel where users can ask without knowing the bot's username.
+
+## How comment translation works
+
+When someone comments on an **issue** or **PR review**, the action checks if the text is in the configured locale (`issues-locale` for issues, `pull-requests-locale` for PRs). If the comment is in another language, OpenCode **translates it** and updates the comment with the translation (appending the original text below). A hidden marker prevents re-translating the same comment. To force a new translation, delete the comment and post again.
 
 ## How "check progress" works (e.g. "Progress 30%" in the issue)
 

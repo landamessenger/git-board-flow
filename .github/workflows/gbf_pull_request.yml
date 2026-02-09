@@ -14,7 +14,6 @@ jobs:
 
       - uses: ./
         with:
-          ai-pull-request-description: true
           ai-ignore-files: build/*
           debug: ${{ vars.DEBUG }}
           opencode-model: ${{ vars.OPENCODE_MODEL }}

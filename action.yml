@@ -83,6 +83,9 @@ inputs:
   priority-low-label:
     description: "Label to indicate a priority low."
     default: "priority: low"
+  priority-none-label:
+    description: "Label to indicate no priority."
+    default: "priority: none"
   size-xxl-label:
     description: "Label to indicate a task of size XXL."
     default: "size: XXL"
@@ -398,13 +401,16 @@ inputs:
     default: "true"
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
-    default: "false"
+    default: "true"
   ai-ignore-files:
     description: "Comma-separated list of files to ignore for AI operations."
     default: ""
   ai-members-only:
     description: "Restrict AI features to only organization/project members."
     default: "false"
+  ai-include-reasoning:
+    description: "Include reasoning or chain-of-thought in AI responses when supported by the model."
+    default: "true"
 runs:
   using: "node20"
   main: "build/github_action/index.js"
