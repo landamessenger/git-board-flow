@@ -48814,7 +48814,7 @@ exports.Workflows = Workflows;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AiRepository = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
+exports.AiRepository = exports.TRANSLATION_RESPONSE_SCHEMA = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
 exports.getSessionDiff = getSessionDiff;
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
@@ -48876,6 +48876,22 @@ function extractReasoningFromParts(parts) {
 exports.OPENCODE_AGENT_PLAN = 'plan';
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
 exports.OPENCODE_AGENT_BUILD = 'build';
+/** JSON schema for translation responses: translatedText (required), optional reason if translation failed. */
+exports.TRANSLATION_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        translatedText: {
+            type: 'string',
+            description: 'The text translated to the requested locale. Required. Must not be empty.',
+        },
+        reason: {
+            type: 'string',
+            description: 'Optional: reason why translation could not be produced or was partial (e.g. ambiguous input).',
+        },
+    },
+    required: ['translatedText'],
+    additionalProperties: false,
+};
 /**
  * OpenCode HTTP API: create session and send message, return assistant parts.
  * Uses fetch to avoid ESM-only SDK with ncc.
@@ -55597,13 +55613,36 @@ You are a helpful assistant that translates the text to ${locale}.
 
 Instructions:
 1. Translate the text to ${locale}
-2. Do not provide any explanation or additional text
-3. Return the translated text only
+2. Put the translated text in the translatedText field
+3. If you cannot translate (e.g. ambiguous or invalid input), set translatedText to empty string and explain in reason
 
-The text is: ${commentBody}
+The text to translate is: ${commentBody}
         `;
-        result = await this.aiRepository.ask(param.ai, prompt);
-        const translatedCommentBody = `${result}
+        const translationResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+            expectJson: true,
+            schema: ai_repository_1.TRANSLATION_RESPONSE_SCHEMA,
+            schemaName: 'translation_response',
+        });
+        const translatedText = translationResponse != null &&
+            typeof translationResponse === 'object' &&
+            typeof translationResponse.translatedText === 'string'
+            ? translationResponse.translatedText.trim()
+            : '';
+        if (!translatedText) {
+            const reason = translationResponse != null &&
+                typeof translationResponse === 'object' &&
+                typeof translationResponse.reason === 'string'
+                ? translationResponse.reason
+                : undefined;
+            (0, logger_1.logInfo)(`Translation returned no text; skipping comment update.${reason ? ` Reason: ${reason}` : ' OpenCode may have failed or returned invalid response.'}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: false,
+            }));
+            return results;
+        }
+        const translatedCommentBody = `${translatedText}
 > ${commentBody}
 ${this.translatedKey}
 `;
@@ -56187,13 +56226,36 @@ You are a helpful assistant that translates the text to ${locale}.
 
 Instructions:
 1. Translate the text to ${locale}
-2. Do not provide any explanation or additional text
-3. Return the translated text only
+2. Put the translated text in the translatedText field
+3. If you cannot translate (e.g. ambiguous or invalid input), set translatedText to empty string and explain in reason
 
-The text is: ${commentBody}
+The text to translate is: ${commentBody}
         `;
-        result = await this.aiRepository.ask(param.ai, prompt);
-        const translatedCommentBody = `${result}
+        const translationResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+            expectJson: true,
+            schema: ai_repository_1.TRANSLATION_RESPONSE_SCHEMA,
+            schemaName: 'translation_response',
+        });
+        const translatedText = translationResponse != null &&
+            typeof translationResponse === 'object' &&
+            typeof translationResponse.translatedText === 'string'
+            ? translationResponse.translatedText.trim()
+            : '';
+        if (!translatedText) {
+            const reason = translationResponse != null &&
+                typeof translationResponse === 'object' &&
+                typeof translationResponse.reason === 'string'
+                ? translationResponse.reason
+                : undefined;
+            (0, logger_1.logInfo)(`Translation returned no text; skipping comment update.${reason ? ` Reason: ${reason}` : ' OpenCode may have failed or returned invalid response.'}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: false,
+            }));
+            return results;
+        }
+        const translatedCommentBody = `${translatedText}
 > ${commentBody}
 ${this.translatedKey}
 `;

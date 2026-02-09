@@ -9,9 +9,10 @@ If you'd like this comment to be translated again, please delete the entire comm
 -->`;
 
 const mockAsk = jest.fn();
+const mockAskAgent = jest.fn();
 const mockUpdateComment = jest.fn();
 jest.mock('../../../../data/repository/ai_repository', () => ({
-  AiRepository: jest.fn().mockImplementation(() => ({ ask: mockAsk })),
+  AiRepository: jest.fn().mockImplementation(() => ({ ask: mockAsk, askAgent: mockAskAgent })),
 }));
 jest.mock('../../../../data/repository/issue_repository', () => ({
   IssueRepository: jest.fn().mockImplementation(() => ({ updateComment: mockUpdateComment })),
@@ -35,6 +36,7 @@ describe('CheckIssueCommentLanguageUseCase', () => {
   beforeEach(() => {
     useCase = new CheckIssueCommentLanguageUseCase();
     mockAsk.mockReset();
+    mockAskAgent.mockReset();
     mockUpdateComment.mockReset();
   });
 
@@ -74,14 +76,16 @@ describe('CheckIssueCommentLanguageUseCase', () => {
     expect(mockUpdateComment).not.toHaveBeenCalled();
   });
 
-  it('calls updateComment when AI responds must_translate', async () => {
-    mockAsk.mockResolvedValueOnce('must_translate').mockResolvedValueOnce('Texto traducido');
+  it('calls updateComment when AI responds must_translate and askAgent returns schema with translatedText', async () => {
+    mockAsk.mockResolvedValueOnce('must_translate');
+    mockAskAgent.mockResolvedValueOnce({ translatedText: 'Texto traducido' });
     mockUpdateComment.mockResolvedValue(undefined);
     const param = baseParam();
 
     const results = await useCase.invoke(param);
 
-    expect(mockAsk).toHaveBeenCalledTimes(2);
+    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
     expect(mockUpdateComment).toHaveBeenCalledWith(
       'o',
       'r',
@@ -91,5 +95,49 @@ describe('CheckIssueCommentLanguageUseCase', () => {
       't'
     );
     expect(results.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('does not update comment when askAgent returns undefined', async () => {
+    mockAsk.mockResolvedValueOnce('must_translate');
+    mockAskAgent.mockResolvedValueOnce(undefined);
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockUpdateComment).not.toHaveBeenCalled();
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(false);
+  });
+
+  it('does not update comment when askAgent returns empty translatedText', async () => {
+    mockAsk.mockResolvedValueOnce('must_translate');
+    mockAskAgent.mockResolvedValueOnce({ translatedText: '   ' });
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockUpdateComment).not.toHaveBeenCalled();
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(false);
+  });
+
+  it('does not update comment when askAgent returns translatedText missing', async () => {
+    mockAsk.mockResolvedValueOnce('must_translate');
+    mockAskAgent.mockResolvedValueOnce({ reason: 'Ambiguous input' });
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockUpdateComment).not.toHaveBeenCalled();
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(false);
   });
 });

@@ -69,6 +69,24 @@ export const OPENCODE_AGENT_PLAN = 'plan';
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
 export const OPENCODE_AGENT_BUILD = 'build';
 
+/** JSON schema for translation responses: translatedText (required), optional reason if translation failed. */
+export const TRANSLATION_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        translatedText: {
+            type: 'string',
+            description: 'The text translated to the requested locale. Required. Must not be empty.',
+        },
+        reason: {
+            type: 'string',
+            description:
+                'Optional: reason why translation could not be produced or was partial (e.g. ambiguous input).',
+        },
+    },
+    required: ['translatedText'],
+    additionalProperties: false,
+} as const;
+
 /**
  * OpenCode HTTP API: create session and send message, return assistant parts.
  * Uses fetch to avoid ESM-only SDK with ncc.

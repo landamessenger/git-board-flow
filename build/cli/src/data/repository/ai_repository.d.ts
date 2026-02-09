@@ -3,6 +3,22 @@ import { Ai } from '../model/ai';
 export declare const OPENCODE_AGENT_PLAN = "plan";
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
 export declare const OPENCODE_AGENT_BUILD = "build";
+/** JSON schema for translation responses: translatedText (required), optional reason if translation failed. */
+export declare const TRANSLATION_RESPONSE_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly translatedText: {
+            readonly type: "string";
+            readonly description: "The text translated to the requested locale. Required. Must not be empty.";
+        };
+        readonly reason: {
+            readonly type: "string";
+            readonly description: "Optional: reason why translation could not be produced or was partial (e.g. ambiguous input).";
+        };
+    };
+    readonly required: readonly ["translatedText"];
+    readonly additionalProperties: false;
+};
 export interface AskAgentOptions {
     /** Request JSON response and parse it. If schema provided, include it in the prompt. */
     expectJson?: boolean;
