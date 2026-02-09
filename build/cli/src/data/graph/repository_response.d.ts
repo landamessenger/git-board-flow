@@ -1,4 +1,4 @@
-type RepositoryResponse = {
+export type RepositoryResponse = {
     repository: {
         id: string;
         issue: {

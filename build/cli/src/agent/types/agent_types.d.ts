@@ -33,7 +33,8 @@ export interface RetryConfig {
 }
 export interface AgentOptions {
     model: string;
-    apiKey: string;
+    /** OpenCode server URL (e.g. http://localhost:4096) */
+    serverUrl: string;
     systemPrompt?: string;
     maxTurns?: number;
     maxTokens?: number;
@@ -55,7 +56,6 @@ export interface AgentOptions {
     budget?: BudgetConfig;
     timeouts?: TimeoutConfig;
     retry?: RetryConfig;
-    enableMCP?: boolean;
 }
 export interface TurnResult {
     turnNumber: number;

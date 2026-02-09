@@ -16,18 +16,20 @@ import { Release } from '../data/model/release';
 import { SingleAction } from '../data/model/single_action';
 import { SizeThreshold } from '../data/model/size_threshold';
 import { SizeThresholds } from '../data/model/size_thresholds';
-import { SupabaseConfig } from '../data/model/supabase_config';
 import { Tokens } from '../data/model/tokens';
 import { Welcome } from '../data/model/welcome';
 import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
-import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS, TITLE } from '../utils/constants';
+import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from '../utils/constants';
 import { logInfo } from '../utils/logger';
 import { getActionInputsWithDefaults } from '../utils/yml_utils';
 import { mainRun } from './common_action';
 import boxen from 'boxen';
 
-export async function runLocalAction(additionalParams: any): Promise<void> {
+export async function runLocalAction(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Params shape is dynamic (CLI/action inputs)
+    additionalParams: any
+): Promise<void> {
     const projectRepository = new ProjectRepository();
 
     const actionInputs = getActionInputsWithDefaults();
@@ -58,10 +60,10 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     const token = additionalParams[INPUT_KEYS.TOKEN] ?? actionInputs[INPUT_KEYS.TOKEN];
 
     /**
-     * AI
+     * AI (OpenCode)
      */
-    const openrouterApiKey = additionalParams[INPUT_KEYS.OPENROUTER_API_KEY] ?? actionInputs[INPUT_KEYS.OPENROUTER_API_KEY];
-    const openrouterModel = additionalParams[INPUT_KEYS.OPENROUTER_MODEL] ?? actionInputs[INPUT_KEYS.OPENROUTER_MODEL];
+    const opencodeServerUrl = additionalParams[INPUT_KEYS.OPENCODE_SERVER_URL] ?? actionInputs[INPUT_KEYS.OPENCODE_SERVER_URL] ?? 'http://127.0.0.1:4096';
+    const opencodeModel = additionalParams[INPUT_KEYS.OPENCODE_MODEL] ?? actionInputs[INPUT_KEYS.OPENCODE_MODEL] ?? OPENCODE_DEFAULT_MODEL;
     const aiPullRequestDescription = (additionalParams[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION] ?? actionInputs[INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION]) === 'true';
     const aiMembersOnly = (additionalParams[INPUT_KEYS.AI_MEMBERS_ONLY] ?? actionInputs[INPUT_KEYS.AI_MEMBERS_ONLY]) === 'true';
     const aiIncludeReasoning = (additionalParams[INPUT_KEYS.AI_INCLUDE_REASONING] ?? actionInputs[INPUT_KEYS.AI_INCLUDE_REASONING]) === 'true';
@@ -70,41 +72,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
         .split(',')
         .map(path => path.trim())
         .filter(path => path.length > 0);
-
-    // Provider routing configuration
-    const openRouterProviderOrderInput: string = additionalParams[INPUT_KEYS.OPENROUTER_PROVIDER_ORDER] ?? actionInputs[INPUT_KEYS.OPENROUTER_PROVIDER_ORDER];
-    const openRouterProviderOrder: string[] = openRouterProviderOrderInput
-        .split(',')
-        .map(provider => provider.trim())
-        .filter(provider => provider.length > 0);
-
-    const openRouterProviderAllowFallbacks = (additionalParams[INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS] ?? actionInputs[INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS]) === 'true';
-    const openRouterProviderRequireParameters = (additionalParams[INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS] ?? actionInputs[INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS]) === 'true';
-    const openRouterProviderDataCollection = (additionalParams[INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION] ?? actionInputs[INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION]) as 'allow' | 'deny';
-    
-    const openRouterProviderIgnoreInput: string = additionalParams[INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE] ?? actionInputs[INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE];
-    const openRouterProviderIgnore: string[] = openRouterProviderIgnoreInput
-        .split(',')
-        .map(provider => provider.trim())
-        .filter(provider => provider.length > 0);
-
-    const openRouterProviderQuantizationsInput: string = additionalParams[INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS] ?? actionInputs[INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS];
-    const openRouterProviderQuantizations: string[] = openRouterProviderQuantizationsInput
-        .split(',')
-        .map(level => level.trim())
-        .filter(level => level.length > 0);
-
-    const openRouterProviderSort = (additionalParams[INPUT_KEYS.OPENROUTER_PROVIDER_SORT] ?? actionInputs[INPUT_KEYS.OPENROUTER_PROVIDER_SORT]) as 'price' | 'throughput' | 'latency' | '';
-
-    const providerRouting = {
-        ...(openRouterProviderOrder.length > 0 && { order: openRouterProviderOrder }),
-        ...(openRouterProviderAllowFallbacks !== undefined && { allow_fallbacks: openRouterProviderAllowFallbacks }),
-        ...(openRouterProviderRequireParameters !== undefined && { require_parameters: openRouterProviderRequireParameters }),
-        ...(openRouterProviderDataCollection && { data_collection: openRouterProviderDataCollection }),
-        ...(openRouterProviderIgnore.length > 0 && { ignore: openRouterProviderIgnore }),
-        ...(openRouterProviderQuantizations.length > 0 && { quantizations: openRouterProviderQuantizations }),
-        ...(openRouterProviderSort && { sort: openRouterProviderSort })
-    };
 
     /**
      * Projects Details
@@ -485,16 +452,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
     const pullRequestDesiredReviewersCount = parseInt(additionalParams[INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT] ?? actionInputs[INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT]) ?? 0;
     const pullRequestMergeTimeout = parseInt(additionalParams[INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT] ?? actionInputs[INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT]) ?? 0;
 
-    /**
-     * Supabase
-     */
-    const supabaseUrl = additionalParams[INPUT_KEYS.SUPABASE_URL] ?? actionInputs[INPUT_KEYS.SUPABASE_URL];
-    const supabaseKey = additionalParams[INPUT_KEYS.SUPABASE_KEY] ?? actionInputs[INPUT_KEYS.SUPABASE_KEY];
-    let supabaseConfig: SupabaseConfig | undefined = undefined;
-    if (supabaseUrl.length > 0 && supabaseKey.length > 0) {
-        supabaseConfig = new SupabaseConfig(supabaseUrl, supabaseKey);
-    }
-
     const execution = new Execution(
         debug,
         new SingleAction(
@@ -551,13 +508,12 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             token,
         ),
         new Ai(
-            openrouterApiKey,
-            openrouterModel,
+            opencodeServerUrl,
+            opencodeModel,
             aiPullRequestDescription,
             aiMembersOnly,
             aiIgnoreFiles,
             aiIncludeReasoning,
-            Object.keys(providerRouting).length > 0 ? providerRouting : undefined
         ),
         new Labels(
             branchManagementLauncherLabel,
@@ -671,7 +627,6 @@ export async function runLocalAction(additionalParams: any): Promise<void> {
             projectColumnIssueInProgress,
             projectColumnPullRequestInProgress,
         ),
-        supabaseConfig,
         new Welcome(welcomeTitle, welcomeMessages),
         additionalParams,
     )

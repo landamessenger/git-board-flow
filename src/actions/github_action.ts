@@ -22,10 +22,10 @@ import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
 import { PublishResultUseCase } from '../usecase/steps/common/publish_resume_use_case';
 import { StoreConfigurationUseCase } from '../usecase/steps/common/store_configuration_use_case';
-import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS } from '../utils/constants';
+import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL } from '../utils/constants';
+import { logError, logInfo } from '../utils/logger';
+import { startOpencodeServer, type ManagedOpencodeServer } from '../utils/opencode_server';
 import { mainRun } from './common_action';
-import { SupabaseConfig } from '../data/model/supabase_config';
-import { logError } from '../utils/logger';
 
 export async function runGitHubAction(): Promise<void> {
     const projectRepository = new ProjectRepository();
@@ -50,10 +50,19 @@ export async function runGitHubAction(): Promise<void> {
     const token = getInput(INPUT_KEYS.TOKEN, {required: true});
 
     /**
-     * AI
+     * AI (OpenCode)
      */
-    const openrouterApiKey = getInput(INPUT_KEYS.OPENROUTER_API_KEY);
-    const openrouterModel = getInput(INPUT_KEYS.OPENROUTER_MODEL)
+    let opencodeServerUrl = getInput(INPUT_KEYS.OPENCODE_SERVER_URL) || 'http://127.0.0.1:4096';
+    const opencodeModel = getInput(INPUT_KEYS.OPENCODE_MODEL) || OPENCODE_DEFAULT_MODEL;
+    const opencodeStartServer = getInput(INPUT_KEYS.OPENCODE_START_SERVER) === 'true';
+
+    let managedOpencodeServer: ManagedOpencodeServer | undefined;
+    if (opencodeStartServer) {
+        managedOpencodeServer = await startOpencodeServer({ cwd: process.cwd() });
+        opencodeServerUrl = managedOpencodeServer.url;
+    }
+
+    try {
     const aiPullRequestDescription = getInput(INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION) === 'true';
     const aiMembersOnly = getInput(INPUT_KEYS.AI_MEMBERS_ONLY) === 'true';
     const aiIncludeReasoning = getInput(INPUT_KEYS.AI_INCLUDE_REASONING) === 'true';
@@ -62,41 +71,6 @@ export async function runGitHubAction(): Promise<void> {
         .split(',')
         .map(path => path.trim())
         .filter(path => path.length > 0);
-
-    // Provider routing configuration
-    const openRouterProviderOrderInput: string = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_ORDER);
-    const openRouterProviderOrder: string[] = openRouterProviderOrderInput
-        .split(',')
-        .map(provider => provider.trim())
-        .filter(provider => provider.length > 0);
-
-    const openRouterProviderAllowFallbacks = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS) === 'true';
-    const openRouterProviderRequireParameters = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS) === 'true';
-    const openRouterProviderDataCollection = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION) as 'allow' | 'deny';
-    
-    const openRouterProviderIgnoreInput: string = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE);
-    const openRouterProviderIgnore: string[] = openRouterProviderIgnoreInput
-        .split(',')
-        .map(provider => provider.trim())
-        .filter(provider => provider.length > 0);
-
-    const openRouterProviderQuantizationsInput: string = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS);
-    const openRouterProviderQuantizations: string[] = openRouterProviderQuantizationsInput
-        .split(',')
-        .map(level => level.trim())
-        .filter(level => level.length > 0);
-
-    const openRouterProviderSort = getInput(INPUT_KEYS.OPENROUTER_PROVIDER_SORT) as 'price' | 'throughput' | 'latency' | '';
-
-    const providerRouting = {
-        ...(openRouterProviderOrder.length > 0 && { order: openRouterProviderOrder }),
-        ...(openRouterProviderAllowFallbacks !== undefined && { allow_fallbacks: openRouterProviderAllowFallbacks }),
-        ...(openRouterProviderRequireParameters !== undefined && { require_parameters: openRouterProviderRequireParameters }),
-        ...(openRouterProviderDataCollection && { data_collection: openRouterProviderDataCollection }),
-        ...(openRouterProviderIgnore.length > 0 && { ignore: openRouterProviderIgnore }),
-        ...(openRouterProviderQuantizations.length > 0 && { quantizations: openRouterProviderQuantizations }),
-        ...(openRouterProviderSort && { sort: openRouterProviderSort })
-    };
 
     /**
      * Projects Details
@@ -477,16 +451,6 @@ export async function runGitHubAction(): Promise<void> {
     const pullRequestDesiredReviewersCount = parseInt(getInput(INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)) ?? 0;
     const pullRequestMergeTimeout = parseInt(getInput(INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)) ?? 0;
 
-    /**
-     * Supabase
-     */
-    const supabaseUrl = getInput(INPUT_KEYS.SUPABASE_URL);
-    const supabaseKey = getInput(INPUT_KEYS.SUPABASE_KEY);
-    let supabaseConfig: SupabaseConfig | undefined = undefined;
-    if (supabaseUrl.length > 0 && supabaseKey.length > 0) {
-        supabaseConfig = new SupabaseConfig(supabaseUrl, supabaseKey);
-    }
-
     const execution = new Execution(
         debug,
         new SingleAction(
@@ -541,13 +505,12 @@ export async function runGitHubAction(): Promise<void> {
             token,
         ),
         new Ai(
-            openrouterApiKey,
-            openrouterModel,
+            opencodeServerUrl,
+            opencodeModel,
             aiPullRequestDescription,
             aiMembersOnly,
             aiIgnoreFiles,
             aiIncludeReasoning,
-            Object.keys(providerRouting).length > 0 ? providerRouting : undefined
         ),
         new Labels(
             branchManagementLauncherLabel,
@@ -661,7 +624,6 @@ export async function runGitHubAction(): Promise<void> {
             projectColumnIssueInProgress,
             projectColumnPullRequestInProgress,
         ),
-        supabaseConfig,
         undefined,
         undefined,
     )
@@ -669,12 +631,20 @@ export async function runGitHubAction(): Promise<void> {
     const results: Result[] = await mainRun(execution);
 
     await finishWithResults(execution, results);
+    } finally {
+        if (managedOpencodeServer) {
+            logInfo('Stopping OpenCode server...');
+            await managedOpencodeServer.stop();
+            logInfo('OpenCode server stopped.');
+        }
+    }
 }
 
 async function finishWithResults(execution: Execution, results: Result[]): Promise<void> {
     execution.currentConfiguration.results = results;
     await new PublishResultUseCase().invoke(execution)
     await new StoreConfigurationUseCase().invoke(execution)
+    logInfo('Configuration stored. Finishing.');
 
     /**
      * If a single action is executed and the last step failed, throw an error
@@ -711,4 +681,10 @@ function setFirstErrorIfExists(results: Result[]): void {
     }
 }
 
-runGitHubAction();
+runGitHubAction()
+    .then(() => process.exit(0))
+    .catch((err: unknown) => {
+        logError(err);
+        core.setFailed(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+    });

@@ -1,8 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
-import { SupabaseRepository } from "../../../data/repository/supabase_repository";
-import { logError, logInfo } from "../../../utils/logger";
+import { logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Result[]> {
@@ -12,11 +11,6 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
 
     async invoke(param: Execution): Promise<Result[]> {
         logInfo(`Executing ${this.taskId}.`)
-
-        let supabaseRepository: SupabaseRepository | undefined = undefined;
-        if (param.supabaseConfig) {
-            supabaseRepository = new SupabaseRepository(param.supabaseConfig);
-        }
 
         const result: Result[] = []
         try {
@@ -43,14 +37,6 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                             `#${param.issueNumber} was automatically closed after merging this pull request.`
                         ]
                     })
-                )
-
-                result.push(
-                    ...await this.removeBranches(
-                        supabaseRepository,
-                        param,
-                        param.pullRequest.head.replace('refs/heads/', ''),
-                    )
                 );
             } else {
                 result.push(
@@ -76,41 +62,5 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
             )
         }
         return result
-    }
-
-    private removeBranches = async (supabaseRepository: SupabaseRepository | undefined, param: Execution, branch: string) => {
-        const result: Result[] = []
-        if (!supabaseRepository) {
-            return result;
-        }
-        try {
-            await supabaseRepository.removeAIFileCacheByBranch(param.owner, param.repo, branch);
-            result.push(
-                new Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    reminders: [
-                        `AI index was removed from \`${branch}\`.`,
-                    ]
-                })
-            )
-        } catch (error) {
-            logError(`Error removing AI cache: ${JSON.stringify(error, null, 2)}`);
-            result.push(
-                new Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `There was an error removing the AI index from \`${branch}\`.`,
-                    ],
-                    errors: [
-                        JSON.stringify(error, null, 2),
-                    ],
-                })
-            )
-        }
-        return result;
     }
 }

@@ -1,24 +1,23 @@
 import { ACTIONS } from "../../utils/constants";
-import { logDebugInfo, logError } from "../../utils/logger";
+import { logError } from "../../utils/logger";
 
 export class SingleAction {
     currentSingleAction: string;
     actions: string[] = [
         ACTIONS.DEPLOYED,
-        ACTIONS.AI_CACHE,
-        ACTIONS.AI_CACHE_LOCAL,
         ACTIONS.PUBLISH_GITHUB_ACTION,
         ACTIONS.CREATE_TAG,
         ACTIONS.CREATE_RELEASE,
         ACTIONS.THINK,
         ACTIONS.INITIAL_SETUP,
         ACTIONS.CHECK_PROGRESS,
+        ACTIONS.DETECT_ERRORS,
+        ACTIONS.RECOMMEND_STEPS,
     ];
     /**
      * Actions that throw an error if the last step failed
      */
     actionsThrowError: string[] = [
-       ACTIONS.AI_CACHE,
        ACTIONS.PUBLISH_GITHUB_ACTION,
        ACTIONS.CREATE_RELEASE,
        ACTIONS.DEPLOYED,
@@ -29,8 +28,6 @@ export class SingleAction {
      * Actions that do not require an issue
      */
     actionsWithoutIssue: string[] = [
-        ACTIONS.AI_CACHE,
-        ACTIONS.AI_CACHE_LOCAL,
         ACTIONS.THINK,
         ACTIONS.INITIAL_SETUP,
     ];
@@ -49,14 +46,6 @@ export class SingleAction {
 
     get isDeployedAction(): boolean {
         return this.currentSingleAction === ACTIONS.DEPLOYED;
-    }
-
-    get isAiCacheAction(): boolean {
-        return this.currentSingleAction === ACTIONS.AI_CACHE || this.currentSingleAction === ACTIONS.AI_CACHE_LOCAL;
-    }
-
-    get isAiCacheLocalAction(): boolean {
-        return this.currentSingleAction === ACTIONS.AI_CACHE_LOCAL;
     }
 
     get isPublishGithubAction(): boolean {
@@ -81,6 +70,14 @@ export class SingleAction {
 
     get isCheckProgressAction(): boolean {
         return this.currentSingleAction === ACTIONS.CHECK_PROGRESS;
+    }
+
+    get isDetectErrorsAction(): boolean {
+        return this.currentSingleAction === ACTIONS.DETECT_ERRORS;
+    }
+
+    get isRecommendStepsAction(): boolean {
+        return this.currentSingleAction === ACTIONS.RECOMMEND_STEPS;
     }
 
     get enabledSingleAction(): boolean {

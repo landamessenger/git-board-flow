@@ -3,10 +3,11 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
+  passWithNoTests: true,
   collectCoverageFrom: [
-    'src/agent/**/*.ts',
-    '!src/agent/**/*.d.ts',
-    '!src/agent/__tests__/**'
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/**/__tests__/**'
   ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   transform: {

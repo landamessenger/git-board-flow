@@ -1,6 +1,10 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
-import { AiRepository } from "../../../data/repository/ai_repository";
+import {
+    AiRepository,
+    OPENCODE_AGENT_PLAN,
+    TRANSLATION_RESPONSE_SCHEMA,
+} from "../../../data/repository/ai_repository";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
@@ -66,17 +70,50 @@ You are a helpful assistant that translates the text to ${locale}.
 
 Instructions:
 1. Translate the text to ${locale}
-2. Do not provide any explanation or additional text
-3. Return the translated text only
+2. Put the translated text in the translatedText field
+3. If you cannot translate (e.g. ambiguous or invalid input), set translatedText to empty string and explain in reason
 
-The text is: ${commentBody}
+The text to translate is: ${commentBody}
         `;
-        result = await this.aiRepository.ask(
+        const translationResponse = await this.aiRepository.askAgent(
             param.ai,
+            OPENCODE_AGENT_PLAN,
             prompt,
+            {
+                expectJson: true,
+                schema: TRANSLATION_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+                schemaName: 'translation_response',
+            },
         );
 
-        const translatedCommentBody = `${result}
+        const translatedText =
+            translationResponse != null &&
+            typeof translationResponse === 'object' &&
+            typeof (translationResponse as Record<string, unknown>).translatedText === 'string'
+                ? ((translationResponse as Record<string, unknown>).translatedText as string).trim()
+                : '';
+
+        if (!translatedText) {
+            const reason =
+                translationResponse != null &&
+                typeof translationResponse === 'object' &&
+                typeof (translationResponse as Record<string, unknown>).reason === 'string'
+                    ? (translationResponse as Record<string, unknown>).reason
+                    : undefined;
+            logInfo(
+                `Translation returned no text; skipping comment update.${reason ? ` Reason: ${reason}` : ' OpenCode may have failed or returned invalid response.'}`
+            );
+            results.push(
+                new Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                })
+            );
+            return results;
+        }
+
+        const translatedCommentBody = `${translatedText}
 > ${commentBody}
 ${this.translatedKey}
 `;

@@ -131,6 +131,6 @@ jobs:
           debug: ${{ vars.DEBUG }}
           single-action: 'deployed_action'
           single-action-issue: '${{ github.event.inputs.issue }}'
-          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
-          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
+          opencode-model: ${{ vars.OPENCODE_MODEL }}
+          opencode-start-server: true
           token: ${{ secrets.PAT }}

@@ -45,7 +45,7 @@ export declare class ReasoningVisualizer {
     /**
      * Show completion summary
      */
-    showCompletion(finalAnalysis?: string): void;
+    showCompletion(_finalAnalysis?: string): void;
     /**
      * Create a visual progress bar
      */

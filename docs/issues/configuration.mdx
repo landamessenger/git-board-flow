@@ -124,18 +124,19 @@ The following parameters can be configured in the workflow:
 - `images-commit-hotfix`: Image URLs to display in hotfix action commit comments
 - `images-commit-release`: Image URLs to display in release action commit comments
 
-#### AI Features
-- `openai-api-key`: OpenAI API key for AI operations
-- `openai-model`: OpenAI model for AI operations (default: "gpt-3.5-turbo")
-- `ai-pull-request-description`: Enable AI-powered automatic updates for PR descriptions (default: "false")
+#### AI (OpenCode)
+- `opencode-server-url`: OpenCode server URL (default: "http://localhost:4096"). See [OpenCode (AI)](/opencode-integration).
+- `opencode-model`: Model in provider/model format (default: "opencode/kimi-k2.5")
+- `opencode-start-server`: If true, the action starts and stops OpenCode in the job (default: "false")
+- `ai-pull-request-description`: Enable AI-powered PR descriptions (default: "false")
 - `ai-ignore-files`: Comma-separated list of files to ignore for AI operations
-- `ai-members-only`: Restrict AI features to only organization/project members (default: "true")
+- `ai-members-only`: Restrict AI features to organization/project members (default: "true")
 
 #### Workflow Configuration
 - `release-workflow`: Release workflow for running release deploys (default: "release_workflow.yml")
 - `hotfix-workflow`: Hotfix workflow for running hotfix deploys (default: "hotfix_workflow.yml")
 - `merge-timeout`: Timeout for the merge workflow in seconds (default: "600")
-- `commit-prefix-builder`: Enable commit prefix generation (default: "branchName.replace(\"/\", \"-\");")
+- `commit-prefix-transforms`: Transforms for commit prefix from branch name (e.g. "replace-slash", "kebab-case")
 
 
 

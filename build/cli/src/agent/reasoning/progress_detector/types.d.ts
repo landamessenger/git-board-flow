@@ -7,7 +7,7 @@ import { AgentResult } from '../../types';
  */
 export interface ProgressDetectionOptions {
     model?: string;
-    apiKey: string;
+    serverUrl: string;
     personalAccessToken?: string;
     maxTurns?: number;
     repositoryOwner?: string;

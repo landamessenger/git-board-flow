@@ -1,6 +1,6 @@
 /**
  * JSON Schema for Agent responses
- * Used with OpenRouter JSON mode
+ * Used with OpenCode JSON mode
  */
 export declare const AGENT_RESPONSE_SCHEMA: {
     type: string;

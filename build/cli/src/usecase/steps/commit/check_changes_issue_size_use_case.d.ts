@@ -6,5 +6,6 @@ export declare class CheckChangesIssueSizeUseCase implements ParamUseCase<Execut
     private branchRepository;
     private issueRepository;
     private projectRepository;
+    private pullRequestRepository;
     invoke(param: Execution): Promise<Result[]>;
 }

@@ -4,6 +4,7 @@ export class Issue {
     reopenOnPush: boolean;
     branchManagementAlways: boolean;
     desiredAssigneesCount: number;
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub payload shape */
     inputs: any | undefined = undefined;
 
     get title(): string {
@@ -66,7 +67,7 @@ export class Issue {
         branchManagementAlways: boolean,
         reopenOnPush: boolean,
         desiredAssigneesCount: number,
-        inputs: any | undefined = undefined,
+        inputs: any | undefined = undefined, // eslint-disable-line @typescript-eslint/no-explicit-any
     ) {
         this.branchManagementAlways = branchManagementAlways;
         this.reopenOnPush = reopenOnPush;

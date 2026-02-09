@@ -6,7 +6,7 @@ import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_ty
 import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
 import { INPUT_KEYS } from "../../utils/constants";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
-import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
+import { setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
 import { incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
@@ -28,7 +28,6 @@ import { PullRequest } from "./pull_request";
 import { Release } from "./release";
 import { SingleAction } from "./single_action";
 import { SizeThresholds } from "./size_thresholds";
-import { SupabaseConfig } from "./supabase_config";
 import { Tokens } from "./tokens";
 import { Welcome } from "./welcome";
 import { Workflows } from "./workflows";
@@ -45,7 +44,7 @@ export class Execution {
     issueNumber: number = -1
     singleAction: SingleAction;
     commitPrefixBuilder: string;
-    commitPrefixBuilderParams: any = {};
+    commitPrefixBuilderParams: Record<string, unknown> = {};
     emoji: Emoji;
     images: Images;
     tokens: Tokens;
@@ -64,7 +63,7 @@ export class Execution {
     previousConfiguration: Config | undefined;
     currentConfiguration: Config;
     tokenUser: string | undefined;
-    supabaseConfig: SupabaseConfig | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub context payload shape is dynamic
     inputs: any | undefined;
 
     get eventName(): string {
@@ -192,8 +191,8 @@ export class Execution {
         hotfix: Hotfix,
         workflows: Workflows,
         project: Projects,
-        supabaseConfig: SupabaseConfig | undefined,
         welcome: Welcome | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub context payload
         inputs: any | undefined
     ) {
         this.debug = debug;
@@ -215,7 +214,6 @@ export class Execution {
         this.project = project;
         this.workflows = workflows;
         this.currentConfiguration = new Config({});
-        this.supabaseConfig = supabaseConfig;
         this.inputs = inputs;
         this.welcome = welcome;
     }

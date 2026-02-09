@@ -17,7 +17,6 @@ jobs:
           ai-pull-request-description: true
           ai-ignore-files: build/*
           debug: ${{ vars.DEBUG }}
-          openrouter-api-key: ${{ secrets.OPEN_ROUTER_API_KEY }}
-          openrouter-model: ${{ vars.OPEN_ROUTER_MODEL }}
+          opencode-model: ${{ vars.OPENCODE_MODEL }}
           project-ids: 2
           token: ${{ secrets.PAT }}

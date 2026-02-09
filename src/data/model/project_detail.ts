@@ -6,6 +6,7 @@ export class ProjectDetail {
     url: string;
     number: number;
 
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- project detail from API */
     constructor(data: any) {
         this.id = data[`id`] ?? '';
         this.title = data[`title`] ?? '';

@@ -5,14 +5,14 @@ export declare class UpdatePullRequestDescriptionUseCase implements ParamUseCase
     taskId: string;
     private aiRepository;
     private pullRequestRepository;
-    private fileRepository;
     private issueRepository;
     private projectRepository;
     invoke(param: Execution): Promise<Result[]>;
-    private shouldIgnoreFile;
-    private mergePatchSummaries;
-    private groupFilesByDirectory;
-    private formatFileChanges;
-    private processFile;
-    private processChanges;
+    /**
+     * Builds the PR description prompt. We do not send the diff from our side:
+     * we pass the base and head branch so the OpenCode agent can run `git diff`
+     * in the workspace. The agent must read the repo's PR template and fill it
+     * with the same structure (sections, headings, checkboxes).
+     */
+    private buildPrDescriptionPrompt;
 }

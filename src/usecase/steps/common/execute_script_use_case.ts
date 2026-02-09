@@ -12,7 +12,7 @@ export class CommitPrefixBuilderUseCase implements ParamUseCase<Execution, Resul
         const result: Result[] = []
 
         try {
-            const branchName = param.commitPrefixBuilderParams.branchName;
+            const branchName = param.commitPrefixBuilderParams.branchName as string;
             const transforms = param.commitPrefixBuilder; // Now it's a list of transforms
             
             const commitPrefix = this.applyTransforms(branchName, transforms);

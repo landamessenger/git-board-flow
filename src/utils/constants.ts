@@ -2,6 +2,12 @@ export const COMMAND = 'giik'
 export const TITLE = 'Giik'
 export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
 
+/** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
+export const OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free'
+
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
+export const OPENCODE_REQUEST_TIMEOUT_MS = 600_000
+
 export const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -207,20 +213,14 @@ export const INPUT_KEYS = {
     // Tokens
     TOKEN: 'token',
 
-    // AI
-    OPENROUTER_API_KEY: 'openrouter-api-key',
-    OPENROUTER_MODEL: 'openrouter-model',
+    // AI (OpenCode)
+    OPENCODE_SERVER_URL: 'opencode-server-url',
+    OPENCODE_MODEL: 'opencode-model',
+    OPENCODE_START_SERVER: 'opencode-start-server',
     AI_PULL_REQUEST_DESCRIPTION: 'ai-pull-request-description',
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',
     AI_INCLUDE_REASONING: 'ai-include-reasoning',
-    OPENROUTER_PROVIDER_ORDER: 'openrouter-provider-order',
-    OPENROUTER_PROVIDER_ALLOW_FALLBACKS: 'openrouter-provider-allow-fallbacks',
-    OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: 'openrouter-provider-require-parameters',
-    OPENROUTER_PROVIDER_DATA_COLLECTION: 'openrouter-provider-data-collection',
-    OPENROUTER_PROVIDER_IGNORE: 'openrouter-provider-ignore',
-    OPENROUTER_PROVIDER_QUANTIZATIONS: 'openrouter-provider-quantizations',
-    OPENROUTER_PROVIDER_SORT: 'openrouter-provider-sort',
 
     // Projects
     PROJECT_IDS: 'project-ids',
@@ -374,9 +374,6 @@ export const INPUT_KEYS = {
     PULL_REQUEST_DESIRED_REVIEWERS_COUNT: 'desired-reviewers-count',
     PULL_REQUEST_MERGE_TIMEOUT: 'merge-timeout',
 
-    // Supabase
-    SUPABASE_URL: 'supabase-url',
-    SUPABASE_KEY: 'supabase-key'
 } as const; 
 
 export const ERRORS = {
@@ -385,34 +382,15 @@ export const ERRORS = {
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
-    AI_CACHE: 'ai_cache_action',
-    AI_CACHE_LOCAL: 'ai_cache_local_action',
     PUBLISH_GITHUB_ACTION: 'publish_github_action',
     CREATE_RELEASE: 'create_release',
     CREATE_TAG: 'create_tag',
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
+    DETECT_ERRORS: 'detect_errors_action',
+    RECOMMEND_STEPS: 'recommend_steps_action',
 } as const; 
 
 export const PROMPTS = {
-    CODE_BASE_ANALYSIS: `
-You are a technical code analysis assistant.
-
-Your task is to analyze the content of the following source code file in depth.
-
-Provide a precise and highly technical explanation of what the code does, including:
-- Its main purpose and functionality.
-- A breakdown of the logic and flow (step by step or module by module).
-- How each class, function, or major block interacts with the rest.
-- The technologies, frameworks, or libraries it uses and how.
-- Any relevant algorithms, patterns, or data structures implemented.
-- Potential edge cases, performance considerations, or hidden behaviors.
-- Dependencies and external integrations (APIs, services, databases, etc.).
-- Any implicit assumptions or limitations found in the implementation.
-
-Focus exclusively on *accurate technical analysis and understanding*, not on summarizing in simple language.
-
-Do not propose improvements, changes, or fixes in this stage — your only goal is to explain exactly what the code does and how it works.
-    `,
 } as const; 

@@ -1,0 +1,53 @@
+---
+description: Git Board Flow project context, commands, and conventions
+alwaysApply: true
+---
+
+# Git Board Flow – Project Context
+
+**Git Board Flow** is a GitHub Action (and local CLI) that automates branch management, GitHub project linking, and issue/PR tracking using Git-Flow. It uses **OpenCode** for all AI features (progress detection, error detection, PR descriptions, copilot).
+
+## Tech stack
+
+- **Runtime**: Node.js 20 (use `nvm use 20` before running commands).
+- **Language**: TypeScript.
+- **Build**: `@vercel/ncc` bundles the action and CLI into `build/`.
+- **Tests**: Jest.
+
+## Commands (run from repo root)
+
+```bash
+nvm use 20
+npm install
+npm run build
+npm test
+npm run test:watch
+npm run test:coverage
+npm run lint
+npm run lint:fix
+```
+
+- **Build**: `npm run build` – compiles `src/actions/github_action.ts` → `build/github_action/`, `src/cli.ts` → `build/cli/`, and sets the CLI as executable.
+- **Tests**: `npm test` – runs Jest (exclude e2e when relevant). Use `npm run test:watch` for watch mode, `npm run test:coverage` for coverage.
+- **Lint**: `npm run lint` – ESLint + typescript-eslint on `src/` (recommended + unused-vars, no-explicit-any). Use `npm run lint:fix` to auto-fix.
+
+## What to ignore
+
+- **`build/`** – Compiled output (bundled JS, generated .d.ts). Do not edit or rely on it; treat it as generated. Do not run tests or lint against `build/`.
+- **`.agent-sessions/`** – Session data; ignore in context unless debugging sessions.
+
+## Key paths
+
+- `src/actions/github_action.ts` – GitHub Action entry; reads inputs and runs the main flow.
+- `src/actions/local_action.ts` – CLI entry; same logic with local/config inputs.
+- `src/actions/common_action.ts` – Shared flow: single actions vs issue/PR/push pipelines.
+- `src/usecase/` – Use cases (issue, pull request, commit, single actions).
+- `src/data/model/` – Domain models (Execution, Ai, Issue, etc.).
+- `src/data/repository/ai_repository.ts` – OpenCode API (ask, askAgent, copilotMessage); no separate agent layer.
+- `action.yml` – Action metadata and input definitions.
+
+## Conventions
+
+- Prefer TypeScript; keep action and CLI buildable with `ncc`.
+- Use existing logger (`logInfo`, `logError`, `logDebugInfo`) and constants (`INPUT_KEYS`, `ACTIONS`) instead of ad-hoc strings.
+- When adding inputs, update `action.yml`, `INPUT_KEYS` in `src/utils/constants.ts`, and the corresponding read in `github_action.ts` (and optionally `local_action.ts`).

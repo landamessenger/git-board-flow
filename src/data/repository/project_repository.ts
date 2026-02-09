@@ -1,9 +1,7 @@
 import * as github from "@actions/github";
-import * as core from '@actions/core';
 import { logDebugInfo, logError, logInfo } from "../../utils/logger";
 import { ProjectResult } from "../graph/project_result";
 import { ProjectDetail } from "../model/project_detail";
-import { context } from "@actions/github";
 
 export class ProjectRepository {
   
@@ -106,7 +104,7 @@ export class ProjectRepository {
         }
       }`;
     
-      const issueOrPrResult: any = await octokit.graphql(issueOrPrQuery, {
+      const issueOrPrResult = await octokit.graphql<{ repository: { issueOrPullRequest?: { id: string } } }>(issueOrPrQuery, {
         owner,
         repo,
         number: issueOrPullRequestNumber
@@ -149,13 +147,15 @@ export class ProjectRepository {
           }
         }`;
     
-        const projectResult: any = await octokit.graphql(projectQuery, {
+        interface ProjectItemsNode { id: string; content?: { id?: string } }
+        type ProjectItemsResponse = { node: { items: { nodes: ProjectItemsNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } };
+        const projectResult: ProjectItemsResponse = await octokit.graphql<ProjectItemsResponse>(projectQuery, {
           projectId: project.id,
           cursor
         });
     
         const items = projectResult.node.items.nodes;
-        const foundItem = items.find((item: any) => item.content?.id === contentId);
+        const foundItem = items.find((item: ProjectItemsNode) => item.content?.id === contentId);
     
         if (foundItem) {
           projectItemId = foundItem.id;
@@ -179,7 +179,7 @@ export class ProjectRepository {
         const octokit = github.getOctokit(token);
         let hasNextPage = true;
         let endCursor: string | null = null;
-        let allItems: any[] = [];
+        let allItems: Array<{ content?: { id?: string } }> = [];
 
         while (hasNextPage) {
             const query = `
@@ -212,7 +212,8 @@ export class ProjectRepository {
             // logDebugInfo(`Content ID: ${contentId}`);
             // logDebugInfo(`After cursor: ${endCursor}`);
 
-            const result: any = await octokit.graphql(query, {
+            type ItemsResult = { node: { items: { nodes: Array<{ content?: { id?: string } }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } };
+            const result: ItemsResult = await octokit.graphql<ItemsResult>(query, {
                 projectId: project.id,
                 after: endCursor,
             });
@@ -227,7 +228,7 @@ export class ProjectRepository {
         }
 
         return allItems.some(
-            (item: any) => item.content && item.content.id === contentId
+            (item) => item.content && item.content.id === contentId
         );
     };
 
@@ -249,12 +250,12 @@ export class ProjectRepository {
             }
           }
         `;
-        const linkResult: any = await octokit.graphql(linkMutation, {
+        const linkResult = await octokit.graphql<{ addProjectV2ItemById?: { item?: { id: string } } }>(linkMutation, {
             projectId: project.id,
             contentId: contentId,
         });
 
-        logDebugInfo(`Linked ${contentId} with id ${linkResult.addProjectV2ItemById.item.id} to project ${project.id}`);
+        logDebugInfo(`Linked ${contentId} with id ${linkResult.addProjectV2ItemById?.item?.id ?? ''} to project ${project.id}`);
 
         return true;
     }
@@ -322,16 +323,19 @@ export class ProjectRepository {
 
         let hasNextPage = true;
         let endCursor: string | null = null;
-        let currentItem: any = null;
+        interface FieldNode { id: string; name: string; options?: Array<{ id: string; name: string }> }
+        interface ItemNode { id: string; fieldValues?: { nodes: Array<{ field?: { name: string }; optionId?: string }> } }
+        type FieldResult = { node: { fields: { nodes: FieldNode[] }; items: { nodes: ItemNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } };
+        let currentItem: ItemNode | null = null;
 
         // Get the field and option information from the first page
-        const initialFieldResult: any = await octokit.graphql(fieldQuery, { 
+        const initialFieldResult = await octokit.graphql<FieldResult>(fieldQuery, { 
             projectId: project.id,
             after: null
         });
 
         const targetField = initialFieldResult.node.fields.nodes.find(
-            (f: any) => f.name === fieldName
+            (f: FieldNode) => f.name === fieldName
         );
 
         logDebugInfo(`Target field: ${JSON.stringify(targetField, null, 2)}`);
@@ -341,8 +345,8 @@ export class ProjectRepository {
             throw new Error(`Field '${fieldName}' not found or is not a single-select field.`);
         }
 
-        const targetOption = targetField.options.find(
-            (opt: any) => opt.name === fieldValue
+        const targetOption = targetField.options?.find(
+            (opt: { id: string; name: string }) => opt.name === fieldValue
         );
 
         logDebugInfo(`Target option: ${JSON.stringify(targetOption, null, 2)}`);
@@ -354,7 +358,7 @@ export class ProjectRepository {
 
         // Now search for the item through all pages
         while (hasNextPage) {
-            const fieldResult: any = await octokit.graphql(fieldQuery, { 
+            const fieldResult: FieldResult = await octokit.graphql<FieldResult>(fieldQuery, { 
                 projectId: project.id,
                 after: endCursor
             });
@@ -362,11 +366,11 @@ export class ProjectRepository {
             // logDebugInfo(`Field result: ${JSON.stringify(fieldResult, null, 2)}`);
 
             // Check current value in current page
-            currentItem = fieldResult.node.items.nodes.find((item: any) => item.id === contentId);
+            currentItem = fieldResult.node.items.nodes.find((item: ItemNode) => item.id === contentId) ?? null;
             if (currentItem) {
                 // logDebugInfo(`Current item: ${JSON.stringify(currentItem, null, 2)}`);
-                const currentFieldValue = currentItem.fieldValues.nodes.find(
-                    (value: any) => value.field?.name === fieldName
+                const currentFieldValue = currentItem.fieldValues?.nodes.find(
+                    (value: { field?: { name: string }; optionId?: string }) => value.field?.name === fieldName
                 );
                 
                 if (currentFieldValue && currentFieldValue.optionId === targetOption.id) {
@@ -399,14 +403,14 @@ export class ProjectRepository {
           }
         }`;
 
-        const mutationResult: any = await octokit.graphql(mutation, {
+        const mutationResult = await octokit.graphql<{ updateProjectV2ItemFieldValue?: { projectV2Item?: { id: string } } }>(mutation, {
             projectId: project.id,
             itemId: contentId,
             fieldId: targetField.id,
             optionId: targetOption.id
         });
 
-        return !!mutationResult.updateProjectV2ItemFieldValue.projectV2Item;
+        return !!mutationResult.updateProjectV2ItemFieldValue?.projectV2Item;
     };
 
     setTaskPriority = async (
@@ -565,7 +569,7 @@ export class ProjectRepository {
           ref: `tags/${tag}`,
         });
         return foundTag;
-      } catch (err) {
+      } catch {
         return undefined;
       }
     }

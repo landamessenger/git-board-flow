@@ -1,26 +1,28 @@
-export interface ProviderRoutingConfig {
-    order?: string[];
-    allow_fallbacks?: boolean;
-    require_parameters?: boolean;
-    data_collection?: 'allow' | 'deny';
-    ignore?: string[];
-    quantizations?: string[];
-    sort?: 'price' | 'throughput' | 'latency';
-}
+/**
+ * AI configuration for OpenCode-backed analysis.
+ * OpenCode supports 75+ LLM providers (Anthropic, OpenAI, Gemini, local models, etc.).
+ * API keys are configured on the OpenCode server, not here.
+ */
 export declare class Ai {
-    private openRouterApiKey;
-    private openRouterModel;
+    private opencodeServerUrl;
+    private opencodeModel;
     private aiPullRequestDescription;
     private aiMembersOnly;
     private aiIgnoreFiles;
     private aiIncludeReasoning;
-    private providerRouting;
-    constructor(openRouterApiKey: string, openRouterModel: string, aiPullRequestDescription: boolean, aiMembersOnly: boolean, aiIgnoreFiles: string[], aiIncludeReasoning: boolean, providerRouting?: ProviderRoutingConfig);
-    getOpenRouterApiKey(): string;
+    constructor(opencodeServerUrl: string, opencodeModel: string, aiPullRequestDescription: boolean, aiMembersOnly: boolean, aiIgnoreFiles: string[], aiIncludeReasoning: boolean);
+    getOpencodeServerUrl(): string;
+    getOpencodeModel(): string;
     getAiPullRequestDescription(): boolean;
     getAiMembersOnly(): boolean;
     getAiIgnoreFiles(): string[];
     getAiIncludeReasoning(): boolean;
-    getOpenRouterModel(): string;
-    getProviderRouting(): ProviderRoutingConfig;
+    /**
+     * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
+     * Uses OPENCODE_DEFAULT_MODEL when no model is set (e.g. opencode/kimi-k2.5-free).
+     */
+    getOpencodeModelParts(): {
+        providerID: string;
+        modelID: string;
+    };
 }

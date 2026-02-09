@@ -11,6 +11,7 @@ export class Config {
     results: Result[] = [];
     branchConfiguration: BranchConfiguration | undefined;
 
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- config from API */
     constructor(data: any) {
         this.branchType = data['branchType'] ?? '';
         this.hotfixOriginBranch = data['hotfixOriginBranch'];
