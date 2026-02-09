@@ -51965,6 +51965,7 @@ const PROGRESS_RESPONSE_SCHEMA = {
     properties: {
         progress: { type: 'number', description: 'Completion percentage 0-100' },
         summary: { type: 'string', description: 'Short explanation of the assessment' },
+        remaining: { type: 'string', description: 'When progress < 100: what is left to do to reach 100%. Omit or empty when progress is 100.' },
     },
     required: ['progress', 'summary'],
     additionalProperties: false,
@@ -52067,12 +52068,14 @@ class CheckProgressUseCase {
             let progress = 0;
             let summary = 'Unable to determine progress.';
             let reasoning = '';
+            let remaining = '';
             for (let attempt = 1; attempt <= MAX_PROGRESS_ATTEMPTS; attempt++) {
                 (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent... (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS})`);
                 const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
                 progress = attemptResult.progress;
                 summary = attemptResult.summary;
                 reasoning = attemptResult.reasoning;
+                remaining = attemptResult.remaining;
                 if (progress > 0) {
                     (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
                     break;
@@ -52108,19 +52111,19 @@ class CheckProgressUseCase {
             }
             await this.issueRepository.setProgressLabel(param.owner, param.repo, issueNumber, progress, param.tokens.token);
             let summaryMessage = `**Analysis**:\n\n${summary}`;
-            const steps = [
-                `Progress for issue #${issueNumber}: ${progress}%`,
-            ];
+            if (progress < 100 && remaining) {
+                summaryMessage += `\n\n**What's left to reach 100%:**\n\n${remaining}`;
+            }
             if (reasoning) {
                 const truncationNote = this.isReasoningLikelyTruncated(reasoning)
                     ? '\n\n_Reasoning may be truncated by the model._'
                     : '';
-                summaryMessage += `\n\n\`\`\`\n${reasoning}${truncationNote}\n\`\`\`\n\n`;
-                steps.push(summaryMessage);
+                summaryMessage += `\n\n### Reasoning\n${reasoning}${truncationNote}`;
             }
-            else {
-                steps.push(summaryMessage);
-            }
+            const steps = [
+                `Progress updated to: ${progress}%`,
+                summaryMessage,
+            ];
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -52130,6 +52133,7 @@ class CheckProgressUseCase {
                     progress,
                     summary,
                     reasoning: reasoning || undefined,
+                    remaining: progress < 100 && remaining ? remaining : undefined,
                     issueNumber,
                     branch,
                     developmentBranch
@@ -52169,7 +52173,10 @@ class CheckProgressUseCase {
         const reasoning = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.reasoning === 'string'
             ? String(agentResponse.reasoning).trim()
             : '';
-        return { progress, summary, reasoning };
+        const remaining = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.remaining === 'string'
+            ? String(agentResponse.remaining).trim()
+            : '';
+        return { progress, summary, reasoning, remaining };
     }
     /**
      * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
@@ -52187,11 +52194,12 @@ class CheckProgressUseCase {
 1. Get the full diff by running: \`git diff ${baseBranch}..${currentBranch}\` (or \`git diff ${baseBranch}...${currentBranch}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
 2. Optionally confirm the current branch with \`git branch --show-current\` if needed.
 3. Based on the full diff and the issue description below, assess completion progress (0-100%) and write a short summary.
+4. If progress is below 100%, add a "remaining" field with a short description of what is left to do to complete the task (e.g. missing implementation, tests, docs). Omit "remaining" or leave empty when progress is 100%.
 
 **Issue description:**
 ${issueDescription}
 
-Respond with a single JSON object: { "progress": <number 0-100>, "summary": "<short explanation>" }.`;
+Respond with a single JSON object: { "progress": <number 0-100>, "summary": "<short explanation>", "remaining": "<what is left to reach 100%, only when progress < 100>" }.`;
     }
     /**
      * Returns true if the reasoning text looks truncated (e.g. ends with ":" or trailing spaces,
