@@ -1,61 +1,62 @@
 import { Execution } from '../../../data/model/execution';
 import { Result } from '../../../data/model/result';
-import { FileRepository } from '../../../data/repository/file_repository';
+import { AiRepository } from '../../../data/repository/ai_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
 import { logError, logInfo } from '../../../utils/logger';
-import { ReasoningVisualizer } from '../../../utils/reasoning_visualizer';
 import { ParamUseCase } from '../../base/param_usecase';
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'ThinkUseCase';
-    private fileRepository: FileRepository = new FileRepository();
+    private aiRepository: AiRepository = new AiRepository();
     private issueRepository: IssueRepository = new IssueRepository();
-    
+
     async invoke(param: Execution): Promise<Result[]> {
-        const visualizer = new ReasoningVisualizer();
         const results: Result[] = [];
 
         try {
-            const description = await this.issueRepository.getDescription(
-                param.owner,
-                param.repo,
-                param.issueNumber,
-                param.tokens.token
-            ) ?? '';
+            const commentBody =
+                param.issue.isIssueComment
+                    ? (param.issue.commentBody ?? '')
+                    : param.pullRequest.isPullRequestReviewComment
+                      ? (param.pullRequest.commentBody ?? '')
+                      : '';
 
-            let question = '';
-            if (param.issue.isIssueComment) {
-                question = param.issue.commentBody || '';
-            } else if (param.pullRequest.isPullRequestReviewComment) {
-                question = param.pullRequest.commentBody || '';
-            } else if (param.issue.isIssue) {
-                question = description;
-            } else if (param.singleAction.isThinkAction) {
-                // For CLI usage, get question from comment body if available
-                // This handles the case when think is called as single-action
-                const commentBody = param.issue.commentBody || (param.inputs?.comment as { body?: string } | undefined)?.body || '';
-                if (commentBody) {
-                    question = commentBody;
-                } else {
-                    question = description || '';
-                }
+            if (!commentBody.trim()) {
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    })
+                );
+                return results;
             }
 
-            if (!question || question.length === 0) {
-                if (!param.singleAction.isThinkAction) {
-                    results.push(
-                        new Result({
-                            id: this.taskId,
-                            success: false,
-                            executed: false,
-                            errors: ['No question or prompt provided.'],
-                        })
-                    );
-                    return results;
-                }
+            if (!param.tokenUser?.trim()) {
+                logInfo('Bot username (tokenUser) not set; skipping Think response.');
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    })
+                );
+                return results;
             }
 
-            if (param.ai.getOpencodeModel().length === 0 || param.ai.getOpencodeServerUrl().length === 0) {
+            if (!commentBody.includes(`@${param.tokenUser}`)) {
+                logInfo(`Comment does not mention @${param.tokenUser}; skipping.`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    })
+                );
+                return results;
+            }
+
+            if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -67,11 +68,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            // Show header with task
-            visualizer.showHeader(question || description || 'AI Reasoning');
-            
-            if (question.length === 0 || !question.includes(`@${param.tokenUser}`)) {
-                logInfo(`🔎 Comment body is empty or does not include @${param.tokenUser}`);
+            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            if (!question) {
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -80,30 +78,74 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                     })
                 );
                 return results;
-            } else {
-                question = question.replace(`@${param.tokenUser}`, '').trim();
             }
 
-            // Get full repository content
-            logInfo(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);
-            const repositoryFiles = await this.fileRepository.getRepositoryContent(
+            const issueNumberForContext =
+                param.issue.isIssueComment ? param.issue.number : param.issueNumber;
+            let issueDescription = '';
+            if (issueNumberForContext > 0) {
+                const desc = await this.issueRepository.getDescription(
+                    param.owner,
+                    param.repo,
+                    issueNumberForContext,
+                    param.tokens.token,
+                );
+                if (desc?.trim()) {
+                    issueDescription = desc.trim();
+                }
+            }
+
+            const contextBlock = issueDescription
+                ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
+                : '\n\n';
+            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.${contextBlock}Question: ${question}`;
+            const answer = await this.aiRepository.ask(param.ai, prompt);
+
+            if (answer === undefined || !answer.trim()) {
+                logError('OpenCode returned no answer for Think.');
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: ['OpenCode returned no answer.'],
+                    })
+                );
+                return results;
+            }
+
+            const issueOrPrNumber = param.issue.isIssueComment
+                ? param.issue.number
+                : param.pullRequest.number;
+            if (issueOrPrNumber <= 0) {
+                logError('Issue or PR number not available for adding comment.');
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        errors: ['Issue or PR number not available.'],
+                    })
+                );
+                return results;
+            }
+
+            await this.issueRepository.addComment(
                 param.owner,
                 param.repo,
+                issueOrPrNumber,
+                answer.trim(),
                 param.tokens.token,
-                param.commit.branch,
-                param.ai.getAiIgnoreFiles(),
-                (_fileName: string) => {
-                    // logDebugInfo(`Loading: ${_fileName}`)
-                },
-                (_fileName: string) => {
-                    // logDebugInfo(`Ignoring: ${_fileName}`)
-                }
             );
+            logInfo(`Think response posted to ${param.issue.isIssueComment ? 'issue' : 'PR'} #${issueOrPrNumber}.`);
 
-            logInfo(`📚 Loaded ${repositoryFiles.size} files from repository`);
-
-            
-
+            results.push(
+                new Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                })
+            );
         } catch (error) {
             logError(`Error in ThinkUseCase: ${error}`);
             results.push(

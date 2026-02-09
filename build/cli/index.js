@@ -49803,205 +49803,6 @@ exports.BranchRepository = BranchRepository;
 
 /***/ }),
 
-/***/ 1503:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.FileRepository = void 0;
-const github = __importStar(__nccwpck_require__(5438));
-const logger_1 = __nccwpck_require__(8836);
-const fs = __importStar(__nccwpck_require__(3292));
-const path = __importStar(__nccwpck_require__(1017));
-const os = __importStar(__nccwpck_require__(2037));
-const child_process_1 = __nccwpck_require__(2081);
-const util_1 = __nccwpck_require__(3837);
-const execAsync = (0, util_1.promisify)(child_process_1.exec);
-class FileRepository {
-    constructor() {
-        this.getFileContent = async (owner, repository, path, token, branch) => {
-            if (!token || token.length === 0) {
-                (0, logger_1.logError)(`Error getting file content: Token is empty or undefined for ${path}`);
-                return '';
-            }
-            const octokit = github.getOctokit(token);
-            try {
-                const { data } = await octokit.rest.repos.getContent({
-                    owner,
-                    repo: repository,
-                    path,
-                    ref: branch
-                });
-                if ('content' in data) {
-                    return Buffer.from(data.content, 'base64').toString();
-                }
-                return '';
-            }
-            catch (error) {
-                const err = error;
-                const errorMessage = err?.message || String(error);
-                const errorStatus = err?.status || 'unknown';
-                (0, logger_1.logError)(`Error getting file content for ${path}: ${errorMessage} (status: ${errorStatus}). Token length: ${token.length}`);
-                return '';
-            }
-        };
-        this.getRepositoryContent = async (owner, repository, token, branch, ignoreFiles, progress, ignoredFiles) => {
-            const fileContents = new Map();
-            let tempDir = null;
-            try {
-                // Create temporary directory
-                tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'git-clone-'));
-                const repoPath = path.join(tempDir, repository);
-                // Clone repository using git clone with authentication
-                // GitHub tokens are typically safe to use directly in URLs
-                const repoUrl = `https://${token}@github.com/${owner}/${repository}.git`;
-                // logInfo(`📥 Cloning repository ${owner}/${repository} (branch: ${branch})...`);
-                // Use --single-branch to optimize clone and --depth 1 for shallow clone
-                // This significantly reduces clone time and size
-                await execAsync(`git clone --depth 1 --single-branch --branch ${branch} ${repoUrl} ${repoPath}`, {
-                    cwd: tempDir,
-                    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-                    maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
-                });
-                // logInfo(`✅ Repository cloned successfully`);
-                // Read files recursively from filesystem
-                const readFilesRecursively = async (dirPath, relativePath = '') => {
-                    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-                    for (const entry of entries) {
-                        const fullPath = path.join(dirPath, entry.name);
-                        const relativeFilePath = relativePath ? path.join(relativePath, entry.name) : entry.name;
-                        // Normalize path using the same method as FileCacheManager
-                        // This ensures paths match when comparing with cached entries
-                        const normalizedPath = this.normalizePath(relativeFilePath);
-                        if (entry.isDirectory()) {
-                            // Skip .git directory
-                            if (entry.name === '.git') {
-                                continue;
-                            }
-                            await readFilesRecursively(fullPath, normalizedPath);
-                        }
-                        else if (entry.isFile()) {
-                            // Check if file should be ignored
-                            if (this.isMediaOrPdfFile(normalizedPath) || this.shouldIgnoreFile(normalizedPath, ignoreFiles)) {
-                                ignoredFiles(normalizedPath);
-                                continue;
-                            }
-                            progress(normalizedPath);
-                            try {
-                                const content = await fs.readFile(fullPath, 'utf-8');
-                                fileContents.set(normalizedPath, content);
-                            }
-                            catch (error) {
-                                (0, logger_1.logError)(`Error reading file ${normalizedPath}: ${error}`);
-                            }
-                        }
-                    }
-                };
-                await readFilesRecursively(repoPath);
-                return fileContents;
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error getting repository content: ${error}`);
-                return fileContents;
-            }
-            finally {
-                // Clean up temporary directory
-                if (tempDir) {
-                    try {
-                        await fs.rm(tempDir, { recursive: true, force: true });
-                        // logInfo(`🧹 Cleaned up temporary directory`);
-                    }
-                    catch (cleanupError) {
-                        (0, logger_1.logError)(`Error cleaning up temporary directory: ${cleanupError}`);
-                    }
-                }
-            }
-        };
-    }
-    /**
-     * Normalize file path for consistent comparison
-     * This must match the normalization used in FileCacheManager
-     * Removes leading ./ and normalizes path separators
-     */
-    normalizePath(path) {
-        return path
-            .replace(/^\.\//, '') // Remove leading ./
-            .replace(/\\/g, '/') // Normalize separators
-            .trim();
-    }
-    isMediaOrPdfFile(path) {
-        const mediaExtensions = [
-            // Image formats
-            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp', '.ico',
-            // Audio formats
-            '.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac',
-            // Video formats
-            '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
-            // PDF
-            '.pdf'
-        ];
-        const extension = path.toLowerCase().substring(path.lastIndexOf('.'));
-        return mediaExtensions.includes(extension);
-    }
-    shouldIgnoreFile(filename, ignorePatterns) {
-        // First check for .DS_Store
-        if (filename.endsWith('.DS_Store')) {
-            return true;
-        }
-        return ignorePatterns.some(pattern => {
-            // Convert glob pattern to regex
-            const regexPattern = pattern
-                .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special regex characters (sin afectar *)
-                .replace(/\*/g, '.*') // Convert * to match anything
-                .replace(/\//g, '\\/'); // Escape forward slashes
-            // Allow pattern ending on /* to ignore also subdirectories and files inside
-            if (pattern.endsWith("/*")) {
-                return new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, "(\\/.*)?")}$`).test(filename);
-            }
-            const regex = new RegExp(`^${regexPattern}$`);
-            return regex.test(filename);
-        });
-    }
-}
-exports.FileRepository = FileRepository;
-
-
-/***/ }),
-
 /***/ 57:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -54043,54 +53844,50 @@ exports.GetReleaseVersionUseCase = GetReleaseVersionUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ThinkUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
-const file_repository_1 = __nccwpck_require__(1503);
+const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
-const reasoning_visualizer_1 = __nccwpck_require__(8226);
 class ThinkUseCase {
     constructor() {
         this.taskId = 'ThinkUseCase';
-        this.fileRepository = new file_repository_1.FileRepository();
+        this.aiRepository = new ai_repository_1.AiRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        const visualizer = new reasoning_visualizer_1.ReasoningVisualizer();
         const results = [];
         try {
-            const description = await this.issueRepository.getDescription(param.owner, param.repo, param.issueNumber, param.tokens.token) ?? '';
-            let question = '';
-            if (param.issue.isIssueComment) {
-                question = param.issue.commentBody || '';
+            const commentBody = param.issue.isIssueComment
+                ? (param.issue.commentBody ?? '')
+                : param.pullRequest.isPullRequestReviewComment
+                    ? (param.pullRequest.commentBody ?? '')
+                    : '';
+            if (!commentBody.trim()) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
             }
-            else if (param.pullRequest.isPullRequestReviewComment) {
-                question = param.pullRequest.commentBody || '';
+            if (!param.tokenUser?.trim()) {
+                (0, logger_1.logInfo)('Bot username (tokenUser) not set; skipping Think response.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
             }
-            else if (param.issue.isIssue) {
-                question = description;
+            if (!commentBody.includes(`@${param.tokenUser}`)) {
+                (0, logger_1.logInfo)(`Comment does not mention @${param.tokenUser}; skipping.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
             }
-            else if (param.singleAction.isThinkAction) {
-                // For CLI usage, get question from comment body if available
-                // This handles the case when think is called as single-action
-                const commentBody = param.issue.commentBody || param.inputs?.comment?.body || '';
-                if (commentBody) {
-                    question = commentBody;
-                }
-                else {
-                    question = description || '';
-                }
-            }
-            if (!question || question.length === 0) {
-                if (!param.singleAction.isThinkAction) {
-                    results.push(new result_1.Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: false,
-                        errors: ['No question or prompt provided.'],
-                    }));
-                    return results;
-                }
-            }
-            if (param.ai.getOpencodeModel().length === 0 || param.ai.getOpencodeServerUrl().length === 0) {
+            if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -54099,10 +53896,8 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            // Show header with task
-            visualizer.showHeader(question || description || 'AI Reasoning');
-            if (question.length === 0 || !question.includes(`@${param.tokenUser}`)) {
-                (0, logger_1.logInfo)(`🔎 Comment body is empty or does not include @${param.tokenUser}`);
+            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            if (!question) {
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -54110,17 +53905,49 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            else {
-                question = question.replace(`@${param.tokenUser}`, '').trim();
+            const issueNumberForContext = param.issue.isIssueComment ? param.issue.number : param.issueNumber;
+            let issueDescription = '';
+            if (issueNumberForContext > 0) {
+                const desc = await this.issueRepository.getDescription(param.owner, param.repo, issueNumberForContext, param.tokens.token);
+                if (desc?.trim()) {
+                    issueDescription = desc.trim();
+                }
             }
-            // Get full repository content
-            (0, logger_1.logInfo)(`📚 Loading repository content for ${param.owner}/${param.repo}/${param.commit.branch}`);
-            const repositoryFiles = await this.fileRepository.getRepositoryContent(param.owner, param.repo, param.tokens.token, param.commit.branch, param.ai.getAiIgnoreFiles(), (_fileName) => {
-                // logDebugInfo(`Loading: ${_fileName}`)
-            }, (_fileName) => {
-                // logDebugInfo(`Ignoring: ${_fileName}`)
-            });
-            (0, logger_1.logInfo)(`📚 Loaded ${repositoryFiles.size} files from repository`);
+            const contextBlock = issueDescription
+                ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
+                : '\n\n';
+            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.${contextBlock}Question: ${question}`;
+            const answer = await this.aiRepository.ask(param.ai, prompt);
+            if (answer === undefined || !answer.trim()) {
+                (0, logger_1.logError)('OpenCode returned no answer for Think.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: ['OpenCode returned no answer.'],
+                }));
+                return results;
+            }
+            const issueOrPrNumber = param.issue.isIssueComment
+                ? param.issue.number
+                : param.pullRequest.number;
+            if (issueOrPrNumber <= 0) {
+                (0, logger_1.logError)('Issue or PR number not available for adding comment.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: ['Issue or PR number not available.'],
+                }));
+                return results;
+            }
+            await this.issueRepository.addComment(param.owner, param.repo, issueOrPrNumber, answer.trim(), param.tokens.token);
+            (0, logger_1.logInfo)(`Think response posted to ${param.issue.isIssueComment ? 'issue' : 'PR'} #${issueOrPrNumber}.`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+            }));
         }
         catch (error) {
             (0, logger_1.logError)(`Error in ThinkUseCase: ${error}`);
@@ -56893,191 +56720,6 @@ exports.waitForPreviousRuns = waitForPreviousRuns;
 
 /***/ }),
 
-/***/ 8226:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ReasoningVisualizer = void 0;
-const chalk_1 = __importDefault(__nccwpck_require__(7037));
-const logger_1 = __nccwpck_require__(8836);
-class ReasoningVisualizer {
-    constructor() {
-        this.currentIteration = 0;
-        this.maxIterations = 0;
-        this.startTime = 0;
-        this.lastAction = '';
-        this.todoStats = {
-            total: 0,
-            pending: 0,
-            in_progress: 0,
-            completed: 0
-        };
-        this.filesRead = 0;
-        this.filesAnalyzed = 0;
-        this.changesApplied = 0;
-    }
-    initialize(maxIterations) {
-        this.maxIterations = maxIterations;
-        this.startTime = Date.now();
-        this.currentIteration = 0;
-        this.filesRead = 0;
-        this.filesAnalyzed = 0;
-        this.changesApplied = 0;
-    }
-    updateIteration(iteration) {
-        this.currentIteration = iteration;
-    }
-    updateTodoStats(stats) {
-        this.todoStats = stats;
-    }
-    updateFilesRead(count) {
-        this.filesRead = count;
-    }
-    updateFilesAnalyzed(count) {
-        this.filesAnalyzed = count;
-    }
-    updateChangesApplied(count) {
-        this.changesApplied = count;
-    }
-    /**
-     * Show a clean header for the reasoning process
-     */
-    showHeader(question) {
-        (0, logger_1.logInfo)('');
-        (0, logger_1.logInfo)(chalk_1.default.cyan.bold('╔═══════════════════════════════════════════════════════════════╗'));
-        (0, logger_1.logInfo)(chalk_1.default.cyan.bold('║') + chalk_1.default.white.bold('  🤖 AI Reasoning Process') + chalk_1.default.cyan.bold('                                    ║'));
-        (0, logger_1.logInfo)(chalk_1.default.cyan.bold('╚═══════════════════════════════════════════════════════════════╝'));
-        (0, logger_1.logInfo)('');
-        (0, logger_1.logInfo)(chalk_1.default.gray('Task: ') + chalk_1.default.white(question));
-        (0, logger_1.logInfo)('');
-    }
-    /**
-     * Show current iteration status with progress bar
-     */
-    showIterationStatus(action, reasoning) {
-        // Guard against division by zero
-        const progress = this.maxIterations > 0 ? (this.currentIteration / this.maxIterations) * 100 : 0;
-        const progressBar = this.createProgressBar(progress, 40);
-        const elapsed = this.startTime > 0 ? ((Date.now() - this.startTime) / 1000).toFixed(1) : '0.0';
-        const statusLine = [
-            chalk_1.default.cyan(`[${this.currentIteration}/${this.maxIterations}]`),
-            progressBar,
-            chalk_1.default.gray(`${progress.toFixed(0)}%`),
-            chalk_1.default.gray(`• ${elapsed}s`)
-        ].join(' ');
-        (0, logger_1.logSingleLine)(statusLine);
-        (0, logger_1.logInfo)(''); // New line after single line update
-        // Show action and reasoning
-        const actionEmoji = this.getActionEmoji(action);
-        (0, logger_1.logInfo)(chalk_1.default.cyan(`${actionEmoji} ${action.toUpperCase()}`) + chalk_1.default.gray(` • Iteration ${this.currentIteration}`));
-        (0, logger_1.logInfo)(chalk_1.default.gray(`   ${reasoning.substring(0, 100)}${reasoning.length > 100 ? '...' : ''}`));
-    }
-    /**
-     * Show TODO status
-     */
-    showTodoStatus() {
-        if (this.todoStats.total === 0)
-            return;
-        const completionRate = this.todoStats.total > 0
-            ? ((this.todoStats.completed / this.todoStats.total) * 100).toFixed(0)
-            : '0';
-        const todoLine = [
-            chalk_1.default.blue('📋 TODOs:'),
-            chalk_1.default.white(`${this.todoStats.total}`),
-            chalk_1.default.gray('•'),
-            chalk_1.default.yellow(`⏳ ${this.todoStats.pending}`),
-            chalk_1.default.cyan(`🔄 ${this.todoStats.in_progress}`),
-            chalk_1.default.green(`✅ ${this.todoStats.completed}`),
-            chalk_1.default.gray(`(${completionRate}% done)`)
-        ].join(' ');
-        (0, logger_1.logSingleLine)(todoLine);
-    }
-    /**
-     * Show file and change statistics
-     */
-    showStats() {
-        const statsLine = [
-            chalk_1.default.blue('📊 Stats:'),
-            chalk_1.default.white(`📖 ${this.filesRead} read`),
-            chalk_1.default.gray('•'),
-            chalk_1.default.white(`🔍 ${this.filesAnalyzed} analyzed`),
-            chalk_1.default.gray('•'),
-            chalk_1.default.white(`✏️ ${this.changesApplied} changes`)
-        ].join(' ');
-        (0, logger_1.logSingleLine)(statsLine);
-    }
-    /**
-     * Show action result summary
-     */
-    showActionResult(action, result) {
-        (0, logger_1.logInfo)('');
-        if (result.success) {
-            (0, logger_1.logInfo)(chalk_1.default.green(`  ✓ ${result.message}`));
-        }
-        else {
-            (0, logger_1.logInfo)(chalk_1.default.yellow(`  ⚠ ${result.message}`));
-        }
-        if (result.details && result.details.length > 0) {
-            result.details.forEach(detail => {
-                (0, logger_1.logInfo)(chalk_1.default.gray(`    ${detail}`));
-            });
-        }
-    }
-    /**
-     * Show completion summary
-     */
-    showCompletion(_finalAnalysis) {
-        (0, logger_1.logInfo)('');
-        (0, logger_1.logInfo)(chalk_1.default.green.bold('╔═══════════════════════════════════════════════════════════════╗'));
-        (0, logger_1.logInfo)(chalk_1.default.green.bold('║') + chalk_1.default.white.bold('  ✅ Reasoning Complete') + chalk_1.default.green.bold('                                         ║'));
-        (0, logger_1.logInfo)(chalk_1.default.green.bold('╚═══════════════════════════════════════════════════════════════╝'));
-        (0, logger_1.logInfo)('');
-        const totalTime = ((Date.now() - this.startTime) / 1000).toFixed(1);
-        (0, logger_1.logInfo)(chalk_1.default.gray(`Completed in ${totalTime}s • ${this.currentIteration} iterations`));
-        (0, logger_1.logInfo)('');
-    }
-    /**
-     * Create a visual progress bar
-     */
-    createProgressBar(percentage, length) {
-        const filled = Math.floor((percentage / 100) * length);
-        const empty = length - filled;
-        const bar = chalk_1.default.green('█'.repeat(filled)) + chalk_1.default.gray('░'.repeat(empty));
-        return bar;
-    }
-    /**
-     * Get emoji for action type
-     */
-    getActionEmoji(action) {
-        const emojiMap = {
-            'search_files': '🔍',
-            'read_file': '📖',
-            'analyze_code': '🔬',
-            'propose_changes': '✏️',
-            'update_todos': '📋',
-            'complete': '✅'
-        };
-        return emojiMap[action] || '🤔';
-    }
-    /**
-     * Clear current line and show updated status
-     */
-    updateStatus(action, reasoning) {
-        this.showIterationStatus(action, reasoning);
-        this.showTodoStatus();
-        this.showStats();
-    }
-}
-exports.ReasoningVisualizer = ReasoningVisualizer;
-
-
-/***/ }),
-
 /***/ 6676:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -57308,14 +56950,6 @@ module.exports = require("events");
 
 "use strict";
 module.exports = require("fs");
-
-/***/ }),
-
-/***/ 3292:
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("fs/promises");
 
 /***/ }),
 
