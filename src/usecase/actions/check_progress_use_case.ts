@@ -241,15 +241,15 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 logInfo(`Progress label set to ${newProgressLabel} on PR #${prNumber}.`);
             }
 
-            let summaryMessage = `**Analysis**:\n\n${summary}`;
+            let summaryMessage = `**Analysis**: ${summary}`;
             if (progress < 100 && remaining) {
-                summaryMessage += `\n\n**What's left to reach 100%:**\n\n${remaining}`;
+                summaryMessage += `\n\n## 🤷 What's left to reach 100%\n\n${remaining}`;
             }
             if (reasoning) {
                 const truncationNote = this.isReasoningLikelyTruncated(reasoning)
                     ? '\n\n_Reasoning may be truncated by the model._'
                     : '';
-                summaryMessage += `\n\n### Reasoning\n${reasoning}${truncationNote}`;
+                summaryMessage += `\n\n### 🧠 Reasoning\n${reasoning}${truncationNote}`;
             }
 
             const steps: string[] = [
