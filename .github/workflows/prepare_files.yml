@@ -2,11 +2,10 @@ name: Prepare Files
 
 on:
   push:
-    branches:
-      - '**'
-      - '!release/*'
-      - '!hotfix/*'
-      - '!master'
+    branches-ignore:
+      - master
+      - 'release/*'
+      - 'hotfix/*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,11 +15,10 @@ jobs:
   prepare-files:
     name: Update compiled files
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Pull latest changes
-        run: git pull --no-ff --no-edit
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -29,23 +27,22 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-  
+
       - name: Build
         run: npm run build
-  
+
       - name: Run tests
         run: npm test
-  
+
       - name: Lint
         run: npm run lint
 
-      - name: Force add build directory
-        run: git add -f ./build/
-
-      - name: Commit updated dist directory
+      - name: Commit updated build directory
         uses: EndBug/add-and-commit@v9
         with:
+          add: './build/ --force'
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
           message: 'gh-action: updated compiled files'
+          push: true
