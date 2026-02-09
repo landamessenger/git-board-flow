@@ -1,10 +1,10 @@
-name: Task - Release
+name: Task - Hotfix
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version'
+        description: 'Hotfix version'
         required: true
         default: '1.0.0'
       title:
@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   prepare-version-files:
-    name: Prepare files for release
+    name: Prepare files for hotfix
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
           committer_name: GitHub Actions
           committer_email: actions@github.com
           default_author: user_info
-          message: 'gh-action: updated compiled files and bumped version to ${{ github.event.inputs.version }}'
+          message: 'gh-action: updated compiled files and bumped version to ${{ github.event.inputs.version }} (hotfix)'
 
   prepare-compiled-files:
     name: Update compiled files
