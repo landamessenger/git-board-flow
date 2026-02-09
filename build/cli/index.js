@@ -50221,6 +50221,22 @@ class IssueRepository {
             });
             (0, logger_1.logDebugInfo)(`Comment ${commentId} updated in Issue ${issueNumber}.`);
         };
+        /**
+         * Lists all comments on an issue (for bugbot: find existing findings by marker).
+         */
+        this.listIssueComments = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const { data } = await octokit.rest.issues.listComments({
+                owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+            return (data || []).map((c) => ({
+                id: c.id,
+                body: c.body ?? null,
+                user: c.user,
+            }));
+        };
         this.closeIssue = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
             const { data: issue } = await octokit.rest.issues.get({
@@ -51479,6 +51495,77 @@ class PullRequestRepository {
                 (0, logger_1.logError)(`Error getting pull request changes: ${error}.`);
                 return [];
             }
+        };
+        /** Head commit SHA of the PR (for creating review). */
+        this.getPullRequestHeadSha = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.get({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                });
+                return data.head?.sha;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting PR head SHA: ${error}.`);
+                return undefined;
+            }
+        };
+        /**
+         * List review comments on a PR (for bugbot: find existing findings by marker).
+         */
+        this.listPullRequestReviewComments = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.listReviewComments({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                });
+                return (data || []).map((c) => ({
+                    id: c.id,
+                    body: c.body ?? null,
+                    path: c.path,
+                    line: c.line ?? undefined,
+                }));
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error listing PR review comments: ${error}.`);
+                return [];
+            }
+        };
+        /**
+         * Create a review on the PR with one or more inline comments (bugbot findings).
+         * Each comment requires path and line (use first file and line 1 if not specified).
+         */
+        this.createReviewWithComments = async (owner, repository, pullNumber, commitId, comments, token) => {
+            if (comments.length === 0)
+                return;
+            const octokit = github.getOctokit(token);
+            for (const c of comments) {
+                await octokit.rest.pulls.createReviewComment({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                    commit_id: commitId,
+                    path: c.path,
+                    line: c.line,
+                    body: c.body,
+                });
+            }
+            (0, logger_1.logDebugInfo)(`Created ${comments.length} review comment(s) on PR #${pullNumber}.`);
+        };
+        /** Update an existing PR review comment (e.g. to mark finding as resolved in body). */
+        this.updatePullRequestReviewComment = async (owner, repository, commentId, body, token) => {
+            const octokit = github.getOctokit(token);
+            await octokit.rest.pulls.updateReviewComment({
+                owner,
+                repo: repository,
+                comment_id: commentId,
+                body,
+            });
+            (0, logger_1.logDebugInfo)(`Updated review comment ${commentId}.`);
         };
     }
 }
@@ -52787,6 +52874,7 @@ const logger_1 = __nccwpck_require__(8836);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(8020);
 const check_changes_issue_size_use_case_1 = __nccwpck_require__(5863);
+const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class CommitUseCase {
     constructor() {
         this.taskId = 'CommitUseCase';
@@ -52805,6 +52893,7 @@ class CommitUseCase {
             results.push(...(await new notify_new_commit_on_issue_use_case_1.NotifyNewCommitOnIssueUseCase().invoke(param)));
             results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
             results.push(...(await new check_progress_use_case_1.CheckProgressUseCase().invoke(param)));
+            results.push(...(await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param)));
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -53237,6 +53326,276 @@ class CheckChangesIssueSizeUseCase {
     }
 }
 exports.CheckChangesIssueSizeUseCase = CheckChangesIssueSizeUseCase;
+
+
+/***/ }),
+
+/***/ 7395:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DetectPotentialProblemsUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const ai_repository_1 = __nccwpck_require__(8307);
+const issue_repository_1 = __nccwpck_require__(57);
+const pull_request_repository_1 = __nccwpck_require__(634);
+const logger_1 = __nccwpck_require__(8836);
+const constants_1 = __nccwpck_require__(8593);
+/** OpenCode response schema: agent computes diff, returns new findings and which previous ones are resolved. */
+const BUGBOT_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        findings: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string', description: 'Stable unique id for this finding (e.g. file:line:summary)' },
+                    title: { type: 'string', description: 'Short title of the problem' },
+                    description: { type: 'string', description: 'Clear explanation of the issue' },
+                    file: { type: 'string', description: 'Repository-relative path when applicable' },
+                    line: { type: 'number', description: 'Line number when applicable' },
+                    severity: { type: 'string', description: 'e.g. high, medium, low' },
+                    suggestion: { type: 'string', description: 'Suggested fix when applicable' },
+                },
+                required: ['id', 'title', 'description'],
+                additionalProperties: true,
+            },
+        },
+        resolved_finding_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Ids of previously reported issues (from the list we sent) that are now fixed in the current code. Only include ids we asked you to check.',
+        },
+    },
+    required: ['findings'],
+    additionalProperties: false,
+};
+function buildMarker(findingId, resolved) {
+    return `<!-- ${constants_1.BUGBOT_MARKER_PREFIX} finding_id:"${findingId.replace(/"/g, '')}" resolved:${resolved} -->`;
+}
+function parseMarker(body) {
+    if (!body)
+        return [];
+    const results = [];
+    const regex = new RegExp(`<!--\\s*${constants_1.BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"([^"]+)"\\s+resolved:(true|false)\\s*-->`, 'g');
+    let m;
+    while ((m = regex.exec(body)) !== null) {
+        results.push({ findingId: m[1], resolved: m[2] === 'true' });
+    }
+    return results;
+}
+/** Extract title from comment body (first ## line) for context when sending to OpenCode. */
+function extractTitleFromBody(body) {
+    if (!body)
+        return '';
+    const match = body.match(/^##\s+(.+)$/m);
+    return (match?.[1] ?? '').trim();
+}
+function buildCommentBody(finding, resolved) {
+    const severity = finding.severity ? `**Severity:** ${finding.severity}\n\n` : '';
+    const fileLine = finding.file != null
+        ? `**Location:** \`${finding.file}${finding.line != null ? `:${finding.line}` : ''}\`\n\n`
+        : '';
+    const suggestion = finding.suggestion
+        ? `**Suggested fix:**\n${finding.suggestion}\n\n`
+        : '';
+    const resolvedNote = resolved ? '\n\n---\n**Resolved** (no longer reported in latest analysis).\n' : '';
+    const marker = buildMarker(finding.id, resolved);
+    return `## ${finding.title}
+
+${severity}${fileLine}${finding.description}
+${suggestion}${resolvedNote}${marker}`;
+}
+class DetectPotentialProblemsUseCase {
+    constructor() {
+        this.taskId = 'DetectPotentialProblemsUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+        this.aiRepository = new ai_repository_1.AiRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        try {
+            if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
+                (0, logger_1.logDebugInfo)('OpenCode not configured; skipping potential problems detection.');
+                return results;
+            }
+            const issueNumber = param.issueNumber;
+            if (issueNumber === -1) {
+                (0, logger_1.logDebugInfo)('No issue number for this branch; skipping.');
+                return results;
+            }
+            const headBranch = param.commit.branch;
+            const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
+            const token = param.tokens.token;
+            const owner = param.owner;
+            const repo = param.repo;
+            const issueComments = await this.issueRepository.listIssueComments(owner, repo, issueNumber, token);
+            const existingByFindingId = {};
+            for (const c of issueComments) {
+                for (const { findingId, resolved } of parseMarker(c.body)) {
+                    if (!existingByFindingId[findingId]) {
+                        existingByFindingId[findingId] = { issueCommentId: c.id, resolved };
+                    }
+                    else {
+                        existingByFindingId[findingId].issueCommentId = c.id;
+                        existingByFindingId[findingId].resolved = resolved;
+                    }
+                }
+            }
+            const openPrNumbers = await this.pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(owner, repo, headBranch, token);
+            for (const prNumber of openPrNumbers) {
+                const prComments = await this.pullRequestRepository.listPullRequestReviewComments(owner, repo, prNumber, token);
+                for (const c of prComments) {
+                    for (const { findingId, resolved } of parseMarker(c.body)) {
+                        if (!existingByFindingId[findingId]) {
+                            existingByFindingId[findingId] = { resolved };
+                        }
+                        existingByFindingId[findingId].prCommentId = c.id;
+                        existingByFindingId[findingId].prNumber = prNumber;
+                        existingByFindingId[findingId].resolved = resolved;
+                    }
+                }
+            }
+            const previousFindingsForPrompt = [];
+            for (const [findingId, data] of Object.entries(existingByFindingId)) {
+                if (data.resolved)
+                    continue;
+                const comment = issueComments.find((c) => c.id === data.issueCommentId);
+                const title = extractTitleFromBody(comment?.body ?? null) || findingId;
+                previousFindingsForPrompt.push({ id: findingId, title });
+            }
+            const previousBlock = previousFindingsForPrompt.length > 0
+                ? `
+**Previously reported issues (from our comments, not yet marked resolved):**
+${previousFindingsForPrompt.map((p) => `- id: "${p.id.replace(/"/g, '\\"')}" title: ${JSON.stringify(p.title)}`).join('\n')}
+
+After analyzing the current code, return in \`resolved_finding_ids\` the ids of the above that are now fixed (the problem is no longer present). Only include ids from this list.`
+                : '';
+            const prompt = `You are analyzing the latest code changes for potential bugs and issues.
+
+**Repository context:**
+- Owner: ${param.owner}
+- Repository: ${param.repo}
+- Branch (head): ${headBranch}
+- Base branch: ${baseBranch}
+- Issue number: ${issueNumber}
+
+**Your task 1:** Determine what has changed in the branch "${headBranch}" compared to "${baseBranch}" (you must compute or obtain the diff yourself using the repository context above). Then identify potential bugs, logic errors, security issues, and code quality problems. Be strict and descriptive. One finding per distinct problem. Return them in the \`findings\` array (each with id, title, description; optionally file, line, severity, suggestion).
+${previousBlock}
+
+Return a JSON object with: "findings" (array of new/current problems), and if we gave you a list of previously reported issues above, "resolved_finding_ids" (array of those ids that are now fixed in the current code).`;
+            (0, logger_1.logInfo)('Detecting potential problems via OpenCode (agent computes changes and checks resolved)...');
+            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+                expectJson: true,
+                schema: BUGBOT_RESPONSE_SCHEMA,
+                schemaName: 'bugbot_findings',
+            });
+            if (response == null || typeof response !== 'object') {
+                (0, logger_1.logDebugInfo)('No response from OpenCode.');
+                return results;
+            }
+            const payload = response;
+            const findings = Array.isArray(payload.findings) ? payload.findings : [];
+            const resolvedFindingIds = new Set(Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : []);
+            if (findings.length === 0 && resolvedFindingIds.size === 0) {
+                (0, logger_1.logDebugInfo)('OpenCode returned no new findings and no resolved ids.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: ['Potential problems detection completed (no new findings, no resolved).'],
+                }));
+                return results;
+            }
+            const currentIds = new Set(findings.map((f) => f.id));
+            const prCommentsToCreate = [];
+            let prHeadSha;
+            let prFiles = [];
+            if (openPrNumbers.length > 0) {
+                prHeadSha = await this.pullRequestRepository.getPullRequestHeadSha(owner, repo, openPrNumbers[0], token);
+                if (prHeadSha) {
+                    prFiles = await this.pullRequestRepository.getChangedFiles(owner, repo, openPrNumbers[0], token);
+                }
+            }
+            for (const finding of findings) {
+                const existing = existingByFindingId[finding.id];
+                const commentBody = buildCommentBody(finding, false);
+                if (existing?.issueCommentId != null) {
+                    await this.issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token);
+                    (0, logger_1.logDebugInfo)(`Updated bugbot comment for finding ${finding.id} on issue.`);
+                }
+                else {
+                    await this.issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
+                    (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
+                }
+                if (prHeadSha && openPrNumbers.length > 0) {
+                    const path = finding.file ?? prFiles[0]?.filename ?? 'README.md';
+                    const line = finding.line ?? 1;
+                    if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
+                        await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
+                    }
+                    else {
+                        prCommentsToCreate.push({ path, line, body: commentBody });
+                    }
+                }
+            }
+            if (prCommentsToCreate.length > 0 && prHeadSha && openPrNumbers.length > 0) {
+                await this.pullRequestRepository.createReviewWithComments(owner, repo, openPrNumbers[0], prHeadSha, prCommentsToCreate, token);
+            }
+            for (const [findingId, existing] of Object.entries(existingByFindingId)) {
+                if (existing.resolved || !resolvedFindingIds.has(findingId))
+                    continue;
+                const resolvedNote = '\n\n---\n**Resolved** (OpenCode confirmed fixed in latest analysis).\n';
+                const markerTrue = buildMarker(findingId, true);
+                if (existing.issueCommentId != null) {
+                    const comment = issueComments.find((c) => c.id === existing.issueCommentId);
+                    const resolvedBody = comment?.body ?? '';
+                    const updated = resolvedBody.replace(buildMarker(findingId, false), markerTrue).trimEnd() +
+                        resolvedNote +
+                        markerTrue;
+                    if (updated !== resolvedBody) {
+                        await this.issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, updated, token);
+                    }
+                }
+                if (existing.prCommentId != null && existing.prNumber != null) {
+                    const prCommentsList = await this.pullRequestRepository.listPullRequestReviewComments(owner, repo, existing.prNumber, token);
+                    const prComment = prCommentsList.find((c) => c.id === existing.prCommentId);
+                    const prBody = prComment?.body ?? '';
+                    const updated = prBody.replace(buildMarker(findingId, false), markerTrue).trimEnd() + resolvedNote + markerTrue;
+                    if (updated !== prBody) {
+                        await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, updated, token);
+                    }
+                }
+            }
+            const stepParts = [`${findings.length} new/current finding(s) from OpenCode`];
+            if (resolvedFindingIds.size > 0) {
+                stepParts.push(`${resolvedFindingIds.size} marked as resolved by OpenCode`);
+            }
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [`Potential problems detection completed. ${stepParts.join('; ')}.`],
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error in ${this.taskId}: ${error}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [`Error in ${this.taskId}: ${error}`],
+            }));
+        }
+        return results;
+    }
+}
+exports.DetectPotentialProblemsUseCase = DetectPotentialProblemsUseCase;
 
 
 /***/ }),
@@ -56120,7 +56479,7 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
@@ -56481,6 +56840,8 @@ exports.ACTIONS = {
     DETECT_ERRORS: 'detect_errors_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 };
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
+exports.BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
 exports.PROMPTS = {};
 
 

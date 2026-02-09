@@ -392,5 +392,8 @@ export const ACTIONS = {
     RECOMMEND_STEPS: 'recommend_steps_action',
 } as const; 
 
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
+export const BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+
 export const PROMPTS = {
 } as const; 

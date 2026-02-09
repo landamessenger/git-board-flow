@@ -20,4 +20,26 @@ export declare class PullRequestRepository {
         deletions: number;
         patch: string;
     }>>;
+    /** Head commit SHA of the PR (for creating review). */
+    getPullRequestHeadSha: (owner: string, repository: string, pullNumber: number, token: string) => Promise<string | undefined>;
+    /**
+     * List review comments on a PR (for bugbot: find existing findings by marker).
+     */
+    listPullRequestReviewComments: (owner: string, repository: string, pullNumber: number, token: string) => Promise<Array<{
+        id: number;
+        body: string | null;
+        path?: string;
+        line?: number;
+    }>>;
+    /**
+     * Create a review on the PR with one or more inline comments (bugbot findings).
+     * Each comment requires path and line (use first file and line 1 if not specified).
+     */
+    createReviewWithComments: (owner: string, repository: string, pullNumber: number, commitId: string, comments: Array<{
+        path: string;
+        line: number;
+        body: string;
+    }>, token: string) => Promise<void>;
+    /** Update an existing PR review comment (e.g. to mark finding as resolved in body). */
+    updatePullRequestReviewComment: (owner: string, repository: string, commentId: number, body: string, token: string) => Promise<void>;
 }

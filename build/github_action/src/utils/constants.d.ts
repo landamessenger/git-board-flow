@@ -196,4 +196,6 @@ export declare const ACTIONS: {
     readonly DETECT_ERRORS: "detect_errors_action";
     readonly RECOMMEND_STEPS: "recommend_steps_action";
 };
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
+export declare const BUGBOT_MARKER_PREFIX = "gbf-bugbot";
 export declare const PROMPTS: {};
