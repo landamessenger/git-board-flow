@@ -14,6 +14,12 @@ export const OPENCODE_MAX_RETRIES = 5
 /** Delay in ms between OpenCode retry attempts. */
 export const OPENCODE_RETRY_DELAY_MS = 2000
 
+/** Interval in ms when waiting for OpenCode rate limit to clear (status poll). */
+export const OPENCODE_RATELIMIT_POLL_MS = 5000
+
+/** Max time to wait for OpenCode rate limit to clear before proceeding anyway. */
+export const OPENCODE_RATELIMIT_MAX_WAIT_MS = 600_000
+
 export const DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [

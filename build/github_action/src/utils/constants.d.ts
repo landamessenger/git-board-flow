@@ -9,6 +9,10 @@ export declare const OPENCODE_REQUEST_TIMEOUT_MS = 600000;
 export declare const OPENCODE_MAX_RETRIES = 5;
 /** Delay in ms between OpenCode retry attempts. */
 export declare const OPENCODE_RETRY_DELAY_MS = 2000;
+/** Interval in ms when waiting for OpenCode rate limit to clear (status poll). */
+export declare const OPENCODE_RATELIMIT_POLL_MS = 5000;
+/** Max time to wait for OpenCode rate limit to clear before proceeding anyway. */
+export declare const OPENCODE_RATELIMIT_MAX_WAIT_MS = 600000;
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
         automatic: string[];
