@@ -35,6 +35,7 @@ npm run build
   - `local_action.ts` – CLI entry; same logic with local/config inputs.
   - `common_action.ts` – Shared flow: single actions vs issue/PR/push pipelines.
 - **`src/usecase/`** – Use cases (issue, pull request, commit, single actions).
+- **`src/manager/`** – Content handlers for PR descriptions, hotfix changelog, and markdown (e.g. `configuration_handler`, `markdown_content_hotfix_handler`).
 - **`src/data/model/`** – Domain models (Execution, Ai, Issue, etc.).
 - **`src/data/repository/`** – Repositories (GitHub API, OpenCode API).
 - **`src/utils/`** – Constants, logger, content utils, etc.

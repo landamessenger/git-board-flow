@@ -49931,7 +49931,7 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                         changelog: changelogBody,
                         issue: param.issue.number,
                     };
-                    await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.release, parameters, param.tokens.token);
+                    await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.hotfix, parameters, param.tokens.token);
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,

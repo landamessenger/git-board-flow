@@ -88,7 +88,7 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}`
                         param.owner,
                         param.repo,
                         param.hotfix.branch,
-                        param.workflows.release,
+                        param.workflows.hotfix,
                         parameters,
                         param.tokens.token,
                     )

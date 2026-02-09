@@ -18,6 +18,11 @@ alwaysApply: false
 3. **`src/actions/github_action.ts`**: Read the input (e.g. `core.getInput(INPUT_KEYS.NEW_INPUT)`) and pass it into the object used to build `Execution`.
 4. **Optional**: If the CLI must support it, add to `local_action.ts` and the corresponding CLI option.
 
+## Where to change content/descriptions
+
+- **PR description** (template filling, AI content): `src/manager/description/` (configuration_handler, content interfaces).
+- **Hotfix/release changelog** (markdown extraction, formatting): `src/manager/description/markdown_content_hotfix_handler.ts`.
+
 ## Build and bundles
 
 - The project uses **`@vercel/ncc`** to bundle the action and CLI. Keep imports and dependencies compatible with ncc (no dynamic requires that ncc cannot see).
