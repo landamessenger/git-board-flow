@@ -169,6 +169,7 @@ export class BranchRepository {
              */
             let baseBranchName = developmentBranch;
 
+            let isRenamingBranch = false;
             if (!isHotfix) {
                 /**
                  * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
@@ -188,6 +189,7 @@ export class BranchRepository {
 
                         if (matchingBranch) {
                             baseBranchName = matchingBranch.name;
+                            isRenamingBranch = true;
                             logDebugInfo(`Found previous issue branch: ${baseBranchName}`);
                             // TODO replacedBranchName = baseBranchName
                             break;
@@ -211,8 +213,10 @@ export class BranchRepository {
                 baseBranchName = hotfixBranch ?? developmentBranch;
             }
 
-            param.currentConfiguration.parentBranch = baseBranchName
-            
+            if (!isRenamingBranch) {
+                param.currentConfiguration.parentBranch = baseBranchName;
+            }
+
             logDebugInfo(`============================================================================================`);
             logDebugInfo(`Base branch: ${baseBranchName}`);
             logDebugInfo(`New branch: ${newBranchName}`);
