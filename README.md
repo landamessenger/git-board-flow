@@ -12,7 +12,7 @@ All AI features use **OpenCode** (75+ LLM providers: OpenAI, Anthropic, Gemini, 
 
 - **Progress detection** — Analyzes branch vs issue and posts a progress percentage on the issue (`check_progress_action`).
 - **Think / reasoning** — Deep code analysis and change proposals (`think_action`).
-- **AI PR description** — Generates or updates pull request descriptions from issue and diff.
+- **AI PR description** — Generates or updates pull request descriptions by filling your `.github/pull_request_template.md` from the issue and branch diff.
 
 You can set `opencode-server-url` and `opencode-model`, or use **`opencode-start-server: true`** so the action starts and stops an OpenCode server in the job (no separate install needed; pass provider API keys as secrets).
 
