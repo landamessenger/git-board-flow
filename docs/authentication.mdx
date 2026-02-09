@@ -88,9 +88,6 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
       issues:
         types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
 
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
-
     jobs:
       git-board-issues:
         name: Git Board - Issue

@@ -1,0 +1,128 @@
+import { CheckChangesIssueSizeUseCase } from '../check_changes_issue_size_use_case';
+
+jest.mock('../../../../utils/logger', () => ({
+  logInfo: jest.fn(),
+  logDebugInfo: jest.fn(),
+  logError: jest.fn(),
+}));
+
+const mockGetSizeCategoryAndReason = jest.fn();
+const mockSetLabels = jest.fn();
+const mockGetLabels = jest.fn();
+const mockSetTaskSize = jest.fn();
+const mockGetOpenPullRequestNumbersByHeadBranch = jest.fn();
+
+jest.mock('../../../../data/repository/branch_repository', () => ({
+  BranchRepository: jest.fn().mockImplementation(() => ({
+    getSizeCategoryAndReason: mockGetSizeCategoryAndReason,
+  })),
+}));
+jest.mock('../../../../data/repository/issue_repository', () => ({
+  IssueRepository: jest.fn().mockImplementation(() => ({
+    setLabels: mockSetLabels,
+    getLabels: mockGetLabels,
+  })),
+}));
+jest.mock('../../../../data/repository/project_repository', () => ({
+  ProjectRepository: jest.fn().mockImplementation(() => ({
+    setTaskSize: mockSetTaskSize,
+  })),
+}));
+jest.mock('../../../../data/repository/pull_request_repository', () => ({
+  PullRequestRepository: jest.fn().mockImplementation(() => ({
+    getOpenPullRequestNumbersByHeadBranch: mockGetOpenPullRequestNumbersByHeadBranch,
+  })),
+}));
+
+function baseParam(overrides: Record<string, unknown> = {}) {
+  return {
+    owner: 'o',
+    repo: 'r',
+    issueNumber: 42,
+    tokens: { token: 't' },
+    commit: { branch: 'feature/42-foo' },
+    currentConfiguration: { parentBranch: 'develop' },
+    sizeThresholds: {},
+    labels: {
+      sizedLabelOnIssue: 'size: M',
+      currentIssueLabels: ['feature', 'size: M'],
+      sizeLabels: ['size: XS', 'size: S', 'size: M', 'size: L', 'size: XL', 'size: XXL'],
+    },
+    project: { getProjects: () => [] },
+    ...overrides,
+  } as unknown as Parameters<CheckChangesIssueSizeUseCase['invoke']>[0];
+}
+
+describe('CheckChangesIssueSizeUseCase', () => {
+  let useCase: CheckChangesIssueSizeUseCase;
+
+  beforeEach(() => {
+    useCase = new CheckChangesIssueSizeUseCase();
+    mockGetSizeCategoryAndReason.mockReset();
+    mockSetLabels.mockReset();
+    mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([]);
+  });
+
+  it('returns empty result when parentBranch is undefined', async () => {
+    const param = baseParam({ currentConfiguration: { parentBranch: undefined } });
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(0);
+    expect(mockGetSizeCategoryAndReason).not.toHaveBeenCalled();
+  });
+
+  it('returns success executed true when size equals sizedLabelOnIssue (no change)', async () => {
+    mockGetSizeCategoryAndReason.mockResolvedValue({
+      size: 'size: M',
+      githubSize: 'M',
+      reason: 'Within limits',
+    });
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(mockSetLabels).not.toHaveBeenCalled();
+  });
+
+  it('returns success executed true and updates labels when size differs from sizedLabelOnIssue', async () => {
+    mockGetSizeCategoryAndReason.mockResolvedValue({
+      size: 'size: L',
+      githubSize: 'L',
+      reason: 'Many lines changed',
+    });
+    mockSetLabels.mockResolvedValue(undefined);
+    mockSetTaskSize.mockResolvedValue(undefined);
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('size: L') && s.includes('resized'))).toBe(true);
+    expect(mockSetLabels).toHaveBeenCalledWith(
+      'o',
+      'r',
+      42,
+      expect.arrayContaining(['feature', 'size: L']),
+      't'
+    );
+  });
+
+  it('returns failure when getSizeCategoryAndReason throws', async () => {
+    mockGetSizeCategoryAndReason.mockRejectedValue(new Error('API error'));
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps).toContain(
+      'Tried to check the size of the changes, but there was a problem.'
+    );
+  });
+});

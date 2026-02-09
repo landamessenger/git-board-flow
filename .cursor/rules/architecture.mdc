@@ -1,0 +1,43 @@
+---
+description: Git Board Flow – entry points, flow, and key paths
+alwaysApply: true
+---
+
+# Architecture & Key Paths
+
+## Entry and main flow
+
+1. **GitHub Action**: `src/actions/github_action.ts` reads inputs, builds `Execution`, calls `mainRun(execution)` from `common_action.ts`.
+2. **CLI**: `src/actions/local_action.ts` same flow with CLI/config inputs.
+3. **common_action.ts**: Sets up; calls `waitForPreviousRuns(execution)` (sequential workflow); then:
+   - **Single action** → `SingleActionUseCase`
+   - **Issue** → `IssueCommentUseCase` or `IssueUseCase`
+   - **Pull request** → `PullRequestReviewCommentUseCase` or `PullRequestUseCase`
+   - **Push** → `CommitUseCase`
+
+## Key paths
+
+| Area | Path | Purpose |
+|------|------|--------|
+| Action entry | `src/actions/github_action.ts` | Reads inputs, builds Execution |
+| CLI entry | `src/cli.ts` → `local_action.ts` | Same flow, local inputs |
+| Shared flow | `src/actions/common_action.ts` | mainRun, waitForPreviousRuns, dispatch to use cases |
+| Use cases | `src/usecase/` | issue_use_case, pull_request_use_case, commit_use_case, single_action_use_case |
+| Single actions | `src/usecase/actions/` | check_progress, detect_errors, recommend_steps, think, initial_setup, create_release, create_tag, publish_github_action, deployed_action |
+| Steps (issue) | `src/usecase/steps/issue/` | prepare_branches, link_issue_project, assign_members, update_issue_type, deploy/deployed labels, etc. |
+| Steps (PR) | `src/usecase/steps/pull_request/` | link_pr_issue, link_pr_project, update_description, size/progress sync |
+| Steps (commit) | `src/usecase/steps/commit/` | notify commit, check size |
+| Models | `src/data/model/` | Execution, Issue, PullRequest, SingleAction, etc. |
+| Repos | `src/data/repository/` | branch_repository, issue_repository, workflow_repository, ai_repository (OpenCode) |
+| Config | `src/utils/constants.ts` | INPUT_KEYS, ACTIONS, defaults |
+| Metadata | `action.yml` | Action inputs and defaults |
+
+## Single actions (by name)
+
+- `check_progress_action`, `detect_errors_action`, `recommend_steps_action` (need `single-action-issue`)
+- `think_action`, `initial_setup` (no issue)
+- `create_release` (version, title, changelog), `create_tag` (version), `publish_github_action`, `deployed_action` (issue)
+
+## Concurrency (sequential runs)
+
+`common_action.ts` calls `waitForPreviousRuns(execution)` (from `src/utils/queue_utils.ts`): lists workflow runs, waits until no previous run of the **same workflow name** is in progress/queued, then continues. Implemented in `WorkflowRepository.getActivePreviousRuns`.

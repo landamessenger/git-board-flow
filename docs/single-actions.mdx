@@ -26,7 +26,7 @@ In your workflow, pass the action name and any required inputs:
 | `check_progress_action` | `single-action-issue` | Runs progress check on demand. Progress is normally updated automatically on every push (commit workflow); use this to re-run without pushing or when you don't use the push workflow. |
 | `detect_errors_action` | `single-action-issue` | Detects potential errors in the branch vs base using OpenCode Plan agent. |
 | `recommend_steps_action` | `single-action-issue` | Recommends implementation steps for the issue based on its description (OpenCode Plan). |
-| `think_action` | — | Deep code analysis and change proposals (OpenCode). No issue required. |
+| `think_action` | — | Deep code analysis and change proposals (OpenCode Plan). No issue required; use from CLI with a question (`think -q "..."`) or from a workflow that provides context. |
 | `initial_setup` | — | Initial setup steps. No issue required. |
 | `create_release` | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release. |
 | `create_tag` | `single-action-version` | Creates a Git tag. |

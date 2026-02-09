@@ -52,7 +52,7 @@ If you don't have a template, the agent will still produce a structured descript
 
 - The PR must have an **issue linked** (branch name follows the pattern that includes the issue number, e.g. `feature/123-add-feature`).
 - The linked issue must have a **non-empty description** (used as context).
-- If `ai-members-only` is enabled (default), the PR author must be a **project/org member**; otherwise the step is skipped.
+- If `ai-members-only` is enabled (default: false), the PR author must be a **project/org member**; otherwise the step is skipped.
 - The action runs on the same `pull_request` events as the rest of the PR pipeline (e.g. opened, edited).
 
 To enable: set `ai-pull-request-description: true` in your workflow and configure OpenCode. See [Configuration → AI Features](/configuration#ai-features) and [OpenCode (AI)](/opencode-integration).
@@ -67,10 +67,6 @@ name: Git Board Flow - Pull Request
 on:
   pull_request:
     types: [opened, edited, labeled, unlabeled]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 jobs:
   git-board-flow-pull-requests:

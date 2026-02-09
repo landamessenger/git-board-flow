@@ -55,7 +55,7 @@ Options:
 - `-b, --branch <name>` – Branch name (optional; will try to determine from issue)
 - `-t, --token <token>` – PAT (or use `PERSONAL_ACCESS_TOKEN` env)
 - `--opencode-server-url <url>` – Override OpenCode URL
-- `--opencode-model <model>` – Override model (e.g. `opencode/kimi-k2.5`, `anthropic/claude-3-5-sonnet`)
+- `--opencode-model <model>` – Override model (e.g. `opencode/kimi-k2.5-free`, `anthropic/claude-3-5-sonnet`)
 - `-d, --debug` – Verbose logs
 
 ### Detect errors
@@ -81,7 +81,7 @@ Create a `.env` file in the repo root (do **not** commit it):
 ```bash
 PERSONAL_ACCESS_TOKEN=ghp_xxxx
 OPENCODE_SERVER_URL=http://localhost:4096
-OPENCODE_MODEL=opencode/kimi-k2.5
+OPENCODE_MODEL=opencode/kimi-k2.5-free
 ```
 
 Then you can run without passing `-t` every time:

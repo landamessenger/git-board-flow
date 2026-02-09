@@ -3,7 +3,26 @@ title: Issues
 description: Boosted and connected issues.
 ---
 
-Git Board Flow automates issue tracking, ensuring smooth branch management and seamless project integration.  
+Git Board Flow automates issue tracking, ensuring smooth branch management and seamless project integration.
+
+## Labels by issue type and flow
+
+Use these labels so the action creates the right branches and applies the right behavior. You can configure all label names via [Issues Configuration](/issues/configuration).
+
+| Flow | Required / optional labels | Branch created from | Notes |
+|------|----------------------------|---------------------|--------|
+| **Feature** | `feature`; optionally `branched` (or set `branch-management-always: true`) | `development-branch` | New functionality. |
+| **Bugfix** | `bugfix`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Bug fixes on develop. |
+| **Docs** | `docs` or `documentation`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Documentation tasks. |
+| **Chore** | `chore` or `maintenance`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Maintenance, refactors, dependencies. |
+| **Hotfix** | `hotfix` (branch is created without needing `branched`; templates often include `branched` too) | `main-branch` (from latest tag) | Urgent production fix. Add `deploy` to trigger deploy workflow. Only org/repo members can create hotfix issues (others are closed). |
+| **Release** | `release` (branch is created without needing `branched`; templates often include `branched` too) | `development-branch` | New version release. Add `deploy` to trigger release workflow. Only org/repo members can create release issues (others are closed). |
+| **Deploy** | `deploy` on the issue | — | Triggers the workflow defined by `release-workflow` or `hotfix-workflow`. |
+| **Deployed** | `deployed` (added by action after deploy success) | — | Marks the issue as deployed; used for auto-close and state updates. |
+
+Other labels: `bug` / `enhancement` (issue type), `question` / `help` (no branch), `priority: high` / `medium` / `low`, `size: XS` … `size: XXL`. See [Configuration](/configuration).
+
+For **step-by-step flows** (how branches are created, naming, source branch, deploy trigger, and templates), see the issue type pages: [Feature](/issues/type/feature), [Bugfix](/issues/type/bugfix), [Docs](/issues/type/docs), [Chore](/issues/type/chore), [Hotfix](/issues/type/hotfix), [Release](/issues/type/release).
 
 To enable the GitHub Action for issues, create a workflow with the following configuration:  
 
@@ -14,17 +33,15 @@ on:
   issues:
     types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
-
 jobs:
   git-board-issues:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: actions/checkout@v4
+      - uses: landamessenger/git-board-flow@master
         with:
-          project-ids: 1,2
+          project-ids: '1,2'
           token: ${{ secrets.PAT }}
 ```
 

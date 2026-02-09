@@ -27,6 +27,7 @@ See the [OpenCode (AI)](https://docs.page/landamessenger/git-board-flow/opencode
 - **Pull request linking** — Links PRs to issues, adds them to projects, assigns reviewers, and can generate PR descriptions with AI.
 - **GitHub Project integration** — Links issues and PRs to the configured projects (`project-ids`) and moves them to the right columns.
 - **Single actions** — Run on-demand actions: check progress, think, create release/tag, deployed marking, and more.
+- **Workflow concurrency** — The action waits for previous runs of the **same workflow name** to finish, so you can run workflows sequentially (no cancel). See [Features → Workflow concurrency](https://docs.page/landamessenger/git-board-flow/features#workflow-concurrency-and-sequential-execution).
 
 ---
 
@@ -40,11 +41,7 @@ name: Git Board Flow - Issue
 on:
   issues:
     types: [opened, edited, labeled, unlabeled]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
-  cancel-in-progress: true
-
+    
 jobs:
   git-board-flow-issues:
     name: Git Board Flow - Issue

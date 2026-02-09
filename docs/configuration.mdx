@@ -14,8 +14,8 @@ Git Board Flow provides extensive configuration options to customize your workfl
 ## AI (OpenCode)
 
 - `opencode-server-url`: OpenCode server URL for AI operations (default: "http://localhost:4096"). See [OpenCode (AI)](/opencode-integration).
-- `opencode-model`: Model in provider/model format, e.g. `opencode/kimi-k2.5` or `anthropic/claude-3-5-sonnet` (default: "opencode/kimi-k2.5")
-- `opencode-start-server`: If true, the action starts an OpenCode server at job start and stops it at job end; no separate install needed (default: "false")
+- `opencode-model`: Model in provider/model format, e.g. `opencode/kimi-k2.5-free` or `anthropic/claude-3-5-sonnet` (default: "opencode/kimi-k2.5-free")
+- `opencode-start-server`: If true, the action starts an OpenCode server at job start and stops it at job end; no separate install needed (default: "true")
 
 ## Branch Management
 
@@ -143,4 +143,4 @@ Default thresholds:
 
 - `ai-pull-request-description`: Enable AI-powered automatic updates for pull request descriptions (default: "false"). When enabled, the OpenCode Plan agent fills your repository's pull request template (`.github/pull_request_template.md`) using the issue description and the branch diff. See [Pull Requests → AI-generated PR description](/pull-requests#ai-generated-pr-description).
 - `ai-ignore-files`: Comma-separated list of files to ignore for AI operations (e.g. progress detection, error detection; not used for PR description, where the agent computes the diff in the workspace).
-- `ai-members-only`: Restrict AI features to only organization/project members (default: "true"); when true, AI PR description is skipped if the PR author is not a member. 
+- `ai-members-only`: Restrict AI features to only organization/project members (default: "false"); when true, AI PR description is skipped if the PR author is not a member. 

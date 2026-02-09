@@ -93,6 +93,43 @@ Configuration: `opencode-server-url`, `opencode-model`, and optionally `opencode
 
 ---
 
+## Workflow concurrency and sequential execution
+
+GitHub's native [concurrency](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency) lets you cancel in-progress runs when a new one starts (`cancel-in-progress: true`). Git Board Flow adds **sequential execution** for the same workflow: when a new run starts, the action **waits** for any previous run of the **same workflow name** to finish before doing its work. That way, runs of the same workflow (e.g. "Git Board Flow - Issue") execute one after another instead of in parallel or being cancelled — something GitHub does not offer natively.
+
+### How it works
+
+1. At the start of each run (except welcome/single-action-only flows), the action calls the GitHub API to list workflow runs for the repo.
+2. It filters runs that have the **same workflow name** as the current run, a **lower run ID** (i.e. started earlier), and status `in_progress` or `queued`.
+3. If any such run exists, the action waits 2 seconds and checks again, up to a long timeout (~4000 seconds).
+4. When no previous run of the same workflow is active, the action continues.
+
+So you get a **per-workflow queue**: multiple triggers for the same workflow (e.g. many issues labeled at once) will run sequentially.
+
+### Example
+
+```yaml
+name: Git Board Flow - Issue
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+
+jobs:
+  git-board-flow-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: landamessenger/git-board-flow@master
+        with:
+          token: ${{ secrets.PAT }}
+          project-ids: '2,3'
+```
+
+If you prefer to cancel the previous run when a new one is triggered (e.g. for PRs, so only the latest run matters), use `cancel-in-progress: true` and the same `concurrency.group` per PR or issue.
+
+---
+
 ## Other capabilities
 
 - **Commit prefix transforms**: `commit-prefix-transforms` defines how branch names are turned into commit prefixes (e.g. `replace-slash`, `kebab-case`). Used for validation and comments.
