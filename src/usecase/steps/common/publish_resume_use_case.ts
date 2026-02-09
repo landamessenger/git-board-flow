@@ -166,6 +166,14 @@ ${footer}
                     commentBody,
                     param.tokens.token,
                 )
+            } else if (param.isPush && param.issueNumber > 0) {
+                await this.issueRepository.addComment(
+                    param.owner,
+                    param.repo,
+                    param.issueNumber,
+                    commentBody,
+                    param.tokens.token,
+                )
             }
         } catch (error) {
             logError(error);
