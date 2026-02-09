@@ -1,3 +1,29 @@
+/**
+ * Status levels for TODO items
+ */
+export declare enum TodoStatus {
+    PENDING = "pending",
+    IN_PROGRESS = "in_progress",
+    COMPLETED = "completed",
+    CANCELLED = "cancelled"
+}
+/**
+ * Actions for managing TODOs
+ */
+export declare enum TodoAction {
+    CREATE = "create",
+    UPDATE = "update",
+    LIST = "list"
+}
+/**
+ * Types of changes that can be proposed to files
+ */
+export declare enum ChangeType {
+    CREATE = "create",
+    MODIFY = "modify",
+    DELETE = "delete",
+    REFACTOR = "refactor"
+}
 export interface FileAnalysis {
     path: string;
     key_findings: string;
@@ -5,7 +31,7 @@ export interface FileAnalysis {
 }
 export interface ProposedChange {
     file_path: string;
-    change_type: 'create' | 'modify' | 'delete' | 'refactor';
+    change_type: ChangeType;
     description: string;
     suggested_code?: string;
     reasoning: string;
@@ -20,11 +46,11 @@ export interface ThinkResponse {
     todo_updates?: {
         create?: Array<{
             content: string;
-            status?: 'pending' | 'in_progress';
+            status?: TodoStatus;
         }>;
         update?: Array<{
             id: string;
-            status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+            status?: TodoStatus;
             notes?: string;
         }>;
     };
@@ -42,7 +68,7 @@ export interface ThinkStep {
 export interface ThinkTodoItem {
     id: string;
     content: string;
-    status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+    status: TodoStatus;
     created_at: number;
     updated_at: number;
     completed_at?: number;

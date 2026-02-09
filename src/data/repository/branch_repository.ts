@@ -3,6 +3,8 @@ import * as exec from '@actions/exec';
 import * as github from "@actions/github";
 import { logDebugInfo, logError } from '../../utils/logger';
 import { getLatestVersion } from "../../utils/version_utils";
+import { LinkedBranchResponse } from '../graph/linked_branch_response';
+import { RepositoryResponse } from '../graph/repository_response';
 import { Execution } from "../model/execution";
 import { Labels } from '../model/labels';
 import { Result } from "../model/result";
@@ -33,7 +35,7 @@ export class BranchRepository {
             await exec.exec('git', ['tag', '--sort=-creatordate'], {
                 listeners: {
                     stdout: (data: Buffer) => {
-                        tags.push(...data.toString().split('\n').map((v, i, a) => {
+                        tags.push(...data.toString().split('\n').map((v) => {
                             return v.replace('v', '')
                         }));
                     },
@@ -167,6 +169,7 @@ export class BranchRepository {
              */
             let baseBranchName = developmentBranch;
 
+            let isRenamingBranch = false;
             if (!isHotfix) {
                 /**
                  * Check if it is a branch switch: feature/123-bla <-> bugfix/123-bla
@@ -186,6 +189,7 @@ export class BranchRepository {
 
                         if (matchingBranch) {
                             baseBranchName = matchingBranch.name;
+                            isRenamingBranch = true;
                             logDebugInfo(`Found previous issue branch: ${baseBranchName}`);
                             // TODO replacedBranchName = baseBranchName
                             break;
@@ -209,8 +213,10 @@ export class BranchRepository {
                 baseBranchName = hotfixBranch ?? developmentBranch;
             }
 
-            param.currentConfiguration.parentBranch = baseBranchName
-            
+            if (!isRenamingBranch) {
+                param.currentConfiguration.parentBranch = baseBranchName;
+            }
+
             logDebugInfo(`============================================================================================`);
             logDebugInfo(`Base branch: ${baseBranchName}`);
             logDebugInfo(`New branch: ${newBranchName}`);
@@ -457,7 +463,7 @@ export class BranchRepository {
         repository: string,
         branch: string,
         workflow: string,
-        inputs: any,
+        inputs: Record<string, unknown>,
         token: string,
     ) => {
         const octokit = github.getOctokit(token);

@@ -5,8 +5,6 @@
  */
 import { BaseTool } from '../tools/base_tool';
 import { AgentOptions, AgentResult, Message } from '../types';
-import { MCPManager } from '../mcp/mcp_manager';
-import { MCPServerConfig } from '../mcp/types';
 import { SubAgentManager, SubAgentOptions, Task } from './subagent_manager';
 export declare class Agent {
     private options;
@@ -15,7 +13,6 @@ export declare class Agent {
     private toolExecutor;
     private reasoningLoop;
     private sessionManager;
-    private mcpManager?;
     private subAgentManager?;
     private sessionId;
     constructor(options: AgentOptions);
@@ -80,26 +77,6 @@ export declare class Agent {
      * Update system prompt
      */
     setSystemPrompt(prompt: string): void;
-    /**
-     * Initialize MCP connections
-     */
-    initializeMCP(configPath?: string): Promise<void>;
-    /**
-     * Connect to an MCP server
-     */
-    connectMCPServer(config: MCPServerConfig): Promise<void>;
-    /**
-     * Get MCP manager
-     */
-    getMCPManager(): MCPManager | undefined;
-    /**
-     * Check if MCP server is connected
-     */
-    isMCPConnected(serverName: string): boolean;
-    /**
-     * Get connected MCP servers
-     */
-    getConnectedMCPServers(): string[];
     /**
      * Create a subagent
      */

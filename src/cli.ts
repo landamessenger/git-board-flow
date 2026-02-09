@@ -5,12 +5,9 @@ import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
-import { ACTIONS, COMMAND, ERRORS, INPUT_KEYS, TITLE } from './utils/constants';
-import { logInfo } from './utils/logger';
-import { registerAgentTestCommands } from './agent_tester_commands';
-import { registerMCPTestCommands } from './mcp_tester_commands';
-import { registerSubAgentTestCommands } from './sub_agent_tester_commands';
-import { registerTECTestCommands } from './tec_tester_commands';
+import { ACTIONS, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
+import { Ai } from './data/model/ai';
+import { AiRepository, getSessionDiff, OpenCodeFileDiff } from './data/repository/ai_repository';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -29,58 +26,10 @@ function getGitInfo() {
       owner: match[1],
       repo: match[2].replace('.git', '')
     };
-  } catch (error) {
+  } catch {
     return { error: ERRORS.GIT_REPOSITORY_NOT_FOUND };
   }
 }
-
-program
-  .command('build-ai')
-  .description(`${TITLE} - Build AI container and execute AI cache indexing`)
-  .option('-d, --debug', 'Debug mode', false)
-  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('-b, --branch <name>', 'Branch name')
-  .action(async (options) => {    
-    const gitInfo = getGitInfo();
-    
-    if ('error' in gitInfo) {
-      console.log(gitInfo.error);
-      return;
-    }
-    const branch = options.branch;
-  
-    const params: any = {
-      [INPUT_KEYS.DEBUG]: options.debug.toString(),
-      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.AI_CACHE_LOCAL,
-      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
-      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
-      [INPUT_KEYS.OPENROUTER_API_KEY]: process.env.OPENROUTER_API_KEY,
-      [INPUT_KEYS.OPENROUTER_MODEL]: process.env.OPENROUTER_MODEL,
-      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.AI_IGNORE_FILES]: 'build/*',
-      repo: {
-        owner: gitInfo.owner,
-        repo: gitInfo.repo,
-      },
-      issue: {
-        number: 1,
-      },
-    };
-
-    if (branch && branch.length > 0) {
-      params.commits = {
-        ref: `refs/heads/${branch}`,
-      };
-    }
-
-    params[INPUT_KEYS.WELCOME_TITLE] = '🚀 AI Cache Indexing';
-    params[INPUT_KEYS.WELCOME_MESSAGES] = [
-      `Indexing AI cache for ${gitInfo.owner}/${gitInfo.repo}...`,
-    ];
-
-    await runLocalAction(params);
-  });
 
 /**
  * Run the thinking AI scenario for deep code analysis and proposals.
@@ -93,15 +42,8 @@ program
   .option('-d, --debug', 'Debug mode', false)
   .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
   .option('-q, --question <question...>', 'Question or prompt for analysis', '')
-  .option('--openrouter-api-key <key>', 'OpenRouter API key', '')
-  .option('--openrouter-model <model>', 'OpenRouter model', '')
-  .option('--openrouter-provider-order <provider>', 'OpenRouter provider', '')
-  .option('--openrouter-provider-allow-fallbacks <fallback>', 'OpenRouter fallback', '')
-  .option('--openrouter-provider-require-parameters <require>', 'OpenRouter require', '')
-  .option('--openrouter-provider-data-collection <collection>', 'OpenRouter collection', '')
-  .option('--openrouter-provider-ignore <ignore>', 'OpenRouter ignore', '')
-  .option('--openrouter-provider-quantizations <quantizations>', 'OpenRouter quantizations', '')
-  .option('--openrouter-provider-sort <sort>', 'OpenRouter sort', '')
+  .option('--opencode-server-url <url>', 'OpenCode server URL (e.g. http://127.0.0.1:4096)', '')
+  .option('--opencode-model <model>', `OpenCode model (e.g. ${OPENCODE_DEFAULT_MODEL}, openai/gpt-4o-mini)`, '')
   .option('--ai-ignore-files <ai-ignore-files>', 'AI ignore files', 'node_modules/*,build/*')
   .option('--include-reasoning <include-reasoning>', 'Include reasoning', 'false')
   .action(async (options) => {    
@@ -113,8 +55,8 @@ program
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
-    const cleanArg = (value: any): string => {
-      if (!value) return '';
+    const cleanArg = (value: unknown): string => {
+      if (value == null) return '';
       const str = String(value);
       return str.startsWith('=') ? str.substring(1) : str;
     };
@@ -130,22 +72,14 @@ program
     const branch = cleanArg(options.branch);
     const issueNumber = cleanArg(options.issue);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.THINK,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber) || 1,
-      [INPUT_KEYS.SUPABASE_URL]: options?.supabaseUrl?.length > 0 ? options.supabaseUrl : process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: options?.supabaseKey?.length > 0 ? options.supabaseKey : process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options?.token?.length > 0 ? options.token : process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENROUTER_API_KEY]: options?.openrouterApiKey?.length > 0 ? options.openrouterApiKey : process.env.OPENROUTER_API_KEY,
-      [INPUT_KEYS.OPENROUTER_MODEL]: options?.openrouterModel?.length > 0 ? options.openrouterModel : process.env.OPENROUTER_MODEL,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_ORDER]: options?.openrouterProviderOrder?.length > 0 ? options.openrouterProviderOrder : process.env.OPENROUTER_PROVIDER_ORDER,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_ALLOW_FALLBACKS]: options?.openrouterProviderAllowFallbacks?.length > 0 ? options.openrouterProviderAllowFallbacks : process.env.OPENROUTER_PROVIDER_ALLOW_FALLBACKS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS]: options?.openrouterProviderRequireParameters?.length > 0 ? options.openrouterProviderRequireParameters : process.env.OPENROUTER_PROVIDER_REQUIRE_PARAMETERS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_DATA_COLLECTION]: options?.openrouterProviderDataCollection?.length > 0 ? options.openrouterProviderDataCollection : process.env.OPENROUTER_PROVIDER_DATA_COLLECTION,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_IGNORE]: options?.openrouterProviderIgnore?.length > 0 ? options.openrouterProviderIgnore : process.env.OPENROUTER_PROVIDER_IGNORE,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_QUANTIZATIONS]: options?.openrouterProviderQuantizations?.length > 0 ? options.openrouterProviderQuantizations : process.env.OPENROUTER_PROVIDER_QUANTIZATIONS,
-      [INPUT_KEYS.OPENROUTER_PROVIDER_SORT]: options?.openrouterProviderSort?.length > 0 ? options.openrouterProviderSort : process.env.OPENROUTER_PROVIDER_SORT,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options?.opencodeServerUrl?.length > 0 ? options.opencodeServerUrl : process.env.OPENCODE_SERVER_URL,
+      [INPUT_KEYS.OPENCODE_MODEL]: options?.opencodeModel?.length > 0 ? options.opencodeModel : process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
       [INPUT_KEYS.AI_IGNORE_FILES]: options?.aiIgnoreFiles?.length > 0 ? options.aiIgnoreFiles : process.env.AI_IGNORE_FILES,
       [INPUT_KEYS.AI_INCLUDE_REASONING]: options?.includeReasoning?.length > 0 ? options.includeReasoning : process.env.AI_INCLUDE_REASONING,
       repo: {
@@ -199,17 +133,18 @@ program
   });
 
 /**
- * Check progress of an issue based on code changes.
+ * Copilot - AI development assistant using OpenCode "build" agent.
+ * When the OpenCode server is run locally from your repo (e.g. opencode serve), the build agent
+ * can read and write files; changes are applied in the server workspace.
  */
 program
-  .command('check-progress')
-  .description(`${TITLE} - Check progress of an issue based on code changes`)
-  .option('-i, --issue <number>', 'Issue number to check progress for (required)', '')
-  .option('-b, --branch <name>', 'Branch name (optional, will try to determine from issue)')
+  .command('copilot')
+  .description(`${TITLE} - AI development assistant (OpenCode build agent; can edit files when run locally)`)
+  .option('-p, --prompt <prompt...>', 'Prompt or question for the copilot (required)', '')
   .option('-d, --debug', 'Debug mode', false)
-  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-  .option('--openrouter-api-key <key>', 'OpenRouter API key', process.env.OPENROUTER_API_KEY)
-  .option('--openrouter-model <model>', 'OpenRouter model', process.env.OPENROUTER_MODEL)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+  .option('--output <format>', 'Output format (text|json)', 'text')
   .action(async (options) => {    
     const gitInfo = getGitInfo();
     
@@ -219,8 +154,100 @@ program
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
-    const cleanArg = (value: any): string => {
-      if (!value) return '';
+    const cleanArg = (value: unknown): string => {
+      if (value == null) return '';
+      const str = String(value);
+      return str.startsWith('=') ? str.substring(1) : str;
+    };
+
+    const promptParts = (options.prompt || []).map(cleanArg);
+    const prompt = promptParts.join(' ');
+
+    if (!prompt || prompt.length === 0) {
+      console.log('❌ Please provide a prompt using -p or --prompt');
+      return;
+    }
+
+    const serverUrl = cleanArg(options.opencodeServerUrl) || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096';
+    const model = cleanArg(options.opencodeModel) || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL;
+    // Handle subagents flag: default is true, can be disabled with --no-use-subagents
+    // Commander.js sets useSubagents to false when --no-use-subagents is used
+    const _useSubAgents = options.useSubagents !== false;
+    const _maxConcurrentSubAgents = parseInt(cleanArg(options.maxConcurrentSubagents)) || 5;
+    const outputFormat = cleanArg(options.output) || 'text';
+
+    if (!serverUrl) {
+      console.log('❌ OpenCode server URL required. Set OPENCODE_SERVER_URL or use --opencode-server-url');
+      return;
+    }
+
+    try {
+      const ai = new Ai(serverUrl, model, false, false, [], false);
+      const aiRepository = new AiRepository();
+      const result = await aiRepository.copilotMessage(ai, prompt);
+
+      if (!result) {
+        console.error('❌ Copilot request failed (check OpenCode server and model).');
+        process.exit(1);
+      }
+
+      const { text, sessionId } = result;
+
+      if (outputFormat === 'json') {
+        const diff = await getSessionDiff(serverUrl, sessionId);
+        console.log(JSON.stringify({ response: text, sessionId, diff }, null, 2));
+        return;
+      }
+
+      console.log('\n' + '='.repeat(80));
+      console.log('🤖 COPILOT RESPONSE (OpenCode build agent)');
+      console.log('='.repeat(80));
+      console.log(`\n${text || '(No text response)'}\n`);
+
+      const diff = await getSessionDiff(serverUrl, sessionId);
+      if (diff && diff.length > 0) {
+        console.log('='.repeat(80));
+        console.log('📝 FILES CHANGED (by OpenCode in this session)');
+        console.log('='.repeat(80));
+        diff.forEach((d: OpenCodeFileDiff, index: number) => {
+          const path = d.path ?? d.file ?? JSON.stringify(d);
+          console.log(`  ${index + 1}. ${path}`);
+        });
+        console.log('');
+      }
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error('❌ Error executing copilot:', err.message || error);
+      if (options.debug) {
+        console.error(error);
+      }
+      process.exit(1);
+    }
+  });
+
+/**
+ * Check progress of an issue based on code changes.
+ */
+program
+  .command('check-progress')
+  .description(`${TITLE} - Check progress of an issue based on code changes`)
+  .option('-i, --issue <number>', 'Issue number to check progress for (required)', '')
+  .option('-b, --branch <name>', 'Branch name (optional, will try to determine from issue)')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+  .action(async (options) => {    
+    const gitInfo = getGitInfo();
+    
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+
+    // Helper function to clean CLI arguments that may have '=' prefix
+    const cleanArg = (value: unknown): string => {
+      if (value == null) return '';
       const str = String(value);
       return str.startsWith('=') ? str.substring(1) : str;
     };
@@ -240,15 +267,14 @@ program
 
     const branch = cleanArg(options.branch);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
     const params: any = {
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.CHECK_PROGRESS,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parsedIssueNumber,
-      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-      [INPUT_KEYS.OPENROUTER_API_KEY]: options.openrouterApiKey || process.env.OPENROUTER_API_KEY,
-      [INPUT_KEYS.OPENROUTER_MODEL]: options.openrouterModel || process.env.OPENROUTER_MODEL,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
       [INPUT_KEYS.AI_IGNORE_FILES]: process.env.AI_IGNORE_FILES || 'build/*,dist/*,node_modules/*,*.d.ts',
       repo: {
         owner: gitInfo.owner,
@@ -271,6 +297,94 @@ program
       `Checking progress for issue #${parsedIssueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`,
     ];
 
+    try {
+      await runLocalAction(params);
+      process.exit(0);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error('❌ Error checking progress:', error.message);
+      if (options.debug) {
+        console.error(err);
+      }
+      process.exit(1);
+    }
+  });
+
+/**
+ * Detect potential errors in the branch for an issue (vs base branch).
+ */
+program
+  .command('detect-errors')
+  .description(`${TITLE} - Detect potential errors in the branch (vs base) using OpenCode Plan agent`)
+  .option('-i, --issue <number>', 'Issue number (required)', '')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+  .action(async (options) => {
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+    const cleanArg = (v: unknown): string => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const issueNumber = cleanArg(options.issue);
+    if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
+      console.log('❌ Provide a valid issue number with -i or --issue');
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.DETECT_ERRORS,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
+      repo: { owner: gitInfo.owner, repo: gitInfo.repo },
+      issue: { number: parseInt(issueNumber) },
+    };
+    params[INPUT_KEYS.WELCOME_TITLE] = '🔍 Error detection';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [`Detecting errors for issue #${issueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`];
+    await runLocalAction(params);
+  });
+
+/**
+ * Recommend implementation steps for an issue based on its description.
+ */
+program
+  .command('recommend-steps')
+  .description(`${TITLE} - Recommend steps to implement an issue (OpenCode Plan agent)`)
+  .option('-i, --issue <number>', 'Issue number (required)', '')
+  .option('-d, --debug', 'Debug mode', false)
+  .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+  .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
+  .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+  .action(async (options) => {
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+      console.log(gitInfo.error);
+      return;
+    }
+    const cleanArg = (v: unknown): string => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const issueNumber = cleanArg(options.issue);
+    if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
+      console.log('❌ Provide a valid issue number with -i or --issue');
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
+    const params: any = {
+      [INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
+      [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.RECOMMEND_STEPS,
+      [INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
+      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+      [INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
+      [INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || OPENCODE_DEFAULT_MODEL,
+      repo: { owner: gitInfo.owner, repo: gitInfo.repo },
+      issue: { number: parseInt(issueNumber) },
+    };
+    params[INPUT_KEYS.WELCOME_TITLE] = '📋 Recommend steps';
+    params[INPUT_KEYS.WELCOME_MESSAGES] = [`Recommending steps for issue #${issueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`];
     await runLocalAction(params);
   });
 
@@ -290,12 +404,10 @@ program
       return;
     }
     
-    const params: any = {
+    const params: any = { // eslint-disable-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.INITIAL_SETUP,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
-      [INPUT_KEYS.SUPABASE_URL]: process.env.SUPABASE_URL,
-      [INPUT_KEYS.SUPABASE_KEY]: process.env.SUPABASE_KEY,
       [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
       repo: {
         owner: gitInfo.owner,
@@ -309,16 +421,10 @@ program
     params[INPUT_KEYS.WELCOME_TITLE] = '⚙️  Initial Setup';
     params[INPUT_KEYS.WELCOME_MESSAGES] = [
       `Running initial setup for ${gitInfo.owner}/${gitInfo.repo}...`,
-      'This will create labels, issue types, and verify access to GitHub and Supabase.',
+      'This will create labels, issue types, and verify access to GitHub.',
     ];
 
     await runLocalAction(params);
   });
-
-// Register agent test commands
-registerAgentTestCommands(program);
-registerMCPTestCommands(program);
-registerSubAgentTestCommands(program);
-registerTECTestCommands(program);
 
 program.parse(process.argv); 

@@ -29,7 +29,7 @@ export declare class ReasoningLoop {
      */
     private callAPIWithRetry;
     /**
-     * Call OpenRouter API via AiRepository
+     * Call OpenCode API via AiRepository
      */
     private callAPI;
     /**

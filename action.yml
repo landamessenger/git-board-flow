@@ -387,39 +387,15 @@ inputs:
   token:
     description: "Fine-grained personal access token for branch and project operations"
     required: true
-  supabase-key:
-    description: "Supabase key for AI operations."
-    default: ""
-  supabase-url:
-    description: "Supabase URL for AI operations."
-    default: ""
-  openrouter-api-key:
-    description: "OpenRouter API key for AI operations."
-    default: ""
-  openrouter-model:
-    description: "OpenRouter model for AI operations."
-    default: "openai/gpt-4o-mini"
-  openrouter-provider-order:
-    description: "Comma-separated list of provider names to try in order."
-    default: ""
-  openrouter-provider-allow-fallbacks:
-    description: "Whether to allow backup providers when the primary is unavailable."
+  opencode-server-url:
+    description: "OpenCode server URL for AI operations (e.g. http://localhost:4096). OpenCode supports 75+ LLM providers."
+    default: "http://localhost:4096"
+  opencode-model:
+    description: "OpenCode model in provider/model format (default opencode/kimi-k2.5-free; e.g. openai/gpt-4o-mini)."
+    default: "opencode/kimi-k2.5-free"
+  opencode-start-server:
+    description: "If true, the action starts an OpenCode server at the beginning and stops it when the job ends. No need to install or run OpenCode yourself. Requires OPENAI_API_KEY or ANTHROPIC_API_KEY (or other provider keys) as secrets."
     default: "true"
-  openrouter-provider-require-parameters:
-    description: "Only use providers that support all parameters in the request."
-    default: "false"
-  openrouter-provider-data-collection:
-    description: "Control whether to use providers that may store data (allow/deny)."
-    default: "allow"
-  openrouter-provider-ignore:
-    description: "Comma-separated list of provider names to skip."
-    default: ""
-  openrouter-provider-quantizations:
-    description: "Comma-separated list of quantization levels to filter by (e.g., int4, int8, fp4, fp6, fp8, fp16, bf16, fp32)."
-    default: ""
-  openrouter-provider-sort:
-    description: "Sort providers by price, throughput, or latency."
-    default: "price"
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
     default: "false"
@@ -428,7 +404,7 @@ inputs:
     default: ""
   ai-members-only:
     description: "Restrict AI features to only organization/project members."
-    default: "true"
+    default: "false"
 runs:
   using: "node20"
   main: "build/github_action/index.js"

@@ -16,7 +16,7 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
         try {
             if (param.isIssue) {
                 if (param.emoji.emojiLabeledTitle) {
-                    let _title = await this.issueRepository.getTitle(
+                    const _title = await this.issueRepository.getTitle(
                         param.owner,
                         param.repo,
                         param.issue.number,

@@ -1,4 +1,4 @@
-interface AddProjectItemResponse {
+export interface AddProjectItemResponse {
     addProjectV2ItemById: {
         item: {
             id: string;

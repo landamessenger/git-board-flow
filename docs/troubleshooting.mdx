@@ -18,9 +18,8 @@ This guide helps you resolve common issues you might encounter while using Git B
 
 **Solutions:**
 1. Verify token permissions:
-   - Ensure `github-token` has repo access
-   - Check `github-token-personal` scope
-   - Verify token validity
+   - Ensure the `token` (PAT) has repo and project access
+   - Check token scope and validity
 
 2. Check label configuration:
    - Confirm labels exist in repository
@@ -42,10 +41,10 @@ This guide helps you resolve common issues you might encounter while using Git B
 - Project automation not working
 
 **Solutions:**
-1. Verify project URLs:
-   - Check URL format is correct
-   - Ensure projects exist and are accessible
-   - Verify project permissions
+1. Verify project configuration:
+   - Use `project-ids` (comma-separated project IDs), not URLs
+   - Ensure projects exist and the token has access
+   - Verify organization project permissions if applicable
 
 2. Check token scope:
    - Confirm project access permissions
@@ -100,6 +99,18 @@ This guide helps you resolve common issues you might encounter while using Git B
    - Review workflow syntax
    - Check configuration values
    - Validate input parameters
+
+## OpenCode (AI) issues
+
+- **"Missing required AI configuration"**: Set `opencode-server-url` and `opencode-model` (or use `opencode-start-server: true` and pass provider API keys as secrets). See [OpenCode (AI)](/opencode-integration).
+- **Connection errors**: Ensure the OpenCode server is reachable from the runner (URL, port, network/firewall). If using `opencode-start-server: true`, check that the job has network access to download `opencode-ai` and that API keys are set.
+- **Invalid JSON response**: If the AI returns malformed JSON (e.g. for progress/error detection), the model may not follow the schema. Try a different model or check the OpenCode logs.
+
+## CLI issues
+
+- **"Git repository not found"**: Ensure you're in a directory with `git` initialized and `remote.origin.url` pointing to a GitHub repository (e.g. `github.com/owner/repo`).
+- **"Please provide a prompt using -p or --prompt"**: The `copilot` command requires a prompt. Use `-p "your prompt"` or `--prompt "your prompt"`.
+- **"Please provide an issue number using -i or --issue"**: Commands like `check-progress`, `detect-errors`, and `recommend-steps` require an issue number with `-i <number>`.
 
 ## Getting Help
 

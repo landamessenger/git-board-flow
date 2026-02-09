@@ -20,14 +20,14 @@ export declare class SingleAction {
     title: string;
     changelog: string;
     get isDeployedAction(): boolean;
-    get isAiCacheAction(): boolean;
-    get isAiCacheLocalAction(): boolean;
     get isPublishGithubAction(): boolean;
     get isCreateReleaseAction(): boolean;
     get isCreateTagAction(): boolean;
     get isThinkAction(): boolean;
     get isInitialSetupAction(): boolean;
     get isCheckProgressAction(): boolean;
+    get isDetectErrorsAction(): boolean;
+    get isRecommendStepsAction(): boolean;
     get enabledSingleAction(): boolean;
     get validSingleAction(): boolean;
     get isSingleActionWithoutIssue(): boolean;

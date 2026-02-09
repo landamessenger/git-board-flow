@@ -6,10 +6,10 @@ import { UpdateTitleUseCase } from "./steps/common/update_title_use_case";
 import { AssignMemberToIssueUseCase } from "./steps/issue/assign_members_to_issue_use_case";
 import { AssignReviewersToIssueUseCase } from "./steps/issue/assign_reviewers_to_issue_use_case";
 import { CloseIssueAfterMergingUseCase } from "./steps/issue/close_issue_after_merging_use_case";
-import { CheckChangesPullRequestSizeUseCase } from "./steps/pull_request/check_changes_pull_request_size_use_case";
 import { CheckPriorityPullRequestSizeUseCase } from "./steps/pull_request/check_priority_pull_request_size_use_case";
 import { LinkPullRequestIssueUseCase } from "./steps/pull_request/link_pull_request_issue_use_case";
 import { LinkPullRequestProjectUseCase } from "./steps/pull_request/link_pull_request_project_use_case";
+import { SyncSizeAndProgressLabelsFromIssueToPrUseCase } from "./steps/pull_request/sync_size_and_progress_labels_from_issue_to_pr_use_case";
 import { UpdatePullRequestDescriptionUseCase } from "./steps/pull_request/update_pull_request_description_use_case";
 
 export class PullRequestUseCase implements ParamUseCase<Execution, Result[]> {
@@ -51,14 +51,14 @@ export class PullRequestUseCase implements ParamUseCase<Execution, Result[]> {
                 results.push(...await new LinkPullRequestIssueUseCase().invoke(param));
 
                 /**
+                 * Copy size and progress labels from the linked issue to this PR (corner case: PR just opened).
+                 */
+                results.push(...await new SyncSizeAndProgressLabelsFromIssueToPrUseCase().invoke(param));
+
+                /**
                  * Check priority pull request size
                  */
                 results.push(...await new CheckPriorityPullRequestSizeUseCase().invoke(param));
-
-                /**
-                 * Check changes size
-                 */
-                results.push(...await new CheckChangesPullRequestSizeUseCase().invoke(param));
 
                 if (param.ai.getAiPullRequestDescription()) {
                     /**
@@ -68,12 +68,7 @@ export class PullRequestUseCase implements ParamUseCase<Execution, Result[]> {
                 }
             } else if (param.pullRequest.isSynchronize) {
                 /**
-                 * Check changes size
-                 */
-                results.push(...await new CheckChangesPullRequestSizeUseCase().invoke(param));
-                
-                /**
-                 * Pushed changes to the pull request
+                 * Pushed changes to the pull request (size/progress are updated on push via CommitUseCase).
                  */
                 if (param.ai.getAiPullRequestDescription()) {
                     /**

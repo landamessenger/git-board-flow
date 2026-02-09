@@ -1,6 +1,10 @@
 export declare const COMMAND = "giik";
 export declare const TITLE = "Giik";
 export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
+/** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
+export declare const OPENCODE_DEFAULT_MODEL = "opencode/kimi-k2.5-free";
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
+export declare const OPENCODE_REQUEST_TIMEOUT_MS = 600000;
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
         automatic: string[];
@@ -50,19 +54,13 @@ export declare const INPUT_KEYS: {
     readonly SINGLE_ACTION_TITLE: "single-action-title";
     readonly SINGLE_ACTION_CHANGELOG: "single-action-changelog";
     readonly TOKEN: "token";
-    readonly OPENROUTER_API_KEY: "openrouter-api-key";
-    readonly OPENROUTER_MODEL: "openrouter-model";
+    readonly OPENCODE_SERVER_URL: "opencode-server-url";
+    readonly OPENCODE_MODEL: "opencode-model";
+    readonly OPENCODE_START_SERVER: "opencode-start-server";
     readonly AI_PULL_REQUEST_DESCRIPTION: "ai-pull-request-description";
     readonly AI_MEMBERS_ONLY: "ai-members-only";
     readonly AI_IGNORE_FILES: "ai-ignore-files";
     readonly AI_INCLUDE_REASONING: "ai-include-reasoning";
-    readonly OPENROUTER_PROVIDER_ORDER: "openrouter-provider-order";
-    readonly OPENROUTER_PROVIDER_ALLOW_FALLBACKS: "openrouter-provider-allow-fallbacks";
-    readonly OPENROUTER_PROVIDER_REQUIRE_PARAMETERS: "openrouter-provider-require-parameters";
-    readonly OPENROUTER_PROVIDER_DATA_COLLECTION: "openrouter-provider-data-collection";
-    readonly OPENROUTER_PROVIDER_IGNORE: "openrouter-provider-ignore";
-    readonly OPENROUTER_PROVIDER_QUANTIZATIONS: "openrouter-provider-quantizations";
-    readonly OPENROUTER_PROVIDER_SORT: "openrouter-provider-sort";
     readonly PROJECT_IDS: "project-ids";
     readonly PROJECT_COLUMN_ISSUE_CREATED: "project-column-issue-created";
     readonly PROJECT_COLUMN_PULL_REQUEST_CREATED: "project-column-pull-request-created";
@@ -183,23 +181,19 @@ export declare const INPUT_KEYS: {
     readonly PULL_REQUEST_DESIRED_ASSIGNEES_COUNT: "desired-assignees-count";
     readonly PULL_REQUEST_DESIRED_REVIEWERS_COUNT: "desired-reviewers-count";
     readonly PULL_REQUEST_MERGE_TIMEOUT: "merge-timeout";
-    readonly SUPABASE_URL: "supabase-url";
-    readonly SUPABASE_KEY: "supabase-key";
 };
 export declare const ERRORS: {
     readonly GIT_REPOSITORY_NOT_FOUND: "❌ Git repository not found";
 };
 export declare const ACTIONS: {
     readonly DEPLOYED: "deployed_action";
-    readonly AI_CACHE: "ai_cache_action";
-    readonly AI_CACHE_LOCAL: "ai_cache_local_action";
     readonly PUBLISH_GITHUB_ACTION: "publish_github_action";
     readonly CREATE_RELEASE: "create_release";
     readonly CREATE_TAG: "create_tag";
     readonly THINK: "think_action";
     readonly INITIAL_SETUP: "initial_setup";
     readonly CHECK_PROGRESS: "check_progress_action";
+    readonly DETECT_ERRORS: "detect_errors_action";
+    readonly RECOMMEND_STEPS: "recommend_steps_action";
 };
-export declare const PROMPTS: {
-    readonly CODE_BASE_ANALYSIS: "\nYou are a technical code analysis assistant.\n\nYour task is to analyze the content of the following source code file in depth.\n\nProvide a precise and highly technical explanation of what the code does, including:\n- Its main purpose and functionality.\n- A breakdown of the logic and flow (step by step or module by module).\n- How each class, function, or major block interacts with the rest.\n- The technologies, frameworks, or libraries it uses and how.\n- Any relevant algorithms, patterns, or data structures implemented.\n- Potential edge cases, performance considerations, or hidden behaviors.\n- Dependencies and external integrations (APIs, services, databases, etc.).\n- Any implicit assumptions or limitations found in the implementation.\n\nFocus exclusively on *accurate technical analysis and understanding*, not on summarizing in simple language.\n\nDo not propose improvements, changes, or fixes in this stage — your only goal is to explain exactly what the code does and how it works.\n    ";
-};
+export declare const PROMPTS: {};

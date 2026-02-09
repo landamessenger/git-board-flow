@@ -87,8 +87,9 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
         }
 
         return results;
-    } catch (error: any) {
-        core.setFailed(error.message);
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        core.setFailed(msg);
         return [];
     }
 }

@@ -62,9 +62,10 @@ export class FileRepository {
                 return Buffer.from(data.content, 'base64').toString();
             }
             return '';
-        } catch (error: any) {
-            const errorMessage = error?.message || String(error);
-            const errorStatus = error?.status || 'unknown';
+        } catch (error: unknown) {
+            const err = error as { message?: string; status?: string };
+            const errorMessage = err?.message || String(error);
+            const errorStatus = err?.status || 'unknown';
             logError(`Error getting file content for ${path}: ${errorMessage} (status: ${errorStatus}). Token length: ${token.length}`);
             return '';
         }

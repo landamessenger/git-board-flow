@@ -1,0 +1,65 @@
+# Optional: smoke validation for agent workflows in GitHub Actions context.
+# - On push to test/agent-smoke: runs the action with OpenCode (start-server or URL).
+#   The run may skip with "Issue number not found" if the branch is not linked to an issue; that is OK.
+# - On workflow_dispatch: runs build + tests only (action is not run with a real event).
+# See docs/integration-testing-agent-workflows.md for full manual validation checklist.
+
+name: Validate agent workflows
+
+on:
+  push:
+    branches:
+      - 'test/agent-smoke'
+      - 'test/agent-validation'
+  workflow_dispatch:
+
+jobs:
+  smoke-action:
+    name: Smoke – run action (push)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Git Board Flow (smoke)
+        uses: ./
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          debug: true
+          opencode-start-server: true
+          opencode-model: ${{ vars.OPENCODE_MODEL }}
+          project-ids: ${{ vars.PROJECT_IDS }}
+          token: ${{ secrets.PAT }}
+    # Expectation: job succeeds. The action may log "Issue number not found. Skipping."
+    # if the branch name does not match an issue (e.g. test/agent-smoke). That is acceptable.
+
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint

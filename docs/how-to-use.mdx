@@ -7,7 +7,7 @@ Follow these steps to set up Git Board Flow in your repository:
 
 <Steps>
   <Step title="Create a PAT">
-    Define a the personal access token to interact with issues, pull requests and boards.
+    Define a personal access token to interact with issues, pull requests and boards.
   </Step>
   
   <Step title="Configure Branch Structure">
@@ -21,7 +21,7 @@ Follow these steps to set up Git Board Flow in your repository:
   <Step title="Set Up Required Labels">
     Configure the following essential labels in your repository:
     - **Type Labels**: For categorizing issues (e.g., `feature`, `enhancement`, `bug`, `bugfix`, `hotfix`, `release`, `docs`, `documentation`, `chore`, `maintenance`)
-    - **Action Labels**: For perform different actions (e.g., `branched`, `deploy`, `deployed`)
+    - **Action Labels**: For performing different actions (e.g., `branched`, `deploy`, `deployed`)
     - **Priority Labels**: For issue prioritization (e.g., `priority: high`, `priority: medium`, `priority: low`)
     - **Size Labels**: For control task sizes (e.g., `size: XS`, `size: S`, `size: M`, `size: L`, `size: XL`, `size: XXL`)
     
@@ -41,7 +41,7 @@ Follow these steps to set up Git Board Flow in your repository:
     Add the GitHub Action to your repository by creating a workflow file per section:
     1. Configure the behavior on each push on `.github/workflows/gbf_commit.yml`
     2. Configure the issues behavior on `.github/workflows/gbf_issue.yml`
-    3. Pull Request confuguration must be on `.github/workflows/gbf_pr.yml`
+    3. Pull Request configuration must be on `.github/workflows/gbf_pr.yml`
     
     These workflows will then automatically manage everything under the hood, creating branches, updating project boards, and maintaining the relationship between issues and code.
   </Step>
