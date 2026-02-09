@@ -41,6 +41,7 @@ export declare class IssueRepository {
     updateComment: (owner: string, repository: string, issueNumber: number, commentId: number, comment: string, token: string) => Promise<void>;
     /**
      * Lists all comments on an issue (for bugbot: find existing findings by marker).
+     * Uses pagination to fetch every comment (default API returns only 30 per page).
      */
     listIssueComments: (owner: string, repository: string, issueNumber: number, token: string) => Promise<Array<{
         id: number;

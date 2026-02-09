@@ -536,6 +536,7 @@ export class IssueRepository {
 
     /**
      * Lists all comments on an issue (for bugbot: find existing findings by marker).
+     * Uses pagination to fetch every comment (default API returns only 30 per page).
      */
     listIssueComments = async (
         owner: string,
@@ -544,16 +545,23 @@ export class IssueRepository {
         token: string,
     ): Promise<Array<{ id: number; body: string | null; user?: { login?: string } }>> => {
         const octokit = github.getOctokit(token);
-        const { data } = await octokit.rest.issues.listComments({
+        const all: Array<{ id: number; body: string | null; user?: { login?: string } }> = [];
+        for await (const response of octokit.paginate.iterator(octokit.rest.issues.listComments, {
             owner,
             repo: repository,
             issue_number: issueNumber,
-        });
-        return (data || []).map((c) => ({
-            id: c.id,
-            body: c.body ?? null,
-            user: c.user as { login?: string } | undefined,
-        }));
+            per_page: 100,
+        })) {
+            const data = response.data || [];
+            for (const c of data) {
+                all.push({
+                    id: c.id,
+                    body: c.body ?? null,
+                    user: c.user as { login?: string } | undefined,
+                });
+            }
+        }
+        return all;
     };
 
     closeIssue = async (

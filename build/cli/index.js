@@ -50381,19 +50381,27 @@ class IssueRepository {
         };
         /**
          * Lists all comments on an issue (for bugbot: find existing findings by marker).
+         * Uses pagination to fetch every comment (default API returns only 30 per page).
          */
         this.listIssueComments = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
-            const { data } = await octokit.rest.issues.listComments({
+            const all = [];
+            for await (const response of octokit.paginate.iterator(octokit.rest.issues.listComments, {
                 owner,
                 repo: repository,
                 issue_number: issueNumber,
-            });
-            return (data || []).map((c) => ({
-                id: c.id,
-                body: c.body ?? null,
-                user: c.user,
-            }));
+                per_page: 100,
+            })) {
+                const data = response.data || [];
+                for (const c of data) {
+                    all.push({
+                        id: c.id,
+                        body: c.body ?? null,
+                        user: c.user,
+                    });
+                }
+            }
+            return all;
         };
         this.closeIssue = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
@@ -51671,25 +51679,31 @@ class PullRequestRepository {
             }
         };
         /**
-         * List review comments on a PR (for bugbot: find existing findings by marker).
+         * List all review comments on a PR (for bugbot: find existing findings by marker).
+         * Uses pagination to fetch every comment (default API returns only 30 per page).
          */
         this.listPullRequestReviewComments = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
+            const all = [];
             try {
-                const { data } = await octokit.rest.pulls.listReviewComments({
+                for await (const response of octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, {
                     owner,
                     repo: repository,
                     pull_number: pullNumber,
-                });
-                return (data || []).map((c) => ({
-                    id: c.id,
-                    body: c.body ?? null,
-                    path: c.path,
-                    line: c.line ?? undefined,
-                }));
+                    per_page: 100,
+                })) {
+                    const data = response.data || [];
+                    all.push(...data.map((c) => ({
+                        id: c.id,
+                        body: c.body ?? null,
+                        path: c.path,
+                        line: c.line ?? undefined,
+                    })));
+                }
+                return all;
             }
             catch (error) {
-                (0, logger_1.logError)(`Error listing PR review comments: ${error}.`);
+                (0, logger_1.logError)(`Error listing PR review comments (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
                 return [];
             }
         };
@@ -53313,8 +53327,20 @@ const BUGBOT_RESPONSE_SCHEMA = {
     required: ['findings'],
     additionalProperties: false,
 };
+/** Sanitize finding ID so it cannot break HTML comment syntax (e.g. -->, <!, <, >, newlines, quotes). */
+function sanitizeFindingIdForMarker(findingId) {
+    return findingId
+        .replace(/-->/g, '')
+        .replace(/<!/g, '')
+        .replace(/</g, '')
+        .replace(/>/g, '')
+        .replace(/"/g, '')
+        .replace(/\r\n|\r|\n/g, '')
+        .trim();
+}
 function buildMarker(findingId, resolved) {
-    return `<!-- ${constants_1.BUGBOT_MARKER_PREFIX} finding_id:"${findingId.replace(/"/g, '')}" resolved:${resolved} -->`;
+    const safeId = sanitizeFindingIdForMarker(findingId);
+    return `<!-- ${constants_1.BUGBOT_MARKER_PREFIX} finding_id:"${safeId}" resolved:${resolved} -->`;
 }
 function parseMarker(body) {
     if (!body)
@@ -53326,6 +53352,26 @@ function parseMarker(body) {
         results.push({ findingId: m[1], resolved: m[2] === 'true' });
     }
     return results;
+}
+/** Regex to match the marker for a specific finding (same flexible format as parseMarker). */
+function markerRegexForFinding(findingId) {
+    const safeId = sanitizeFindingIdForMarker(findingId);
+    const escapedId = safeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`<!--\\s*${constants_1.BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"${escapedId}"\\s+resolved:(?:true|false)\\s*-->`, 'g');
+}
+/**
+ * Find the marker for this finding in body (using same pattern as parseMarker) and replace it.
+ * Returns the updated body and whether a replacement was made. Logs an error with details if no replacement occurred.
+ */
+function replaceMarkerInBody(body, findingId, newResolved, replacement) {
+    const regex = markerRegexForFinding(findingId);
+    const newMarker = replacement ?? buildMarker(findingId, newResolved);
+    const updated = body.replace(regex, newMarker);
+    const replaced = updated !== body;
+    if (!replaced) {
+        (0, logger_1.logError)(`[Bugbot] No se pudo marcar como resuelto: no se encontró el marcador en el comentario. findingId="${findingId}", bodyLength=${body?.length ?? 0}, bodySnippet=${(body ?? '').slice(0, 200)}...`);
+    }
+    return { updated, replaced };
 }
 /** Extract title from comment body (first ## line) for context when sending to OpenCode. */
 function extractTitleFromBody(body) {
@@ -53441,7 +53487,9 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
             }
             const payload = response;
             const findings = Array.isArray(payload.findings) ? payload.findings : [];
-            const resolvedFindingIds = new Set(Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : []);
+            const resolvedFindingIdsRaw = Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : [];
+            const resolvedFindingIds = new Set(resolvedFindingIdsRaw);
+            const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(sanitizeFindingIdForMarker));
             if (findings.length === 0 && resolvedFindingIds.size === 0) {
                 (0, logger_1.logDebugInfo)('OpenCode returned no new findings and no resolved ids.');
                 results.push(new result_1.Result({
@@ -53474,13 +53522,15 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                     (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
                 }
                 if (prHeadSha && openPrNumbers.length > 0) {
-                    const path = finding.file ?? prFiles[0]?.filename ?? 'README.md';
-                    const line = finding.line ?? 1;
-                    if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
-                        await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
-                    }
-                    else {
-                        prCommentsToCreate.push({ path, line, body: commentBody });
+                    const path = finding.file ?? prFiles[0]?.filename;
+                    if (path) {
+                        const line = finding.line ?? 1;
+                        if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
+                            await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
+                        }
+                        else {
+                            prCommentsToCreate.push({ path, line, body: commentBody });
+                        }
                     }
                 }
             }
@@ -53488,27 +53538,50 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                 await this.pullRequestRepository.createReviewWithComments(owner, repo, openPrNumbers[0], prHeadSha, prCommentsToCreate, token);
             }
             for (const [findingId, existing] of Object.entries(existingByFindingId)) {
-                if (existing.resolved || !resolvedFindingIds.has(findingId))
+                const isResolvedByOpenCode = resolvedFindingIds.has(findingId) ||
+                    normalizedResolvedIds.has(sanitizeFindingIdForMarker(findingId));
+                if (existing.resolved || !isResolvedByOpenCode)
                     continue;
                 const resolvedNote = '\n\n---\n**Resolved** (OpenCode confirmed fixed in latest analysis).\n';
                 const markerTrue = buildMarker(findingId, true);
+                const replacementWithNote = resolvedNote + markerTrue;
                 if (existing.issueCommentId != null) {
                     const comment = issueComments.find((c) => c.id === existing.issueCommentId);
-                    const resolvedBody = comment?.body ?? '';
-                    const updated = resolvedBody.replace(buildMarker(findingId, false), markerTrue).trimEnd() +
-                        resolvedNote +
-                        markerTrue;
-                    if (updated !== resolvedBody) {
-                        await this.issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, updated, token);
+                    if (comment == null) {
+                        (0, logger_1.logError)(`[Bugbot] No se encontró el comentario de la issue para marcar como resuelto. findingId="${findingId}", issueCommentId=${existing.issueCommentId}, issueNumber=${issueNumber}, owner=${owner}, repo=${repo}.`);
+                    }
+                    else {
+                        const resolvedBody = comment.body ?? '';
+                        const { updated, replaced } = replaceMarkerInBody(resolvedBody, findingId, true, replacementWithNote);
+                        if (replaced) {
+                            try {
+                                await this.issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, updated.trimEnd(), token);
+                                (0, logger_1.logDebugInfo)(`Marked finding "${findingId}" as resolved on issue #${issueNumber} (comment ${existing.issueCommentId}).`);
+                            }
+                            catch (err) {
+                                (0, logger_1.logError)(`[Bugbot] Error al actualizar comentario de la issue (marcar como resuelto). findingId="${findingId}", issueCommentId=${existing.issueCommentId}, issueNumber=${issueNumber}: ${err}`);
+                            }
+                        }
                     }
                 }
                 if (existing.prCommentId != null && existing.prNumber != null) {
                     const prCommentsList = await this.pullRequestRepository.listPullRequestReviewComments(owner, repo, existing.prNumber, token);
                     const prComment = prCommentsList.find((c) => c.id === existing.prCommentId);
-                    const prBody = prComment?.body ?? '';
-                    const updated = prBody.replace(buildMarker(findingId, false), markerTrue).trimEnd() + resolvedNote + markerTrue;
-                    if (updated !== prBody) {
-                        await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, updated, token);
+                    if (prComment == null) {
+                        (0, logger_1.logError)(`[Bugbot] No se encontró el comentario de la PR para marcar como resuelto. findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}, owner=${owner}, repo=${repo}.`);
+                    }
+                    else {
+                        const prBody = prComment.body ?? '';
+                        const { updated, replaced } = replaceMarkerInBody(prBody, findingId, true, replacementWithNote);
+                        if (replaced) {
+                            try {
+                                await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, updated.trimEnd(), token);
+                                (0, logger_1.logDebugInfo)(`Marked finding "${findingId}" as resolved on PR #${existing.prNumber} (review comment ${existing.prCommentId}).`);
+                            }
+                            catch (err) {
+                                (0, logger_1.logError)(`[Bugbot] Error al actualizar comentario de revisión de la PR (marcar como resuelto). findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}: ${err}`);
+                            }
+                        }
                     }
                 }
             }

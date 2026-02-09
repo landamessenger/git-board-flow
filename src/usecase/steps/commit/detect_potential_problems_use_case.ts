@@ -93,7 +93,7 @@ function markerRegexForFinding(findingId: string): RegExp {
 
 /**
  * Find the marker for this finding in body (using same pattern as parseMarker) and replace it.
- * Returns the updated body and whether a replacement was made. Logs a warning if no replacement occurred.
+ * Returns the updated body and whether a replacement was made. Logs an error with details if no replacement occurred.
  */
 function replaceMarkerInBody(
     body: string,
@@ -106,8 +106,8 @@ function replaceMarkerInBody(
     const updated = body.replace(regex, newMarker);
     const replaced = updated !== body;
     if (!replaced) {
-        logDebugInfo(
-            `Marker replacement did not match any marker for finding "${findingId}" in comment body (format may differ).`
+        logError(
+            `[Bugbot] No se pudo marcar como resuelto: no se encontró el marcador en el comentario. findingId="${findingId}", bodyLength=${body?.length ?? 0}, bodySnippet=${(body ?? '').slice(0, 200)}...`
         );
     }
     return { updated, replaced };
@@ -253,7 +253,9 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
 
             const payload = response as { findings?: BugbotFinding[]; resolved_finding_ids?: string[] };
             const findings = Array.isArray(payload.findings) ? payload.findings : [];
-            const resolvedFindingIds = new Set(Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : []);
+            const resolvedFindingIdsRaw = Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : [];
+            const resolvedFindingIds = new Set(resolvedFindingIdsRaw);
+            const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(sanitizeFindingIdForMarker));
 
             if (findings.length === 0 && resolvedFindingIds.size === 0) {
                 logDebugInfo('OpenCode returned no new findings and no resolved ids.');
@@ -340,29 +342,46 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
             }
 
             for (const [findingId, existing] of Object.entries(existingByFindingId)) {
-                if (existing.resolved || !resolvedFindingIds.has(findingId)) continue;
+                const isResolvedByOpenCode =
+                    resolvedFindingIds.has(findingId) ||
+                    normalizedResolvedIds.has(sanitizeFindingIdForMarker(findingId));
+                if (existing.resolved || !isResolvedByOpenCode) continue;
+
                 const resolvedNote = '\n\n---\n**Resolved** (OpenCode confirmed fixed in latest analysis).\n';
                 const markerTrue = buildMarker(findingId, true);
                 const replacementWithNote = resolvedNote + markerTrue;
 
                 if (existing.issueCommentId != null) {
                     const comment = issueComments.find((c) => c.id === existing.issueCommentId);
-                    const resolvedBody = comment?.body ?? '';
-                    const { updated, replaced } = replaceMarkerInBody(
-                        resolvedBody,
-                        findingId,
-                        true,
-                        replacementWithNote
-                    );
-                    if (replaced) {
-                        await this.issueRepository.updateComment(
-                            owner,
-                            repo,
-                            issueNumber,
-                            existing.issueCommentId,
-                            updated.trimEnd(),
-                            token
+                    if (comment == null) {
+                        logError(
+                            `[Bugbot] No se encontró el comentario de la issue para marcar como resuelto. findingId="${findingId}", issueCommentId=${existing.issueCommentId}, issueNumber=${issueNumber}, owner=${owner}, repo=${repo}.`
                         );
+                    } else {
+                        const resolvedBody = comment.body ?? '';
+                        const { updated, replaced } = replaceMarkerInBody(
+                            resolvedBody,
+                            findingId,
+                            true,
+                            replacementWithNote
+                        );
+                        if (replaced) {
+                            try {
+                                await this.issueRepository.updateComment(
+                                    owner,
+                                    repo,
+                                    issueNumber,
+                                    existing.issueCommentId,
+                                    updated.trimEnd(),
+                                    token
+                                );
+                                logDebugInfo(`Marked finding "${findingId}" as resolved on issue #${issueNumber} (comment ${existing.issueCommentId}).`);
+                            } catch (err) {
+                                logError(
+                                    `[Bugbot] Error al actualizar comentario de la issue (marcar como resuelto). findingId="${findingId}", issueCommentId=${existing.issueCommentId}, issueNumber=${issueNumber}: ${err}`
+                                );
+                            }
+                        }
                     }
                 }
                 if (existing.prCommentId != null && existing.prNumber != null) {
@@ -373,21 +392,36 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                         token
                     );
                     const prComment = prCommentsList.find((c) => c.id === existing.prCommentId);
-                    const prBody = prComment?.body ?? '';
-                    const { updated, replaced } = replaceMarkerInBody(
-                        prBody,
-                        findingId,
-                        true,
-                        replacementWithNote
-                    );
-                    if (replaced) {
-                        await this.pullRequestRepository.updatePullRequestReviewComment(
-                            owner,
-                            repo,
-                            existing.prCommentId,
-                            updated.trimEnd(),
-                            token
+                    if (prComment == null) {
+                        logError(
+                            `[Bugbot] No se encontró el comentario de la PR para marcar como resuelto. findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}, owner=${owner}, repo=${repo}.`
                         );
+                    } else {
+                        const prBody = prComment.body ?? '';
+                        const { updated, replaced } = replaceMarkerInBody(
+                            prBody,
+                            findingId,
+                            true,
+                            replacementWithNote
+                        );
+                        if (replaced) {
+                            try {
+                                await this.pullRequestRepository.updatePullRequestReviewComment(
+                                    owner,
+                                    repo,
+                                    existing.prCommentId,
+                                    updated.trimEnd(),
+                                    token
+                                );
+                                logDebugInfo(
+                                    `Marked finding "${findingId}" as resolved on PR #${existing.prNumber} (review comment ${existing.prCommentId}).`
+                                );
+                            } catch (err) {
+                                logError(
+                                    `[Bugbot] Error al actualizar comentario de revisión de la PR (marcar como resuelto). findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}: ${err}`
+                                );
+                            }
+                        }
                     }
                 }
             }

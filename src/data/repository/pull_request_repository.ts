@@ -209,7 +209,8 @@ export class PullRequestRepository {
     };
 
     /**
-     * List review comments on a PR (for bugbot: find existing findings by marker).
+     * List all review comments on a PR (for bugbot: find existing findings by marker).
+     * Uses pagination to fetch every comment (default API returns only 30 per page).
      */
     listPullRequestReviewComments = async (
         owner: string,
@@ -218,20 +219,27 @@ export class PullRequestRepository {
         token: string
     ): Promise<Array<{ id: number; body: string | null; path?: string; line?: number }>> => {
         const octokit = github.getOctokit(token);
+        const all: Array<{ id: number; body: string | null; path?: string; line?: number }> = [];
         try {
-            const { data } = await octokit.rest.pulls.listReviewComments({
+            for await (const response of octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, {
                 owner,
                 repo: repository,
                 pull_number: pullNumber,
-            });
-            return (data || []).map((c) => ({
-                id: c.id,
-                body: c.body ?? null,
-                path: c.path,
-                line: c.line ?? undefined,
-            }));
+                per_page: 100,
+            })) {
+                const data = response.data || [];
+                all.push(
+                    ...data.map((c: { id: number; body: string | null; path?: string; line?: number }) => ({
+                        id: c.id,
+                        body: c.body ?? null,
+                        path: c.path,
+                        line: c.line ?? undefined,
+                    }))
+                );
+            }
+            return all;
         } catch (error) {
-            logError(`Error listing PR review comments: ${error}.`);
+            logError(`Error listing PR review comments (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
             return [];
         }
     };

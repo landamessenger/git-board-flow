@@ -23,7 +23,8 @@ export declare class PullRequestRepository {
     /** Head commit SHA of the PR (for creating review). */
     getPullRequestHeadSha: (owner: string, repository: string, pullNumber: number, token: string) => Promise<string | undefined>;
     /**
-     * List review comments on a PR (for bugbot: find existing findings by marker).
+     * List all review comments on a PR (for bugbot: find existing findings by marker).
+     * Uses pagination to fetch every comment (default API returns only 30 per page).
      */
     listPullRequestReviewComments: (owner: string, repository: string, pullNumber: number, token: string) => Promise<Array<{
         id: number;
