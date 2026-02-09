@@ -47234,15 +47234,19 @@ class CheckProgressUseCase {
                 return results;
             }
             await this.issueRepository.setProgressLabel(param.owner, param.repo, issueNumber, progress, param.tokens.token);
+            let summaryMessage = `**Analysis**:\n\n${summary}`;
             const steps = [
                 `Progress for issue #${issueNumber}: ${progress}%`,
-                summary,
             ];
             if (reasoning) {
                 const truncationNote = this.isReasoningLikelyTruncated(reasoning)
                     ? '\n\n_Reasoning may be truncated by the model._'
                     : '';
-                steps.push(`**Reasoning:**\n\n${reasoning}${truncationNote}`);
+                summaryMessage += `\n\n\`\`\`\n${reasoning}${truncationNote}\n\`\`\`\n\n`;
+                steps.push(summaryMessage);
+            }
+            else {
+                steps.push(summaryMessage);
             }
             results.push(new result_1.Result({
                 id: this.taskId,

@@ -206,15 +206,19 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 param.tokens.token,
             );
 
+            let summaryMessage = `**Analysis**:\n\n${summary}`;
+
             const steps: string[] = [
                 `Progress for issue #${issueNumber}: ${progress}%`,
-                summary,
             ];
             if (reasoning) {
                 const truncationNote = this.isReasoningLikelyTruncated(reasoning)
                     ? '\n\n_Reasoning may be truncated by the model._'
                     : '';
-                steps.push(`**Reasoning:**\n\n${reasoning}${truncationNote}`);
+                summaryMessage += `\n\n\`\`\`\n${reasoning}${truncationNote}\n\`\`\`\n\n`;
+                steps.push(summaryMessage);
+            } else {
+                steps.push(summaryMessage);
             }
 
             results.push(
