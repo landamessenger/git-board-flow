@@ -213,7 +213,7 @@ export class BranchRepository {
                 baseBranchName = hotfixBranch ?? developmentBranch;
             }
 
-            if (!isRenamingBranch) {
+            if (!isRenamingBranch || param.currentConfiguration.parentBranch === undefined) {
                 param.currentConfiguration.parentBranch = baseBranchName;
             }
 
