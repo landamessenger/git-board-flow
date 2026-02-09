@@ -48838,7 +48838,7 @@ async function parseJsonResponse(res, context) {
     }
 }
 /**
- * Extract plain text from OpenCode message response parts.
+ * Extract plain text from OpenCode message response parts (type === 'text').
  */
 function extractTextFromParts(parts) {
     if (!Array.isArray(parts))
@@ -48847,6 +48847,19 @@ function extractTextFromParts(parts) {
         .filter((p) => p?.type === 'text' && typeof p.text === 'string')
         .map((p) => p.text)
         .join('');
+}
+/**
+ * Extract reasoning text from OpenCode message response parts (type === 'reasoning').
+ * Used to include the agent's full reasoning in comments (e.g. progress detection).
+ */
+function extractReasoningFromParts(parts) {
+    if (!Array.isArray(parts))
+        return '';
+    return parts
+        .filter((p) => p?.type === 'reasoning' && typeof p.text === 'string')
+        .map((p) => p.text)
+        .join('\n\n')
+        .trim();
 }
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 exports.OPENCODE_AGENT_PLAN = 'plan';
@@ -49002,7 +49015,7 @@ class AiRepository {
                     const schemaName = options.schemaName ?? 'response';
                     promptText = `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`;
                 }
-                const { text } = await opencodeMessageWithAgent(serverUrl, {
+                const { text, parts } = await opencodeMessageWithAgent(serverUrl, {
                     providerID,
                     modelID,
                     agent: agentId,
@@ -49010,9 +49023,14 @@ class AiRepository {
                 });
                 if (!text)
                     return undefined;
+                const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
                 if (options.expectJson) {
                     const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-                    return JSON.parse(cleaned);
+                    const parsed = JSON.parse(cleaned);
+                    if (options.includeReasoning && reasoning) {
+                        return { ...parsed, reasoning };
+                    }
+                    return parsed;
                 }
                 return text;
             }
@@ -52038,25 +52056,38 @@ class CheckProgressUseCase {
             }
             const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch, changedFiles);
             (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent...`);
-            const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, { expectJson: true, schema: PROGRESS_RESPONSE_SCHEMA, schemaName: 'progress_response' });
+            const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+                expectJson: true,
+                schema: PROGRESS_RESPONSE_SCHEMA,
+                schemaName: 'progress_response',
+                includeReasoning: true,
+            });
             const progress = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.progress === 'number'
                 ? Math.min(100, Math.max(0, Math.round(agentResponse.progress)))
                 : 0;
             const summary = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.summary === 'string'
                 ? String(agentResponse.summary)
                 : 'Unable to determine progress.';
+            const reasoning = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.reasoning === 'string'
+                ? String(agentResponse.reasoning).trim()
+                : '';
             (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
+            const steps = [
+                `Progress for issue #${issueNumber}: ${progress}%`,
+                summary,
+            ];
+            if (reasoning) {
+                steps.push(`**Reasoning:**\n\n${reasoning}`);
+            }
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [
-                    `Progress for issue #${issueNumber}: ${progress}%`,
-                    summary
-                ],
+                steps,
                 payload: {
                     progress,
                     summary,
+                    reasoning: reasoning || undefined,
                     issueNumber,
                     branch,
                     developmentBranch,

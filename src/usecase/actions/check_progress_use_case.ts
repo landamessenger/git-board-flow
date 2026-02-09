@@ -241,7 +241,12 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 param.ai,
                 OPENCODE_AGENT_PLAN,
                 prompt,
-                { expectJson: true, schema: PROGRESS_RESPONSE_SCHEMA as unknown as Record<string, unknown>, schemaName: 'progress_response' }
+                {
+                    expectJson: true,
+                    schema: PROGRESS_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+                    schemaName: 'progress_response',
+                    includeReasoning: true,
+                }
             );
 
             const progress = agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).progress === 'number'
@@ -251,21 +256,31 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).summary === 'string'
                     ? String((agentResponse as Record<string, unknown>).summary)
                     : 'Unable to determine progress.';
+            const reasoning =
+                agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).reasoning === 'string'
+                    ? String((agentResponse as Record<string, unknown>).reasoning).trim()
+                    : '';
 
             logInfo(`✅ Progress detection completed: ${progress}%`);
+
+            const steps: string[] = [
+                `Progress for issue #${issueNumber}: ${progress}%`,
+                summary,
+            ];
+            if (reasoning) {
+                steps.push(`**Reasoning:**\n\n${reasoning}`);
+            }
 
             results.push(
                 new Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [
-                        `Progress for issue #${issueNumber}: ${progress}%`,
-                        summary
-                    ],
+                    steps,
                     payload: {
                         progress,
                         summary,
+                        reasoning: reasoning || undefined,
                         issueNumber,
                         branch,
                         developmentBranch,

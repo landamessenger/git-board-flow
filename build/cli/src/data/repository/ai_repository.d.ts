@@ -9,6 +9,8 @@ export interface AskAgentOptions {
     /** JSON schema for the response (used when expectJson is true to guide the model). */
     schema?: Record<string, unknown>;
     schemaName?: string;
+    /** When true, include OpenCode agent reasoning (type "reasoning" parts) in the returned object as "reasoning". */
+    includeReasoning?: boolean;
 }
 /** File diff from OpenCode GET /session/:id/diff */
 export interface OpenCodeFileDiff {

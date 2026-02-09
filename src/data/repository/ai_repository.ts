@@ -40,7 +40,7 @@ async function parseJsonResponse<T>(res: Response, context: string): Promise<T> 
 }
 
 /**
- * Extract plain text from OpenCode message response parts.
+ * Extract plain text from OpenCode message response parts (type === 'text').
  */
 function extractTextFromParts(parts: unknown): string {
     if (!Array.isArray(parts)) return '';
@@ -48,6 +48,19 @@ function extractTextFromParts(parts: unknown): string {
         .filter((p) => p?.type === 'text' && typeof p.text === 'string')
         .map((p) => p.text as string)
         .join('');
+}
+
+/**
+ * Extract reasoning text from OpenCode message response parts (type === 'reasoning').
+ * Used to include the agent's full reasoning in comments (e.g. progress detection).
+ */
+function extractReasoningFromParts(parts: unknown): string {
+    if (!Array.isArray(parts)) return '';
+    return (parts as Array<{ type?: string; text?: string }>)
+        .filter((p) => p?.type === 'reasoning' && typeof p.text === 'string')
+        .map((p) => p.text as string)
+        .join('\n\n')
+        .trim();
 }
 
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
@@ -113,6 +126,8 @@ export interface AskAgentOptions {
     /** JSON schema for the response (used when expectJson is true to guide the model). */
     schema?: Record<string, unknown>;
     schemaName?: string;
+    /** When true, include OpenCode agent reasoning (type "reasoning" parts) in the returned object as "reasoning". */
+    includeReasoning?: boolean;
 }
 
 interface OpenCodeAgentMessageResult {
@@ -258,16 +273,21 @@ export class AiRepository {
                 const schemaName = options.schemaName ?? 'response';
                 promptText = `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`;
             }
-            const { text } = await opencodeMessageWithAgent(serverUrl, {
+            const { text, parts } = await opencodeMessageWithAgent(serverUrl, {
                 providerID,
                 modelID,
                 agent: agentId,
                 promptText,
             });
             if (!text) return undefined;
+            const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
             if (options.expectJson) {
                 const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-                return JSON.parse(cleaned) as Record<string, unknown>;
+                const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+                if (options.includeReasoning && reasoning) {
+                    return { ...parsed, reasoning };
+                }
+                return parsed;
             }
             return text;
         } catch (error: unknown) {
