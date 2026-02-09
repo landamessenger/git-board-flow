@@ -45152,7 +45152,6 @@ exports.IssueRepository = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
-const title_utils_1 = __nccwpck_require__(6676);
 const milestone_1 = __nccwpck_require__(2298);
 class IssueRepository {
     constructor() {
@@ -45308,27 +45307,6 @@ class IssueRepository {
                 return undefined;
             }
         };
-        this.updateIssueTitleWithProgress = async (owner, repository, issueNumber, currentTitle, progress, token) => {
-            try {
-                const formattedTitle = (0, title_utils_1.formatTitleWithProgress)(currentTitle, progress);
-                if (formattedTitle === currentTitle) {
-                    return undefined;
-                }
-                const octokit = github.getOctokit(token);
-                await octokit.rest.issues.update({
-                    owner,
-                    repo: repository,
-                    issue_number: issueNumber,
-                    title: formattedTitle,
-                });
-                (0, logger_1.logDebugInfo)(`Issue title updated with progress to: ${formattedTitle}`);
-                return formattedTitle;
-            }
-            catch (error) {
-                core.setFailed(`Failed to update issue title with progress: ${error}`);
-                return undefined;
-            }
-        };
         this.cleanTitle = async (owner, repository, issueTitle, issueNumber, token) => {
             try {
                 const octokit = github.getOctokit(token);
@@ -45460,6 +45438,46 @@ class IssueRepository {
                 issue_number: issueNumber,
                 labels: labels,
             });
+        };
+        /**
+         * Ensures progress labels (0%, 5%, ..., 100%) exist in the repo with red→yellow→green colors.
+         */
+        this.ensureProgressLabels = async (owner, repository, token) => {
+            const errors = [];
+            let created = 0;
+            let existing = 0;
+            for (const p of IssueRepository.PROGRESS_LABEL_PERCENTS) {
+                const name = `${p}%`;
+                const color = IssueRepository.progressPercentToColor(p);
+                const description = `Progress: ${p}%`;
+                try {
+                    const result = await this.ensureLabel(owner, repository, name, color, description, token);
+                    if (result.created)
+                        created++;
+                    else if (result.existed)
+                        existing++;
+                }
+                catch (error) {
+                    const err = error;
+                    (0, logger_1.logError)(`Error ensuring progress label "${name}": ${error}`);
+                    errors.push(`Error creating label "${name}": ${err.message || error}`);
+                }
+            }
+            return { created, existing, errors };
+        };
+        /**
+         * Sets the progress label on the issue: removes any existing percentage label and adds the new one.
+         * Progress is rounded to the nearest 5 (0, 5, 10, ..., 100).
+         */
+        this.setProgressLabel = async (owner, repository, issueNumber, progress, token) => {
+            const rounded = Math.min(100, Math.max(0, Math.round(progress / 5) * 5));
+            const newLabel = `${rounded}%`;
+            const current = await this.getLabels(owner, repository, issueNumber, token);
+            const withoutProgress = current.filter(name => !IssueRepository.PROGRESS_LABEL_PATTERN.test(name));
+            const hasNew = withoutProgress.includes(newLabel);
+            const nextLabels = hasNew ? withoutProgress : [...withoutProgress, newLabel];
+            await this.setLabels(owner, repository, issueNumber, nextLabels, token);
+            (0, logger_1.logDebugInfo)(`Progress label set to ${newLabel} for issue #${issueNumber}`);
         };
         this.isIssue = async (owner, repository, issueNumber, token) => {
             const isPullRequest = await this.isPullRequest(owner, repository, issueNumber, token);
@@ -45975,8 +45993,33 @@ class IssueRepository {
             return { created, existing, errors };
         };
     }
+    /**
+     * Returns 6-char hex color for progress (no leading #).
+     * 0% = red, 50% = yellow, 100% = green, with linear interpolation.
+     */
+    static progressPercentToColor(percent) {
+        const p = Math.min(100, Math.max(0, percent));
+        let r, g, b;
+        if (p <= 50) {
+            const t = p / 50;
+            r = Math.round(182 + (251 - 182) * t);
+            g = Math.round(2 + (202 - 2) * t);
+            b = Math.round(5 + (4 - 5) * t);
+        }
+        else {
+            const t = (p - 50) / 50;
+            r = Math.round(251 + (14 - 251) * t);
+            g = Math.round(202 + (138 - 202) * t);
+            b = Math.round(4 + (22 - 4) * t);
+        }
+        return [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
 }
 exports.IssueRepository = IssueRepository;
+/** Progress labels: 0%, 5%, 10%, ..., 100% (multiples of 5). */
+IssueRepository.PROGRESS_LABEL_PERCENTS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+/** Matches labels that are progress percentages (e.g. "0%", "85%"). */
+IssueRepository.PROGRESS_LABEL_PATTERN = /^\d+%$/;
 
 
 /***/ }),
@@ -47053,6 +47096,7 @@ const PROGRESS_RESPONSE_SCHEMA = {
     required: ['progress', 'summary'],
     additionalProperties: false,
 };
+const MAX_PROGRESS_ATTEMPTS = 3;
 class CheckProgressUseCase {
     constructor() {
         this.taskId = 'CheckProgressUseCase';
@@ -47147,46 +47191,53 @@ class CheckProgressUseCase {
             const developmentBranch = param.branches.development || 'develop';
             (0, logger_1.logInfo)(`📦 Progress will be assessed from workspace diff: base branch "${developmentBranch}", current branch "${branch}" (OpenCode agent will run git diff).`);
             const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
-            (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent...`);
-            const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
-                expectJson: true,
-                schema: PROGRESS_RESPONSE_SCHEMA,
-                schemaName: 'progress_response',
-                includeReasoning: true,
-            });
-            const progress = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.progress === 'number'
-                ? Math.min(100, Math.max(0, Math.round(agentResponse.progress)))
-                : 0;
-            const summary = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.summary === 'string'
-                ? String(agentResponse.summary)
-                : 'Unable to determine progress.';
-            const reasoning = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.reasoning === 'string'
-                ? String(agentResponse.reasoning).trim()
-                : '';
-            (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
-            const issueLabels = await this.issueRepository.getLabels(param.owner, param.repo, issueNumber, param.tokens.token);
-            const branchedLabel = param.labels.branchManagementLauncherLabel?.trim() ?? '';
-            const releaseLabel = param.labels.release?.trim() ?? '';
-            const hasBranched = branchedLabel.length > 0 && issueLabels.includes(branchedLabel);
-            const hasRelease = releaseLabel.length > 0 && issueLabels.includes(releaseLabel);
-            const shouldUpdateTitleWithProgress = hasBranched && !hasRelease;
-            let updatedTitle;
-            if (shouldUpdateTitleWithProgress) {
-                const currentTitle = await this.issueRepository.getTitle(param.owner, param.repo, issueNumber, param.tokens.token);
-                if (currentTitle) {
-                    updatedTitle = await this.issueRepository.updateIssueTitleWithProgress(param.owner, param.repo, issueNumber, currentTitle, progress, param.tokens.token);
-                    if (updatedTitle) {
-                        (0, logger_1.logInfo)(`📝 Issue title updated to: ${updatedTitle}`);
-                    }
+            let progress = 0;
+            let summary = 'Unable to determine progress.';
+            let reasoning = '';
+            for (let attempt = 1; attempt <= MAX_PROGRESS_ATTEMPTS; attempt++) {
+                (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent... (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS})`);
+                const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
+                progress = attemptResult.progress;
+                summary = attemptResult.summary;
+                reasoning = attemptResult.reasoning;
+                if (progress > 0) {
+                    (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
+                    break;
+                }
+                if (attempt < MAX_PROGRESS_ATTEMPTS) {
+                    (0, logger_1.logInfo)(`⚠️ Progress returned 0% (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS}), retrying...`);
                 }
             }
+            const progressFailedAfterRetries = progress === 0;
+            if (progressFailedAfterRetries) {
+                (0, logger_1.logError)(`Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    steps: [
+                        `Progress for issue #${issueNumber}: 0%`,
+                        summary,
+                    ],
+                    errors: [
+                        `Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error. There are changes on the branch; consider re-running the check.`,
+                    ],
+                    payload: {
+                        progress: 0,
+                        summary,
+                        reasoning: reasoning || undefined,
+                        issueNumber,
+                        branch,
+                        developmentBranch,
+                    },
+                }));
+                return results;
+            }
+            await this.issueRepository.setProgressLabel(param.owner, param.repo, issueNumber, progress, param.tokens.token);
             const steps = [
                 `Progress for issue #${issueNumber}: ${progress}%`,
                 summary,
             ];
-            if (updatedTitle) {
-                steps.push(`Issue title updated to \`${updatedTitle}\` to reflect progress.`);
-            }
             if (reasoning) {
                 const truncationNote = this.isReasoningLikelyTruncated(reasoning)
                     ? '\n\n_Reasoning may be truncated by the model._'
@@ -47220,6 +47271,28 @@ class CheckProgressUseCase {
             }));
         }
         return results;
+    }
+    /**
+     * Calls the OpenCode agent once and returns parsed progress, summary, and reasoning.
+     * Used inside the retry loop when progress is 0%.
+     */
+    async fetchProgressAttempt(ai, prompt) {
+        const agentResponse = await this.aiRepository.askAgent(ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+            expectJson: true,
+            schema: PROGRESS_RESPONSE_SCHEMA,
+            schemaName: 'progress_response',
+            includeReasoning: true,
+        });
+        const progress = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.progress === 'number'
+            ? Math.min(100, Math.max(0, Math.round(agentResponse.progress)))
+            : 0;
+        const summary = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.summary === 'string'
+            ? String(agentResponse.summary)
+            : 'Unable to determine progress.';
+        const reasoning = agentResponse && typeof agentResponse === 'object' && typeof agentResponse.reasoning === 'string'
+            ? String(agentResponse.reasoning).trim()
+            : '';
+        return { progress, summary, reasoning };
     }
     /**
      * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
@@ -47684,6 +47757,16 @@ class InitialSetupUseCase {
             else {
                 steps.push(`✅ Labels checked: ${labelsResult.created} created, ${labelsResult.existing} already existed`);
             }
+            // 2b. Crear labels de progreso (0%, 5%, ..., 100%) con colores rojo→amarillo→verde
+            (0, logger_1.logInfo)('📊 Checking progress labels...');
+            const progressLabelsResult = await this.ensureProgressLabels(param);
+            if (progressLabelsResult.errors.length > 0) {
+                errors.push(...progressLabelsResult.errors);
+                (0, logger_1.logError)(`Error checking progress labels: ${progressLabelsResult.errors}`);
+            }
+            else {
+                steps.push(`✅ Progress labels checked: ${progressLabelsResult.created} created, ${progressLabelsResult.existing} already existed`);
+            }
             // 3. Crear todos los tipos de Issue si no existen
             (0, logger_1.logInfo)('📋 Checking issue types...');
             const issueTypesResult = await this.ensureIssueTypes(param);
@@ -47741,6 +47824,16 @@ class InitialSetupUseCase {
         catch (error) {
             (0, logger_1.logError)(`Error asegurando labels: ${error}`);
             return { success: false, created: 0, existing: 0, errors: [`Error asegurando labels: ${error}`] };
+        }
+    }
+    async ensureProgressLabels(param) {
+        try {
+            const issueRepository = new issue_repository_1.IssueRepository();
+            return await issueRepository.ensureProgressLabels(param.owner, param.repo, param.tokens.token);
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error asegurando progress labels: ${error}`);
+            return { created: 0, existing: 0, errors: [`Error asegurando progress labels: ${error}`] };
         }
     }
     async ensureIssueTypes(param) {
@@ -52319,7 +52412,7 @@ exports.ReasoningVisualizer = ReasoningVisualizer;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.formatTitleWithProgress = exports.extractVersionFromBranch = exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
+exports.extractVersionFromBranch = exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
 const logger_1 = __nccwpck_require__(8836);
 const extractIssueNumberFromBranch = (branchName) => {
     const match = branchName?.match(/[a-zA-Z]+\/([0-9]+)-.*/);
@@ -52354,23 +52447,6 @@ const extractVersionFromBranch = (branchName) => {
     }
 };
 exports.extractVersionFromBranch = extractVersionFromBranch;
-/**
- * Formats an issue title to include progress tracking after the emoji prefix.
- * Example: "✨🧑‍💻 - Introduce the new Copilot agent" → "✨🧑‍💻 - [65%] - Introduce the new Copilot agent"
- * Removes any existing [X%] marker before inserting the new one.
- */
-const formatTitleWithProgress = (currentTitle, progress) => {
-    const progressStr = `[${progress}%]`;
-    const withoutExistingProgress = currentTitle.replace(/\s*-\s*\[\d+%\]\s*/g, '').trim();
-    const match = withoutExistingProgress.match(/^(.+?)\s*-\s+(.+)$/);
-    if (!match) {
-        return `${progressStr} - ${withoutExistingProgress}`;
-    }
-    const emojiPart = match[1].trim();
-    const rest = match[2].trim();
-    return rest ? `${emojiPart} - ${progressStr} - ${rest}` : `${emojiPart} - ${progressStr}`;
-};
-exports.formatTitleWithProgress = formatTitleWithProgress;
 
 
 /***/ }),

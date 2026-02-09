@@ -2,7 +2,6 @@ import {
   extractIssueNumberFromBranch,
   extractIssueNumberFromPush,
   extractVersionFromBranch,
-  formatTitleWithProgress,
 } from '../title_utils';
 
 jest.mock('../logger', () => ({
@@ -57,29 +56,4 @@ describe('title_utils', () => {
     });
   });
 
-  describe('formatTitleWithProgress', () => {
-    it('inserts progress after emoji prefix', () => {
-      expect(
-        formatTitleWithProgress('✨🧑‍💻 - Introduce the new Copilot agent', 65)
-      ).toBe('✨🧑‍💻 - [65%] - Introduce the new Copilot agent');
-    });
-
-    it('replaces existing progress marker', () => {
-      expect(
-        formatTitleWithProgress('✨🧑‍💻 - [65%] - Introduce the new Copilot agent', 70)
-      ).toBe('✨🧑‍💻 - [70%] - Introduce the new Copilot agent');
-    });
-
-    it('handles title without emoji separator', () => {
-      expect(formatTitleWithProgress('Introduce the new Copilot agent', 50)).toBe(
-        '[50%] - Introduce the new Copilot agent'
-      );
-    });
-
-    it('handles version in title (progress and version can coexist)', () => {
-      expect(
-        formatTitleWithProgress('✨🧑‍💻 - v1.0.0 - Introduce the new Copilot agent', 65)
-      ).toBe('✨🧑‍💻 - [65%] - v1.0.0 - Introduce the new Copilot agent');
-    });
-  });
 });

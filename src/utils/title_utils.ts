@@ -34,19 +34,3 @@ export const extractVersionFromBranch = (branchName: string): string | undefined
     }
 };
 
-/**
- * Formats an issue title to include progress tracking after the emoji prefix.
- * Example: "✨🧑‍💻 - Introduce the new Copilot agent" → "✨🧑‍💻 - [65%] - Introduce the new Copilot agent"
- * Removes any existing [X%] marker before inserting the new one.
- */
-export const formatTitleWithProgress = (currentTitle: string, progress: number): string => {
-    const progressStr = `[${progress}%]`;
-    const withoutExistingProgress = currentTitle.replace(/\s*-\s*\[\d+%\]\s*/g, '').trim();
-    const match = withoutExistingProgress.match(/^(.+?)\s*-\s+(.+)$/);
-    if (!match) {
-        return `${progressStr} - ${withoutExistingProgress}`;
-    }
-    const emojiPart = match[1].trim();
-    const rest = match[2].trim();
-    return rest ? `${emojiPart} - ${progressStr} - ${rest}` : `${emojiPart} - ${progressStr}`;
-};

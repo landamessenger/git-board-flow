@@ -1,3 +1,4 @@
+import { Ai } from '../../data/model/ai';
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
 import { logError, logInfo } from '../../utils/logger';
@@ -15,6 +16,14 @@ const PROGRESS_RESPONSE_SCHEMA = {
     required: ['progress', 'summary'],
     additionalProperties: false,
 } as const;
+
+const MAX_PROGRESS_ATTEMPTS = 3;
+
+interface ProgressAttemptResult {
+    progress: number;
+    summary: string;
+    reasoning: string;
+}
 
 export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckProgressUseCase';
@@ -142,75 +151,65 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
 
             const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
 
-            logInfo(`🤖 Analyzing progress using OpenCode Plan agent...`);
-            const agentResponse = await this.aiRepository.askAgent(
-                param.ai,
-                OPENCODE_AGENT_PLAN,
-                prompt,
-                {
-                    expectJson: true,
-                    schema: PROGRESS_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
-                    schemaName: 'progress_response',
-                    includeReasoning: true,
+            let progress = 0;
+            let summary = 'Unable to determine progress.';
+            let reasoning = '';
+
+            for (let attempt = 1; attempt <= MAX_PROGRESS_ATTEMPTS; attempt++) {
+                logInfo(`🤖 Analyzing progress using OpenCode Plan agent... (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS})`);
+                const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
+                progress = attemptResult.progress;
+                summary = attemptResult.summary;
+                reasoning = attemptResult.reasoning;
+                if (progress > 0) {
+                    logInfo(`✅ Progress detection completed: ${progress}%`);
+                    break;
                 }
-            );
+                if (attempt < MAX_PROGRESS_ATTEMPTS) {
+                    logInfo(`⚠️ Progress returned 0% (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS}), retrying...`);
+                }
+            }
 
-            const progress = agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).progress === 'number'
-                ? Math.min(100, Math.max(0, Math.round((agentResponse as Record<string, unknown>).progress as number)))
-                : 0;
-            const summary =
-                agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).summary === 'string'
-                    ? String((agentResponse as Record<string, unknown>).summary)
-                    : 'Unable to determine progress.';
-            const reasoning =
-                agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).reasoning === 'string'
-                    ? String((agentResponse as Record<string, unknown>).reasoning).trim()
-                    : '';
+            const progressFailedAfterRetries = progress === 0;
+            if (progressFailedAfterRetries) {
+                logError(`Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error.`);
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Progress for issue #${issueNumber}: 0%`,
+                            summary,
+                        ],
+                        errors: [
+                            `Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error. There are changes on the branch; consider re-running the check.`,
+                        ],
+                        payload: {
+                            progress: 0,
+                            summary,
+                            reasoning: reasoning || undefined,
+                            issueNumber,
+                            branch,
+                            developmentBranch,
+                        },
+                    })
+                );
+                return results;
+            }
 
-            logInfo(`✅ Progress detection completed: ${progress}%`);
-
-            const issueLabels = await this.issueRepository.getLabels(
+            await this.issueRepository.setProgressLabel(
                 param.owner,
                 param.repo,
                 issueNumber,
+                progress,
                 param.tokens.token,
             );
-            const branchedLabel = param.labels.branchManagementLauncherLabel?.trim() ?? '';
-            const releaseLabel = param.labels.release?.trim() ?? '';
-            const hasBranched = branchedLabel.length > 0 && issueLabels.includes(branchedLabel);
-            const hasRelease = releaseLabel.length > 0 && issueLabels.includes(releaseLabel);
-            const shouldUpdateTitleWithProgress = hasBranched && !hasRelease;
-
-            let updatedTitle: string | undefined;
-            if (shouldUpdateTitleWithProgress) {
-                const currentTitle = await this.issueRepository.getTitle(
-                    param.owner,
-                    param.repo,
-                    issueNumber,
-                    param.tokens.token,
-                );
-                if (currentTitle) {
-                    updatedTitle = await this.issueRepository.updateIssueTitleWithProgress(
-                        param.owner,
-                        param.repo,
-                        issueNumber,
-                        currentTitle,
-                        progress,
-                        param.tokens.token,
-                    );
-                    if (updatedTitle) {
-                        logInfo(`📝 Issue title updated to: ${updatedTitle}`);
-                    }
-                }
-            }
 
             const steps: string[] = [
                 `Progress for issue #${issueNumber}: ${progress}%`,
                 summary,
             ];
-            if (updatedTitle) {
-                steps.push(`Issue title updated to \`${updatedTitle}\` to reflect progress.`);
-            }
             if (reasoning) {
                 const truncationNote = this.isReasoningLikelyTruncated(reasoning)
                     ? '\n\n_Reasoning may be truncated by the model._'
@@ -250,6 +249,37 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
         }
 
         return results;
+    }
+
+    /**
+     * Calls the OpenCode agent once and returns parsed progress, summary, and reasoning.
+     * Used inside the retry loop when progress is 0%.
+     */
+    private async fetchProgressAttempt(ai: Ai, prompt: string): Promise<ProgressAttemptResult> {
+        const agentResponse = await this.aiRepository.askAgent(
+            ai,
+            OPENCODE_AGENT_PLAN,
+            prompt,
+            {
+                expectJson: true,
+                schema: PROGRESS_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+                schemaName: 'progress_response',
+                includeReasoning: true,
+            }
+        );
+        const progress =
+            agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).progress === 'number'
+                ? Math.min(100, Math.max(0, Math.round((agentResponse as Record<string, unknown>).progress as number)))
+                : 0;
+        const summary =
+            agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).summary === 'string'
+                ? String((agentResponse as Record<string, unknown>).summary)
+                : 'Unable to determine progress.';
+        const reasoning =
+            agentResponse && typeof agentResponse === 'object' && typeof (agentResponse as Record<string, unknown>).reasoning === 'string'
+                ? String((agentResponse as Record<string, unknown>).reasoning).trim()
+                : '';
+        return { progress, summary, reasoning };
     }
 
     /**

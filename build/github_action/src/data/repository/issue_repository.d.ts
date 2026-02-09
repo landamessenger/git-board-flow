@@ -4,7 +4,6 @@ import { IssueTypes } from "../model/issue_types";
 export declare class IssueRepository {
     updateTitleIssueFormat: (owner: string, repository: string, version: string, issueTitle: string, issueNumber: number, branchManagementAlways: boolean, branchManagementEmoji: string, labels: Labels, token: string) => Promise<string | undefined>;
     updateTitlePullRequestFormat: (owner: string, repository: string, pullRequestTitle: string, issueTitle: string, issueNumber: number, pullRequestNumber: number, branchManagementAlways: boolean, branchManagementEmoji: string, labels: Labels, token: string) => Promise<string | undefined>;
-    updateIssueTitleWithProgress: (owner: string, repository: string, issueNumber: number, currentTitle: string, progress: number, token: string) => Promise<string | undefined>;
     cleanTitle: (owner: string, repository: string, issueTitle: string, issueNumber: number, token: string) => Promise<string | undefined>;
     updateDescription: (owner: string, repo: string, issueNumber: number, description: string, token: string) => Promise<void>;
     getDescription: (owner: string, repo: string, issueNumber: number, token: string) => Promise<string | undefined>;
@@ -13,6 +12,28 @@ export declare class IssueRepository {
     getTitle: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string | undefined>;
     getLabels: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string[]>;
     setLabels: (owner: string, repository: string, issueNumber: number, labels: string[], token: string) => Promise<void>;
+    /** Progress labels: 0%, 5%, 10%, ..., 100% (multiples of 5). */
+    private static readonly PROGRESS_LABEL_PERCENTS;
+    /**
+     * Returns 6-char hex color for progress (no leading #).
+     * 0% = red, 50% = yellow, 100% = green, with linear interpolation.
+     */
+    private static progressPercentToColor;
+    /**
+     * Ensures progress labels (0%, 5%, ..., 100%) exist in the repo with red→yellow→green colors.
+     */
+    ensureProgressLabels: (owner: string, repository: string, token: string) => Promise<{
+        created: number;
+        existing: number;
+        errors: string[];
+    }>;
+    /** Matches labels that are progress percentages (e.g. "0%", "85%"). */
+    private static readonly PROGRESS_LABEL_PATTERN;
+    /**
+     * Sets the progress label on the issue: removes any existing percentage label and adds the new one.
+     * Progress is rounded to the nearest 5 (0, 5, 10, ..., 100).
+     */
+    setProgressLabel: (owner: string, repository: string, issueNumber: number, progress: number, token: string) => Promise<void>;
     isIssue: (owner: string, repository: string, issueNumber: number, token: string) => Promise<boolean>;
     isPullRequest: (owner: string, repository: string, issueNumber: number, token: string) => Promise<boolean>;
     getHeadBranch: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string | undefined>;

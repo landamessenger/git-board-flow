@@ -6,5 +6,6 @@ export declare class InitialSetupUseCase implements ParamUseCase<Execution, Resu
     invoke(param: Execution): Promise<Result[]>;
     private verifyGitHubAccess;
     private ensureLabels;
+    private ensureProgressLabels;
     private ensureIssueTypes;
 }

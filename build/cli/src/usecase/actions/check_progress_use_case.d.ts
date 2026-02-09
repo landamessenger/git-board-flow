@@ -8,6 +8,11 @@ export declare class CheckProgressUseCase implements ParamUseCase<Execution, Res
     private aiRepository;
     invoke(param: Execution): Promise<Result[]>;
     /**
+     * Calls the OpenCode agent once and returns parsed progress, summary, and reasoning.
+     * Used inside the retry loop when progress is 0%.
+     */
+    private fetchProgressAttempt;
+    /**
      * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
      * we tell the agent the base (parent) branch and current branch so it can run `git diff`
      * in the workspace and compute the full diff itself.

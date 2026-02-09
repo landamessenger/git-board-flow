@@ -1,7 +1,6 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { logDebugInfo, logError } from "../../utils/logger";
-import { formatTitleWithProgress } from "../../utils/title_utils";
 import { Labels } from "../model/labels";
 import { Milestone } from "../model/milestone";
 import { IssueTypes } from "../model/issue_types";
@@ -167,34 +166,6 @@ export class IssueRepository {
             return undefined;
         } catch (error) {
             core.setFailed(`Failed to check or update issue title: ${error}`);
-            return undefined;
-        }
-    };
-
-    updateIssueTitleWithProgress = async (
-        owner: string,
-        repository: string,
-        issueNumber: number,
-        currentTitle: string,
-        progress: number,
-        token: string,
-    ): Promise<string | undefined> => {
-        try {
-            const formattedTitle = formatTitleWithProgress(currentTitle, progress);
-            if (formattedTitle === currentTitle) {
-                return undefined;
-            }
-            const octokit = github.getOctokit(token);
-            await octokit.rest.issues.update({
-                owner,
-                repo: repository,
-                issue_number: issueNumber,
-                title: formattedTitle,
-            });
-            logDebugInfo(`Issue title updated with progress to: ${formattedTitle}`);
-            return formattedTitle;
-        } catch (error) {
-            core.setFailed(`Failed to update issue title with progress: ${error}`);
             return undefined;
         }
     };
@@ -392,6 +363,82 @@ export class IssueRepository {
             labels: labels,
         });
     }
+
+    /** Progress labels: 0%, 5%, 10%, ..., 100% (multiples of 5). */
+    private static readonly PROGRESS_LABEL_PERCENTS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+
+    /**
+     * Returns 6-char hex color for progress (no leading #).
+     * 0% = red, 50% = yellow, 100% = green, with linear interpolation.
+     */
+    private static progressPercentToColor(percent: number): string {
+        const p = Math.min(100, Math.max(0, percent));
+        let r: number, g: number, b: number;
+        if (p <= 50) {
+            const t = p / 50;
+            r = Math.round(182 + (251 - 182) * t);
+            g = Math.round(2 + (202 - 2) * t);
+            b = Math.round(5 + (4 - 5) * t);
+        } else {
+            const t = (p - 50) / 50;
+            r = Math.round(251 + (14 - 251) * t);
+            g = Math.round(202 + (138 - 202) * t);
+            b = Math.round(4 + (22 - 4) * t);
+        }
+        return [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+
+    /**
+     * Ensures progress labels (0%, 5%, ..., 100%) exist in the repo with red→yellow→green colors.
+     */
+    ensureProgressLabels = async (
+        owner: string,
+        repository: string,
+        token: string,
+    ): Promise<{ created: number; existing: number; errors: string[] }> => {
+        const errors: string[] = [];
+        let created = 0;
+        let existing = 0;
+        for (const p of IssueRepository.PROGRESS_LABEL_PERCENTS) {
+            const name = `${p}%`;
+            const color = IssueRepository.progressPercentToColor(p);
+            const description = `Progress: ${p}%`;
+            try {
+                const result = await this.ensureLabel(owner, repository, name, color, description, token);
+                if (result.created) created++;
+                else if (result.existed) existing++;
+            } catch (error: unknown) {
+                const err = error as { message?: string };
+                logError(`Error ensuring progress label "${name}": ${error}`);
+                errors.push(`Error creating label "${name}": ${err.message || error}`);
+            }
+        }
+        return { created, existing, errors };
+    };
+
+    /** Matches labels that are progress percentages (e.g. "0%", "85%"). */
+    private static readonly PROGRESS_LABEL_PATTERN = /^\d+%$/;
+
+    /**
+     * Sets the progress label on the issue: removes any existing percentage label and adds the new one.
+     * Progress is rounded to the nearest 5 (0, 5, 10, ..., 100).
+     */
+    setProgressLabel = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        progress: number,
+        token: string,
+    ): Promise<void> => {
+        const rounded = Math.min(100, Math.max(0, Math.round(progress / 5) * 5));
+        const newLabel = `${rounded}%`;
+        const current = await this.getLabels(owner, repository, issueNumber, token);
+        const withoutProgress = current.filter(name => !IssueRepository.PROGRESS_LABEL_PATTERN.test(name));
+        const hasNew = withoutProgress.includes(newLabel);
+        const nextLabels = hasNew ? withoutProgress : [...withoutProgress, newLabel];
+        await this.setLabels(owner, repository, issueNumber, nextLabels, token);
+        logDebugInfo(`Progress label set to ${newLabel} for issue #${issueNumber}`);
+    };
 
     isIssue = async (
         owner: string,

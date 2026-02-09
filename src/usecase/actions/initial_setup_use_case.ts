@@ -44,6 +44,16 @@ export class InitialSetupUseCase implements ParamUseCase<Execution, Result[]> {
                 steps.push(`✅ Labels checked: ${labelsResult.created} created, ${labelsResult.existing} already existed`);
             }
 
+            // 2b. Crear labels de progreso (0%, 5%, ..., 100%) con colores rojo→amarillo→verde
+            logInfo('📊 Checking progress labels...');
+            const progressLabelsResult = await this.ensureProgressLabels(param);
+            if (progressLabelsResult.errors.length > 0) {
+                errors.push(...progressLabelsResult.errors);
+                logError(`Error checking progress labels: ${progressLabelsResult.errors}`);
+            } else {
+                steps.push(`✅ Progress labels checked: ${progressLabelsResult.created} created, ${progressLabelsResult.existing} already existed`);
+            }
+
             // 3. Crear todos los tipos de Issue si no existen
             logInfo('📋 Checking issue types...');
             const issueTypesResult = await this.ensureIssueTypes(param);
@@ -110,6 +120,20 @@ export class InitialSetupUseCase implements ParamUseCase<Execution, Result[]> {
         } catch (error) {
             logError(`Error asegurando labels: ${error}`);
             return { success: false, created: 0, existing: 0, errors: [`Error asegurando labels: ${error}`] };
+        }
+    }
+
+    private async ensureProgressLabels(param: Execution): Promise<{ created: number; existing: number; errors: string[] }> {
+        try {
+            const issueRepository = new IssueRepository();
+            return await issueRepository.ensureProgressLabels(
+                param.owner,
+                param.repo,
+                param.tokens.token
+            );
+        } catch (error) {
+            logError(`Error asegurando progress labels: ${error}`);
+            return { created: 0, existing: 0, errors: [`Error asegurando progress labels: ${error}`] };
         }
     }
 
