@@ -52303,18 +52303,12 @@ class DeployedActionUseCase {
             await this.issueRepository.setLabels(param.owner, param.repo, param.singleAction.issue, labelNames, param.tokens.token);
             (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.singleAction.issue}:`);
             (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
-            const issueNumber = Number(param.singleAction.issue);
-            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, issueNumber, param.tokens.token);
-            if (closed) {
-                (0, logger_1.logDebugInfo)(`Issue #${issueNumber} closed after successful deployment.`);
-            }
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
                 steps: [
                     `Label \`${param.labels.deployed}\` added after a success deploy.`,
-                    ...(closed ? [`Issue #${issueNumber} closed.`] : []),
                 ],
             }));
             if (param.currentConfiguration.releaseBranch) {
@@ -52328,6 +52322,19 @@ class DeployedActionUseCase {
                 result.push(...mergeToDefaultResult);
                 const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDevelopResult);
+            }
+            const issueNumber = Number(param.singleAction.issue);
+            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, issueNumber, param.tokens.token);
+            if (closed) {
+                (0, logger_1.logDebugInfo)(`Issue #${issueNumber} closed after merges to default and develop.`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `Issue #${issueNumber} closed after merge to \`${param.branches.defaultBranch}\` and \`${param.branches.development}\`.`,
+                    ],
+                }));
             }
             return result;
         }

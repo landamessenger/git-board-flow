@@ -58,17 +58,6 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
             logDebugInfo(`Updated labels on issue #${param.singleAction.issue}:`);
             logDebugInfo(`Labels: ${labelNames}`);
 
-            const issueNumber = Number(param.singleAction.issue);
-            const closed = await this.issueRepository.closeIssue(
-                param.owner,
-                param.repo,
-                issueNumber,
-                param.tokens.token,
-            );
-            if (closed) {
-                logDebugInfo(`Issue #${issueNumber} closed after successful deployment.`);
-            }
-
             result.push(
                 new Result({
                     id: this.taskId,
@@ -76,7 +65,6 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     executed: true,
                     steps: [
                         `Label \`${param.labels.deployed}\` added after a success deploy.`,
-                        ...(closed ? [`Issue #${issueNumber} closed.`] : []),
                     ],
                 })
             );
@@ -122,7 +110,28 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                 );
                 result.push(...mergeToDevelopResult);
             }
-            
+
+            const issueNumber = Number(param.singleAction.issue);
+            const closed = await this.issueRepository.closeIssue(
+                param.owner,
+                param.repo,
+                issueNumber,
+                param.tokens.token,
+            );
+            if (closed) {
+                logDebugInfo(`Issue #${issueNumber} closed after merges to default and develop.`);
+                result.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Issue #${issueNumber} closed after merge to \`${param.branches.defaultBranch}\` and \`${param.branches.development}\`.`,
+                        ],
+                    })
+                );
+            }
+
             return result;
         } catch (error) {
             logError(error);
