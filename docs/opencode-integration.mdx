@@ -21,9 +21,20 @@ Git Board Flow uses **OpenCode** for all AI-backed features: code analysis, prog
 
 ### How OpenCode expects provider credentials
 
-OpenCode reads provider API keys and options from **environment variables** (and optionally from `~/.local/share/opencode/auth.json` when using the `/connect` command in the TUI). When you use `opencode-start-server: true`, the action passes the job's `env` to the OpenCode process, so any variable you set in the workflow is available to OpenCode.
+OpenCode reads provider API keys and options from **environment variables** (and optionally from `~/.local/share/opencode/auth.json` when using the `/connect` command in the TUI).
+
+**In GitHub Actions with `opencode-start-server: true`:** the action starts a **headless** OpenCode server (`opencode serve`). There is no TUI and **`/connect` is not available** during the run. Credentials must be provided **only via environment variables** in the job's `env` (e.g. secrets). The action passes the job's `env` to the OpenCode process so any variable you set in the workflow is available to OpenCode.
 
 You can also reference env vars in an `opencode.json` config via `{env:VAR_NAME}` (see [OpenCode Config – Variables](https://opencode.ai/docs/config#env-vars)).
+
+#### If you need `/connect` or providers not exposed via env
+
+Some providers are typically configured in OpenCode via the interactive `/connect` command (TUI). If you need those in CI and cannot pass credentials by env:
+
+1. **Self-hosted runner with OpenCode running locally** – Run OpenCode on a machine (or container) that you control, use the TUI there to run `/connect` and add your providers. Point the action at that server with `opencode-server-url` (and leave `opencode-start-server: false`). Use a [self-hosted GitHub Actions runner](https://docs.github.com/en/actions/using-github-hosted-runners/using-self-hosted-runners) on the same network so the job can reach that OpenCode instance.
+2. **Another GitHub Action that connects to those providers** – Use a different action or workflow that starts or configures an OpenCode-compatible server (or gateway) with access to the providers you need, then set `opencode-server-url` in this action to that service.
+
+In both cases you use **your own** OpenCode server (or a server set up by another action) instead of `opencode-start-server: true`, so credentials are managed outside this action.
 
 #### Provider credentials reference
 
@@ -54,7 +65,7 @@ The following table lists the environment variables OpenCode uses for each provi
 | Nebius Token Factory | (via `/connect`) | |
 | Ollama Cloud | (via `/connect`) | |
 
-Many of the “via `/connect`” providers also accept an API key from config using `{env:PROVIDER_API_KEY}` in `opencode.json`; the exact env name may follow the provider’s SDK (e.g. `FIREWORKS_API_KEY`). For CI, prefer setting the key in `env` and, if needed, defining the provider in `opencode.json` with `"apiKey": "{env:YOUR_SECRET_ENV}"`.
+Many of the “via `/connect`” providers also accept an API key from config using `{env:PROVIDER_API_KEY}` in `opencode.json`; the exact env name may follow the provider’s SDK (e.g. `FIREWORKS_API_KEY`). For CI with `opencode-start-server: true`, prefer setting the key in the job's `env` and, if needed, defining the provider in `opencode.json` with `"apiKey": "{env:YOUR_SECRET_ENV}"`. If a provider cannot be configured via env and you need `/connect`, see [If you need `/connect` or providers not exposed via env](#if-you-need-connect-or-providers-not-exposed-via-env) above.
 
 **Multi-variable / special auth**
 
@@ -74,6 +85,31 @@ Many of the “via `/connect`” providers also accept an API key from config us
 | Ollama | `opencode.json` with `options.baseURL` (e.g. `http://localhost:11434/v1`) | No env key; local server. |
 | LM Studio | Same: `baseURL` (e.g. `http://127.0.0.1:1234/v1`) | |
 | llama.cpp (llama-server) | Same: `baseURL` (e.g. `http://127.0.0.1:8080/v1`) | |
+
+#### Using local providers (Ollama, LM Studio, etc.) with this action
+
+This action does **not** require API keys or block any provider. Local providers (Ollama, LM Studio, llama.cpp) work the same way: you set `opencode-model` to `provider/model-id` (e.g. `ollama/llama2`, or the model ID you use in LM Studio). No credentials are needed.
+
+- **With `opencode-start-server: true`:** The action starts OpenCode with the repo as the working directory, so OpenCode loads config from the project (e.g. `opencode.json` in the repo root). Add a `provider` entry for Ollama/LM Studio/llama.cpp with the right `baseURL` in `opencode.json`. The runner must have the local server (Ollama, LM Studio, etc.) **already running** and reachable at that URL—for example on a [self-hosted runner](https://docs.github.com/en/actions/using-github-hosted-runners/using-self-hosted-runners) where Ollama/LM Studio is installed, or in a job that starts the local server in a previous step and then runs this action.
+- **With your own OpenCode server (`opencode-server-url`):** Point the action at a server that already has the local provider configured in its OpenCode config. No API key is required for that provider.
+
+Example `opencode.json` in the repo (for `opencode-start-server: true` with Ollama on the runner):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": { "baseURL": "http://localhost:11434/v1" },
+      "models": { "llama2": { "name": "Llama 2" } }
+    }
+  }
+}
+```
+
+Then set `opencode-model: 'ollama/llama2'` (or the model ID you defined). See [OpenCode Providers – Ollama](https://opencode.ai/docs/providers#ollama) for details.
 
 **Example: GitHub Actions with multiple providers**
 
