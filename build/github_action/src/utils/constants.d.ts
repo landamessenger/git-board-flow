@@ -3,8 +3,8 @@ export declare const TITLE = "Giik";
 export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export declare const OPENCODE_DEFAULT_MODEL = "opencode/kimi-k2.5-free";
-/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
-export declare const OPENCODE_REQUEST_TIMEOUT_MS = 600000;
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
+export declare const OPENCODE_REQUEST_TIMEOUT_MS = 900000;
 /** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
 export declare const OPENCODE_MAX_RETRIES = 5;
 /** Delay in ms between OpenCode retry attempts. */

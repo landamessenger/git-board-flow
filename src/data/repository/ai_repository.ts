@@ -30,11 +30,22 @@ async function withOpenCodeRetry<T>(fn: () => Promise<T>, context: string): Prom
         } catch (error) {
             lastError = error;
             const message = error instanceof Error ? error.message : String(error);
+            const cause =
+                error instanceof Error && (error as Error & { cause?: unknown }).cause instanceof Error
+                    ? (error as Error & { cause: Error }).cause.message
+                    : '';
+            const detail = cause ? ` (cause: ${cause})` : '';
+            const noResponseHint =
+                message === 'fetch failed'
+                    ? ' No HTTP response; connection lost or timeout. If this was before the client timeout (see log above), the OpenCode server or a proxy may have a shorter timeout.'
+                    : '';
             if (attempt < OPENCODE_MAX_RETRIES) {
-                logInfo(`OpenCode [${context}] attempt ${attempt}/${OPENCODE_MAX_RETRIES} failed: ${message}. Retrying in ${OPENCODE_RETRY_DELAY_MS}ms...`);
+                logInfo(
+                    `OpenCode [${context}] attempt ${attempt}/${OPENCODE_MAX_RETRIES} failed: ${message}${detail}.${noResponseHint} Retrying in ${OPENCODE_RETRY_DELAY_MS}ms...`
+                );
                 await delay(OPENCODE_RETRY_DELAY_MS);
             } else {
-                logError(`OpenCode [${context}] failed after ${OPENCODE_MAX_RETRIES} attempts: ${message}`);
+                logError(`OpenCode [${context}] failed after ${OPENCODE_MAX_RETRIES} attempts: ${message}${detail}`);
             }
         }
     }
@@ -353,6 +364,8 @@ async function opencodeMessageWithAgentRaw(
         parts: [{ type: 'text', text: options.promptText }],
     };
     logDebugInfo(`OpenCode POST /session/${sessionId}/message body (keys): agent, model, parts (${(body.parts as unknown[]).length} part(s))`);
+    const timeoutMin = Math.round(OPENCODE_REQUEST_TIMEOUT_MS / 60_000);
+    logInfo(`OpenCode: waiting for agent "${options.agent}" message response (client timeout: ${timeoutMin} min)...`);
     const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -43969,12 +43969,19 @@ async function withOpenCodeRetry(fn, context) {
         catch (error) {
             lastError = error;
             const message = error instanceof Error ? error.message : String(error);
+            const cause = error instanceof Error && error.cause instanceof Error
+                ? error.cause.message
+                : '';
+            const detail = cause ? ` (cause: ${cause})` : '';
+            const noResponseHint = message === 'fetch failed'
+                ? ' No HTTP response; connection lost or timeout. If this was before the client timeout (see log above), the OpenCode server or a proxy may have a shorter timeout.'
+                : '';
             if (attempt < constants_1.OPENCODE_MAX_RETRIES) {
-                (0, logger_1.logInfo)(`OpenCode [${context}] attempt ${attempt}/${constants_1.OPENCODE_MAX_RETRIES} failed: ${message}. Retrying in ${constants_1.OPENCODE_RETRY_DELAY_MS}ms...`);
+                (0, logger_1.logInfo)(`OpenCode [${context}] attempt ${attempt}/${constants_1.OPENCODE_MAX_RETRIES} failed: ${message}${detail}.${noResponseHint} Retrying in ${constants_1.OPENCODE_RETRY_DELAY_MS}ms...`);
                 await delay(constants_1.OPENCODE_RETRY_DELAY_MS);
             }
             else {
-                (0, logger_1.logError)(`OpenCode [${context}] failed after ${constants_1.OPENCODE_MAX_RETRIES} attempts: ${message}`);
+                (0, logger_1.logError)(`OpenCode [${context}] failed after ${constants_1.OPENCODE_MAX_RETRIES} attempts: ${message}${detail}`);
             }
         }
     }
@@ -44231,6 +44238,8 @@ async function opencodeMessageWithAgentRaw(baseUrl, options) {
         parts: [{ type: 'text', text: options.promptText }],
     };
     (0, logger_1.logDebugInfo)(`OpenCode POST /session/${sessionId}/message body (keys): agent, model, parts (${body.parts.length} part(s))`);
+    const timeoutMin = Math.round(constants_1.OPENCODE_REQUEST_TIMEOUT_MS / 60000);
+    (0, logger_1.logInfo)(`OpenCode: waiting for agent "${options.agent}" message response (client timeout: ${timeoutMin} min)...`);
     const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51761,8 +51770,8 @@ exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
-/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
-exports.OPENCODE_REQUEST_TIMEOUT_MS = 600000;
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
+exports.OPENCODE_REQUEST_TIMEOUT_MS = 900000;
 /** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
 exports.OPENCODE_MAX_RETRIES = 5;
 /** Delay in ms between OpenCode retry attempts. */
@@ -52368,23 +52377,74 @@ function logSingleLine(message) {
 /***/ }),
 
 /***/ 1942:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
 /**
  * Managed OpenCode server lifecycle for GitHub Actions.
  * Starts "npx opencode-ai serve" and stops it when the action finishes.
+ * If no opencode.json exists in cwd, creates one with provider timeout 10 min and removes it on stop.
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.startOpencodeServer = startOpencodeServer;
 exports.stopOpencodeServer = stopOpencodeServer;
 const child_process_1 = __nccwpck_require__(2081);
+const promises_1 = __nccwpck_require__(3292);
+const path_1 = __importDefault(__nccwpck_require__(1017));
 const logger_1 = __nccwpck_require__(8836);
 const DEFAULT_PORT = 4096;
 const HEALTH_PATH = '/global/health';
 const POLL_INTERVAL_MS = 500;
 const STARTUP_TIMEOUT_MS = 120000; // 2 min (first npx download can be slow)
+const OPENCODE_CONFIG_FILENAME = 'opencode.json';
+/** Provider request timeout in ms (10 min). OpenCode default is 5 min; we need longer for plan agent. */
+const OPENCODE_PROVIDER_TIMEOUT_MS = 600000;
+/**
+ * If opencode.json does not exist in cwd, create it with provider timeout (10 min).
+ * OpenCode merges configs; this file will set provider.opencode.options.timeout so long requests don't get cut at 5 min.
+ */
+async function ensureOpencodeConfig(cwd) {
+    const configPath = path_1.default.join(cwd, OPENCODE_CONFIG_FILENAME);
+    try {
+        await (0, promises_1.access)(configPath);
+        return { created: false, configPath };
+    }
+    catch {
+        // File does not exist; create minimal config for provider timeout
+    }
+    const config = {
+        $schema: 'https://opencode.ai/config.json',
+        provider: {
+            opencode: {
+                options: {
+                    timeout: OPENCODE_PROVIDER_TIMEOUT_MS,
+                },
+            },
+        },
+    };
+    await (0, promises_1.writeFile)(configPath, JSON.stringify(config, null, 2), 'utf8');
+    (0, logger_1.logInfo)(`Created ${OPENCODE_CONFIG_FILENAME} with provider timeout ${OPENCODE_PROVIDER_TIMEOUT_MS / 60000} min (will remove on server stop).`);
+    return { created: true, configPath };
+}
+/**
+ * Remove opencode.json if we created it (so we don't leave a temporary file in the repo).
+ */
+async function removeOpencodeConfigIfCreated(result) {
+    if (!result.created)
+        return;
+    try {
+        await (0, promises_1.unlink)(result.configPath);
+        (0, logger_1.logInfo)(`Removed temporary ${OPENCODE_CONFIG_FILENAME}.`);
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        (0, logger_1.logError)(`Failed to remove temporary ${OPENCODE_CONFIG_FILENAME}: ${msg}`);
+    }
+}
 /**
  * Wait until OpenCode server responds to /global/health or timeout.
  */
@@ -52420,6 +52480,7 @@ async function startOpencodeServer(options) {
     const hostname = options?.hostname ?? '127.0.0.1';
     const cwd = options?.cwd ?? process.cwd();
     const baseUrl = `http://${hostname}:${port}`;
+    const configResult = await ensureOpencodeConfig(cwd);
     (0, logger_1.logInfo)(`Starting OpenCode server at ${baseUrl} (this may take a moment on first run)...`);
     const child = (0, child_process_1.spawn)('npx', ['-y', 'opencode-ai', 'serve', '--port', String(port), '--hostname', hostname], {
         cwd,
@@ -52427,7 +52488,10 @@ async function startOpencodeServer(options) {
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
     });
-    const stop = () => stopOpencodeServer(child);
+    const stop = async () => {
+        await stopOpencodeServer(child);
+        await removeOpencodeConfigIfCreated(configResult);
+    };
     // Ensure we don't leave the process running if our process exits
     const onExit = () => {
         child.kill('SIGTERM');
@@ -52684,6 +52748,14 @@ module.exports = require("events");
 
 "use strict";
 module.exports = require("fs");
+
+/***/ }),
+
+/***/ 3292:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("fs/promises");
 
 /***/ }),
 

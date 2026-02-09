@@ -1,19 +1,72 @@
 /**
  * Managed OpenCode server lifecycle for GitHub Actions.
  * Starts "npx opencode-ai serve" and stops it when the action finishes.
+ * If no opencode.json exists in cwd, creates one with provider timeout 10 min and removes it on stop.
  */
 
 import { spawn, ChildProcess } from 'child_process';
+import { access, writeFile, unlink } from 'fs/promises';
+import path from 'path';
 import { logInfo, logError, logDebugInfo } from './logger';
 
 const DEFAULT_PORT = 4096;
 const HEALTH_PATH = '/global/health';
 const POLL_INTERVAL_MS = 500;
 const STARTUP_TIMEOUT_MS = 120000; // 2 min (first npx download can be slow)
+const OPENCODE_CONFIG_FILENAME = 'opencode.json';
+/** Provider request timeout in ms (10 min). OpenCode default is 5 min; we need longer for plan agent. */
+const OPENCODE_PROVIDER_TIMEOUT_MS = 600_000;
 
 export interface ManagedOpencodeServer {
   url: string;
   stop: () => Promise<void>;
+}
+
+/** Result of ensuring opencode config exists. If created, caller must remove it on teardown. */
+interface OpencodeConfigResult {
+  created: boolean;
+  configPath: string;
+}
+
+/**
+ * If opencode.json does not exist in cwd, create it with provider timeout (10 min).
+ * OpenCode merges configs; this file will set provider.opencode.options.timeout so long requests don't get cut at 5 min.
+ */
+async function ensureOpencodeConfig(cwd: string): Promise<OpencodeConfigResult> {
+  const configPath = path.join(cwd, OPENCODE_CONFIG_FILENAME);
+  try {
+    await access(configPath);
+    return { created: false, configPath };
+  } catch {
+    // File does not exist; create minimal config for provider timeout
+  }
+  const config = {
+    $schema: 'https://opencode.ai/config.json',
+    provider: {
+      opencode: {
+        options: {
+          timeout: OPENCODE_PROVIDER_TIMEOUT_MS,
+        },
+      },
+    },
+  };
+  await writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+  logInfo(`Created ${OPENCODE_CONFIG_FILENAME} with provider timeout ${OPENCODE_PROVIDER_TIMEOUT_MS / 60_000} min (will remove on server stop).`);
+  return { created: true, configPath };
+}
+
+/**
+ * Remove opencode.json if we created it (so we don't leave a temporary file in the repo).
+ */
+async function removeOpencodeConfigIfCreated(result: OpencodeConfigResult): Promise<void> {
+  if (!result.created) return;
+  try {
+    await unlink(result.configPath);
+    logInfo(`Removed temporary ${OPENCODE_CONFIG_FILENAME}.`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logError(`Failed to remove temporary ${OPENCODE_CONFIG_FILENAME}: ${msg}`);
+  }
 }
 
 /**
@@ -56,6 +109,8 @@ export async function startOpencodeServer(options?: {
   const cwd = options?.cwd ?? process.cwd();
   const baseUrl = `http://${hostname}:${port}`;
 
+  const configResult = await ensureOpencodeConfig(cwd);
+
   logInfo(`Starting OpenCode server at ${baseUrl} (this may take a moment on first run)...`);
 
   const child = spawn(
@@ -69,7 +124,10 @@ export async function startOpencodeServer(options?: {
     }
   );
 
-  const stop = (): Promise<void> => stopOpencodeServer(child);
+  const stop = async (): Promise<void> => {
+    await stopOpencodeServer(child);
+    await removeOpencodeConfigIfCreated(configResult);
+  };
 
   // Ensure we don't leave the process running if our process exits
   const onExit = () => {

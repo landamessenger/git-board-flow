@@ -48868,12 +48868,19 @@ async function withOpenCodeRetry(fn, context) {
         catch (error) {
             lastError = error;
             const message = error instanceof Error ? error.message : String(error);
+            const cause = error instanceof Error && error.cause instanceof Error
+                ? error.cause.message
+                : '';
+            const detail = cause ? ` (cause: ${cause})` : '';
+            const noResponseHint = message === 'fetch failed'
+                ? ' No HTTP response; connection lost or timeout. If this was before the client timeout (see log above), the OpenCode server or a proxy may have a shorter timeout.'
+                : '';
             if (attempt < constants_1.OPENCODE_MAX_RETRIES) {
-                (0, logger_1.logInfo)(`OpenCode [${context}] attempt ${attempt}/${constants_1.OPENCODE_MAX_RETRIES} failed: ${message}. Retrying in ${constants_1.OPENCODE_RETRY_DELAY_MS}ms...`);
+                (0, logger_1.logInfo)(`OpenCode [${context}] attempt ${attempt}/${constants_1.OPENCODE_MAX_RETRIES} failed: ${message}${detail}.${noResponseHint} Retrying in ${constants_1.OPENCODE_RETRY_DELAY_MS}ms...`);
                 await delay(constants_1.OPENCODE_RETRY_DELAY_MS);
             }
             else {
-                (0, logger_1.logError)(`OpenCode [${context}] failed after ${constants_1.OPENCODE_MAX_RETRIES} attempts: ${message}`);
+                (0, logger_1.logError)(`OpenCode [${context}] failed after ${constants_1.OPENCODE_MAX_RETRIES} attempts: ${message}${detail}`);
             }
         }
     }
@@ -49130,6 +49137,8 @@ async function opencodeMessageWithAgentRaw(baseUrl, options) {
         parts: [{ type: 'text', text: options.promptText }],
     };
     (0, logger_1.logDebugInfo)(`OpenCode POST /session/${sessionId}/message body (keys): agent, model, parts (${body.parts.length} part(s))`);
+    const timeoutMin = Math.round(constants_1.OPENCODE_REQUEST_TIMEOUT_MS / 60000);
+    (0, logger_1.logInfo)(`OpenCode: waiting for agent "${options.agent}" message response (client timeout: ${timeoutMin} min)...`);
     const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56443,8 +56452,8 @@ exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
-/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
-exports.OPENCODE_REQUEST_TIMEOUT_MS = 600000;
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
+exports.OPENCODE_REQUEST_TIMEOUT_MS = 900000;
 /** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
 exports.OPENCODE_MAX_RETRIES = 5;
 /** Delay in ms between OpenCode retry attempts. */

@@ -5,8 +5,8 @@ export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export const OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free'
 
-/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
-export const OPENCODE_REQUEST_TIMEOUT_MS = 600_000
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
+export const OPENCODE_REQUEST_TIMEOUT_MS = 900_000
 
 /** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
 export const OPENCODE_MAX_RETRIES = 5
