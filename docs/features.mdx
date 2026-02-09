@@ -51,6 +51,7 @@ When the workflow runs on `push` (e.g. to any branch):
 | **Commit notifications** | For branches linked to an issue, posts a comment on the issue with commit messages and links. |
 | **Commit prefix check** | Warns if commit messages do not follow the prefix derived from the branch name (using `commit-prefix-transforms`). |
 | **Reopen issue** | If `reopen-issue-on-push` is true, reopens the issue when new commits are pushed to its branch. |
+| **Size & progress** | Computes size (XS–XXL) and progress (0–100%) from the branch diff; updates the **issue** and any **open PRs** for that branch with the same labels. Requires OpenCode for progress. No separate workflow is needed. |
 | **Comments & images** | Posts commit summary comments with optional images. |
 
 ---
@@ -61,7 +62,7 @@ When you set `single-action` (and, when required, `single-action-issue`, `single
 
 | Single action value | Inputs required | Description |
 |--------------------|----------------|-------------|
-| **`check_progress_action`** | `single-action-issue` | Uses OpenCode Plan to analyze the branch diff vs the issue description and posts a **progress percentage** (e.g. "Progress: 30%") and summary as a comment on the issue. |
+| **`check_progress_action`** | `single-action-issue` | Runs progress check on demand (e.g. without pushing). Progress is normally updated automatically on every push; use this to re-run the check or when no push workflow is configured. |
 | **`detect_errors_action`** | `single-action-issue` | Uses OpenCode Plan to detect potential errors in the branch vs base; posts a comment on the issue. |
 | **`recommend_steps_action`** | `single-action-issue` | Uses OpenCode Plan to recommend implementation steps from the issue description; posts a comment on the issue. |
 | **`think_action`** | — | Uses OpenCode Plan for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
@@ -81,7 +82,7 @@ All AI features go through **OpenCode** (one server URL + model). You can use 75
 
 | Feature | Where it runs | Description |
 |--------|----------------|-------------|
-| **Check progress** | Single action `check_progress_action` | OpenCode Plan agent compares issue description vs branch diff and reports a percentage and summary. |
+| **Check progress** | Push (commit) pipeline; optional single action `check_progress_action` / CLI `check-progress` | On every push, OpenCode Plan compares issue vs branch diff and updates the progress label on the issue and on any open PRs for that branch. You can also run it on demand via single action or CLI. |
 | **Think / reasoning** | Single action `think_action` | Deep code analysis and change proposals (OpenCode Plan agent). |
 | **AI PR description** | Pull request pipeline | Fills the repo's `.github/pull_request_template.md` from issue and branch diff (OpenCode Plan agent). |
 | **Copilot** | CLI `giik copilot` | Code analysis and file edits via OpenCode Build agent. |

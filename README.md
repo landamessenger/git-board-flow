@@ -10,7 +10,7 @@
 
 All AI features use **OpenCode** (75+ LLM providers: OpenAI, Anthropic, Gemini, local models, etc.):
 
-- **Progress detection** — Analyzes branch vs issue and posts a progress percentage on the issue (`check_progress_action`).
+- **Progress detection** — On every push, analyzes branch vs issue and updates the progress label on the issue and on any open PRs for that branch. You can also run it on demand via single action or CLI (`check-progress`).
 - **Think / reasoning** — Deep code analysis and change proposals (`think_action`).
 - **AI PR description** — Generates or updates pull request descriptions by filling your `.github/pull_request_template.md` from the issue and branch diff.
 
@@ -86,6 +86,8 @@ jobs:
 
 ### Commit (push) workflow
 
+This workflow runs on every push. It notifies the issue of new commits, updates **size** and **progress** labels on the issue and on any open PRs for that branch (progress requires OpenCode). No separate "check progress" workflow is needed.
+
 ```yaml
 name: Git Board Flow - Commit
 
@@ -103,6 +105,9 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
           commit-prefix-transforms: 'replace-slash'
+          # Optional: for progress labels, add OpenCode config
+          # opencode-server-url: ${{ secrets.OPENCODE_SERVER_URL }}
+          # opencode-model: 'anthropic/claude-3-5-sonnet'
 ```
 
 A **fine-grained Personal Access Token (PAT)** is required for branch and project operations. See [Authentication](https://docs.page/landamessenger/git-board-flow/authentication) in the docs.
@@ -143,7 +148,7 @@ giik <command> [options]
 | Command | Description | Example |
 |--------|-------------|--------|
 | `setup` | Initial setup: labels, issue types, verify access | `node build/cli/index.js setup -t <PAT>` |
-| `check-progress` | Check progress for an issue (OpenCode Plan; posts % on the issue) | `node build/cli/index.js check-progress -i 123 -t <PAT>` |
+| `check-progress` | Run progress check on demand (progress is also updated automatically on every push) | `node build/cli/index.js check-progress -i 123 -t <PAT>` |
 | `detect-errors` | Detect potential errors in the branch vs base (OpenCode Plan) | `node build/cli/index.js detect-errors -i 123 -t <PAT>` |
 | `recommend-steps` | Recommend implementation steps for an issue (OpenCode Plan) | `node build/cli/index.js recommend-steps -i 123 -t <PAT>` |
 | `think` | Deep code analysis / reasoning (needs a question) | `node build/cli/index.js think -q "Where is auth validated?" -t <PAT>` |

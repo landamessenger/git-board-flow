@@ -87,17 +87,17 @@ All of these use the same OpenCode server and model configuration.
 
 ## How "check progress" works (e.g. "Progress 30%" in the issue)
 
-When the GitHub Action runs with `single-action: check_progress_action` and `single-action-issue: <number>` (or the CLI `check-progress -i <number>`), the issue gets a comment like "Progress: 30%" as follows:
+Progress is updated **automatically on every push**: when the **commit (push) workflow** runs (e.g. `on: push`), the action computes size and progress from the branch diff, updates the progress label on the **issue**, and applies the same label to any **open PRs** for that branch. No separate "check progress" workflow is required.
 
-1. **Trigger** – The workflow runs the action with the single action set to check progress and the target issue number.
+You can also run progress check **on demand** with `single-action: check_progress_action` and `single-action-issue: <number>` (or the CLI `check-progress -i <number>`). The flow is:
 
-2. **Data gathering** – The action reads the **issue description** (objectives of the feature/bugfix), finds the **branch** linked to that issue (e.g. `feature/123-title` or `bugfix/123-title`), and gets the **diff** of that branch vs the development branch (e.g. `develop`).
+1. **Trigger** – Either the push workflow (automatic) or a workflow that sets the single action to check progress (or the CLI with an issue number).
 
-3. **AI analysis (OpenCode)** – The **OpenCode Plan agent** runs against your OpenCode server. It receives the issue description, list of changed files, and (when used) file contents. The agent compares what was requested in the issue vs what is implemented in the diff and returns a structured response with `progress` (0–100) and `summary` (short explanation).
+2. **Data gathering** – The action reads the **issue description**, finds the **branch** (from the push or by searching for a branch linked to the issue), and gets the **diff** of that branch vs the development branch (e.g. `develop`). The OpenCode agent runs in the workspace and computes the diff itself.
 
-4. **Result** – The use case returns a `Result` with `steps` (e.g. "Progress for issue #123: 30%", summary) and a payload with progress, summary, issue number, branch, etc.
+3. **AI analysis (OpenCode)** – The **OpenCode Plan agent** compares what was requested in the issue vs what is in the diff and returns `progress` (0–100) and `summary`.
 
-5. **Comment on the issue** – After `mainRun`, the action runs **PublishResultUseCase**, which builds the comment body from all `result.steps`, numbers them (1., 2., …), and posts the comment on the issue via `issueRepository.addComment(...)`. The "30%" and the summary come from the OpenCode Plan agent response; the comment is written by **PublishResultUseCase** using those steps.
+4. **Result** – The progress label is set on the issue (and on any open PRs for that branch). When run from a workflow, **PublishResultUseCase** posts a comment on the issue with the percentage and summary.
 
 ## Can we avoid `opencode-server-url` and use a "master" OpenCode server?
 
