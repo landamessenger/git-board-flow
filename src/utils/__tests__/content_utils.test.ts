@@ -1,6 +1,7 @@
 import {
   extractVersion,
   extractReleaseType,
+  extractChangelogUpToAdditionalContext,
   injectJsonAsMarkdownBlock,
 } from '../content_utils';
 
@@ -42,6 +43,61 @@ describe('content_utils', () => {
     it('returns undefined when pattern not found', () => {
       expect(extractReleaseType('Release Type', 'No type here')).toBeUndefined();
       expect(extractReleaseType('Other', '### Release Type Patch')).toBeUndefined();
+    });
+  });
+
+  describe('extractChangelogUpToAdditionalContext', () => {
+    it('extracts content from Changelog section up to Additional Context', () => {
+      const body = [
+        '### Changelog',
+        '',
+        '## OpenCode as AI backend',
+        '',
+        '- **All AI features** now use **OpenCode**.',
+        '',
+        '### Additional Context',
+        '',
+        'Anything else to note?',
+      ].join('\n');
+      expect(extractChangelogUpToAdditionalContext(body, 'Changelog')).toBe(
+        '## OpenCode as AI backend\n\n- **All AI features** now use **OpenCode**.',
+      );
+    });
+
+    it('extracts content from Hotfix Solution section up to Additional Context', () => {
+      const body = [
+        '### Hotfix Solution',
+        '',
+        'Describe the solution.',
+        'Multiple lines.',
+        '',
+        '### Additional Context',
+        '',
+        'Extra notes.',
+      ].join('\n');
+      expect(extractChangelogUpToAdditionalContext(body, 'Hotfix Solution')).toBe(
+        'Describe the solution.\nMultiple lines.',
+      );
+    });
+
+    it('returns full content when Additional Context is absent', () => {
+      const body = '### Changelog\n\nOnly section here.';
+      expect(extractChangelogUpToAdditionalContext(body, 'Changelog')).toBe('Only section here.');
+    });
+
+    it('handles ## style headings', () => {
+      const body = '## Changelog\n\nContent here.\n\n## Additional Context\n\nOther.';
+      expect(extractChangelogUpToAdditionalContext(body, 'Changelog')).toBe('Content here.');
+    });
+
+    it('returns default when body is null or empty', () => {
+      expect(extractChangelogUpToAdditionalContext(null, 'Changelog')).toBe('No changelog provided');
+      expect(extractChangelogUpToAdditionalContext(undefined, 'Changelog')).toBe('No changelog provided');
+      expect(extractChangelogUpToAdditionalContext('', 'Changelog')).toBe('No changelog provided');
+    });
+
+    it('returns default when section is not found', () => {
+      expect(extractChangelogUpToAdditionalContext('### Other\n\nText.', 'Changelog')).toBe('No changelog provided');
     });
   });
 

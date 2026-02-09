@@ -1,9 +1,10 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { BranchRepository } from "../../../data/repository/branch_repository";
-import { injectJsonAsMarkdownBlock } from "../../../utils/content_utils";
+import { extractChangelogUpToAdditionalContext, injectJsonAsMarkdownBlock } from "../../../utils/content_utils";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
+import { MoveIssueToInProgressUseCase } from "./move_issue_to_in_progress";
 
 export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployAddedUseCase';
@@ -18,6 +19,8 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
                 logDebugInfo(`Deploying requested.`)
                 if (param.release.active && param.release.branch !== undefined) {
+                    result.push(...await new MoveIssueToInProgressUseCase().invoke(param));
+
                     const sanitizedTitle = param.issue.title
                         .replace(/\b\d+(\.\d+){2,}\b/g, '')
                         .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
@@ -29,14 +32,13 @@ export class DeployAddedUseCase implements ParamUseCase<Execution, Result[]> {
                         .replace(/-+/g, '-')
                         .trim();
 
-                    const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    const escapedDescription = description.replace(/\n/g, '\\n');
+                    const changelogBody = extractChangelogUpToAdditionalContext(param.issue.body, 'Changelog');
                     
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
                         version: param.release.version,
                         title: sanitizedTitle,
-                        changelog: escapedDescription,
+                        changelog: changelogBody,
                         issue: `${param.issue.number}`,
                     }
                     await this.branchRepository.executeWorkflow(
@@ -60,6 +62,8 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}`
                         })
                     )
                 } else if (param.hotfix.active && param.hotfix.branch !== undefined) {
+                    result.push(...await new MoveIssueToInProgressUseCase().invoke(param));
+
                     const sanitizedTitle = param.issue.title
                         .replace(/\b\d+(\.\d+){2,}\b/g, '')
                         .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
@@ -71,14 +75,13 @@ ${injectJsonAsMarkdownBlock('Workflow Parameters', parameters)}`
                         .replace(/-+/g, '-')
                         .trim();
 
-                    const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    const escapedDescription = description.replace(/\n/g, '\\n');
+                    const changelogBody = extractChangelogUpToAdditionalContext(param.issue.body, 'Hotfix Solution');
     
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
                         title: sanitizedTitle,
-                        changelog: escapedDescription,
+                        changelog: changelogBody,
                         issue: param.issue.number,
                     }
                     await this.branchRepository.executeWorkflow(

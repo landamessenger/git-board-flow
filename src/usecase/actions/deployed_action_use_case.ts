@@ -58,6 +58,17 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
             logDebugInfo(`Updated labels on issue #${param.singleAction.issue}:`);
             logDebugInfo(`Labels: ${labelNames}`);
 
+            const issueNumber = Number(param.singleAction.issue);
+            const closed = await this.issueRepository.closeIssue(
+                param.owner,
+                param.repo,
+                issueNumber,
+                param.tokens.token,
+            );
+            if (closed) {
+                logDebugInfo(`Issue #${issueNumber} closed after successful deployment.`);
+            }
+
             result.push(
                 new Result({
                     id: this.taskId,
@@ -65,6 +76,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     executed: true,
                     steps: [
                         `Label \`${param.labels.deployed}\` added after a success deploy.`,
+                        ...(closed ? [`Issue #${issueNumber} closed.`] : []),
                     ],
                 })
             );
