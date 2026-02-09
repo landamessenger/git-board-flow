@@ -310,18 +310,20 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                 }
 
                 if (prHeadSha && openPrNumbers.length > 0) {
-                    const path = finding.file ?? prFiles[0]?.filename ?? 'README.md';
-                    const line = finding.line ?? 1;
-                    if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
-                        await this.pullRequestRepository.updatePullRequestReviewComment(
-                            owner,
-                            repo,
-                            existing.prCommentId,
-                            commentBody,
-                            token
-                        );
-                    } else {
-                        prCommentsToCreate.push({ path, line, body: commentBody });
+                    const path = finding.file ?? prFiles[0]?.filename;
+                    if (path) {
+                        const line = finding.line ?? 1;
+                        if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
+                            await this.pullRequestRepository.updatePullRequestReviewComment(
+                                owner,
+                                repo,
+                                existing.prCommentId,
+                                commentBody,
+                                token
+                            );
+                        } else {
+                            prCommentsToCreate.push({ path, line, body: commentBody });
+                        }
                     }
                 }
             }
