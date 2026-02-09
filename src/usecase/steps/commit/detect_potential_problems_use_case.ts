@@ -68,6 +68,37 @@ function parseMarker(body: string | null): Array<{ findingId: string; resolved: 
     return results;
 }
 
+/** Regex to match the marker for a specific finding (same flexible format as parseMarker). */
+function markerRegexForFinding(findingId: string): RegExp {
+    const escapedId = findingId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(
+        `<!--\\s*${BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"${escapedId}"\\s+resolved:(?:true|false)\\s*-->`,
+        'g'
+    );
+}
+
+/**
+ * Find the marker for this finding in body (using same pattern as parseMarker) and replace it.
+ * Returns the updated body and whether a replacement was made. Logs a warning if no replacement occurred.
+ */
+function replaceMarkerInBody(
+    body: string,
+    findingId: string,
+    newResolved: boolean,
+    replacement?: string
+): { updated: string; replaced: boolean } {
+    const regex = markerRegexForFinding(findingId);
+    const newMarker = replacement ?? buildMarker(findingId, newResolved);
+    const updated = body.replace(regex, newMarker);
+    const replaced = updated !== body;
+    if (!replaced) {
+        logDebugInfo(
+            `Marker replacement did not match any marker for finding "${findingId}" in comment body (format may differ).`
+        );
+    }
+    return { updated, replaced };
+}
+
 /** Extract title from comment body (first ## line) for context when sending to OpenCode. */
 function extractTitleFromBody(body: string | null): string {
     if (!body) return '';
@@ -296,21 +327,24 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                 if (existing.resolved || !resolvedFindingIds.has(findingId)) continue;
                 const resolvedNote = '\n\n---\n**Resolved** (OpenCode confirmed fixed in latest analysis).\n';
                 const markerTrue = buildMarker(findingId, true);
+                const replacementWithNote = resolvedNote + markerTrue;
 
                 if (existing.issueCommentId != null) {
                     const comment = issueComments.find((c) => c.id === existing.issueCommentId);
                     const resolvedBody = comment?.body ?? '';
-                    const updated =
-                        resolvedBody.replace(buildMarker(findingId, false), markerTrue).trimEnd() +
-                        resolvedNote +
-                        markerTrue;
-                    if (updated !== resolvedBody) {
+                    const { updated, replaced } = replaceMarkerInBody(
+                        resolvedBody,
+                        findingId,
+                        true,
+                        replacementWithNote
+                    );
+                    if (replaced) {
                         await this.issueRepository.updateComment(
                             owner,
                             repo,
                             issueNumber,
                             existing.issueCommentId,
-                            updated,
+                            updated.trimEnd(),
                             token
                         );
                     }
@@ -324,14 +358,18 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                     );
                     const prComment = prCommentsList.find((c) => c.id === existing.prCommentId);
                     const prBody = prComment?.body ?? '';
-                    const updated =
-                        prBody.replace(buildMarker(findingId, false), markerTrue).trimEnd() + resolvedNote + markerTrue;
-                    if (updated !== prBody) {
+                    const { updated, replaced } = replaceMarkerInBody(
+                        prBody,
+                        findingId,
+                        true,
+                        replacementWithNote
+                    );
+                    if (replaced) {
                         await this.pullRequestRepository.updatePullRequestReviewComment(
                             owner,
                             repo,
                             existing.prCommentId,
-                            updated,
+                            updated.trimEnd(),
                             token
                         );
                     }

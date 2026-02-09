@@ -494,4 +494,91 @@ describe('DetectPotentialProblemsUseCase', () => {
 
     expect(mockUpdateComment).not.toHaveBeenCalled();
   });
+
+  describe('marker replacement (regex-based, tolerates format variations)', () => {
+    it('replaces marker in issue comment when marker has extra whitespace', async () => {
+      mockListIssueComments.mockResolvedValue([
+        {
+          id: 333,
+          body: `## Whitespace variant\n\n<!--  gbf-bugbot   finding_id: "spacey-id"   resolved:false -->`,
+          user: { login: 'bot' },
+        },
+      ]);
+      mockAskAgent.mockResolvedValue({
+        findings: [],
+        resolved_finding_ids: ['spacey-id'],
+      });
+
+      await useCase.invoke(baseParam());
+
+      expect(mockUpdateComment).toHaveBeenCalledTimes(1);
+      expect(mockUpdateComment).toHaveBeenCalledWith(
+        'owner',
+        'repo',
+        42,
+        333,
+        expect.any(String),
+        'token'
+      );
+      const updatedBody = mockUpdateComment.mock.calls[0][4];
+      expect(updatedBody).toContain('resolved:true');
+      expect(updatedBody).toContain('**Resolved** (OpenCode confirmed fixed in latest analysis)');
+      expect(updatedBody).toContain('gbf-bugbot');
+    });
+
+    it('replaces marker in PR review comment when marker has extra whitespace', async () => {
+      mockListIssueComments.mockResolvedValue([]);
+      mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([80]);
+      mockListPullRequestReviewComments
+        .mockResolvedValueOnce([
+          {
+            id: 444,
+            body: `## PR spacey\n\n<!--  gbf-bugbot   finding_id: "pr-spacey-id"   resolved:false   -->`,
+            path: 'src/b.ts',
+            line: 1,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 444,
+            body: `## PR spacey\n\n<!--  gbf-bugbot   finding_id: "pr-spacey-id"   resolved:false   -->`,
+            path: 'src/b.ts',
+            line: 1,
+          },
+        ]);
+      mockAskAgent.mockResolvedValue({
+        findings: [],
+        resolved_finding_ids: ['pr-spacey-id'],
+      });
+
+      await useCase.invoke(baseParam());
+
+      expect(mockUpdatePullRequestReviewComment).toHaveBeenCalledTimes(1);
+      const updatedBody = mockUpdatePullRequestReviewComment.mock.calls[0][3];
+      expect(updatedBody).toContain('resolved:true');
+      expect(updatedBody).toContain('**Resolved** (OpenCode confirmed fixed in latest analysis)');
+    });
+
+    it('replaces marker when finding id contains regex-special characters', async () => {
+      const findingId = 'src/utils (helper).ts:10:possible-null';
+      mockListIssueComments.mockResolvedValue([
+        {
+          id: 555,
+          body: `## Regex id\n\n<!-- gbf-bugbot finding_id:"${findingId}" resolved:false -->`,
+          user: {},
+        },
+      ]);
+      mockAskAgent.mockResolvedValue({
+        findings: [],
+        resolved_finding_ids: [findingId],
+      });
+
+      await useCase.invoke(baseParam());
+
+      expect(mockUpdateComment).toHaveBeenCalledTimes(1);
+      const updatedBody = mockUpdateComment.mock.calls[0][4];
+      expect(updatedBody).toContain('resolved:true');
+      expect(updatedBody).toContain(findingId);
+    });
+  });
 });
