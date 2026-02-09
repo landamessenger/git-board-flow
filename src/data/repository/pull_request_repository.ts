@@ -3,6 +3,33 @@ import { logDebugInfo, logError } from "../../utils/logger";
 
 export class PullRequestRepository {
 
+    /**
+     * Returns the list of open pull request numbers whose head branch equals the given branch.
+     * Used to sync size/progress labels from the issue to PRs when they are updated on push.
+     */
+    getOpenPullRequestNumbersByHeadBranch = async (
+        owner: string,
+        repository: string,
+        headBranch: string,
+        token: string,
+    ): Promise<number[]> => {
+        const octokit = github.getOctokit(token);
+        try {
+            const { data } = await octokit.rest.pulls.list({
+                owner,
+                repo: repository,
+                state: 'open',
+                head: `${owner}:${headBranch}`,
+            });
+            const numbers = (data || []).map((pr) => pr.number);
+            logDebugInfo(`Found ${numbers.length} open PR(s) for head branch "${headBranch}": ${numbers.join(', ') || 'none'}`);
+            return numbers;
+        } catch (error) {
+            logError(`Error listing PRs for branch ${headBranch}: ${error}`);
+            return [];
+        }
+    };
+
     isLinked = async (pullRequestUrl: string) => {
         const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
         return !htmlContent.includes('has_github_issues=false');

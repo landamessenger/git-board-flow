@@ -1,6 +1,8 @@
 import { Labels } from "../model/labels";
 import { Milestone } from "../model/milestone";
 import { IssueTypes } from "../model/issue_types";
+/** Matches labels that are progress percentages (e.g. "0%", "85%"). Used for setProgressLabel and syncing. */
+export declare const PROGRESS_LABEL_PATTERN: RegExp;
 export declare class IssueRepository {
     updateTitleIssueFormat: (owner: string, repository: string, version: string, issueTitle: string, issueNumber: number, branchManagementAlways: boolean, branchManagementEmoji: string, labels: Labels, token: string) => Promise<string | undefined>;
     updateTitlePullRequestFormat: (owner: string, repository: string, pullRequestTitle: string, issueTitle: string, issueNumber: number, pullRequestNumber: number, branchManagementAlways: boolean, branchManagementEmoji: string, labels: Labels, token: string) => Promise<string | undefined>;
@@ -27,8 +29,6 @@ export declare class IssueRepository {
         existing: number;
         errors: string[];
     }>;
-    /** Matches labels that are progress percentages (e.g. "0%", "85%"). */
-    private static readonly PROGRESS_LABEL_PATTERN;
     /**
      * Sets the progress label on the issue: removes any existing percentage label and adds the new one.
      * Progress is rounded to the nearest 5 (0, 5, 10, ..., 100).

@@ -45148,11 +45148,13 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.IssueRepository = void 0;
+exports.IssueRepository = exports.PROGRESS_LABEL_PATTERN = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
 const milestone_1 = __nccwpck_require__(2298);
+/** Matches labels that are progress percentages (e.g. "0%", "85%"). Used for setProgressLabel and syncing. */
+exports.PROGRESS_LABEL_PATTERN = /^\d+%$/;
 class IssueRepository {
     constructor() {
         this.updateTitleIssueFormat = async (owner, repository, version, issueTitle, issueNumber, branchManagementAlways, branchManagementEmoji, labels, token) => {
@@ -45473,7 +45475,7 @@ class IssueRepository {
             const rounded = Math.min(100, Math.max(0, Math.round(progress / 5) * 5));
             const newLabel = `${rounded}%`;
             const current = await this.getLabels(owner, repository, issueNumber, token);
-            const withoutProgress = current.filter(name => !IssueRepository.PROGRESS_LABEL_PATTERN.test(name));
+            const withoutProgress = current.filter(name => !exports.PROGRESS_LABEL_PATTERN.test(name));
             const hasNew = withoutProgress.includes(newLabel);
             const nextLabels = hasNew ? withoutProgress : [...withoutProgress, newLabel];
             await this.setLabels(owner, repository, issueNumber, nextLabels, token);
@@ -46018,8 +46020,6 @@ class IssueRepository {
 exports.IssueRepository = IssueRepository;
 /** Progress labels: 0%, 5%, 10%, ..., 100% (multiples of 5). */
 IssueRepository.PROGRESS_LABEL_PERCENTS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
-/** Matches labels that are progress percentages (e.g. "0%", "85%"). */
-IssueRepository.PROGRESS_LABEL_PATTERN = /^\d+%$/;
 
 
 /***/ }),
@@ -46660,6 +46660,28 @@ const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
 class PullRequestRepository {
     constructor() {
+        /**
+         * Returns the list of open pull request numbers whose head branch equals the given branch.
+         * Used to sync size/progress labels from the issue to PRs when they are updated on push.
+         */
+        this.getOpenPullRequestNumbersByHeadBranch = async (owner, repository, headBranch, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.list({
+                    owner,
+                    repo: repository,
+                    state: 'open',
+                    head: `${owner}:${headBranch}`,
+                });
+                const numbers = (data || []).map((pr) => pr.number);
+                (0, logger_1.logDebugInfo)(`Found ${numbers.length} open PR(s) for head branch "${headBranch}": ${numbers.join(', ') || 'none'}`);
+                return numbers;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error listing PRs for branch ${headBranch}: ${error}`);
+                return [];
+            }
+        };
         this.isLinked = async (pullRequestUrl) => {
             const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
             return !htmlContent.includes('has_github_issues=false');
@@ -47086,6 +47108,7 @@ const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
 const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
+const pull_request_repository_1 = __nccwpck_require__(634);
 const ai_repository_1 = __nccwpck_require__(8307);
 const PROGRESS_RESPONSE_SCHEMA = {
     type: 'object',
@@ -47103,6 +47126,7 @@ class CheckProgressUseCase {
         this.taskId = 'CheckProgressUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
         this.branchRepository = new branch_repository_1.BranchRepository();
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
         this.aiRepository = new ai_repository_1.AiRepository();
     }
     async invoke(param) {
@@ -47236,7 +47260,19 @@ class CheckProgressUseCase {
                 }));
                 return results;
             }
+            const roundedProgress = Math.min(100, Math.max(0, Math.round(progress / 5) * 5));
             await this.issueRepository.setProgressLabel(param.owner, param.repo, issueNumber, progress, param.tokens.token);
+            const openPrNumbers = await this.pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(param.owner, param.repo, branch, param.tokens.token);
+            const newProgressLabel = `${roundedProgress}%`;
+            for (const prNumber of openPrNumbers) {
+                const prLabels = await this.issueRepository.getLabels(param.owner, param.repo, prNumber, param.tokens.token);
+                const withoutProgress = prLabels.filter((name) => !issue_repository_1.PROGRESS_LABEL_PATTERN.test(name));
+                const nextLabels = withoutProgress.includes(newProgressLabel)
+                    ? withoutProgress
+                    : [...withoutProgress, newProgressLabel];
+                await this.issueRepository.setLabels(param.owner, param.repo, prNumber, nextLabels, param.tokens.token);
+                (0, logger_1.logInfo)(`Progress label set to ${newProgressLabel} on PR #${prNumber}.`);
+            }
             let summaryMessage = `**Analysis**:\n\n${summary}`;
             if (progress < 100 && remaining) {
                 summaryMessage += `\n\n**What's left to reach 100%:**\n\n${remaining}`;
@@ -48041,6 +48077,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommitUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const check_progress_use_case_1 = __nccwpck_require__(7744);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(8020);
 const check_changes_issue_size_use_case_1 = __nccwpck_require__(5863);
 class CommitUseCase {
@@ -48060,6 +48097,7 @@ class CommitUseCase {
             (0, logger_1.logDebugInfo)(`Issue number: ${param.issueNumber}`);
             results.push(...(await new notify_new_commit_on_issue_use_case_1.NotifyNewCommitOnIssueUseCase().invoke(param)));
             results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
+            results.push(...(await new check_progress_use_case_1.CheckProgressUseCase().invoke(param)));
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -48232,10 +48270,10 @@ const update_title_use_case_1 = __nccwpck_require__(5107);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3115);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(6275);
 const close_issue_after_merging_use_case_1 = __nccwpck_require__(5137);
-const check_changes_pull_request_size_use_case_1 = __nccwpck_require__(8129);
 const check_priority_pull_request_size_use_case_1 = __nccwpck_require__(7383);
 const link_pull_request_issue_use_case_1 = __nccwpck_require__(2175);
 const link_pull_request_project_use_case_1 = __nccwpck_require__(4311);
+const sync_size_and_progress_labels_from_issue_to_pr_use_case_1 = __nccwpck_require__(8386);
 const update_pull_request_description_use_case_1 = __nccwpck_require__(158);
 class PullRequestUseCase {
     constructor() {
@@ -48271,13 +48309,13 @@ class PullRequestUseCase {
                  */
                 results.push(...await new link_pull_request_issue_use_case_1.LinkPullRequestIssueUseCase().invoke(param));
                 /**
+                 * Copy size and progress labels from the linked issue to this PR (corner case: PR just opened).
+                 */
+                results.push(...await new sync_size_and_progress_labels_from_issue_to_pr_use_case_1.SyncSizeAndProgressLabelsFromIssueToPrUseCase().invoke(param));
+                /**
                  * Check priority pull request size
                  */
                 results.push(...await new check_priority_pull_request_size_use_case_1.CheckPriorityPullRequestSizeUseCase().invoke(param));
-                /**
-                 * Check changes size
-                 */
-                results.push(...await new check_changes_pull_request_size_use_case_1.CheckChangesPullRequestSizeUseCase().invoke(param));
                 if (param.ai.getAiPullRequestDescription()) {
                     /**
                      * Update pull request description
@@ -48287,11 +48325,7 @@ class PullRequestUseCase {
             }
             else if (param.pullRequest.isSynchronize) {
                 /**
-                 * Check changes size
-                 */
-                results.push(...await new check_changes_pull_request_size_use_case_1.CheckChangesPullRequestSizeUseCase().invoke(param));
-                /**
-                 * Pushed changes to the pull request
+                 * Pushed changes to the pull request (size/progress are updated on push via CommitUseCase).
                  */
                 if (param.ai.getAiPullRequestDescription()) {
                     /**
@@ -48416,6 +48450,7 @@ const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
+const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
 class CheckChangesIssueSizeUseCase {
     constructor() {
@@ -48423,6 +48458,7 @@ class CheckChangesIssueSizeUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
         this.issueRepository = new issue_repository_1.IssueRepository();
         this.projectRepository = new project_repository_1.ProjectRepository();
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
@@ -48440,11 +48476,22 @@ class CheckChangesIssueSizeUseCase {
             (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
             (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnIssue}`);
             if (param.labels.sizedLabelOnIssue !== size) {
-                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
+                const labelNames = param.labels.currentIssueLabels.filter((name) => param.labels.sizeLabels.indexOf(name) === -1);
                 labelNames.push(size);
                 await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
                 for (const project of param.project.getProjects()) {
                     await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.issueNumber, githubSize, param.tokens.token);
+                }
+                const openPrNumbers = await this.pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(param.owner, param.repo, headBranch, param.tokens.token);
+                for (const prNumber of openPrNumbers) {
+                    const prLabels = await this.issueRepository.getLabels(param.owner, param.repo, prNumber, param.tokens.token);
+                    const prLabelNames = prLabels.filter((name) => param.labels.sizeLabels.indexOf(name) === -1);
+                    prLabelNames.push(size);
+                    await this.issueRepository.setLabels(param.owner, param.repo, prNumber, prLabelNames, param.tokens.token);
+                    for (const project of param.project.getProjects()) {
+                        await this.projectRepository.setTaskSize(project, param.owner, param.repo, prNumber, githubSize, param.tokens.token);
+                    }
+                    (0, logger_1.logDebugInfo)(`Updated size label on PR #${prNumber} to ${size}.`);
                 }
                 (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.issueNumber}:`);
                 (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
@@ -48453,7 +48500,8 @@ class CheckChangesIssueSizeUseCase {
                     success: true,
                     executed: true,
                     steps: [
-                        `${reason}, so the issue was resized to ${size}.`,
+                        `${reason}, so the issue was resized to ${size}.` +
+                            (openPrNumbers.length > 0 ? ` Same label applied to ${openPrNumbers.length} open PR(s).` : ''),
                     ],
                 }));
             }
@@ -48475,9 +48523,7 @@ class CheckChangesIssueSizeUseCase {
                 steps: [
                     `Tried to check the size of the changes, but there was a problem.`,
                 ],
-                errors: [
-                    error?.toString() ?? 'Unknown error',
-                ],
+                errors: [error?.toString() ?? 'Unknown error'],
             }));
         }
         return result;
@@ -50908,86 +50954,6 @@ exports.CheckIssueCommentLanguageUseCase = CheckIssueCommentLanguageUseCase;
 
 /***/ }),
 
-/***/ 8129:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CheckChangesPullRequestSizeUseCase = void 0;
-const result_1 = __nccwpck_require__(7305);
-const branch_repository_1 = __nccwpck_require__(7701);
-const issue_repository_1 = __nccwpck_require__(57);
-const project_repository_1 = __nccwpck_require__(7917);
-const logger_1 = __nccwpck_require__(8836);
-class CheckChangesPullRequestSizeUseCase {
-    constructor() {
-        this.taskId = 'CheckChangesPullRequestSizeUseCase';
-        this.branchRepository = new branch_repository_1.BranchRepository();
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.projectRepository = new project_repository_1.ProjectRepository();
-    }
-    async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
-        const result = [];
-        try {
-            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, param.pullRequest.head, param.pullRequest.base, param.sizeThresholds, param.labels, param.tokens.token);
-            (0, logger_1.logDebugInfo)(`Size: ${size}`);
-            (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
-            (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
-            (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnPullRequest}`);
-            if (param.labels.sizedLabelOnPullRequest !== size) {
-                /**
-                 * Even if this is for pull reuqets, we are getting the issue labels for having a mirror of the issue labels on the pull request.
-                 */
-                const labelNames = param.labels.currentIssueLabels.filter(name => param.labels.sizeLabels.indexOf(name) === -1);
-                labelNames.push(size);
-                await this.issueRepository.setLabels(param.owner, param.repo, param.pullRequest.number, labelNames, param.tokens.token);
-                for (const project of param.project.getProjects()) {
-                    await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.pullRequest.number, githubSize, param.tokens.token);
-                }
-                (0, logger_1.logDebugInfo)(`Updated labels on pull request #${param.pullRequest.number}:`);
-                (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `${reason}, so the pull request was resized to ${size}.`,
-                    ],
-                }));
-            }
-            else {
-                (0, logger_1.logDebugInfo)(`The pull request is already at the correct size.`);
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: true,
-                }));
-            }
-        }
-        catch (error) {
-            (0, logger_1.logError)(error);
-            result.push(new result_1.Result({
-                id: this.taskId,
-                success: false,
-                executed: true,
-                steps: [
-                    `Tried to check the size of the changes, but there was a problem.`,
-                ],
-                errors: [
-                    error?.toString() ?? 'Unknown error',
-                ],
-            }));
-        }
-        return result;
-    }
-}
-exports.CheckChangesPullRequestSizeUseCase = CheckChangesPullRequestSizeUseCase;
-
-
-/***/ }),
-
 /***/ 7383:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -51274,6 +51240,90 @@ class LinkPullRequestProjectUseCase {
     }
 }
 exports.LinkPullRequestProjectUseCase = LinkPullRequestProjectUseCase;
+
+
+/***/ }),
+
+/***/ 8386:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SyncSizeAndProgressLabelsFromIssueToPrUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(8836);
+/**
+ * Copies size and progress labels from the linked issue to the PR.
+ * Used when a PR is opened so it gets the same size/progress as the issue (corner case:
+ * no push has run yet, so CommitUseCase has not updated the PR).
+ */
+class SyncSizeAndProgressLabelsFromIssueToPrUseCase {
+    constructor() {
+        this.taskId = 'SyncSizeAndProgressLabelsFromIssueToPrUseCase';
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            if (param.issueNumber === -1) {
+                (0, logger_1.logDebugInfo)('No issue linked to this PR. Skipping sync of size/progress labels.');
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                    steps: ['No issue linked; size/progress labels not synced.'],
+                }));
+                return result;
+            }
+            const issueLabels = await this.issueRepository.getLabels(param.owner, param.repo, param.issueNumber, param.tokens.token);
+            const sizeAndProgressFromIssue = issueLabels.filter((name) => param.labels.sizeLabels.indexOf(name) !== -1 || issue_repository_1.PROGRESS_LABEL_PATTERN.test(name));
+            if (sizeAndProgressFromIssue.length === 0) {
+                (0, logger_1.logDebugInfo)(`Issue #${param.issueNumber} has no size or progress labels. Nothing to sync.`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: ['Issue has no size/progress labels to sync.'],
+                }));
+                return result;
+            }
+            const prNumber = param.pullRequest.number;
+            const prLabels = await this.issueRepository.getLabels(param.owner, param.repo, prNumber, param.tokens.token);
+            const prWithoutSizeOrProgress = prLabels.filter((name) => param.labels.sizeLabels.indexOf(name) === -1 && !issue_repository_1.PROGRESS_LABEL_PATTERN.test(name));
+            const existing = new Set(prWithoutSizeOrProgress);
+            for (const label of sizeAndProgressFromIssue) {
+                if (!existing.has(label))
+                    existing.add(label);
+            }
+            const nextPrLabels = Array.from(existing);
+            await this.issueRepository.setLabels(param.owner, param.repo, prNumber, nextPrLabels, param.tokens.token);
+            (0, logger_1.logDebugInfo)(`Synced size/progress labels from issue #${param.issueNumber} to PR #${prNumber}: ${sizeAndProgressFromIssue.join(', ')}`);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [
+                    `Size and progress labels copied from issue #${param.issueNumber} to this PR.`,
+                ],
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [`Failed to sync size/progress labels from issue to PR.`],
+                errors: [error?.toString() ?? 'Unknown error'],
+            }));
+        }
+        return result;
+    }
+}
+exports.SyncSizeAndProgressLabelsFromIssueToPrUseCase = SyncSizeAndProgressLabelsFromIssueToPrUseCase;
 
 
 /***/ }),

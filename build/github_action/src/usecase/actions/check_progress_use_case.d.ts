@@ -5,6 +5,7 @@ export declare class CheckProgressUseCase implements ParamUseCase<Execution, Res
     taskId: string;
     private issueRepository;
     private branchRepository;
+    private pullRequestRepository;
     private aiRepository;
     invoke(param: Execution): Promise<Result[]>;
     /**

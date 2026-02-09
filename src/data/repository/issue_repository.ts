@@ -5,6 +5,9 @@ import { Labels } from "../model/labels";
 import { Milestone } from "../model/milestone";
 import { IssueTypes } from "../model/issue_types";
 
+/** Matches labels that are progress percentages (e.g. "0%", "85%"). Used for setProgressLabel and syncing. */
+export const PROGRESS_LABEL_PATTERN = /^\d+%$/;
+
 export class IssueRepository {
 
     updateTitleIssueFormat = async (
@@ -416,9 +419,6 @@ export class IssueRepository {
         return { created, existing, errors };
     };
 
-    /** Matches labels that are progress percentages (e.g. "0%", "85%"). */
-    private static readonly PROGRESS_LABEL_PATTERN = /^\d+%$/;
-
     /**
      * Sets the progress label on the issue: removes any existing percentage label and adds the new one.
      * Progress is rounded to the nearest 5 (0, 5, 10, ..., 100).
@@ -433,7 +433,7 @@ export class IssueRepository {
         const rounded = Math.min(100, Math.max(0, Math.round(progress / 5) * 5));
         const newLabel = `${rounded}%`;
         const current = await this.getLabels(owner, repository, issueNumber, token);
-        const withoutProgress = current.filter(name => !IssueRepository.PROGRESS_LABEL_PATTERN.test(name));
+        const withoutProgress = current.filter(name => !PROGRESS_LABEL_PATTERN.test(name));
         const hasNew = withoutProgress.includes(newLabel);
         const nextLabels = hasNew ? withoutProgress : [...withoutProgress, newLabel];
         await this.setLabels(owner, repository, issueNumber, nextLabels, token);

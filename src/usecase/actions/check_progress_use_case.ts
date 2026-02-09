@@ -3,8 +3,9 @@ import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
 import { logError, logInfo } from '../../utils/logger';
 import { ParamUseCase } from '../base/param_usecase';
-import { IssueRepository } from '../../data/repository/issue_repository';
+import { IssueRepository, PROGRESS_LABEL_PATTERN } from '../../data/repository/issue_repository';
 import { BranchRepository } from '../../data/repository/branch_repository';
+import { PullRequestRepository } from '../../data/repository/pull_request_repository';
 import { AiRepository, OPENCODE_AGENT_PLAN } from '../../data/repository/ai_repository';
 
 const PROGRESS_RESPONSE_SCHEMA = {
@@ -31,6 +32,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CheckProgressUseCase';
     private issueRepository: IssueRepository = new IssueRepository();
     private branchRepository: BranchRepository = new BranchRepository();
+    private pullRequestRepository: PullRequestRepository = new PullRequestRepository();
     private aiRepository: AiRepository = new AiRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
@@ -202,6 +204,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
+            const roundedProgress = Math.min(100, Math.max(0, Math.round(progress / 5) * 5));
             await this.issueRepository.setProgressLabel(
                 param.owner,
                 param.repo,
@@ -209,6 +212,34 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 progress,
                 param.tokens.token,
             );
+
+            const openPrNumbers = await this.pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(
+                param.owner,
+                param.repo,
+                branch,
+                param.tokens.token,
+            );
+            const newProgressLabel = `${roundedProgress}%`;
+            for (const prNumber of openPrNumbers) {
+                const prLabels = await this.issueRepository.getLabels(
+                    param.owner,
+                    param.repo,
+                    prNumber,
+                    param.tokens.token,
+                );
+                const withoutProgress = prLabels.filter((name) => !PROGRESS_LABEL_PATTERN.test(name));
+                const nextLabels = withoutProgress.includes(newProgressLabel)
+                    ? withoutProgress
+                    : [...withoutProgress, newProgressLabel];
+                await this.issueRepository.setLabels(
+                    param.owner,
+                    param.repo,
+                    prNumber,
+                    nextLabels,
+                    param.tokens.token,
+                );
+                logInfo(`Progress label set to ${newProgressLabel} on PR #${prNumber}.`);
+            }
 
             let summaryMessage = `**Analysis**:\n\n${summary}`;
             if (progress < 100 && remaining) {
