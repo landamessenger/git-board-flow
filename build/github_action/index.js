@@ -51391,22 +51391,19 @@ class UpdatePullRequestDescriptionUseCase {
 - **Head (source) branch:** \`${headBranch}\`
 
 **Instructions:**
-1. Read the pull request template file: \`.github/pull_request_template.md\`. Use its exact structure (headings, bullet lists, checkboxes, separators) as the skeleton for your output.
+1. Read the pull request template file: \`.github/pull_request_template.md\`. Use its structure (headings, bullet lists, separators) as the skeleton for your output. The checkboxes in the template are **indicative only**: you may check the ones that apply based on the project and the diff, define different or fewer checkboxes if that fits better, or omit a section entirely if it does not apply.
 2. Get the full diff by running: \`git diff ${baseBranch}..${headBranch}\` (or \`git diff ${baseBranch}...${headBranch}\` for merge-base). Use the diff to understand what changed.
 3. Use the issue description below for context and intent.
-4. Fill each section of the template with concrete content derived from the diff and the issue. Keep the same markdown structure as the template:
+4. Fill each section of the template with concrete content derived from the diff and the issue. Keep the same markdown structure (headings, horizontal rules). For checkbox sections (e.g. Test Coverage, Deployment Notes, Security): use the template's options as guidance; check or add only the items that apply, or skip the section if not relevant.
    - **Summary:** brief explanation of what the PR does and why (intent, not implementation details).
    - **Related Issues:** include \`Closes #${issueNumber}\` and "Related to #" only if relevant.
    - **Scope of Changes:** use Added / Updated / Removed / Refactored with short bullet points (high level, not file-by-file).
    - **Technical Details:** important decisions, trade-offs, or non-obvious aspects.
    - **How to Test:** steps a reviewer can follow (infer from the changes when possible).
-   - **Test Coverage:** check the appropriate checkboxes based on what the diff shows (e.g. new test files).
+   - **Test Coverage / Deployment / Security / Performance / Checklist:** treat checkboxes as indicative; check the ones that apply from the diff and project context, or omit the section if it does not apply.
    - **Breaking Changes:** list any, or "None".
-   - **Deployment Notes:** check the relevant boxes and add details if needed.
-   - **Security / Performance / Notes for Reviewers:** fill only if the diff or issue clearly implies something; otherwise keep a short placeholder or "N/A".
-   - **Checklist:** leave as in the template (author will confirm).
-   - **Additional Context:** optional links or follow-up; can be minimal.
-5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules, checkboxes \`- [ ]\` / \`- [x]\`).
+   - **Notes for Reviewers / Additional Context:** fill only if useful; otherwise a short placeholder or omit.
+5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules). Use checkboxes \`- [ ]\` / \`- [x]\` only where they add value; you may simplify or drop a section if it does not apply.
 
 **Issue description:**
 ${issueDescription}
