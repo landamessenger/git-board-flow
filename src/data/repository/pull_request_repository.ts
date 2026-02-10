@@ -338,10 +338,9 @@ export class PullRequestRepository {
     ): Promise<void> => {
         if (comments.length === 0) return;
         const octokit = github.getOctokit(token);
-        let created = 0;
-        for (const c of comments) {
-            try {
-                await octokit.rest.pulls.createReviewComment({
+        const results = await Promise.allSettled(
+            comments.map((c) =>
+                octokit.rest.pulls.createReviewComment({
                     owner,
                     repo: repository,
                     pull_number: pullNumber,
@@ -350,14 +349,20 @@ export class PullRequestRepository {
                     line: c.line,
                     side: 'RIGHT',
                     body: c.body,
-                });
+                })
+            )
+        );
+        let created = 0;
+        results.forEach((result, i) => {
+            if (result.status === 'fulfilled') {
                 created += 1;
-            } catch (err) {
+            } else {
+                const c = comments[i];
                 logError(
-                    `[Bugbot] Error creating PR review comment. path="${c.path}", line=${c.line}, prNumber=${pullNumber}, owner=${owner}, repo=${repository}: ${err}`
+                    `[Bugbot] Error creating PR review comment. path="${c.path}", line=${c.line}, prNumber=${pullNumber}, owner=${owner}, repo=${repository}: ${result.reason}`
                 );
             }
-        }
+        });
         if (created > 0) {
             logDebugInfo(`Created ${created} review comment(s) on PR #${pullNumber}.`);
         }

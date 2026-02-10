@@ -46872,25 +46872,26 @@ class PullRequestRepository {
             if (comments.length === 0)
                 return;
             const octokit = github.getOctokit(token);
+            const results = await Promise.allSettled(comments.map((c) => octokit.rest.pulls.createReviewComment({
+                owner,
+                repo: repository,
+                pull_number: pullNumber,
+                commit_id: commitId,
+                path: c.path,
+                line: c.line,
+                side: 'RIGHT',
+                body: c.body,
+            })));
             let created = 0;
-            for (const c of comments) {
-                try {
-                    await octokit.rest.pulls.createReviewComment({
-                        owner,
-                        repo: repository,
-                        pull_number: pullNumber,
-                        commit_id: commitId,
-                        path: c.path,
-                        line: c.line,
-                        side: 'RIGHT',
-                        body: c.body,
-                    });
+            results.forEach((result, i) => {
+                if (result.status === 'fulfilled') {
                     created += 1;
                 }
-                catch (err) {
-                    (0, logger_1.logError)(`[Bugbot] Error creating PR review comment. path="${c.path}", line=${c.line}, prNumber=${pullNumber}, owner=${owner}, repo=${repository}: ${err}`);
+                else {
+                    const c = comments[i];
+                    (0, logger_1.logError)(`[Bugbot] Error creating PR review comment. path="${c.path}", line=${c.line}, prNumber=${pullNumber}, owner=${owner}, repo=${repository}: ${result.reason}`);
                 }
-            }
+            });
             if (created > 0) {
                 (0, logger_1.logDebugInfo)(`Created ${created} review comment(s) on PR #${pullNumber}.`);
             }
