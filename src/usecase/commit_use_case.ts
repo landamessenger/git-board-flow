@@ -25,8 +25,8 @@ export class CommitUseCase implements ParamUseCase<Execution, Result[]> {
             logDebugInfo(`Issue number: ${param.issueNumber}`);
 
             results.push(...(await new NotifyNewCommitOnIssueUseCase().invoke(param)));
-            // results.push(...(await new CheckChangesIssueSizeUseCase().invoke(param)));
-            // results.push(...(await new CheckProgressUseCase().invoke(param)));
+            results.push(...(await new CheckChangesIssueSizeUseCase().invoke(param)));
+            results.push(...(await new CheckProgressUseCase().invoke(param)));
             results.push(...(await new DetectPotentialProblemsUseCase().invoke(param)));
         } catch (error) {
             logError(error);

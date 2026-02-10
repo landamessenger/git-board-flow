@@ -48155,7 +48155,9 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommitUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const check_progress_use_case_1 = __nccwpck_require__(7744);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(8020);
+const check_changes_issue_size_use_case_1 = __nccwpck_require__(5863);
 const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class CommitUseCase {
     constructor() {
@@ -48173,8 +48175,8 @@ class CommitUseCase {
             (0, logger_1.logDebugInfo)(`Commits detected: ${param.commit.commits.length}`);
             (0, logger_1.logDebugInfo)(`Issue number: ${param.issueNumber}`);
             results.push(...(await new notify_new_commit_on_issue_use_case_1.NotifyNewCommitOnIssueUseCase().invoke(param)));
-            // results.push(...(await new CheckChangesIssueSizeUseCase().invoke(param)));
-            // results.push(...(await new CheckProgressUseCase().invoke(param)));
+            results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
+            results.push(...(await new check_progress_use_case_1.CheckProgressUseCase().invoke(param)));
             results.push(...(await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param)));
         }
         catch (error) {
@@ -49064,6 +49066,101 @@ function severityLevel(severity) {
 function meetsMinSeverity(findingSeverity, minSeverity) {
     return severityLevel(findingSeverity) >= SEVERITY_ORDER[minSeverity];
 }
+
+
+/***/ }),
+
+/***/ 5863:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CheckChangesIssueSizeUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const branch_repository_1 = __nccwpck_require__(7701);
+const issue_repository_1 = __nccwpck_require__(57);
+const project_repository_1 = __nccwpck_require__(7917);
+const pull_request_repository_1 = __nccwpck_require__(634);
+const logger_1 = __nccwpck_require__(8836);
+class CheckChangesIssueSizeUseCase {
+    constructor() {
+        this.taskId = 'CheckChangesIssueSizeUseCase';
+        this.branchRepository = new branch_repository_1.BranchRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
+        this.projectRepository = new project_repository_1.ProjectRepository();
+        this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const result = [];
+        try {
+            if (param.currentConfiguration.parentBranch === undefined) {
+                (0, logger_1.logDebugInfo)(`Parent branch is undefined.`);
+                return result;
+            }
+            const headBranch = param.commit.branch;
+            const baseBranch = param.currentConfiguration.parentBranch;
+            const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.token);
+            (0, logger_1.logDebugInfo)(`Size: ${size}`);
+            (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
+            (0, logger_1.logDebugInfo)(`Reason: ${reason}`);
+            (0, logger_1.logDebugInfo)(`Labels: ${param.labels.sizedLabelOnIssue}`);
+            if (param.labels.sizedLabelOnIssue !== size) {
+                const labelNames = param.labels.currentIssueLabels.filter((name) => param.labels.sizeLabels.indexOf(name) === -1);
+                labelNames.push(size);
+                await this.issueRepository.setLabels(param.owner, param.repo, param.issueNumber, labelNames, param.tokens.token);
+                for (const project of param.project.getProjects()) {
+                    await this.projectRepository.setTaskSize(project, param.owner, param.repo, param.issueNumber, githubSize, param.tokens.token);
+                }
+                const openPrNumbers = await this.pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(param.owner, param.repo, headBranch, param.tokens.token);
+                for (const prNumber of openPrNumbers) {
+                    const prLabels = await this.issueRepository.getLabels(param.owner, param.repo, prNumber, param.tokens.token);
+                    const prLabelNames = prLabels.filter((name) => param.labels.sizeLabels.indexOf(name) === -1);
+                    prLabelNames.push(size);
+                    await this.issueRepository.setLabels(param.owner, param.repo, prNumber, prLabelNames, param.tokens.token);
+                    for (const project of param.project.getProjects()) {
+                        await this.projectRepository.setTaskSize(project, param.owner, param.repo, prNumber, githubSize, param.tokens.token);
+                    }
+                    (0, logger_1.logDebugInfo)(`Updated size label on PR #${prNumber} to ${size}.`);
+                }
+                (0, logger_1.logDebugInfo)(`Updated labels on issue #${param.issueNumber}:`);
+                (0, logger_1.logDebugInfo)(`Labels: ${labelNames}`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `${reason}, so the issue was resized to ${size}.` +
+                            (openPrNumbers.length > 0 ? ` Same label applied to ${openPrNumbers.length} open PR(s).` : ''),
+                    ],
+                }));
+            }
+            else {
+                (0, logger_1.logDebugInfo)(`The issue is already at the correct size.`);
+                result.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                }));
+            }
+        }
+        catch (error) {
+            (0, logger_1.logError)(error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                steps: [
+                    `Tried to check the size of the changes, but there was a problem.`,
+                ],
+                errors: [error?.toString() ?? 'Unknown error'],
+            }));
+        }
+        return result;
+    }
+}
+exports.CheckChangesIssueSizeUseCase = CheckChangesIssueSizeUseCase;
 
 
 /***/ }),
