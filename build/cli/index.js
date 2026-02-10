@@ -52692,28 +52692,47 @@ class DeployedActionUseCase {
                     `Label \`${param.labels.deployed}\` added after a success deploy.`,
                 ],
             }));
+            const mergeResults = [];
             if (param.currentConfiguration.releaseBranch) {
                 const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDefaultResult);
+                mergeResults.push(...mergeToDefaultResult);
                 const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDevelopResult);
+                mergeResults.push(...mergeToDevelopResult);
             }
             else if (param.currentConfiguration.hotfixBranch) {
                 const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.hotfixBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDefaultResult);
+                mergeResults.push(...mergeToDefaultResult);
                 const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDevelopResult);
+                mergeResults.push(...mergeToDevelopResult);
             }
-            const issueNumber = Number(param.singleAction.issue);
-            const closed = await this.issueRepository.closeIssue(param.owner, param.repo, issueNumber, param.tokens.token);
-            if (closed) {
-                (0, logger_1.logDebugInfo)(`Issue #${issueNumber} closed after merges to default and develop.`);
+            const allMergesSucceeded = mergeResults.length === 0 || mergeResults.every((r) => r.success);
+            if (allMergesSucceeded) {
+                const issueNumber = Number(param.singleAction.issue);
+                const closed = await this.issueRepository.closeIssue(param.owner, param.repo, issueNumber, param.tokens.token);
+                if (closed) {
+                    (0, logger_1.logDebugInfo)(`Issue #${issueNumber} closed after merges to default and develop.`);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Issue #${issueNumber} closed after merge to \`${param.branches.defaultBranch}\` and \`${param.branches.development}\`.`,
+                        ],
+                    }));
+                }
+            }
+            else {
+                (0, logger_1.logDebugInfo)(`Skipping issue close: one or more merges failed. Issue #${param.singleAction.issue} remains open.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
-                    success: true,
+                    success: false,
                     executed: true,
                     steps: [
-                        `Issue #${issueNumber} closed after merge to \`${param.branches.defaultBranch}\` and \`${param.branches.development}\`.`,
+                        `Issue #${param.singleAction.issue} was not closed because one or more merge operations failed.`,
                     ],
                 }));
             }
