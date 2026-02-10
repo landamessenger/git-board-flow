@@ -20,13 +20,16 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
 
         const result: Result[] = [];
         try {
-            if (param.currentConfiguration.parentBranch === undefined) {
-                logDebugInfo(`Parent branch is undefined.`);
+            const baseBranch =
+                param.currentConfiguration.parentBranch ??
+                param.branches.development ??
+                'develop';
+            if (!baseBranch) {
+                logDebugInfo(`Parent branch could not be determined.`);
                 return result;
             }
 
             const headBranch = param.commit.branch;
-            const baseBranch = param.currentConfiguration.parentBranch;
 
             const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(
                 param.owner,

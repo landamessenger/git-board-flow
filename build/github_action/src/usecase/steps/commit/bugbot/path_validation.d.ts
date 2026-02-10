@@ -15,8 +15,9 @@ export declare function isAllowedPathForPr(path: string | undefined, prFiles: Ar
     filename: string;
 }>): boolean;
 /**
- * Resolves the file path to use for a PR review comment: finding.file if valid and in prFiles,
- * otherwise the first PR file as fallback.
+ * Resolves the file path to use for a PR review comment: finding.file if valid and in prFiles.
+ * Returns undefined when the finding's file is not in the PR so we do not attach the comment
+ * to the wrong file (e.g. the first file in the list).
  */
 export declare function resolveFindingPathForPr(findingFile: string | undefined, prFiles: Array<{
     filename: string;

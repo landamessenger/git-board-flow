@@ -63,13 +63,29 @@ describe('CheckChangesIssueSizeUseCase', () => {
     mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([]);
   });
 
-  it('returns empty result when parentBranch is undefined', async () => {
-    const param = baseParam({ currentConfiguration: { parentBranch: undefined } });
+  it('uses branches.development or "develop" as base when parentBranch is undefined', async () => {
+    mockGetSizeCategoryAndReason.mockResolvedValue({
+      size: 'size: M',
+      githubSize: 'M',
+      reason: 'Within limits',
+    });
+    const param = baseParam({
+      currentConfiguration: { parentBranch: undefined },
+      branches: { development: 'develop' },
+    } as Record<string, unknown>);
 
     const results = await useCase.invoke(param);
 
-    expect(results).toHaveLength(0);
-    expect(mockGetSizeCategoryAndReason).not.toHaveBeenCalled();
+    expect(mockGetSizeCategoryAndReason).toHaveBeenCalledWith(
+      'o',
+      'r',
+      'feature/42-foo',
+      'develop',
+      expect.anything(),
+      expect.anything(),
+      't'
+    );
+    expect(results.length).toBeGreaterThan(0);
   });
 
   it('returns success executed true when size equals sizedLabelOnIssue (no change)', async () => {

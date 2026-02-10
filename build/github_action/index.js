@@ -42996,6 +42996,9 @@ class Execution {
             else {
                 this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch;
             }
+            if (this.currentConfiguration.parentBranch === undefined && this.previousConfiguration?.parentBranch != null) {
+                this.currentConfiguration.parentBranch = this.previousConfiguration.parentBranch;
+            }
             if (this.isSingleAction) {
                 /**
                  * Nothing to do here (for now)
@@ -47264,12 +47267,46 @@ exports.ConfigurationHandler = void 0;
 const config_1 = __nccwpck_require__(1106);
 const logger_1 = __nccwpck_require__(8836);
 const issue_content_interface_1 = __nccwpck_require__(9913);
+/** Keys that must be preserved from stored config when current has undefined (e.g. when branch already existed). */
+const CONFIG_KEYS_TO_PRESERVE = [
+    'parentBranch',
+    'workingBranch',
+    'releaseBranch',
+    'hotfixBranch',
+    'hotfixOriginBranch',
+    'branchType',
+];
 class ConfigurationHandler extends issue_content_interface_1.IssueContentInterface {
     constructor() {
         super(...arguments);
         this.update = async (execution) => {
             try {
-                return await this.internalUpdate(execution, JSON.stringify(execution.currentConfiguration, null, 4));
+                const current = execution.currentConfiguration;
+                let payload = {
+                    branchType: current.branchType,
+                    releaseBranch: current.releaseBranch,
+                    workingBranch: current.workingBranch,
+                    parentBranch: current.parentBranch,
+                    hotfixOriginBranch: current.hotfixOriginBranch,
+                    hotfixBranch: current.hotfixBranch,
+                    results: current.results,
+                    branchConfiguration: current.branchConfiguration,
+                };
+                const storedRaw = await this.internalGetter(execution);
+                if (storedRaw != null && storedRaw.trim().length > 0) {
+                    try {
+                        const stored = JSON.parse(storedRaw);
+                        for (const key of CONFIG_KEYS_TO_PRESERVE) {
+                            if (payload[key] === undefined && stored[key] !== undefined) {
+                                payload[key] = stored[key];
+                            }
+                        }
+                    }
+                    catch {
+                        /* ignore parse errors, save current as-is */
+                    }
+                }
+                return await this.internalUpdate(execution, JSON.stringify(payload, null, 4));
             }
             catch (error) {
                 (0, logger_1.logError)(`Error updating issue description: ${error}`);
@@ -49028,15 +49065,16 @@ function isAllowedPathForPr(path, prFiles) {
     return prFiles.some((f) => f.filename === normalized);
 }
 /**
- * Resolves the file path to use for a PR review comment: finding.file if valid and in prFiles,
- * otherwise the first PR file as fallback.
+ * Resolves the file path to use for a PR review comment: finding.file if valid and in prFiles.
+ * Returns undefined when the finding's file is not in the PR so we do not attach the comment
+ * to the wrong file (e.g. the first file in the list).
  */
 function resolveFindingPathForPr(findingFile, prFiles) {
     if (prFiles.length === 0)
         return undefined;
     if (isAllowedPathForPr(findingFile, prFiles))
         return findingFile.trim();
-    return prFiles[0]?.filename;
+    return undefined;
 }
 
 
@@ -49084,7 +49122,7 @@ async function publishFindings(param) {
         if (prContext && openPrNumbers.length > 0) {
             const path = (0, path_validation_1.resolveFindingPathForPr)(finding.file, prFiles);
             if (path) {
-                const line = pathToFirstDiffLine[path] ?? finding.line ?? 1;
+                const line = finding.line ?? pathToFirstDiffLine[path] ?? 1;
                 if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
                     await pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
                 }
@@ -49215,12 +49253,14 @@ class CheckChangesIssueSizeUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            if (param.currentConfiguration.parentBranch === undefined) {
-                (0, logger_1.logDebugInfo)(`Parent branch is undefined.`);
+            const baseBranch = param.currentConfiguration.parentBranch ??
+                param.branches.development ??
+                'develop';
+            if (!baseBranch) {
+                (0, logger_1.logDebugInfo)(`Parent branch could not be determined.`);
                 return result;
             }
             const headBranch = param.commit.branch;
-            const baseBranch = param.currentConfiguration.parentBranch;
             const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.token);
             (0, logger_1.logDebugInfo)(`Size: ${size}`);
             (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);

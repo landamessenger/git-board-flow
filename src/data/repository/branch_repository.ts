@@ -153,8 +153,8 @@ export class BranchRepository {
                         success: true,
                         executed: false,
                     })
-                )
-                return result
+                );
+                return result;
             }
 
             const branchTypes = [
