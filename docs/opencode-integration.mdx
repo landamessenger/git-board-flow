@@ -198,8 +198,8 @@ For the `copilot` command:
 - **Think / reasoning** – Deep code analysis and change proposals (OpenCode Plan agent).
 - **Comment translation** – Automatically translates issue and PR review comments to the configured locale (e.g. English, Spanish) when they are written in another language. Uses `issues-locale` and `pull-requests-locale` inputs.
 - **Check progress** – Progress detection from branch vs issue description (OpenCode Plan agent).
+- **Bugbot (potential problems)** – Analyzes branch vs base and posts findings as **comments on the issue** and **review comments on the PR**; updates issue comments and marks PR review threads as resolved when the model reports fixes. Runs on push or via single action / CLI. Configure with `bugbot-severity` (minimum severity: `info`, `low`, `medium`, `high`) and `ai-ignore-files` (paths to exclude).
 - **Copilot** – Code analysis and manipulation agent (OpenCode Build agent).
-- **Error detection** – Potential bugs and issues in the codebase (OpenCode Plan agent).
 - **Recommend steps** – Suggests implementation steps from the issue description (OpenCode Plan agent).
 
 All of these use the same OpenCode server and model configuration.
@@ -230,6 +230,18 @@ You can also run progress check **on demand** with `single-action: check_progres
 3. **AI analysis (OpenCode)** – The **OpenCode Plan agent** compares what was requested in the issue vs what is in the diff and returns `progress` (0–100) and `summary`.
 
 4. **Result** – The progress label is set on the issue (and on any open PRs for that branch). When run from a workflow, **PublishResultUseCase** posts a comment on the issue with the percentage and summary.
+
+## How Bugbot works (potential problems)
+
+Bugbot runs when the **push (commit) workflow** runs, or on demand via **single action** `detect_potential_problems_action` (with `single-action-issue`) or the CLI **`detect-potential-problems -i <issue>`**.
+
+1. **Trigger** – Push to a branch linked to an issue, or a workflow/CLI run with the single action and issue number.
+2. **Analysis** – OpenCode Plan compares the branch diff vs the base and returns a list of findings (title, severity, file, line, description). It also receives previously reported findings (from issue and PR comments) and can mark some as resolved.
+3. **Issue** – New findings are posted as **comments on the issue**; when a finding is resolved, the corresponding comment is updated (e.g. "Resolved").
+4. **Pull request** – For each finding, the action posts a **review comment** on the PR at the right file/line. When OpenCode reports a finding as resolved, the action **marks that review thread as resolved**.
+5. **Config** – Use `bugbot-severity` (e.g. `medium`) so only findings at or above that severity are posted; use `ai-ignore-files` to exclude paths from analysis and reporting.
+
+See [Issues → Bugbot](/issues#bugbot-potential-problems) and [Pull Requests → Bugbot](/pull-requests#bugbot-potential-problems) for more.
 
 ## Can we avoid `opencode-server-url` and use a "master" OpenCode server?
 

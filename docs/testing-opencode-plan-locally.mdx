@@ -58,9 +58,9 @@ Options:
 - `--opencode-model <model>` – Override model (e.g. `opencode/kimi-k2.5-free`, `anthropic/claude-3-5-sonnet`)
 - `-d, --debug` – Verbose logs
 
-### Detect potential problems (bugbot)
+### Detect potential problems (Bugbot)
 
-Detects potential problems in the branch vs base; reports on the issue and open PR, and can mark previously reported issues as resolved:
+Analyzes the branch vs base and reports findings as **comments on the issue** and **review comments on open PRs**; updates issue comments and marks PR review threads as resolved when findings are fixed.
 
 ```bash
 node build/cli/index.js detect-potential-problems -i <issue-number> -t <PAT>

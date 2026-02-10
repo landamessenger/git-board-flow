@@ -227,6 +227,7 @@ export const INPUT_KEYS = {
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',
     AI_INCLUDE_REASONING: 'ai-include-reasoning',
+    BUGBOT_SEVERITY: 'bugbot-severity',
 
     // Projects
     PROJECT_IDS: 'project-ids',
@@ -400,6 +401,12 @@ export const ACTIONS = {
 
 /** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
 export const BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+
+/** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
+export const BUGBOT_MAX_COMMENTS = 20;
+
+/** Minimum severity to publish (findings below this are dropped). Order: high > medium > low > info. */
+export const BUGBOT_MIN_SEVERITY: 'info' | 'low' | 'medium' | 'high' = 'low';
 
 export const PROMPTS = {
 } as const; 

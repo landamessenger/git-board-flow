@@ -46,6 +46,10 @@ jobs:
 | **AI-generated PR description** | When enabled, generates or updates the PR description using OpenCode and your repo's PR template. See [AI PR description](/pull-requests/ai-description). |
 | **Comments & images** | Posts a comment with optional images per branch type (feature, bugfix, docs, chore, hotfix, release). |
 
+## Bugbot (potential problems) {#bugbot-potential-problems}
+
+When the **push** workflow runs (or the single action `detect_potential_problems_action`), OpenCode analyzes the branch vs the base and posts **review comments** on the PR at the relevant file and line for each finding (potential bugs, risks, or improvements). When OpenCode later reports a finding as resolved (e.g. after code changes), the action **marks that review thread as resolved**, so the PR review reflects the current status. Findings are also summarized as **comments on the linked issue**; see [Issues → Bugbot](/issues#bugbot-potential-problems). Configure minimum severity with `bugbot-severity` and excluded paths with `ai-ignore-files` in [Configuration](/configuration).
+
 ## Next steps
 
 - **[Configuration](/pull-requests/configuration)** — PR-specific inputs (reviewers, columns, images, AI).

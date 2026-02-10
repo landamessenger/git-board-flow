@@ -11,6 +11,7 @@
 All AI features use **OpenCode** (75+ LLM providers: OpenAI, Anthropic, Gemini, local models, etc.):
 
 - **Progress detection** — On every push, analyzes branch vs issue and updates the progress label on the issue and on any open PRs for that branch. You can also run it on demand via single action or CLI (`check-progress`).
+- **Bugbot (potential problems)** — On every push (or on demand via single action / CLI `detect-potential-problems`), OpenCode analyzes the branch vs base and reports findings as **comments on the issue** and **review comments on open PRs**; it updates or marks them as resolved when findings are fixed.
 - **Think / reasoning** — Deep code analysis and change proposals (`think_action`).
 - **AI PR description** — Generates or updates pull request descriptions by filling your `.github/pull_request_template.md` from the issue and branch diff.
 
@@ -83,7 +84,7 @@ jobs:
 
 ### Commit (push) workflow
 
-This workflow runs on every push. It notifies the issue of new commits, updates **size** and **progress** labels on the issue and on any open PRs for that branch (progress requires OpenCode). No separate "check progress" workflow is needed.
+This workflow runs on every push. It notifies the issue of new commits, updates **size** and **progress** labels on the issue and on any open PRs for that branch (progress requires OpenCode), and can run **Bugbot** to report potential problems as issue and PR comments (OpenCode). No separate "check progress" workflow is needed.
 
 ```yaml
 name: Git Board Flow - Commit

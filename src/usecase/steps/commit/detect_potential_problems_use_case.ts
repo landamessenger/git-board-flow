@@ -4,10 +4,14 @@ import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../data/repository/ai_r
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
 import { buildBugbotPrompt } from "./bugbot/build_bugbot_prompt";
+import { deduplicateFindings } from "./bugbot/deduplicate_findings";
+import { fileMatchesIgnorePatterns } from "./bugbot/file_ignore";
+import { applyCommentLimit } from "./bugbot/limit_comments";
 import { loadBugbotContext } from "./bugbot/load_bugbot_context_use_case";
 import { markFindingsResolved } from "./bugbot/mark_findings_resolved_use_case";
 import { publishFindings } from "./bugbot/publish_findings_use_case";
 import { BUGBOT_RESPONSE_SCHEMA } from "./bugbot/schema";
+import { meetsMinSeverity, normalizeMinSeverity } from "./bugbot/severity";
 import { sanitizeFindingIdForMarker } from "./bugbot/marker";
 import type { BugbotFinding } from "./bugbot/types";
 
@@ -48,13 +52,21 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
             }
 
             const payload = response as { findings?: BugbotFinding[]; resolved_finding_ids?: string[] };
-            const findings = Array.isArray(payload.findings) ? payload.findings : [];
+            let findings = Array.isArray(payload.findings) ? payload.findings : [];
             const resolvedFindingIdsRaw = Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : [];
             const resolvedFindingIds = new Set(resolvedFindingIdsRaw);
             const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(sanitizeFindingIdForMarker));
 
-            if (findings.length === 0 && resolvedFindingIds.size === 0) {
-                logDebugInfo('OpenCode returned no new findings and no resolved ids.');
+            const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
+            const minSeverity = normalizeMinSeverity(param.ai?.getBugbotMinSeverity?.());
+            findings = findings.filter((f) => !fileMatchesIgnorePatterns(f.file, ignorePatterns));
+            findings = findings.filter((f) => meetsMinSeverity(f.severity, minSeverity));
+            findings = deduplicateFindings(findings);
+
+            const { toPublish, overflowCount, overflowTitles } = applyCommentLimit(findings);
+
+            if (toPublish.length === 0 && resolvedFindingIds.size === 0) {
+                logDebugInfo('OpenCode returned no new findings (after filters) and no resolved ids.');
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -76,10 +88,15 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
             await publishFindings({
                 execution: param,
                 context,
-                findings,
+                findings: toPublish,
+                overflowCount: overflowCount > 0 ? overflowCount : undefined,
+                overflowTitles: overflowCount > 0 ? overflowTitles : undefined,
             });
 
-            const stepParts = [`${findings.length} new/current finding(s) from OpenCode`];
+            const stepParts = [`${toPublish.length} new/current finding(s) from OpenCode`];
+            if (overflowCount > 0) {
+                stepParts.push(`${overflowCount} more not published (see summary comment)`);
+            }
             if (resolvedFindingIds.size > 0) {
                 stepParts.push(`${resolvedFindingIds.size} marked as resolved by OpenCode`);
             }

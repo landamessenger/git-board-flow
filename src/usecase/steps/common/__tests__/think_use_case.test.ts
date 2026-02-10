@@ -26,7 +26,7 @@ function baseParam(overrides: Record<string, unknown> = {}) {
     issueNumber: 1,
     tokenUser: 'bot',
     tokens: { token: 't' },
-    ai: new Ai('https://opencode.example.com', 'model-x', false, false, [], false),
+    ai: new Ai('https://opencode.example.com', 'model-x', false, false, [], false, 'low'),
     labels: { isQuestion: false, isHelp: false },
     issue: {
       isIssueComment: true,
@@ -130,7 +130,7 @@ describe('ThinkUseCase', () => {
 
   it('returns error when OpenCode model is empty', async () => {
     const param = baseParam({
-      ai: new Ai('https://server', '', false, false, [], false),
+      ai: new Ai('https://server', '', false, false, [], false, 'low'),
       issue: { ...baseParam().issue, commentBody: '@bot hi' },
     });
 
@@ -144,7 +144,7 @@ describe('ThinkUseCase', () => {
 
   it('returns error when OpenCode server URL is empty', async () => {
     const param = baseParam({
-      ai: new Ai('', 'model', false, false, [], false),
+      ai: new Ai('', 'model', false, false, [], false, 'low'),
       issue: { ...baseParam().issue, commentBody: '@bot hi' },
     });
 

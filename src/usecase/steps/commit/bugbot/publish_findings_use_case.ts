@@ -10,6 +10,9 @@ export interface PublishFindingsParam {
     execution: Execution;
     context: BugbotContext;
     findings: BugbotFinding[];
+    /** When findings were limited by max comments, add one summary comment with this overflow info. */
+    overflowCount?: number;
+    overflowTitles?: string[];
 }
 
 /**
@@ -17,7 +20,7 @@ export interface PublishFindingsParam {
  * creates or updates PR review comments (or creates new ones).
  */
 export async function publishFindings(param: PublishFindingsParam): Promise<void> {
-    const { execution, context, findings } = param;
+    const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
     const { existingByFindingId, openPrNumbers, prContext } = context;
     const issueNumber = execution.issueNumber;
     const token = execution.tokens.token;
@@ -78,5 +81,17 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
             prCommentsToCreate,
             token
         );
+    }
+
+    if (overflowCount > 0) {
+        const titlesList =
+            overflowTitles.length > 0
+                ? '\n- ' + overflowTitles.slice(0, 15).join('\n- ') + (overflowTitles.length > 15 ? `\n- ... y ${overflowTitles.length - 15} más` : '')
+                : '';
+        const overflowBody = `## Más hallazgos (límite de comentarios)
+
+Hay **${overflowCount}** hallazgo(s) más que no se han publicado como comentarios individuales. Revisa en local o en el diff completo para ver el listado.${titlesList}`;
+        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
+        logDebugInfo(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
     }
 }

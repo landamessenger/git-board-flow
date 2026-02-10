@@ -2,7 +2,27 @@ import type { Execution } from "../../../../data/model/execution";
 import { IssueRepository } from "../../../../data/repository/issue_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";
 import type { BugbotContext, ExistingByFindingId } from "./types";
-import { extractTitleFromBody, parseMarker } from "./marker";
+import { parseMarker } from "./marker";
+
+function buildPreviousFindingsBlock(previousFindings: Array<{ id: string; fullBody: string }>): string {
+    if (previousFindings.length === 0) return '';
+    const items = previousFindings
+        .map(
+            (p) =>
+                `---\n**Finding id (use this exact id in resolved_finding_ids if resolved/no longer applies):** \`${p.id.replace(/`/g, '\\`')}\`\n\n**Full comment as posted (including metadata at the end):**\n${p.fullBody}\n`
+        )
+        .join('\n');
+    return `
+**Previously reported issues (not yet marked resolved).** For each one we show the exact comment we posted (title, description, location, suggestion, and a hidden marker with the finding id at the end).
+
+${items}
+**Your task 2:** For each finding above, analyze the current code and decide:
+- If the problem **still exists** (same code or same issue present): do **not** include its id in \`resolved_finding_ids\`.
+- If the problem **no longer applies** (e.g. that code was removed or refactored away): include its id in \`resolved_finding_ids\`.
+- If the problem **has been fixed** (code was changed and the issue is resolved): include its id in \`resolved_finding_ids\`.
+
+Return in \`resolved_finding_ids\` only the ids from the list above that are now fixed or no longer apply. Use the exact id shown in each "Finding id" line.`;
+}
 
 /**
  * Loads all context needed for bugbot: existing findings from issue + PR comments,
@@ -39,6 +59,8 @@ export async function loadBugbotContext(param: Execution): Promise<BugbotContext
         token
     );
 
+    /** Full comment body per finding id (from PR when we don't have issue comment). */
+    const prFindingIdToBody: Record<string, string> = {};
     for (const prNumber of openPrNumbers) {
         const prComments = await pullRequestRepository.listPullRequestReviewComments(
             owner,
@@ -47,33 +69,31 @@ export async function loadBugbotContext(param: Execution): Promise<BugbotContext
             token
         );
         for (const c of prComments) {
-            for (const { findingId, resolved } of parseMarker(c.body)) {
+            const body = c.body ?? '';
+            for (const { findingId, resolved } of parseMarker(body)) {
                 if (!existingByFindingId[findingId]) {
                     existingByFindingId[findingId] = { resolved };
                 }
                 existingByFindingId[findingId].prCommentId = c.id;
                 existingByFindingId[findingId].prNumber = prNumber;
                 existingByFindingId[findingId].resolved = resolved;
+                prFindingIdToBody[findingId] = body;
             }
         }
     }
 
-    const previousFindingsForPrompt: Array<{ id: string; title: string }> = [];
+    /** Unresolved findings with full comment body (including hidden marker) for OpenCode to re-evaluate. */
+    const previousFindingsForPrompt: Array<{ id: string; fullBody: string }> = [];
     for (const [findingId, data] of Object.entries(existingByFindingId)) {
         if (data.resolved) continue;
-        const comment = issueComments.find((c) => c.id === data.issueCommentId);
-        const title = extractTitleFromBody(comment?.body ?? null) || findingId;
-        previousFindingsForPrompt.push({ id: findingId, title });
+        const issueBody = issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
+        const fullBody = (issueBody ?? prFindingIdToBody[findingId] ?? '').trim();
+        if (fullBody) {
+            previousFindingsForPrompt.push({ id: findingId, fullBody });
+        }
     }
 
-    const previousFindingsBlock =
-        previousFindingsForPrompt.length > 0
-            ? `
-**Previously reported issues (from our comments, not yet marked resolved):**
-${previousFindingsForPrompt.map((p) => `- id: "${p.id.replace(/"/g, '\\"')}" title: ${JSON.stringify(p.title)}`).join('\n')}
-
-After analyzing the current code, return in \`resolved_finding_ids\` the ids of the above that are now fixed (the problem is no longer present). Only include ids from this list.`
-            : '';
+    const previousFindingsBlock = buildPreviousFindingsBlock(previousFindingsForPrompt);
 
     let prContext: BugbotContext['prContext'] = null;
     if (openPrNumbers.length > 0) {

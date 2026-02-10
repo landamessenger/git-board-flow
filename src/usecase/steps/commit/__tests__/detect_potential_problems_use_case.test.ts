@@ -63,7 +63,7 @@ function baseParam(overrides: Record<string, unknown> = {}): Execution {
     commit: { branch: 'feature/42-add-feature' },
     currentConfiguration: { parentBranch: 'develop' },
     branches: { development: 'develop' },
-    ai: new Ai('http://localhost:4096', 'opencode/model', false, false, [], false),
+    ai: new Ai('http://localhost:4096', 'opencode/model', false, false, [], false, 'low'),
     ...overrides,
   } as unknown as Execution;
 }
@@ -93,7 +93,7 @@ describe('DetectPotentialProblemsUseCase', () => {
 
   it('returns empty results when OpenCode is not configured (no server URL)', async () => {
     const param = baseParam({
-      ai: new Ai('', 'opencode/model', false, false, [], false),
+      ai: new Ai('', 'opencode/model', false, false, [], false, 'low'),
     });
 
     const results = await useCase.invoke(param);
@@ -105,7 +105,7 @@ describe('DetectPotentialProblemsUseCase', () => {
 
   it('returns empty results when OpenCode is not configured (no model)', async () => {
     const param = baseParam({
-      ai: new Ai('http://localhost:4096', '', false, false, [], false),
+      ai: new Ai('http://localhost:4096', '', false, false, [], false, 'low'),
     });
 
     const results = await useCase.invoke(param);

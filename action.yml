@@ -411,6 +411,9 @@ inputs:
   ai-include-reasoning:
     description: "Include reasoning or chain-of-thought in AI responses when supported by the model."
     default: "true"
+  bugbot-severity:
+    description: "Minimum severity for potential-problem detections to be published (info, low, medium, high). Findings below this are not posted as comments."
+    default: "low"
 runs:
   using: "node20"
   main: "build/github_action/index.js"

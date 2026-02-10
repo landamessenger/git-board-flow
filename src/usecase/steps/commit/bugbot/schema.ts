@@ -12,7 +12,7 @@ export const BUGBOT_RESPONSE_SCHEMA = {
                     description: { type: 'string', description: 'Clear explanation of the issue' },
                     file: { type: 'string', description: 'Repository-relative path when applicable' },
                     line: { type: 'number', description: 'Line number when applicable' },
-                    severity: { type: 'string', description: 'e.g. high, medium, low' },
+                    severity: { type: 'string', description: 'Severity: high, medium, low, or info. Findings below the configured minimum are not published.' },
                     suggestion: { type: 'string', description: 'Suggested fix when applicable' },
                 },
                 required: ['id', 'title', 'description'],

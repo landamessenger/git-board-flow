@@ -191,7 +191,7 @@ program
     }
 
     try {
-      const ai = new Ai(serverUrl, model, false, false, [], false);
+      const ai = new Ai(serverUrl, model, false, false, [], false, 'low');
       const aiRepository = new AiRepository();
       const result = await aiRepository.copilotMessage(ai, prompt);
 
