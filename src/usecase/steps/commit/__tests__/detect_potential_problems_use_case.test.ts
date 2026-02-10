@@ -392,7 +392,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     expect(mockAddComment).toHaveBeenCalledTimes(1);
   });
 
-  it('when finding has no file/line, PR comment uses first changed file and line 1', async () => {
+  it('when finding has no file/line, no PR review comment is created (only issue comment)', async () => {
     mockAskAgent.mockResolvedValue({
       findings: [{ id: 'no-loc', title: 'General issue', description: 'No location.' }],
     });
@@ -403,19 +403,8 @@ describe('DetectPotentialProblemsUseCase', () => {
 
     await useCase.invoke(baseParam());
 
-    expect(mockCreateReviewWithComments).toHaveBeenCalledWith(
-      'owner',
-      'repo',
-      200,
-      'sha1',
-      expect.arrayContaining([
-        expect.objectContaining({
-          path: 'lib/helper.ts',
-          line: 1,
-        }),
-      ]),
-      'token'
-    );
+    expect(mockAddComment).toHaveBeenCalledWith('owner', 'repo', 42, expect.any(String), 'token');
+    expect(mockCreateReviewWithComments).not.toHaveBeenCalled();
   });
 
   it('when existing finding has prCommentId for same PR, updates review comment instead of creating', async () => {
@@ -423,6 +412,8 @@ describe('DetectPotentialProblemsUseCase', () => {
       id: 'same-pr-finding',
       title: 'Same',
       description: 'Desc',
+      file: 'x.ts',
+      line: 1,
     };
     mockListIssueComments.mockResolvedValue([]);
     mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([60]);

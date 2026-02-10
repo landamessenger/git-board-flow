@@ -79,17 +79,17 @@ describe('path_validation', () => {
             expect(resolveFindingPathForPr('lib/bar.ts', prFiles)).toBe('lib/bar.ts');
         });
 
-        it('returns first PR file when finding file is invalid', () => {
-            expect(resolveFindingPathForPr('../../../etc/passwd', prFiles)).toBe('src/foo.ts');
-            expect(resolveFindingPathForPr('/etc/passwd', prFiles)).toBe('src/foo.ts');
+        it('returns undefined when finding file is invalid (no fallback to wrong file)', () => {
+            expect(resolveFindingPathForPr('../../../etc/passwd', prFiles)).toBeUndefined();
+            expect(resolveFindingPathForPr('/etc/passwd', prFiles)).toBeUndefined();
         });
 
-        it('returns first PR file when finding file is not in prFiles', () => {
-            expect(resolveFindingPathForPr('other/file.ts', prFiles)).toBe('src/foo.ts');
+        it('returns undefined when finding file is not in prFiles', () => {
+            expect(resolveFindingPathForPr('other/file.ts', prFiles)).toBeUndefined();
         });
 
-        it('returns first PR file when finding file is undefined', () => {
-            expect(resolveFindingPathForPr(undefined, prFiles)).toBe('src/foo.ts');
+        it('returns undefined when finding file is undefined', () => {
+            expect(resolveFindingPathForPr(undefined, prFiles)).toBeUndefined();
         });
 
         it('returns undefined when prFiles is empty', () => {

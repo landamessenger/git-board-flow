@@ -57,7 +57,7 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
         if (prContext && openPrNumbers.length > 0) {
             const path = resolveFindingPathForPr(finding.file, prFiles);
             if (path) {
-                const line = pathToFirstDiffLine[path] ?? finding.line ?? 1;
+                const line = finding.line ?? pathToFirstDiffLine[path] ?? 1;
                 if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
                     await pullRequestRepository.updatePullRequestReviewComment(
                         owner,
