@@ -320,13 +320,13 @@ describe('DetectPotentialProblemsUseCase', () => {
       'owner',
       'repo',
       777,
-      expect.stringContaining('Resolved'),
+      expect.stringContaining('resolved:true'),
       'token'
     );
-    expect(mockUpdatePullRequestReviewComment.mock.calls[0][3]).toContain('resolved:true');
     expect(mockResolvePullRequestReviewThread).toHaveBeenCalledWith(
       'owner',
       'repo',
+      50,
       'PRRC_node_777',
       'token'
     );
@@ -570,7 +570,6 @@ describe('DetectPotentialProblemsUseCase', () => {
       expect(mockUpdatePullRequestReviewComment).toHaveBeenCalledTimes(1);
       const updatedBody = mockUpdatePullRequestReviewComment.mock.calls[0][3];
       expect(updatedBody).toContain('resolved:true');
-      expect(updatedBody).toContain('**Resolved** (OpenCode confirmed fixed in latest analysis)');
     });
 
     it('replaces marker when finding id contains regex-special characters', async () => {

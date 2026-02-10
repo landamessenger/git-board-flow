@@ -46835,20 +46835,28 @@ class PullRequestRepository {
             }
         };
         /**
-         * Resolve a PR review thread (GraphQL only). Uses the comment's node_id to get the thread and marks it resolved.
+         * Resolve a PR review thread (GraphQL only). Finds the thread that contains the given comment and marks it resolved.
+         * Uses repository.pullRequest.reviewThreads because the field pullRequestReviewThread on PullRequestReviewComment was removed from the API.
          * No-op if thread is already resolved. Logs and does not throw on error.
          */
-        this.resolvePullRequestReviewThread = async (owner, repository, commentNodeId, token) => {
+        this.resolvePullRequestReviewThread = async (owner, repository, pullNumber, commentNodeId, token) => {
             const octokit = github.getOctokit(token);
             try {
-                const queryData = await octokit.graphql(`query ($commentNodeId: ID!) {
-                    node(id: $commentNodeId) {
-                        ... on PullRequestReviewComment {
-                            pullRequestReviewThread { id }
+                const queryData = await octokit.graphql(`query ($owner: String!, $repo: String!, $prNumber: Int!) {
+                    repository(owner: $owner, name: $repo) {
+                        pullRequest(number: $prNumber) {
+                            reviewThreads(first: 100) {
+                                nodes {
+                                    id
+                                    comments(first: 10) { nodes { id } }
+                                }
+                            }
                         }
                     }
-                }`, { commentNodeId });
-                const threadId = queryData?.node?.pullRequestReviewThread?.id;
+                }`, { owner, repo: repository, prNumber: pullNumber });
+                const threads = queryData?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
+                const thread = threads.find((t) => t.comments?.nodes?.some((c) => c.id === commentNodeId));
+                const threadId = thread?.id;
                 if (!threadId) {
                     (0, logger_1.logError)(`[Bugbot] No review thread found for comment node_id=${commentNodeId}.`);
                     return;
@@ -48723,13 +48731,13 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                     }
                     else {
                         const prBody = prComment.body ?? '';
-                        const { updated, replaced } = replaceMarkerInBody(prBody, findingId, true, replacementWithNote);
+                        const { updated, replaced } = replaceMarkerInBody(prBody, findingId, true, markerTrue);
                         if (replaced) {
                             try {
                                 await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, updated.trimEnd(), token);
                                 (0, logger_1.logDebugInfo)(`Marked finding "${findingId}" as resolved on PR #${existing.prNumber} (review comment ${existing.prCommentId}).`);
                                 if (prComment.node_id) {
-                                    await this.pullRequestRepository.resolvePullRequestReviewThread(owner, repo, prComment.node_id, token);
+                                    await this.pullRequestRepository.resolvePullRequestReviewThread(owner, repo, existing.prNumber, prComment.node_id, token);
                                 }
                             }
                             catch (err) {

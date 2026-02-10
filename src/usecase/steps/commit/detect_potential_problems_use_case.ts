@@ -363,7 +363,7 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                             prBody,
                             findingId,
                             true,
-                            replacementWithNote
+                            markerTrue
                         );
                         if (replaced) {
                             try {
@@ -381,6 +381,7 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                                     await this.pullRequestRepository.resolvePullRequestReviewThread(
                                         owner,
                                         repo,
+                                        existing.prNumber,
                                         prComment.node_id,
                                         token
                                     );

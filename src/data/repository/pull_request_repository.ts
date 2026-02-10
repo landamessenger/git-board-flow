@@ -282,30 +282,43 @@ export class PullRequestRepository {
     };
 
     /**
-     * Resolve a PR review thread (GraphQL only). Uses the comment's node_id to get the thread and marks it resolved.
+     * Resolve a PR review thread (GraphQL only). Finds the thread that contains the given comment and marks it resolved.
+     * Uses repository.pullRequest.reviewThreads because the field pullRequestReviewThread on PullRequestReviewComment was removed from the API.
      * No-op if thread is already resolved. Logs and does not throw on error.
      */
     resolvePullRequestReviewThread = async (
         owner: string,
         repository: string,
+        pullNumber: number,
         commentNodeId: string,
         token: string
     ): Promise<void> => {
         const octokit = github.getOctokit(token);
         try {
             const queryData = await octokit.graphql<{
-                node?: { pullRequestReviewThread?: { id: string } };
+                repository?: {
+                    pullRequest?: {
+                        reviewThreads?: { nodes?: Array<{ id: string; comments?: { nodes?: Array<{ id: string }> } }> };
+                    };
+                };
             }>(
-                `query ($commentNodeId: ID!) {
-                    node(id: $commentNodeId) {
-                        ... on PullRequestReviewComment {
-                            pullRequestReviewThread { id }
+                `query ($owner: String!, $repo: String!, $prNumber: Int!) {
+                    repository(owner: $owner, name: $repo) {
+                        pullRequest(number: $prNumber) {
+                            reviewThreads(first: 100) {
+                                nodes {
+                                    id
+                                    comments(first: 10) { nodes { id } }
+                                }
+                            }
                         }
                     }
                 }`,
-                { commentNodeId }
+                { owner, repo: repository, prNumber: pullNumber }
             );
-            const threadId = queryData?.node?.pullRequestReviewThread?.id;
+            const threads = queryData?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
+            const thread = threads.find((t) => t.comments?.nodes?.some((c) => c.id === commentNodeId));
+            const threadId = thread?.id;
             if (!threadId) {
                 logError(`[Bugbot] No review thread found for comment node_id=${commentNodeId}.`);
                 return;

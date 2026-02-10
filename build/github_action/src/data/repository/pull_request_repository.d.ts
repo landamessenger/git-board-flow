@@ -45,10 +45,11 @@ export declare class PullRequestRepository {
         node_id?: string;
     }>>;
     /**
-     * Resolve a PR review thread (GraphQL only). Uses the comment's node_id to get the thread and marks it resolved.
+     * Resolve a PR review thread (GraphQL only). Finds the thread that contains the given comment and marks it resolved.
+     * Uses repository.pullRequest.reviewThreads because the field pullRequestReviewThread on PullRequestReviewComment was removed from the API.
      * No-op if thread is already resolved. Logs and does not throw on error.
      */
-    resolvePullRequestReviewThread: (owner: string, repository: string, commentNodeId: string, token: string) => Promise<void>;
+    resolvePullRequestReviewThread: (owner: string, repository: string, pullNumber: number, commentNodeId: string, token: string) => Promise<void>;
     /**
      * Create a review on the PR with one or more inline comments (bugbot findings).
      * Each comment requires path and line (use first file and line 1 if not specified).
