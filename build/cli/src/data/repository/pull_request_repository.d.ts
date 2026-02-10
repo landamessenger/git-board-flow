@@ -47,6 +47,7 @@ export declare class PullRequestRepository {
     /**
      * Resolve a PR review thread (GraphQL only). Finds the thread that contains the given comment and marks it resolved.
      * Uses repository.pullRequest.reviewThreads because the field pullRequestReviewThread on PullRequestReviewComment was removed from the API.
+     * Paginates through all threads and all comments in each thread so the comment is found regardless of PR size.
      * No-op if thread is already resolved. Logs and does not throw on error.
      */
     resolvePullRequestReviewThread: (owner: string, repository: string, pullNumber: number, commentNodeId: string, token: string) => Promise<void>;
