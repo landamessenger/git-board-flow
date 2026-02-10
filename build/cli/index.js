@@ -51715,18 +51715,27 @@ class PullRequestRepository {
             if (comments.length === 0)
                 return;
             const octokit = github.getOctokit(token);
+            let created = 0;
             for (const c of comments) {
-                await octokit.rest.pulls.createReviewComment({
-                    owner,
-                    repo: repository,
-                    pull_number: pullNumber,
-                    commit_id: commitId,
-                    path: c.path,
-                    line: c.line,
-                    body: c.body,
-                });
+                try {
+                    await octokit.rest.pulls.createReviewComment({
+                        owner,
+                        repo: repository,
+                        pull_number: pullNumber,
+                        commit_id: commitId,
+                        path: c.path,
+                        line: c.line,
+                        body: c.body,
+                    });
+                    created += 1;
+                }
+                catch (err) {
+                    (0, logger_1.logError)(`[Bugbot] Error creating PR review comment. path="${c.path}", line=${c.line}, prNumber=${pullNumber}, owner=${owner}, repo=${repository}: ${err}`);
+                }
             }
-            (0, logger_1.logDebugInfo)(`Created ${comments.length} review comment(s) on PR #${pullNumber}.`);
+            if (created > 0) {
+                (0, logger_1.logDebugInfo)(`Created ${created} review comment(s) on PR #${pullNumber}.`);
+            }
         };
         /** Update an existing PR review comment (e.g. to mark finding as resolved in body). */
         this.updatePullRequestReviewComment = async (owner, repository, commentId, body, token) => {
@@ -53510,33 +53519,6 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                     prFiles = await this.pullRequestRepository.getChangedFiles(owner, repo, openPrNumbers[0], token);
                 }
             }
-            for (const finding of findings) {
-                const existing = existingByFindingId[finding.id];
-                const commentBody = buildCommentBody(finding, false);
-                if (existing?.issueCommentId != null) {
-                    await this.issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token);
-                    (0, logger_1.logDebugInfo)(`Updated bugbot comment for finding ${finding.id} on issue.`);
-                }
-                else {
-                    await this.issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
-                    (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
-                }
-                if (prHeadSha && openPrNumbers.length > 0) {
-                    const path = finding.file ?? prFiles[0]?.filename;
-                    if (path) {
-                        const line = finding.line ?? 1;
-                        if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
-                            await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
-                        }
-                        else {
-                            prCommentsToCreate.push({ path, line, body: commentBody });
-                        }
-                    }
-                }
-            }
-            if (prCommentsToCreate.length > 0 && prHeadSha && openPrNumbers.length > 0) {
-                await this.pullRequestRepository.createReviewWithComments(owner, repo, openPrNumbers[0], prHeadSha, prCommentsToCreate, token);
-            }
             for (const [findingId, existing] of Object.entries(existingByFindingId)) {
                 const isResolvedByOpenCode = resolvedFindingIds.has(findingId) ||
                     normalizedResolvedIds.has(sanitizeFindingIdForMarker(findingId));
@@ -53584,6 +53566,33 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                         }
                     }
                 }
+            }
+            for (const finding of findings) {
+                const existing = existingByFindingId[finding.id];
+                const commentBody = buildCommentBody(finding, false);
+                if (existing?.issueCommentId != null) {
+                    await this.issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token);
+                    (0, logger_1.logDebugInfo)(`Updated bugbot comment for finding ${finding.id} on issue.`);
+                }
+                else {
+                    await this.issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
+                    (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
+                }
+                if (prHeadSha && openPrNumbers.length > 0) {
+                    const path = finding.file ?? prFiles[0]?.filename;
+                    if (path) {
+                        const line = finding.line ?? 1;
+                        if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
+                            await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
+                        }
+                        else {
+                            prCommentsToCreate.push({ path, line, body: commentBody });
+                        }
+                    }
+                }
+            }
+            if (prCommentsToCreate.length > 0 && prHeadSha && openPrNumbers.length > 0) {
+                await this.pullRequestRepository.createReviewWithComments(owner, repo, openPrNumbers[0], prHeadSha, prCommentsToCreate, token);
             }
             const stepParts = [`${findings.length} new/current finding(s) from OpenCode`];
             if (resolvedFindingIds.size > 0) {

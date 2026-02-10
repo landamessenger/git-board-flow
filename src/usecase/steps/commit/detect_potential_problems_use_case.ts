@@ -292,55 +292,6 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                 }
             }
 
-            for (const finding of findings) {
-                const existing = existingByFindingId[finding.id];
-                const commentBody = buildCommentBody(finding, false);
-
-                if (existing?.issueCommentId != null) {
-                    await this.issueRepository.updateComment(
-                        owner,
-                        repo,
-                        issueNumber,
-                        existing.issueCommentId,
-                        commentBody,
-                        token
-                    );
-                    logDebugInfo(`Updated bugbot comment for finding ${finding.id} on issue.`);
-                } else {
-                    await this.issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
-                    logDebugInfo(`Added bugbot comment for finding ${finding.id} on issue.`);
-                }
-
-                if (prHeadSha && openPrNumbers.length > 0) {
-                    const path = finding.file ?? prFiles[0]?.filename;
-                    if (path) {
-                        const line = finding.line ?? 1;
-                        if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
-                            await this.pullRequestRepository.updatePullRequestReviewComment(
-                                owner,
-                                repo,
-                                existing.prCommentId,
-                                commentBody,
-                                token
-                            );
-                        } else {
-                            prCommentsToCreate.push({ path, line, body: commentBody });
-                        }
-                    }
-                }
-            }
-
-            if (prCommentsToCreate.length > 0 && prHeadSha && openPrNumbers.length > 0) {
-                await this.pullRequestRepository.createReviewWithComments(
-                    owner,
-                    repo,
-                    openPrNumbers[0],
-                    prHeadSha,
-                    prCommentsToCreate,
-                    token
-                );
-            }
-
             for (const [findingId, existing] of Object.entries(existingByFindingId)) {
                 const isResolvedByOpenCode =
                     resolvedFindingIds.has(findingId) ||
@@ -424,6 +375,55 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                         }
                     }
                 }
+            }
+
+            for (const finding of findings) {
+                const existing = existingByFindingId[finding.id];
+                const commentBody = buildCommentBody(finding, false);
+
+                if (existing?.issueCommentId != null) {
+                    await this.issueRepository.updateComment(
+                        owner,
+                        repo,
+                        issueNumber,
+                        existing.issueCommentId,
+                        commentBody,
+                        token
+                    );
+                    logDebugInfo(`Updated bugbot comment for finding ${finding.id} on issue.`);
+                } else {
+                    await this.issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
+                    logDebugInfo(`Added bugbot comment for finding ${finding.id} on issue.`);
+                }
+
+                if (prHeadSha && openPrNumbers.length > 0) {
+                    const path = finding.file ?? prFiles[0]?.filename;
+                    if (path) {
+                        const line = finding.line ?? 1;
+                        if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
+                            await this.pullRequestRepository.updatePullRequestReviewComment(
+                                owner,
+                                repo,
+                                existing.prCommentId,
+                                commentBody,
+                                token
+                            );
+                        } else {
+                            prCommentsToCreate.push({ path, line, body: commentBody });
+                        }
+                    }
+                }
+            }
+
+            if (prCommentsToCreate.length > 0 && prHeadSha && openPrNumbers.length > 0) {
+                await this.pullRequestRepository.createReviewWithComments(
+                    owner,
+                    repo,
+                    openPrNumbers[0],
+                    prHeadSha,
+                    prCommentsToCreate,
+                    token
+                );
             }
 
             const stepParts = [`${findings.length} new/current finding(s) from OpenCode`];
