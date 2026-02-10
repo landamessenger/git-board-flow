@@ -78,7 +78,7 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
     expect(results[0].steps).toContain(
-      'Progress label(s) copied from issue #287 to this PR (50%).'
+      'Progress label(s) copied from issue #287 to this PR.'
     );
     expect(results[0].steps).not.toContain(
       'Size and progress labels copied from issue #287 to this PR.'
@@ -103,7 +103,7 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].steps).toContain(
-      'Size label(s) copied from issue #287 to this PR (size: M).'
+      'Size label(s) copied from issue #287 to this PR.'
     );
     expect(results[0].steps).not.toContain('Progress label(s) copied');
     expect(mockSetLabels).toHaveBeenCalledWith(
@@ -126,7 +126,7 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].steps).toContain(
-      'Size and progress labels copied from issue #287 to this PR (size: M, 50%).'
+      'Size and progress labels copied from issue #287 to this PR.'
     );
     expect(mockSetLabels).toHaveBeenCalledWith(
       'o',
