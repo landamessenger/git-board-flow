@@ -25,7 +25,7 @@ export class ConfigurationHandler extends IssueContentInterface {
     update = async (execution: Execution) => {
         try {
             const current = execution.currentConfiguration;
-            let payload: Record<string, unknown> = {
+            const payload: Record<string, unknown> = {
                 branchType: current.branchType,
                 releaseBranch: current.releaseBranch,
                 workingBranch: current.workingBranch,
