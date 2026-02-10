@@ -284,6 +284,7 @@ export class PullRequestRepository {
     /**
      * Resolve a PR review thread (GraphQL only). Finds the thread that contains the given comment and marks it resolved.
      * Uses repository.pullRequest.reviewThreads because the field pullRequestReviewThread on PullRequestReviewComment was removed from the API.
+     * Paginates through all threads and all comments in each thread so the comment is found regardless of PR size.
      * No-op if thread is already resolved. Logs and does not throw on error.
      */
     resolvePullRequestReviewThread = async (
@@ -295,30 +296,89 @@ export class PullRequestRepository {
     ): Promise<void> => {
         const octokit = github.getOctokit(token);
         try {
-            const queryData = await octokit.graphql<{
+            type ThreadNode = {
+                id: string;
+                comments: { nodes: Array<{ id: string }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+            };
+            type ThreadsResult = {
                 repository?: {
                     pullRequest?: {
-                        reviewThreads?: { nodes?: Array<{ id: string; comments?: { nodes?: Array<{ id: string }> } }> };
+                        reviewThreads?: {
+                            nodes: ThreadNode[];
+                            pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                        };
                     };
                 };
-            }>(
-                `query ($owner: String!, $repo: String!, $prNumber: Int!) {
-                    repository(owner: $owner, name: $repo) {
-                        pullRequest(number: $prNumber) {
-                            reviewThreads(first: 100) {
-                                nodes {
-                                    id
-                                    comments(first: 10) { nodes { id } }
+            };
+            type ThreadCommentsResult = {
+                node?: {
+                    comments: { nodes: Array<{ id: string }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+                };
+            };
+
+            let threadId: string | null = null;
+            let threadsCursor: string | null = null;
+
+            outer: do {
+                const threadsData: ThreadsResult = await octokit.graphql<ThreadsResult>(
+                    `query ($owner: String!, $repo: String!, $prNumber: Int!, $threadsAfter: String) {
+                        repository(owner: $owner, name: $repo) {
+                            pullRequest(number: $prNumber) {
+                                reviewThreads(first: 100, after: $threadsAfter) {
+                                    nodes {
+                                        id
+                                        comments(first: 100) {
+                                            nodes { id }
+                                            pageInfo { hasNextPage endCursor }
+                                        }
+                                    }
+                                    pageInfo { hasNextPage endCursor }
                                 }
                             }
                         }
-                    }
-                }`,
-                { owner, repo: repository, prNumber: pullNumber }
-            );
-            const threads = queryData?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
-            const thread = threads.find((t) => t.comments?.nodes?.some((c) => c.id === commentNodeId));
-            const threadId = thread?.id;
+                    }`,
+                    { owner, repo: repository, prNumber: pullNumber, threadsAfter: threadsCursor }
+                );
+                const threads = threadsData?.repository?.pullRequest?.reviewThreads as
+                    | { nodes: ThreadNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } }
+                    | undefined;
+                if (!threads?.nodes?.length) break;
+
+                for (const thread of threads.nodes) {
+                    let commentsCursor: string | null = null;
+                    let commentNodes = thread.comments?.nodes ?? [];
+                    let commentsPageInfo = thread.comments?.pageInfo;
+
+                    do {
+                        if (commentNodes.some((c: { id: string }) => c.id === commentNodeId)) {
+                            threadId = thread.id;
+                            break outer;
+                        }
+                        if (!commentsPageInfo?.hasNextPage || commentsPageInfo.endCursor == null) break;
+                        commentsCursor = commentsPageInfo.endCursor;
+                        const nextComments = await octokit.graphql<ThreadCommentsResult>(
+                            `query ($threadId: ID!, $commentsAfter: String) {
+                                node(id: $threadId) {
+                                    ... on PullRequestReviewThread {
+                                        comments(first: 100, after: $commentsAfter) {
+                                            nodes { id }
+                                            pageInfo { hasNextPage endCursor }
+                                        }
+                                    }
+                                }
+                            }`,
+                            { threadId: thread.id, commentsAfter: commentsCursor }
+                        );
+                        commentNodes = nextComments?.node?.comments?.nodes ?? [];
+                        commentsPageInfo = nextComments?.node?.comments?.pageInfo ?? { hasNextPage: false, endCursor: null };
+                    } while (commentsPageInfo?.hasNextPage === true && commentsPageInfo?.endCursor != null);
+                }
+
+                const pageInfo: { hasNextPage: boolean; endCursor: string | null } = threads.pageInfo;
+                if (threadId != null || !pageInfo?.hasNextPage) break;
+                threadsCursor = pageInfo.endCursor ?? null;
+            } while (threadsCursor != null);
+
             if (!threadId) {
                 logError(`[Bugbot] No review thread found for comment node_id=${commentNodeId}.`);
                 return;
