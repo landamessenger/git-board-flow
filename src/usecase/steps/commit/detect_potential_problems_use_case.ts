@@ -1,6 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../data/repository/ai_repository";
+import { BUGBOT_MAX_COMMENTS } from "../../../utils/constants";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { ParamUseCase } from "../../base/param_usecase";
 import { buildBugbotPrompt } from "./bugbot/build_bugbot_prompt";
@@ -63,7 +64,8 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
             findings = findings.filter((f) => meetsMinSeverity(f.severity, minSeverity));
             findings = deduplicateFindings(findings);
 
-            const { toPublish, overflowCount, overflowTitles } = applyCommentLimit(findings);
+            const maxComments = param.ai?.getBugbotCommentLimit?.() ?? BUGBOT_MAX_COMMENTS;
+            const { toPublish, overflowCount, overflowTitles } = applyCommentLimit(findings, maxComments);
 
             if (toPublish.length === 0 && resolvedFindingIds.size === 0) {
                 logDebugInfo('OpenCode returned no new findings (after filters) and no resolved ids.');

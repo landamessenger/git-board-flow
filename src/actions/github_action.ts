@@ -22,7 +22,7 @@ import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
 import { PublishResultUseCase } from '../usecase/steps/common/publish_resume_use_case';
 import { StoreConfigurationUseCase } from '../usecase/steps/common/store_configuration_use_case';
-import { BUGBOT_MIN_SEVERITY, DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL } from '../utils/constants';
+import { BUGBOT_MAX_COMMENTS, BUGBOT_MIN_SEVERITY, DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL } from '../utils/constants';
 import { logError, logInfo } from '../utils/logger';
 import { startOpencodeServer, type ManagedOpencodeServer } from '../utils/opencode_server';
 import { mainRun } from './common_action';
@@ -72,6 +72,11 @@ export async function runGitHubAction(): Promise<void> {
         .map(path => path.trim())
         .filter(path => path.length > 0);
     const bugbotSeverity = getInput(INPUT_KEYS.BUGBOT_SEVERITY) || BUGBOT_MIN_SEVERITY;
+    const bugbotCommentLimitRaw = parseInt(getInput(INPUT_KEYS.BUGBOT_COMMENT_LIMIT), 10);
+    const bugbotCommentLimit =
+        Number.isNaN(bugbotCommentLimitRaw) || bugbotCommentLimitRaw < 1
+            ? BUGBOT_MAX_COMMENTS
+            : Math.min(bugbotCommentLimitRaw, 200);
 
     /**
      * Projects Details
@@ -513,6 +518,7 @@ export async function runGitHubAction(): Promise<void> {
             aiIgnoreFiles,
             aiIncludeReasoning,
             bugbotSeverity,
+            bugbotCommentLimit,
         ),
         new Labels(
             branchManagementLauncherLabel,

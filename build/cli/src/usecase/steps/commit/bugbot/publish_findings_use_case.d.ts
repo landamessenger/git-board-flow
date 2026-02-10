@@ -5,6 +5,9 @@ export interface PublishFindingsParam {
     execution: Execution;
     context: BugbotContext;
     findings: BugbotFinding[];
+    /** When findings were limited by max comments, add one summary comment with this overflow info. */
+    overflowCount?: number;
+    overflowTitles?: string[];
 }
 /**
  * Publishes current findings to issue and PR: creates or updates issue comments,

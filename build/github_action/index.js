@@ -42119,6 +42119,11 @@ async function runGitHubAction() {
             .split(',')
             .map(path => path.trim())
             .filter(path => path.length > 0);
+        const bugbotSeverity = getInput(constants_1.INPUT_KEYS.BUGBOT_SEVERITY) || constants_1.BUGBOT_MIN_SEVERITY;
+        const bugbotCommentLimitRaw = parseInt(getInput(constants_1.INPUT_KEYS.BUGBOT_COMMENT_LIMIT), 10);
+        const bugbotCommentLimit = Number.isNaN(bugbotCommentLimitRaw) || bugbotCommentLimitRaw < 1
+            ? constants_1.BUGBOT_MAX_COMMENTS
+            : Math.min(bugbotCommentLimitRaw, 200);
         /**
          * Projects Details
          */
@@ -42434,7 +42439,7 @@ async function runGitHubAction() {
         const pullRequestDesiredAssigneesCount = parseInt(getInput(constants_1.INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT)) ?? 0;
         const pullRequestDesiredReviewersCount = parseInt(getInput(constants_1.INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)) ?? 0;
         const pullRequestMergeTimeout = parseInt(getInput(constants_1.INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)) ?? 0;
-        const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue, singleActionVersion, singleActionTitle, singleActionChangelog), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeTaskDescription, issueTypeTaskColor, issueTypeBug, issueTypeBugDescription, issueTypeBugColor, issueTypeFeature, issueTypeFeatureDescription, issueTypeFeatureColor, issueTypeDocumentation, issueTypeDocumentationDescription, issueTypeDocumentationColor, issueTypeMaintenance, issueTypeMaintenanceDescription, issueTypeMaintenanceColor, issueTypeHotfix, issueTypeHotfixDescription, issueTypeHotfixColor, issueTypeRelease, issueTypeReleaseDescription, issueTypeReleaseColor, issueTypeQuestion, issueTypeQuestionDescription, issueTypeQuestionColor, issueTypeHelp, issueTypeHelpDescription, issueTypeHelpColor), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress), undefined, undefined);
+        const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue, singleActionVersion, singleActionTitle, singleActionChangelog), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, bugbotSeverity, bugbotCommentLimit), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeTaskDescription, issueTypeTaskColor, issueTypeBug, issueTypeBugDescription, issueTypeBugColor, issueTypeFeature, issueTypeFeatureDescription, issueTypeFeatureColor, issueTypeDocumentation, issueTypeDocumentationDescription, issueTypeDocumentationColor, issueTypeMaintenance, issueTypeMaintenanceDescription, issueTypeMaintenanceColor, issueTypeHotfix, issueTypeHotfixDescription, issueTypeHotfixColor, issueTypeRelease, issueTypeReleaseDescription, issueTypeReleaseColor, issueTypeQuestion, issueTypeQuestionDescription, issueTypeQuestionColor, issueTypeHelp, issueTypeHelpDescription, issueTypeHelpColor), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress), undefined, undefined);
         const results = await (0, common_action_1.mainRun)(execution);
         await finishWithResults(execution, results);
     }
@@ -42508,13 +42513,15 @@ const constants_1 = __nccwpck_require__(8593);
  * API keys are configured on the OpenCode server, not here.
  */
 class Ai {
-    constructor(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning) {
+    constructor(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, bugbotMinSeverity, bugbotCommentLimit) {
         this.opencodeServerUrl = opencodeServerUrl;
         this.opencodeModel = opencodeModel;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
         this.aiIncludeReasoning = aiIncludeReasoning;
+        this.bugbotMinSeverity = bugbotMinSeverity;
+        this.bugbotCommentLimit = bugbotCommentLimit;
     }
     getOpencodeServerUrl() {
         return this.opencodeServerUrl;
@@ -42533,6 +42540,12 @@ class Ai {
     }
     getAiIncludeReasoning() {
         return this.aiIncludeReasoning;
+    }
+    getBugbotMinSeverity() {
+        return this.bugbotMinSeverity;
+    }
+    getBugbotCommentLimit() {
+        return this.bugbotCommentLimit;
     }
     /**
      * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
@@ -48514,8 +48527,11 @@ exports.buildBugbotPrompt = buildBugbotPrompt;
 function buildBugbotPrompt(param, context) {
     const headBranch = param.commit.branch;
     const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
-    const issueNumber = param.issueNumber;
     const previousBlock = context.previousFindingsBlock;
+    const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
+    const ignoreBlock = ignorePatterns.length > 0
+        ? `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${ignorePatterns.join(', ')}.`
+        : '';
     return `You are analyzing the latest code changes for potential bugs and issues.
 
 **Repository context:**
@@ -48523,12 +48539,108 @@ function buildBugbotPrompt(param, context) {
 - Repository: ${param.repo}
 - Branch (head): ${headBranch}
 - Base branch: ${baseBranch}
-- Issue number: ${issueNumber}
+- Issue number: ${param.issueNumber}
+${ignoreBlock}
 
-**Your task 1:** Determine what has changed in the branch "${headBranch}" compared to "${baseBranch}" (you must compute or obtain the diff yourself using the repository context above). Then identify potential bugs, logic errors, security issues, and code quality problems. Be strict and descriptive. One finding per distinct problem. Return them in the \`findings\` array (each with id, title, description; optionally file, line, severity, suggestion).
+**Your task 1 (new/current problems):** Determine what has changed in the branch "${headBranch}" compared to "${baseBranch}" (you must compute or obtain the diff yourself using the repository context above). Then identify potential bugs, logic errors, security issues, and code quality problems. Be strict and descriptive. One finding per distinct problem. Return them in the \`findings\` array (each with id, title, description; optionally file, line, severity, suggestion). Only include findings in files that are not in the ignore list above.
 ${previousBlock}
 
-Return a JSON object with: "findings" (array of new/current problems), and if we gave you a list of previously reported issues above, "resolved_finding_ids" (array of those ids that are now fixed in the current code).`;
+**Output:** Return a JSON object with: "findings" (array of new/current problems from task 1), and if we gave you previously reported issues above, "resolved_finding_ids" (array of those ids that are now fixed or no longer apply, as per task 2).`;
+}
+
+
+/***/ }),
+
+/***/ 7384:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.deduplicateFindings = deduplicateFindings;
+/**
+ * Deduplicates findings by (file, line). When two findings share the same file and line,
+ * keeps the first; when they have no file, groups by normalized title and keeps the first.
+ * This reduces noise when the agent returns near-duplicate issues.
+ */
+function deduplicateFindings(findings) {
+    const seen = new Set();
+    const result = [];
+    for (const f of findings) {
+        const file = f.file?.trim() ?? '';
+        const line = f.line ?? 0;
+        const key = file || line
+            ? `${file}:${line}`
+            : `title:${(f.title ?? '').toLowerCase().trim().slice(0, 80)}`;
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        result.push(f);
+    }
+    return result;
+}
+
+
+/***/ }),
+
+/***/ 3770:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.fileMatchesIgnorePatterns = fileMatchesIgnorePatterns;
+/**
+ * Returns true if the file path matches any of the ignore patterns (glob-style).
+ * Used to exclude findings in test files, build output, etc.
+ */
+function fileMatchesIgnorePatterns(filePath, ignorePatterns) {
+    if (!filePath || ignorePatterns.length === 0)
+        return false;
+    const normalized = filePath.trim();
+    if (!normalized)
+        return false;
+    return ignorePatterns.some((pattern) => {
+        const p = pattern.trim();
+        if (!p)
+            return false;
+        const regexPattern = p
+            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*/g, '.*')
+            .replace(/\//g, '\\/');
+        const regex = p.endsWith('/*')
+            ? new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, '(\\/.*)?')}$`)
+            : new RegExp(`^${regexPattern}$`);
+        return regex.test(normalized);
+    });
+}
+
+
+/***/ }),
+
+/***/ 9072:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.applyCommentLimit = applyCommentLimit;
+const constants_1 = __nccwpck_require__(8593);
+/**
+ * Applies the max-comments limit: returns the first N findings to publish individually,
+ * and overflow count + titles for a single "revisar en local" summary comment.
+ */
+function applyCommentLimit(findings, maxComments = constants_1.BUGBOT_MAX_COMMENTS) {
+    if (findings.length <= maxComments) {
+        return { toPublish: findings, overflowCount: 0, overflowTitles: [] };
+    }
+    const toPublish = findings.slice(0, maxComments);
+    const overflow = findings.slice(maxComments);
+    return {
+        toPublish,
+        overflowCount: overflow.length,
+        overflowTitles: overflow.map((f) => f.title?.trim() || f.id).filter(Boolean),
+    };
 }
 
 
@@ -48544,6 +48656,23 @@ exports.loadBugbotContext = loadBugbotContext;
 const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const marker_1 = __nccwpck_require__(2401);
+function buildPreviousFindingsBlock(previousFindings) {
+    if (previousFindings.length === 0)
+        return '';
+    const items = previousFindings
+        .map((p) => `---\n**Finding id (use this exact id in resolved_finding_ids if resolved/no longer applies):** \`${p.id.replace(/`/g, '\\`')}\`\n\n**Full comment as posted (including metadata at the end):**\n${p.fullBody}\n`)
+        .join('\n');
+    return `
+**Previously reported issues (not yet marked resolved).** For each one we show the exact comment we posted (title, description, location, suggestion, and a hidden marker with the finding id at the end).
+
+${items}
+**Your task 2:** For each finding above, analyze the current code and decide:
+- If the problem **still exists** (same code or same issue present): do **not** include its id in \`resolved_finding_ids\`.
+- If the problem **no longer applies** (e.g. that code was removed or refactored away): include its id in \`resolved_finding_ids\`.
+- If the problem **has been fixed** (code was changed and the issue is resolved): include its id in \`resolved_finding_ids\`.
+
+Return in \`resolved_finding_ids\` only the ids from the list above that are now fixed or no longer apply. Use the exact id shown in each "Finding id" line.`;
+}
 /**
  * Loads all context needed for bugbot: existing findings from issue + PR comments,
  * open PR numbers, and the prompt block for previously reported issues.
@@ -48571,34 +48700,35 @@ async function loadBugbotContext(param) {
         }
     }
     const openPrNumbers = await pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(owner, repo, headBranch, token);
+    /** Full comment body per finding id (from PR when we don't have issue comment). */
+    const prFindingIdToBody = {};
     for (const prNumber of openPrNumbers) {
         const prComments = await pullRequestRepository.listPullRequestReviewComments(owner, repo, prNumber, token);
         for (const c of prComments) {
-            for (const { findingId, resolved } of (0, marker_1.parseMarker)(c.body)) {
+            const body = c.body ?? '';
+            for (const { findingId, resolved } of (0, marker_1.parseMarker)(body)) {
                 if (!existingByFindingId[findingId]) {
                     existingByFindingId[findingId] = { resolved };
                 }
                 existingByFindingId[findingId].prCommentId = c.id;
                 existingByFindingId[findingId].prNumber = prNumber;
                 existingByFindingId[findingId].resolved = resolved;
+                prFindingIdToBody[findingId] = body;
             }
         }
     }
+    /** Unresolved findings with full comment body (including hidden marker) for OpenCode to re-evaluate. */
     const previousFindingsForPrompt = [];
     for (const [findingId, data] of Object.entries(existingByFindingId)) {
         if (data.resolved)
             continue;
-        const comment = issueComments.find((c) => c.id === data.issueCommentId);
-        const title = (0, marker_1.extractTitleFromBody)(comment?.body ?? null) || findingId;
-        previousFindingsForPrompt.push({ id: findingId, title });
+        const issueBody = issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
+        const fullBody = (issueBody ?? prFindingIdToBody[findingId] ?? '').trim();
+        if (fullBody) {
+            previousFindingsForPrompt.push({ id: findingId, fullBody });
+        }
     }
-    const previousFindingsBlock = previousFindingsForPrompt.length > 0
-        ? `
-**Previously reported issues (from our comments, not yet marked resolved):**
-${previousFindingsForPrompt.map((p) => `- id: "${p.id.replace(/"/g, '\\"')}" title: ${JSON.stringify(p.title)}`).join('\n')}
-
-After analyzing the current code, return in \`resolved_finding_ids\` the ids of the above that are now fixed (the problem is no longer present). Only include ids from this list.`
-        : '';
+    const previousFindingsBlock = buildPreviousFindingsBlock(previousFindingsForPrompt);
     let prContext = null;
     if (openPrNumbers.length > 0) {
         const prHeadSha = await pullRequestRepository.getPullRequestHeadSha(owner, repo, openPrNumbers[0], token);
@@ -48807,7 +48937,7 @@ const marker_1 = __nccwpck_require__(2401);
  * creates or updates PR review comments (or creates new ones).
  */
 async function publishFindings(param) {
-    const { execution, context, findings } = param;
+    const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
     const { existingByFindingId, openPrNumbers, prContext } = context;
     const issueNumber = execution.issueNumber;
     const token = execution.tokens.token;
@@ -48845,6 +48975,16 @@ async function publishFindings(param) {
     if (prCommentsToCreate.length > 0 && prContext && openPrNumbers.length > 0) {
         await pullRequestRepository.createReviewWithComments(owner, repo, openPrNumbers[0], prContext.prHeadSha, prCommentsToCreate, token);
     }
+    if (overflowCount > 0) {
+        const titlesList = overflowTitles.length > 0
+            ? '\n- ' + overflowTitles.slice(0, 15).join('\n- ') + (overflowTitles.length > 15 ? `\n- ... and ${overflowTitles.length - 15} more` : '')
+            : '';
+        const overflowBody = `## More findings (comment limit)
+
+There are **${overflowCount}** more finding(s) that were not published as individual comments. Review locally or in the full diff to see the list.${titlesList}`;
+        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
+        (0, logger_1.logDebugInfo)(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
+    }
 }
 
 
@@ -48871,7 +49011,7 @@ exports.BUGBOT_RESPONSE_SCHEMA = {
                     description: { type: 'string', description: 'Clear explanation of the issue' },
                     file: { type: 'string', description: 'Repository-relative path when applicable' },
                     line: { type: 'number', description: 'Line number when applicable' },
-                    severity: { type: 'string', description: 'e.g. high, medium, low' },
+                    severity: { type: 'string', description: 'Severity: high, medium, low, or info. Findings below the configured minimum are not published.' },
                     suggestion: { type: 'string', description: 'Suggested fix when applicable' },
                 },
                 required: ['id', 'title', 'description'],
@@ -48891,6 +49031,43 @@ exports.BUGBOT_RESPONSE_SCHEMA = {
 
 /***/ }),
 
+/***/ 3109:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.normalizeMinSeverity = normalizeMinSeverity;
+exports.severityLevel = severityLevel;
+exports.meetsMinSeverity = meetsMinSeverity;
+const VALID_SEVERITIES = ['info', 'low', 'medium', 'high'];
+/** Normalizes user input to a valid SeverityLevel; defaults to 'low' if invalid. */
+function normalizeMinSeverity(value) {
+    if (!value)
+        return 'low';
+    const normalized = value.toLowerCase().trim();
+    return VALID_SEVERITIES.includes(normalized) ? normalized : 'low';
+}
+const SEVERITY_ORDER = {
+    info: 0,
+    low: 1,
+    medium: 2,
+    high: 3,
+};
+function severityLevel(severity) {
+    if (!severity)
+        return SEVERITY_ORDER.low;
+    const normalized = severity.toLowerCase().trim();
+    return SEVERITY_ORDER[normalized] ?? SEVERITY_ORDER.low;
+}
+/** Returns true if the finding's severity is at or above the minimum threshold. */
+function meetsMinSeverity(findingSeverity, minSeverity) {
+    return severityLevel(findingSeverity) >= SEVERITY_ORDER[minSeverity];
+}
+
+
+/***/ }),
+
 /***/ 7395:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -48900,12 +49077,17 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DetectPotentialProblemsUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
+const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
 const build_bugbot_prompt_1 = __nccwpck_require__(6339);
+const deduplicate_findings_1 = __nccwpck_require__(7384);
+const file_ignore_1 = __nccwpck_require__(3770);
+const limit_comments_1 = __nccwpck_require__(9072);
 const load_bugbot_context_use_case_1 = __nccwpck_require__(6319);
 const mark_findings_resolved_use_case_1 = __nccwpck_require__(61);
 const publish_findings_use_case_1 = __nccwpck_require__(6697);
 const schema_1 = __nccwpck_require__(8267);
+const severity_1 = __nccwpck_require__(3109);
 const marker_1 = __nccwpck_require__(2401);
 class DetectPotentialProblemsUseCase {
     constructor() {
@@ -48937,12 +49119,19 @@ class DetectPotentialProblemsUseCase {
                 return results;
             }
             const payload = response;
-            const findings = Array.isArray(payload.findings) ? payload.findings : [];
+            let findings = Array.isArray(payload.findings) ? payload.findings : [];
             const resolvedFindingIdsRaw = Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : [];
             const resolvedFindingIds = new Set(resolvedFindingIdsRaw);
             const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(marker_1.sanitizeFindingIdForMarker));
-            if (findings.length === 0 && resolvedFindingIds.size === 0) {
-                (0, logger_1.logDebugInfo)('OpenCode returned no new findings and no resolved ids.');
+            const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
+            const minSeverity = (0, severity_1.normalizeMinSeverity)(param.ai?.getBugbotMinSeverity?.());
+            findings = findings.filter((f) => !(0, file_ignore_1.fileMatchesIgnorePatterns)(f.file, ignorePatterns));
+            findings = findings.filter((f) => (0, severity_1.meetsMinSeverity)(f.severity, minSeverity));
+            findings = (0, deduplicate_findings_1.deduplicateFindings)(findings);
+            const maxComments = param.ai?.getBugbotCommentLimit?.() ?? constants_1.BUGBOT_MAX_COMMENTS;
+            const { toPublish, overflowCount, overflowTitles } = (0, limit_comments_1.applyCommentLimit)(findings, maxComments);
+            if (toPublish.length === 0 && resolvedFindingIds.size === 0) {
+                (0, logger_1.logDebugInfo)('OpenCode returned no new findings (after filters) and no resolved ids.');
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -48960,9 +49149,14 @@ class DetectPotentialProblemsUseCase {
             await (0, publish_findings_use_case_1.publishFindings)({
                 execution: param,
                 context,
-                findings,
+                findings: toPublish,
+                overflowCount: overflowCount > 0 ? overflowCount : undefined,
+                overflowTitles: overflowCount > 0 ? overflowTitles : undefined,
             });
-            const stepParts = [`${findings.length} new/current finding(s) from OpenCode`];
+            const stepParts = [`${toPublish.length} new/current finding(s) from OpenCode`];
+            if (overflowCount > 0) {
+                stepParts.push(`${overflowCount} more not published (see summary comment)`);
+            }
             if (resolvedFindingIds.size > 0) {
                 stepParts.push(`${resolvedFindingIds.size} marked as resolved by OpenCode`);
             }
@@ -52113,7 +52307,7 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
@@ -52331,6 +52525,8 @@ exports.INPUT_KEYS = {
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',
     AI_INCLUDE_REASONING: 'ai-include-reasoning',
+    BUGBOT_SEVERITY: 'bugbot-severity',
+    BUGBOT_COMMENT_LIMIT: 'bugbot-comment-limit',
     // Projects
     PROJECT_IDS: 'project-ids',
     PROJECT_COLUMN_ISSUE_CREATED: 'project-column-issue-created',
@@ -52480,6 +52676,10 @@ exports.ACTIONS = {
 };
 /** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
 exports.BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+/** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
+exports.BUGBOT_MAX_COMMENTS = 20;
+/** Minimum severity to publish (findings below this are dropped). Order: high > medium > low > info. */
+exports.BUGBOT_MIN_SEVERITY = 'low';
 exports.PROMPTS = {};
 
 

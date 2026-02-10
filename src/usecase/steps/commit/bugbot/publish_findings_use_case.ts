@@ -86,11 +86,11 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
     if (overflowCount > 0) {
         const titlesList =
             overflowTitles.length > 0
-                ? '\n- ' + overflowTitles.slice(0, 15).join('\n- ') + (overflowTitles.length > 15 ? `\n- ... y ${overflowTitles.length - 15} más` : '')
+                ? '\n- ' + overflowTitles.slice(0, 15).join('\n- ') + (overflowTitles.length > 15 ? `\n- ... and ${overflowTitles.length - 15} more` : '')
                 : '';
-        const overflowBody = `## Más hallazgos (límite de comentarios)
+        const overflowBody = `## More findings (comment limit)
 
-Hay **${overflowCount}** hallazgo(s) más que no se han publicado como comentarios individuales. Revisa en local o en el diff completo para ver el listado.${titlesList}`;
+There are **${overflowCount}** more finding(s) that were not published as individual comments. Review locally or in the full diff to see the list.${titlesList}`;
         await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
         logDebugInfo(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
     }

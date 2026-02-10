@@ -228,6 +228,7 @@ export const INPUT_KEYS = {
     AI_IGNORE_FILES: 'ai-ignore-files',
     AI_INCLUDE_REASONING: 'ai-include-reasoning',
     BUGBOT_SEVERITY: 'bugbot-severity',
+    BUGBOT_COMMENT_LIMIT: 'bugbot-comment-limit',
 
     // Projects
     PROJECT_IDS: 'project-ids',

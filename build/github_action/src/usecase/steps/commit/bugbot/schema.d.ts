@@ -29,7 +29,7 @@ export declare const BUGBOT_RESPONSE_SCHEMA: {
                     };
                     readonly severity: {
                         readonly type: "string";
-                        readonly description: "e.g. high, medium, low";
+                        readonly description: "Severity: high, medium, low, or info. Findings below the configured minimum are not published.";
                     };
                     readonly suggestion: {
                         readonly type: "string";

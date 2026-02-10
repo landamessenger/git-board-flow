@@ -63,7 +63,7 @@ function baseParam(overrides: Record<string, unknown> = {}): Execution {
     commit: { branch: 'feature/42-add-feature' },
     currentConfiguration: { parentBranch: 'develop' },
     branches: { development: 'develop' },
-    ai: new Ai('http://localhost:4096', 'opencode/model', false, false, [], false, 'low'),
+    ai: new Ai('http://localhost:4096', 'opencode/model', false, false, [], false, 'low', 20),
     ...overrides,
   } as unknown as Execution;
 }
@@ -93,7 +93,7 @@ describe('DetectPotentialProblemsUseCase', () => {
 
   it('returns empty results when OpenCode is not configured (no server URL)', async () => {
     const param = baseParam({
-      ai: new Ai('', 'opencode/model', false, false, [], false, 'low'),
+      ai: new Ai('', 'opencode/model', false, false, [], false, 'low', 20),
     });
 
     const results = await useCase.invoke(param);
@@ -105,7 +105,7 @@ describe('DetectPotentialProblemsUseCase', () => {
 
   it('returns empty results when OpenCode is not configured (no model)', async () => {
     const param = baseParam({
-      ai: new Ai('http://localhost:4096', '', false, false, [], false, 'low'),
+      ai: new Ai('http://localhost:4096', '', false, false, [], false, 'low', 20),
     });
 
     const results = await useCase.invoke(param);
@@ -621,6 +621,95 @@ describe('DetectPotentialProblemsUseCase', () => {
       expect(storedId).not.toContain('\n');
       expect(storedId).toBe('file.ts:1:badidwithnewlinehere');
       expect(body).toMatch(/<!--\s*gbf-bugbot\s+finding_id:\s*"file\.ts:1:badidwithnewlinehere"\s+resolved:false\s*-->/);
+    });
+  });
+
+  describe('bugbot pipeline: severity, ignore paths, limit', () => {
+    it('filters out findings below bugbot-severity (minSeverity)', async () => {
+      const param = baseParam({
+        ai: new Ai('http://localhost:4096', 'opencode/model', false, false, [], false, 'medium', 20),
+      });
+      mockAskAgent.mockResolvedValue({
+        findings: [
+            { id: 'low-1', title: 'Low severity', description: 'D', severity: 'low' },
+            { id: 'high-1', title: 'High severity', description: 'D', severity: 'high' },
+        ],
+        resolved_finding_ids: [],
+      });
+
+      await useCase.invoke(param);
+
+      expect(mockAddComment).toHaveBeenCalledTimes(1);
+      expect(mockAddComment.mock.calls[0][3]).toContain('High severity');
+      expect(mockAddComment.mock.calls[0][3]).not.toContain('Low severity');
+    });
+
+    it('filters out findings in ai-ignore-files paths', async () => {
+      const param = baseParam({
+        ai: new Ai(
+            'http://localhost:4096',
+            'opencode/model',
+            false,
+            false,
+            ['src/ignored/*', '**/build/**'],
+            false,
+            'low',
+            20
+        ),
+      });
+      mockAskAgent.mockResolvedValue({
+        findings: [
+            { id: 'ignored-1', title: 'In ignored dir', description: 'D', file: 'src/ignored/foo.ts' },
+            { id: 'ok-1', title: 'Not ignored', description: 'D', file: 'src/app/bar.ts' },
+        ],
+        resolved_finding_ids: [],
+      });
+
+      await useCase.invoke(param);
+
+      expect(mockAddComment).toHaveBeenCalledTimes(1);
+      expect(mockAddComment.mock.calls[0][3]).toContain('Not ignored');
+      expect(mockAddComment.mock.calls[0][3]).not.toContain('In ignored dir');
+    });
+
+    it('when findings exceed limit, publishes max then one overflow summary comment on issue', async () => {
+      const manyFindings = Array.from({ length: 22 }, (_, i) => ({
+        id: `f${i}`,
+        title: `Finding ${i}`,
+        description: 'Desc',
+      }));
+      mockAskAgent.mockResolvedValue({
+        findings: manyFindings,
+        resolved_finding_ids: [],
+      });
+
+      await useCase.invoke(baseParam());
+
+      expect(mockAddComment).toHaveBeenCalled();
+      const bodies = mockAddComment.mock.calls.map((c) => c[3] as string);
+      const overflowComment = bodies.find(
+        (b) => b.includes('More findings (comment limit)') || b.includes('more finding(s)')
+      );
+      expect(overflowComment).toBeDefined();
+      expect(overflowComment).toContain('more finding(s)');
+      const findingComments = bodies.filter((b) => b.includes('gbf-bugbot') && b.includes('finding_id'));
+      expect(findingComments.length).toBe(20);
+    });
+
+    it('deduplicates findings by file:line before publishing', async () => {
+      mockAskAgent.mockResolvedValue({
+        findings: [
+            { id: 'first', title: 'First', description: 'D', file: 'src/same.ts', line: 5 },
+            { id: 'second', title: 'Second', description: 'D', file: 'src/same.ts', line: 5 },
+        ],
+        resolved_finding_ids: [],
+      });
+
+      await useCase.invoke(baseParam());
+
+      expect(mockAddComment).toHaveBeenCalledTimes(1);
+      expect(mockAddComment.mock.calls[0][3]).toContain('First');
+      expect(mockAddComment.mock.calls[0][3]).not.toContain('Second');
     });
   });
 });

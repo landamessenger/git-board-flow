@@ -18,7 +18,7 @@ jest.mock('../../../utils/logger', () => ({
 const mockFetch = jest.fn();
 
 function createAi(serverUrl = 'http://localhost:4096', model = 'opencode/kimi-k2.5') {
-  return new Ai(serverUrl, model, false, false, [], false, 'low');
+  return new Ai(serverUrl, model, false, false, [], false, 'low', 20);
 }
 
 describe('AiRepository', () => {
