@@ -117,8 +117,9 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                 mergeResults.push(...mergeToDevelopResult);
             }
 
+            const mergesAttempted = mergeResults.length > 0;
             const allMergesSucceeded =
-                mergeResults.length === 0 || mergeResults.every((r) => r.success);
+                mergesAttempted && mergeResults.every((r) => r.success);
 
             if (allMergesSucceeded) {
                 const issueNumber = Number(param.singleAction.issue);
@@ -142,19 +143,35 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     );
                 }
             } else {
-                logDebugInfo(
-                    `Skipping issue close: one or more merges failed. Issue #${param.singleAction.issue} remains open.`
-                );
-                result.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Issue #${param.singleAction.issue} was not closed because one or more merge operations failed.`,
-                        ],
-                    })
-                );
+                if (mergesAttempted) {
+                    logDebugInfo(
+                        `Skipping issue close: one or more merges failed. Issue #${param.singleAction.issue} remains open.`
+                    );
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Issue #${param.singleAction.issue} was not closed because one or more merge operations failed.`,
+                            ],
+                        })
+                    );
+                } else {
+                    logDebugInfo(
+                        `Skipping issue close: no release or hotfix branch configured. Issue #${param.singleAction.issue} remains open.`
+                    );
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Issue #${param.singleAction.issue} was not closed because no release or hotfix branch was configured (no merge operations were performed).`,
+                            ],
+                        })
+                    );
+                }
             }
 
             return result;

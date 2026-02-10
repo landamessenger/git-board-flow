@@ -126,7 +126,7 @@ describe('DeployedActionUseCase', () => {
     expect(mockCloseIssue).not.toHaveBeenCalled();
   });
 
-  it('updates labels and closes issue when no release or hotfix branch (no merges)', async () => {
+  it('updates labels but does not close issue when no release or hotfix branch (no merges)', async () => {
     const param = baseParam();
 
     const results = await useCase.invoke(param);
@@ -139,9 +139,9 @@ describe('DeployedActionUseCase', () => {
       'token'
     );
     expect(mockMergeBranch).not.toHaveBeenCalled();
-    expect(mockCloseIssue).toHaveBeenCalledWith('owner', 'repo', 42, 'token');
+    expect(mockCloseIssue).not.toHaveBeenCalled();
     expect(results.some((r) => r.steps?.some((s) => s.includes('Label') && s.includes('deployed')))).toBe(true);
-    expect(results.some((r) => r.steps?.some((s) => s.includes('closed after merge')))).toBe(true);
+    expect(results.some((r) => r.steps?.some((s) => s.includes('not closed because no release or hotfix branch was configured')))).toBe(true);
   });
 
   it('with releaseBranch: merges both branches and closes issue when all merges succeed', async () => {
