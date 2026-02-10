@@ -7,6 +7,7 @@ import { ParamUseCase } from "../../base/param_usecase";
 import { buildBugbotPrompt } from "./bugbot/build_bugbot_prompt";
 import { deduplicateFindings } from "./bugbot/deduplicate_findings";
 import { fileMatchesIgnorePatterns } from "./bugbot/file_ignore";
+import { isSafeFindingFilePath } from "./bugbot/path_validation";
 import { applyCommentLimit } from "./bugbot/limit_comments";
 import { loadBugbotContext } from "./bugbot/load_bugbot_context_use_case";
 import { markFindingsResolved } from "./bugbot/mark_findings_resolved_use_case";
@@ -60,6 +61,9 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
 
             const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
             const minSeverity = normalizeMinSeverity(param.ai?.getBugbotMinSeverity?.());
+            findings = findings.filter(
+                (f) => f.file == null || String(f.file).trim() === '' || isSafeFindingFilePath(f.file)
+            );
             findings = findings.filter((f) => !fileMatchesIgnorePatterns(f.file, ignorePatterns));
             findings = findings.filter((f) => meetsMinSeverity(f.severity, minSeverity));
             findings = deduplicateFindings(findings);

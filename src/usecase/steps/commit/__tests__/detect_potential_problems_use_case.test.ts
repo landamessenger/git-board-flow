@@ -644,6 +644,24 @@ describe('DetectPotentialProblemsUseCase', () => {
       expect(mockAddComment.mock.calls[0][3]).not.toContain('Low severity');
     });
 
+    it('filters out findings with unsafe file path (path traversal, null byte, absolute)', async () => {
+      mockAskAgent.mockResolvedValue({
+        findings: [
+            { id: 'safe', title: 'Safe', description: 'D', file: 'src/foo.ts' },
+            { id: 'traversal', title: 'Bad', description: 'D', file: '../../../etc/passwd' },
+            { id: 'absolute', title: 'Absolute', description: 'D', file: '/etc/passwd' },
+        ],
+        resolved_finding_ids: [],
+      });
+
+      await useCase.invoke(baseParam());
+
+      expect(mockAddComment).toHaveBeenCalledTimes(1);
+      expect(mockAddComment.mock.calls[0][3]).toContain('Safe');
+      expect(mockAddComment.mock.calls[0][3]).not.toContain('Bad');
+      expect(mockAddComment.mock.calls[0][3]).not.toContain('Absolute');
+    });
+
     it('filters out findings in ai-ignore-files paths', async () => {
       const param = baseParam({
         ai: new Ai(

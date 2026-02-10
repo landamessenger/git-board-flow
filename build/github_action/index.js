@@ -48923,6 +48923,72 @@ ${suggestion}${resolvedNote}${marker}`;
 
 /***/ }),
 
+/***/ 1999:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Path validation for AI-returned finding.file to prevent path traversal and misuse.
+ * Rejects paths containing '..', null bytes, or absolute paths.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.isSafeFindingFilePath = isSafeFindingFilePath;
+exports.isAllowedPathForPr = isAllowedPathForPr;
+exports.resolveFindingPathForPr = resolveFindingPathForPr;
+const NULL_BYTE = '\0';
+const PARENT_SEGMENT = '..';
+const SLASH = '/';
+const BACKSLASH = '\\';
+/**
+ * Returns true if the path is safe to use: no '..', no null bytes, not absolute.
+ * Does not check against a list of allowed files; use isAllowedPathForPr for that.
+ */
+function isSafeFindingFilePath(path) {
+    if (path == null || typeof path !== 'string')
+        return false;
+    const trimmed = path.trim();
+    if (trimmed.length === 0)
+        return false;
+    if (trimmed.includes(NULL_BYTE))
+        return false;
+    if (trimmed.includes(PARENT_SEGMENT))
+        return false;
+    if (trimmed.startsWith(SLASH))
+        return false;
+    if (/^[a-zA-Z]:[/\\]/.test(trimmed))
+        return false;
+    if (trimmed.startsWith(BACKSLASH))
+        return false;
+    return true;
+}
+/**
+ * Returns true if path is safe (isSafeFindingFilePath) and is in the list of PR changed files.
+ * Used to validate finding.file before using it for PR review comments.
+ */
+function isAllowedPathForPr(path, prFiles) {
+    if (!isSafeFindingFilePath(path))
+        return false;
+    if (prFiles.length === 0)
+        return false;
+    const normalized = path.trim();
+    return prFiles.some((f) => f.filename === normalized);
+}
+/**
+ * Resolves the file path to use for a PR review comment: finding.file if valid and in prFiles,
+ * otherwise the first PR file as fallback.
+ */
+function resolveFindingPathForPr(findingFile, prFiles) {
+    if (prFiles.length === 0)
+        return undefined;
+    if (isAllowedPathForPr(findingFile, prFiles))
+        return findingFile.trim();
+    return prFiles[0]?.filename;
+}
+
+
+/***/ }),
+
 /***/ 6697:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -48934,6 +49000,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
 const marker_1 = __nccwpck_require__(2401);
+const path_validation_1 = __nccwpck_require__(1999);
 /**
  * Publishes current findings to issue and PR: creates or updates issue comments,
  * creates or updates PR review comments (or creates new ones).
@@ -48962,7 +49029,7 @@ async function publishFindings(param) {
             (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
         }
         if (prContext && openPrNumbers.length > 0) {
-            const path = finding.file ?? prFiles[0]?.filename;
+            const path = (0, path_validation_1.resolveFindingPathForPr)(finding.file, prFiles);
             if (path) {
                 const line = pathToFirstDiffLine[path] ?? finding.line ?? 1;
                 if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
@@ -49179,6 +49246,7 @@ const logger_1 = __nccwpck_require__(8836);
 const build_bugbot_prompt_1 = __nccwpck_require__(6339);
 const deduplicate_findings_1 = __nccwpck_require__(7384);
 const file_ignore_1 = __nccwpck_require__(3770);
+const path_validation_1 = __nccwpck_require__(1999);
 const limit_comments_1 = __nccwpck_require__(9072);
 const load_bugbot_context_use_case_1 = __nccwpck_require__(6319);
 const mark_findings_resolved_use_case_1 = __nccwpck_require__(61);
@@ -49222,6 +49290,7 @@ class DetectPotentialProblemsUseCase {
             const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(marker_1.sanitizeFindingIdForMarker));
             const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
             const minSeverity = (0, severity_1.normalizeMinSeverity)(param.ai?.getBugbotMinSeverity?.());
+            findings = findings.filter((f) => f.file == null || String(f.file).trim() === '' || (0, path_validation_1.isSafeFindingFilePath)(f.file));
             findings = findings.filter((f) => !(0, file_ignore_1.fileMatchesIgnorePatterns)(f.file, ignorePatterns));
             findings = findings.filter((f) => (0, severity_1.meetsMinSeverity)(f.severity, minSeverity));
             findings = (0, deduplicate_findings_1.deduplicateFindings)(findings);

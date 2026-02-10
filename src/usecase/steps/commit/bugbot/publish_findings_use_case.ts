@@ -5,6 +5,7 @@ import { logDebugInfo } from "../../../../utils/logger";
 import type { BugbotContext } from "./types";
 import type { BugbotFinding } from "./types";
 import { buildCommentBody } from "./marker";
+import { resolveFindingPathForPr } from "./path_validation";
 
 export interface PublishFindingsParam {
     execution: Execution;
@@ -54,7 +55,7 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
         }
 
         if (prContext && openPrNumbers.length > 0) {
-            const path = finding.file ?? prFiles[0]?.filename;
+            const path = resolveFindingPathForPr(finding.file, prFiles);
             if (path) {
                 const line = pathToFirstDiffLine[path] ?? finding.line ?? 1;
                 if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
