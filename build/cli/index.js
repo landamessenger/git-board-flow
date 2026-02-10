@@ -52182,7 +52182,7 @@ class ConfigurationHandler extends issue_content_interface_1.IssueContentInterfa
         this.update = async (execution) => {
             try {
                 const current = execution.currentConfiguration;
-                let payload = {
+                const payload = {
                     branchType: current.branchType,
                     releaseBranch: current.releaseBranch,
                     workingBranch: current.workingBranch,
@@ -56969,18 +56969,11 @@ class SyncSizeAndProgressLabelsFromIssueToPrUseCase {
             const nextPrLabels = Array.from(existing);
             await this.issueRepository.setLabels(param.owner, param.repo, prNumber, nextPrLabels, param.tokens.token);
             (0, logger_1.logDebugInfo)(`Synced size/progress labels from issue #${param.issueNumber} to PR #${prNumber}: ${sizeAndProgressFromIssue.join(', ')}`);
-            const hasSize = sizeAndProgressFromIssue.some((name) => param.labels.sizeLabels.indexOf(name) !== -1);
-            const hasProgress = sizeAndProgressFromIssue.some((name) => issue_repository_1.PROGRESS_LABEL_PATTERN.test(name));
-            const stepMessage = hasSize && hasProgress
-                ? `Size and progress labels copied from issue #${param.issueNumber} to this PR.`
-                : hasSize
-                    ? `Size label(s) copied from issue #${param.issueNumber} to this PR.`
-                    : `Progress label(s) copied from issue #${param.issueNumber} to this PR.`;
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [stepMessage],
+                steps: [],
             }));
         }
         catch (error) {
@@ -57086,7 +57079,7 @@ class UpdatePullRequestDescriptionUseCase {
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [`The description has been updated with AI-generated content (OpenCode Plan agent).`],
+                steps: [],
             }));
         }
         catch (error) {

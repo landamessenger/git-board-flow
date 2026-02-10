@@ -65,7 +65,7 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     expect(mockSetLabels).not.toHaveBeenCalled();
   });
 
-  it('copies only progress label and step says "Progress label(s) copied"', async () => {
+  it('copies only progress label to PR', async () => {
     mockGetLabels
       .mockResolvedValueOnce(['bug', '50%'])
       .mockResolvedValueOnce(['bug']);
@@ -77,12 +77,7 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
-    expect(results[0].steps).toContain(
-      'Progress label(s) copied from issue #287 to this PR.'
-    );
-    expect(results[0].steps).not.toContain(
-      'Size and progress labels copied from issue #287 to this PR.'
-    );
+    expect(results[0].steps).toEqual([]);
     expect(mockSetLabels).toHaveBeenCalledWith(
       'o',
       'r',
@@ -92,7 +87,7 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     );
   });
 
-  it('copies only size label and step says "Size label(s) copied"', async () => {
+  it('copies only size label to PR', async () => {
     mockGetLabels
       .mockResolvedValueOnce(['bug', 'size: M'])
       .mockResolvedValueOnce(['bug']);
@@ -102,10 +97,9 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     const results = await useCase.invoke(param);
 
     expect(results).toHaveLength(1);
-    expect(results[0].steps).toContain(
-      'Size label(s) copied from issue #287 to this PR.'
-    );
-    expect(results[0].steps).not.toContain('Progress label(s) copied');
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps).toEqual([]);
     expect(mockSetLabels).toHaveBeenCalledWith(
       'o',
       'r',
@@ -115,7 +109,7 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     );
   });
 
-  it('copies both size and progress and step says "Size and progress labels copied"', async () => {
+  it('copies both size and progress labels to PR', async () => {
     mockGetLabels
       .mockResolvedValueOnce(['bug', 'size: M', '50%'])
       .mockResolvedValueOnce(['bug']);
@@ -125,9 +119,9 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     const results = await useCase.invoke(param);
 
     expect(results).toHaveLength(1);
-    expect(results[0].steps).toContain(
-      'Size and progress labels copied from issue #287 to this PR.'
-    );
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps).toEqual([]);
     expect(mockSetLabels).toHaveBeenCalledWith(
       'o',
       'r',
