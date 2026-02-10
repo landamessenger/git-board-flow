@@ -274,6 +274,7 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
             const prCommentsToCreate: Array<{ path: string; line: number; body: string }> = [];
             let prHeadSha: string | undefined;
             let prFiles: { filename: string; status: string }[] = [];
+            const pathToFirstDiffLine: Record<string, number> = {};
 
             if (openPrNumbers.length > 0) {
                 prHeadSha = await this.pullRequestRepository.getPullRequestHeadSha(
@@ -289,6 +290,15 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                         openPrNumbers[0],
                         token
                     );
+                    const filesWithLines = await this.pullRequestRepository.getFilesWithFirstDiffLine(
+                        owner,
+                        repo,
+                        openPrNumbers[0],
+                        token
+                    );
+                    for (const { path, firstLine } of filesWithLines) {
+                        pathToFirstDiffLine[path] = firstLine;
+                    }
                 }
             }
 
@@ -367,6 +377,14 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                                 logDebugInfo(
                                     `Marked finding "${findingId}" as resolved on PR #${existing.prNumber} (review comment ${existing.prCommentId}).`
                                 );
+                                if (prComment.node_id) {
+                                    await this.pullRequestRepository.resolvePullRequestReviewThread(
+                                        owner,
+                                        repo,
+                                        prComment.node_id,
+                                        token
+                                    );
+                                }
                             } catch (err) {
                                 logError(
                                     `[Bugbot] Error al actualizar comentario de revisión de la PR (marcar como resuelto). findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}: ${err}`
@@ -399,7 +417,8 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                 if (prHeadSha && openPrNumbers.length > 0) {
                     const path = finding.file ?? prFiles[0]?.filename;
                     if (path) {
-                        const line = finding.line ?? 1;
+                        const line =
+                            pathToFirstDiffLine[path] ?? finding.line ?? 1;
                         if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
                             await this.pullRequestRepository.updatePullRequestReviewComment(
                                 owner,

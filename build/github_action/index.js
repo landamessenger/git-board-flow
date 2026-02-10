@@ -46737,6 +46737,30 @@ class PullRequestRepository {
                 return [];
             }
         };
+        /**
+         * Returns for each changed file the first line number that appears in the diff (right side).
+         * Used so review comments use a line that GitHub can resolve (avoids "line could not be resolved").
+         */
+        this.getFilesWithFirstDiffLine = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.listFiles({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                });
+                return (data || [])
+                    .filter((f) => f.status !== 'removed' && (f.patch ?? '').length > 0)
+                    .map((f) => {
+                    const firstLine = PullRequestRepository.firstLineFromPatch(f.patch ?? '');
+                    return { path: f.filename, firstLine: firstLine ?? 1 };
+                });
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting files with diff lines (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
+                return [];
+            }
+        };
         this.getPullRequestChanges = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
             const allFiles = [];
@@ -46782,6 +46806,7 @@ class PullRequestRepository {
         /**
          * List all review comments on a PR (for bugbot: find existing findings by marker).
          * Uses pagination to fetch every comment (default API returns only 30 per page).
+         * Includes node_id for GraphQL (e.g. resolve review thread).
          */
         this.listPullRequestReviewComments = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
@@ -46799,6 +46824,7 @@ class PullRequestRepository {
                         body: c.body ?? null,
                         path: c.path,
                         line: c.line ?? undefined,
+                        node_id: c.node_id ?? undefined,
                     })));
                 }
                 return all;
@@ -46806,6 +46832,36 @@ class PullRequestRepository {
             catch (error) {
                 (0, logger_1.logError)(`Error listing PR review comments (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
                 return [];
+            }
+        };
+        /**
+         * Resolve a PR review thread (GraphQL only). Uses the comment's node_id to get the thread and marks it resolved.
+         * No-op if thread is already resolved. Logs and does not throw on error.
+         */
+        this.resolvePullRequestReviewThread = async (owner, repository, commentNodeId, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const queryData = await octokit.graphql(`query ($commentNodeId: ID!) {
+                    node(id: $commentNodeId) {
+                        ... on PullRequestReviewComment {
+                            pullRequestReviewThread { id }
+                        }
+                    }
+                }`, { commentNodeId });
+                const threadId = queryData?.node?.pullRequestReviewThread?.id;
+                if (!threadId) {
+                    (0, logger_1.logError)(`[Bugbot] No review thread found for comment node_id=${commentNodeId}.`);
+                    return;
+                }
+                await octokit.graphql(`mutation ($threadId: ID!) {
+                    resolveReviewThread(input: { threadId: $threadId }) {
+                        thread { id }
+                    }
+                }`, { threadId });
+                (0, logger_1.logDebugInfo)(`Resolved PR review thread ${threadId}.`);
+            }
+            catch (err) {
+                (0, logger_1.logError)(`[Bugbot] Error resolving PR review thread (commentNodeId=${commentNodeId}, owner=${owner}, repo=${repository}): ${err}`);
             }
         };
         /**
@@ -46826,6 +46882,7 @@ class PullRequestRepository {
                         commit_id: commitId,
                         path: c.path,
                         line: c.line,
+                        side: 'RIGHT',
                         body: c.body,
                     });
                     created += 1;
@@ -46849,6 +46906,11 @@ class PullRequestRepository {
             });
             (0, logger_1.logDebugInfo)(`Updated review comment ${commentId}.`);
         };
+    }
+    /** First line (right side) of the first hunk per file, for valid review comment placement. */
+    static firstLineFromPatch(patch) {
+        const match = patch.match(/^@@ -\d+,\d+ \+(\d+),\d+ @@/m);
+        return match ? parseInt(match[1], 10) : undefined;
     }
 }
 exports.PullRequestRepository = PullRequestRepository;
@@ -48614,10 +48676,15 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
             const prCommentsToCreate = [];
             let prHeadSha;
             let prFiles = [];
+            const pathToFirstDiffLine = {};
             if (openPrNumbers.length > 0) {
                 prHeadSha = await this.pullRequestRepository.getPullRequestHeadSha(owner, repo, openPrNumbers[0], token);
                 if (prHeadSha) {
                     prFiles = await this.pullRequestRepository.getChangedFiles(owner, repo, openPrNumbers[0], token);
+                    const filesWithLines = await this.pullRequestRepository.getFilesWithFirstDiffLine(owner, repo, openPrNumbers[0], token);
+                    for (const { path, firstLine } of filesWithLines) {
+                        pathToFirstDiffLine[path] = firstLine;
+                    }
                 }
             }
             for (const [findingId, existing] of Object.entries(existingByFindingId)) {
@@ -48660,6 +48727,9 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                             try {
                                 await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, updated.trimEnd(), token);
                                 (0, logger_1.logDebugInfo)(`Marked finding "${findingId}" as resolved on PR #${existing.prNumber} (review comment ${existing.prCommentId}).`);
+                                if (prComment.node_id) {
+                                    await this.pullRequestRepository.resolvePullRequestReviewThread(owner, repo, prComment.node_id, token);
+                                }
                             }
                             catch (err) {
                                 (0, logger_1.logError)(`[Bugbot] Error al actualizar comentario de revisión de la PR (marcar como resuelto). findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}: ${err}`);
@@ -48682,7 +48752,7 @@ Return a JSON object with: "findings" (array of new/current problems), and if we
                 if (prHeadSha && openPrNumbers.length > 0) {
                     const path = finding.file ?? prFiles[0]?.filename;
                     if (path) {
-                        const line = finding.line ?? 1;
+                        const line = pathToFirstDiffLine[path] ?? finding.line ?? 1;
                         if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
                             await this.pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
                         }

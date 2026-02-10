@@ -29,16 +29,20 @@ const mockGetOpenPullRequestNumbersByHeadBranch = jest.fn();
 const mockListPullRequestReviewComments = jest.fn();
 const mockGetPullRequestHeadSha = jest.fn();
 const mockGetChangedFiles = jest.fn();
+const mockGetFilesWithFirstDiffLine = jest.fn();
 const mockCreateReviewWithComments = jest.fn();
 const mockUpdatePullRequestReviewComment = jest.fn();
+const mockResolvePullRequestReviewThread = jest.fn();
 jest.mock('../../../../data/repository/pull_request_repository', () => ({
   PullRequestRepository: jest.fn().mockImplementation(() => ({
     getOpenPullRequestNumbersByHeadBranch: mockGetOpenPullRequestNumbersByHeadBranch,
     listPullRequestReviewComments: mockListPullRequestReviewComments,
     getPullRequestHeadSha: mockGetPullRequestHeadSha,
     getChangedFiles: mockGetChangedFiles,
+    getFilesWithFirstDiffLine: mockGetFilesWithFirstDiffLine,
     createReviewWithComments: mockCreateReviewWithComments,
     updatePullRequestReviewComment: mockUpdatePullRequestReviewComment,
+    resolvePullRequestReviewThread: mockResolvePullRequestReviewThread,
   })),
 }));
 
@@ -76,12 +80,15 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListPullRequestReviewComments.mockReset();
     mockGetPullRequestHeadSha.mockReset();
     mockGetChangedFiles.mockReset();
+    mockGetFilesWithFirstDiffLine.mockReset();
     mockCreateReviewWithComments.mockReset();
     mockUpdatePullRequestReviewComment.mockReset();
+    mockResolvePullRequestReviewThread.mockReset();
     mockAskAgent.mockReset();
 
     mockListIssueComments.mockResolvedValue([]);
     mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([]);
+    mockGetFilesWithFirstDiffLine.mockResolvedValue([]);
   });
 
   it('returns empty results when OpenCode is not configured (no server URL)', async () => {
@@ -299,6 +306,7 @@ describe('DetectPotentialProblemsUseCase', () => {
         body: `## PR finding\n\n<!-- gbf-bugbot finding_id:"pr-finding" resolved:false -->`,
         path: 'src/a.ts',
         line: 1,
+        node_id: 'PRRC_node_777',
       },
     ]);
     mockAskAgent.mockResolvedValue({
@@ -316,6 +324,12 @@ describe('DetectPotentialProblemsUseCase', () => {
       'token'
     );
     expect(mockUpdatePullRequestReviewComment.mock.calls[0][3]).toContain('resolved:true');
+    expect(mockResolvePullRequestReviewThread).toHaveBeenCalledWith(
+      'owner',
+      'repo',
+      'PRRC_node_777',
+      'token'
+    );
   });
 
   it('does not mark as resolved when finding id is not in resolved_finding_ids', async () => {

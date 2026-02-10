@@ -148,6 +148,41 @@ export class PullRequestRepository {
         }
     };
 
+    /** First line (right side) of the first hunk per file, for valid review comment placement. */
+    private static firstLineFromPatch(patch: string): number | undefined {
+        const match = patch.match(/^@@ -\d+,\d+ \+(\d+),\d+ @@/m);
+        return match ? parseInt(match[1], 10) : undefined;
+    }
+
+    /**
+     * Returns for each changed file the first line number that appears in the diff (right side).
+     * Used so review comments use a line that GitHub can resolve (avoids "line could not be resolved").
+     */
+    getFilesWithFirstDiffLine = async (
+        owner: string,
+        repository: string,
+        pullNumber: number,
+        token: string
+    ): Promise<Array<{ path: string; firstLine: number }>> => {
+        const octokit = github.getOctokit(token);
+        try {
+            const { data } = await octokit.rest.pulls.listFiles({
+                owner,
+                repo: repository,
+                pull_number: pullNumber,
+            });
+            return (data || [])
+                .filter((f) => f.status !== 'removed' && (f.patch ?? '').length > 0)
+                .map((f) => {
+                    const firstLine = PullRequestRepository.firstLineFromPatch(f.patch ?? '');
+                    return { path: f.filename, firstLine: firstLine ?? 1 };
+                });
+        } catch (error) {
+            logError(`Error getting files with diff lines (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
+            return [];
+        }
+    };
+
     getPullRequestChanges = async (
         owner: string,
         repository: string,
@@ -211,15 +246,16 @@ export class PullRequestRepository {
     /**
      * List all review comments on a PR (for bugbot: find existing findings by marker).
      * Uses pagination to fetch every comment (default API returns only 30 per page).
+     * Includes node_id for GraphQL (e.g. resolve review thread).
      */
     listPullRequestReviewComments = async (
         owner: string,
         repository: string,
         pullNumber: number,
         token: string
-    ): Promise<Array<{ id: number; body: string | null; path?: string; line?: number }>> => {
+    ): Promise<Array<{ id: number; body: string | null; path?: string; line?: number; node_id?: string }>> => {
         const octokit = github.getOctokit(token);
-        const all: Array<{ id: number; body: string | null; path?: string; line?: number }> = [];
+        const all: Array<{ id: number; body: string | null; path?: string; line?: number; node_id?: string }> = [];
         try {
             for await (const response of octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, {
                 owner,
@@ -229,11 +265,12 @@ export class PullRequestRepository {
             })) {
                 const data = response.data || [];
                 all.push(
-                    ...data.map((c: { id: number; body: string | null; path?: string; line?: number }) => ({
+                    ...data.map((c: { id: number; body: string | null; path?: string; line?: number; node_id?: string }) => ({
                         id: c.id,
                         body: c.body ?? null,
                         path: c.path,
                         line: c.line ?? undefined,
+                        node_id: c.node_id ?? undefined,
                     }))
                 );
             }
@@ -241,6 +278,49 @@ export class PullRequestRepository {
         } catch (error) {
             logError(`Error listing PR review comments (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
             return [];
+        }
+    };
+
+    /**
+     * Resolve a PR review thread (GraphQL only). Uses the comment's node_id to get the thread and marks it resolved.
+     * No-op if thread is already resolved. Logs and does not throw on error.
+     */
+    resolvePullRequestReviewThread = async (
+        owner: string,
+        repository: string,
+        commentNodeId: string,
+        token: string
+    ): Promise<void> => {
+        const octokit = github.getOctokit(token);
+        try {
+            const queryData = await octokit.graphql<{
+                node?: { pullRequestReviewThread?: { id: string } };
+            }>(
+                `query ($commentNodeId: ID!) {
+                    node(id: $commentNodeId) {
+                        ... on PullRequestReviewComment {
+                            pullRequestReviewThread { id }
+                        }
+                    }
+                }`,
+                { commentNodeId }
+            );
+            const threadId = queryData?.node?.pullRequestReviewThread?.id;
+            if (!threadId) {
+                logError(`[Bugbot] No review thread found for comment node_id=${commentNodeId}.`);
+                return;
+            }
+            await octokit.graphql<{ resolveReviewThread?: { thread?: { id: string } } }>(
+                `mutation ($threadId: ID!) {
+                    resolveReviewThread(input: { threadId: $threadId }) {
+                        thread { id }
+                    }
+                }`,
+                { threadId }
+            );
+            logDebugInfo(`Resolved PR review thread ${threadId}.`);
+        } catch (err) {
+            logError(`[Bugbot] Error resolving PR review thread (commentNodeId=${commentNodeId}, owner=${owner}, repo=${repository}): ${err}`);
         }
     };
 
@@ -268,6 +348,7 @@ export class PullRequestRepository {
                     commit_id: commitId,
                     path: c.path,
                     line: c.line,
+                    side: 'RIGHT',
                     body: c.body,
                 });
                 created += 1;

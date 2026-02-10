@@ -13,6 +13,16 @@ export declare class PullRequestRepository {
         filename: string;
         status: string;
     }[]>;
+    /** First line (right side) of the first hunk per file, for valid review comment placement. */
+    private static firstLineFromPatch;
+    /**
+     * Returns for each changed file the first line number that appears in the diff (right side).
+     * Used so review comments use a line that GitHub can resolve (avoids "line could not be resolved").
+     */
+    getFilesWithFirstDiffLine: (owner: string, repository: string, pullNumber: number, token: string) => Promise<Array<{
+        path: string;
+        firstLine: number;
+    }>>;
     getPullRequestChanges: (owner: string, repository: string, pullNumber: number, token: string) => Promise<Array<{
         filename: string;
         status: string;
@@ -25,13 +35,20 @@ export declare class PullRequestRepository {
     /**
      * List all review comments on a PR (for bugbot: find existing findings by marker).
      * Uses pagination to fetch every comment (default API returns only 30 per page).
+     * Includes node_id for GraphQL (e.g. resolve review thread).
      */
     listPullRequestReviewComments: (owner: string, repository: string, pullNumber: number, token: string) => Promise<Array<{
         id: number;
         body: string | null;
         path?: string;
         line?: number;
+        node_id?: string;
     }>>;
+    /**
+     * Resolve a PR review thread (GraphQL only). Uses the comment's node_id to get the thread and marks it resolved.
+     * No-op if thread is already resolved. Logs and does not throw on error.
+     */
+    resolvePullRequestReviewThread: (owner: string, repository: string, commentNodeId: string, token: string) => Promise<void>;
     /**
      * Create a review on the PR with one or more inline comments (bugbot findings).
      * Each comment requires path and line (use first file and line 1 if not specified).
