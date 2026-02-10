@@ -81,14 +81,21 @@ export class SyncSizeAndProgressLabelsFromIssueToPrUseCase implements ParamUseCa
             );
             logDebugInfo(`Synced size/progress labels from issue #${param.issueNumber} to PR #${prNumber}: ${sizeAndProgressFromIssue.join(', ')}`);
 
+            const hasSize = sizeAndProgressFromIssue.some((name) => param.labels.sizeLabels.indexOf(name) !== -1);
+            const hasProgress = sizeAndProgressFromIssue.some((name) => PROGRESS_LABEL_PATTERN.test(name));
+            const stepMessage =
+                hasSize && hasProgress
+                    ? `Size and progress labels copied from issue #${param.issueNumber} to this PR.`
+                    : hasSize
+                      ? `Size label(s) copied from issue #${param.issueNumber} to this PR.`
+                      : `Progress label(s) copied from issue #${param.issueNumber} to this PR.`;
+
             result.push(
                 new Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [
-                        `Size and progress labels copied from issue #${param.issueNumber} to this PR.`,
-                    ],
+                    steps: [stepMessage],
                 }),
             );
         } catch (error) {

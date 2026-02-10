@@ -7,6 +7,10 @@ export declare class PullRequestRepository {
     isLinked: (pullRequestUrl: string) => Promise<boolean>;
     updateBaseBranch: (owner: string, repository: string, pullRequestNumber: number, branch: string, token: string) => Promise<void>;
     updateDescription: (owner: string, repository: string, pullRequestNumber: number, description: string, token: string) => Promise<void>;
+    /**
+     * Returns all users involved in review: requested (pending) + those who already submitted a review.
+     * Used to avoid re-requesting someone who already reviewed when ensuring desired reviewer count.
+     */
     getCurrentReviewers: (owner: string, repository: string, pullNumber: number, token: string) => Promise<string[]>;
     addReviewersToPullRequest: (owner: string, repository: string, pullNumber: number, reviewers: string[], token: string) => Promise<string[]>;
     getChangedFiles: (owner: string, repository: string, pullNumber: number, token: string) => Promise<{

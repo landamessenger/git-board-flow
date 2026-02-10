@@ -51596,15 +51596,35 @@ class PullRequestRepository {
             });
             (0, logger_1.logDebugInfo)(`Updated PR #${pullRequestNumber} description with: ${description}`);
         };
+        /**
+         * Returns all users involved in review: requested (pending) + those who already submitted a review.
+         * Used to avoid re-requesting someone who already reviewed when ensuring desired reviewer count.
+         */
         this.getCurrentReviewers = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
             try {
-                const { data } = await octokit.rest.pulls.listRequestedReviewers({
-                    owner,
-                    repo: repository,
-                    pull_number: pullNumber,
-                });
-                return data.users.map((user) => user.login);
+                const [requestedRes, reviewsRes] = await Promise.all([
+                    octokit.rest.pulls.listRequestedReviewers({
+                        owner,
+                        repo: repository,
+                        pull_number: pullNumber,
+                    }),
+                    octokit.rest.pulls.listReviews({
+                        owner,
+                        repo: repository,
+                        pull_number: pullNumber,
+                    }),
+                ]);
+                const logins = new Set();
+                for (const user of requestedRes.data.users) {
+                    logins.add(user.login);
+                }
+                for (const review of reviewsRes.data) {
+                    if (review.user?.login) {
+                        logins.add(review.user.login);
+                    }
+                }
+                return Array.from(logins);
             }
             catch (error) {
                 (0, logger_1.logError)(`Error getting reviewers of PR: ${error}.`);
@@ -52709,7 +52729,8 @@ class DeployedActionUseCase {
                 result.push(...mergeToDevelopResult);
                 mergeResults.push(...mergeToDevelopResult);
             }
-            const allMergesSucceeded = mergeResults.length === 0 || mergeResults.every((r) => r.success);
+            const mergesAttempted = mergeResults.length > 0;
+            const allMergesSucceeded = mergesAttempted && mergeResults.every((r) => r.success);
             if (allMergesSucceeded) {
                 const issueNumber = Number(param.singleAction.issue);
                 const closed = await this.issueRepository.closeIssue(param.owner, param.repo, issueNumber, param.tokens.token);
@@ -52726,15 +52747,28 @@ class DeployedActionUseCase {
                 }
             }
             else {
-                (0, logger_1.logDebugInfo)(`Skipping issue close: one or more merges failed. Issue #${param.singleAction.issue} remains open.`);
-                result.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    steps: [
-                        `Issue #${param.singleAction.issue} was not closed because one or more merge operations failed.`,
-                    ],
-                }));
+                if (mergesAttempted) {
+                    (0, logger_1.logDebugInfo)(`Skipping issue close: one or more merges failed. Issue #${param.singleAction.issue} remains open.`);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Issue #${param.singleAction.issue} was not closed because one or more merge operations failed.`,
+                        ],
+                    }));
+                }
+                else {
+                    (0, logger_1.logDebugInfo)(`Skipping issue close: no release or hotfix branch configured. Issue #${param.singleAction.issue} remains open.`);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Issue #${param.singleAction.issue} was not closed because no release or hotfix branch was configured (no merge operations were performed).`,
+                        ],
+                    }));
+                }
             }
             return result;
         }
@@ -56895,13 +56929,18 @@ class SyncSizeAndProgressLabelsFromIssueToPrUseCase {
             const nextPrLabels = Array.from(existing);
             await this.issueRepository.setLabels(param.owner, param.repo, prNumber, nextPrLabels, param.tokens.token);
             (0, logger_1.logDebugInfo)(`Synced size/progress labels from issue #${param.issueNumber} to PR #${prNumber}: ${sizeAndProgressFromIssue.join(', ')}`);
+            const hasSize = sizeAndProgressFromIssue.some((name) => param.labels.sizeLabels.indexOf(name) !== -1);
+            const hasProgress = sizeAndProgressFromIssue.some((name) => issue_repository_1.PROGRESS_LABEL_PATTERN.test(name));
+            const stepMessage = hasSize && hasProgress
+                ? `Size and progress labels copied from issue #${param.issueNumber} to this PR.`
+                : hasSize
+                    ? `Size label(s) copied from issue #${param.issueNumber} to this PR.`
+                    : `Progress label(s) copied from issue #${param.issueNumber} to this PR.`;
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [
-                    `Size and progress labels copied from issue #${param.issueNumber} to this PR.`,
-                ],
+                steps: [stepMessage],
             }));
         }
         catch (error) {

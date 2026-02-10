@@ -71,6 +71,10 @@ export class PullRequestRepository {
         logDebugInfo(`Updated PR #${pullRequestNumber} description with: ${description}`);
     }
 
+    /**
+     * Returns all users involved in review: requested (pending) + those who already submitted a review.
+     * Used to avoid re-requesting someone who already reviewed when ensuring desired reviewer count.
+     */
     getCurrentReviewers = async (
         owner: string,
         repository: string,
@@ -80,13 +84,29 @@ export class PullRequestRepository {
         const octokit = github.getOctokit(token);
 
         try {
-            const {data} = await octokit.rest.pulls.listRequestedReviewers({
-                owner,
-                repo: repository,
-                pull_number: pullNumber,
-            });
+            const [requestedRes, reviewsRes] = await Promise.all([
+                octokit.rest.pulls.listRequestedReviewers({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                }),
+                octokit.rest.pulls.listReviews({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                }),
+            ]);
 
-            return data.users.map((user) => user.login);
+            const logins = new Set<string>();
+            for (const user of requestedRes.data.users) {
+                logins.add(user.login);
+            }
+            for (const review of reviewsRes.data) {
+                if (review.user?.login) {
+                    logins.add(review.user.login);
+                }
+            }
+            return Array.from(logins);
         } catch (error) {
             logError(`Error getting reviewers of PR: ${error}.`);
             return [];
