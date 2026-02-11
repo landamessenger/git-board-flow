@@ -18,7 +18,7 @@ export class InitialSetupUseCase implements ParamUseCase<Execution, Result[]> {
         const errors: string[] = [];
 
         try {
-            // 0. Setup files (.github/workflows, pull_request_template.md, .env)
+            // 0. Setup files (.github/workflows, .github/ISSUE_TEMPLATE, pull_request_template.md, .env)
             logInfo('📋 Ensuring .github and copying setup files...');
             ensureGitHubDirs(process.cwd());
             const filesResult = copySetupFiles(process.cwd());

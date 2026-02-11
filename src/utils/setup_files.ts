@@ -3,12 +3,13 @@ import * as path from 'path';
 import { logInfo } from './logger';
 
 /**
- * Ensure .github and .github/workflows exist; create them if missing.
+ * Ensure .github, .github/workflows and .github/ISSUE_TEMPLATE exist; create them if missing.
  * @param cwd - Directory (repo root)
  */
 export function ensureGitHubDirs(cwd: string): void {
   const githubDir = path.join(cwd, '.github');
   const workflowsDir = path.join(cwd, '.github', 'workflows');
+  const issueTemplateDir = path.join(cwd, '.github', 'ISSUE_TEMPLATE');
   if (!fs.existsSync(githubDir)) {
     logInfo('📁 Creating .github/...');
     fs.mkdirSync(githubDir, { recursive: true });
@@ -17,10 +18,14 @@ export function ensureGitHubDirs(cwd: string): void {
     logInfo('📁 Creating .github/workflows/...');
     fs.mkdirSync(workflowsDir, { recursive: true });
   }
+  if (!fs.existsSync(issueTemplateDir)) {
+    logInfo('📁 Creating .github/ISSUE_TEMPLATE/...');
+    fs.mkdirSync(issueTemplateDir, { recursive: true });
+  }
 }
 
 /**
- * Copy setup files from setup/ to repo (.github/ workflows, pull_request_template.md, .env at root).
+ * Copy setup files from setup/ to repo (.github/ workflows, ISSUE_TEMPLATE, pull_request_template.md, .env at root).
  * Skips files that already exist at destination (no overwrite).
  * Logs each file copied or skipped. No-op if setup/ does not exist.
  * @param cwd - Repo root
@@ -48,6 +53,23 @@ export function copySetupFiles(cwd: string): { copied: number; skipped: number }
           logInfo(`  ✅ Copied setup/workflows/${f} → .github/workflows/${f}`);
           copied += 1;
         }
+      }
+    }
+  }
+  const issueTemplateSrc = path.join(setupDir, 'ISSUE_TEMPLATE');
+  const issueTemplateDst = path.join(cwd, '.github', 'ISSUE_TEMPLATE');
+  if (fs.existsSync(issueTemplateSrc)) {
+    const files = fs.readdirSync(issueTemplateSrc).filter((f) => fs.statSync(path.join(issueTemplateSrc, f)).isFile());
+    for (const f of files) {
+      const src = path.join(issueTemplateSrc, f);
+      const dst = path.join(issueTemplateDst, f);
+      if (fs.existsSync(dst)) {
+        logInfo(`  ⏭️  .github/ISSUE_TEMPLATE/${f} already exists; skipping.`);
+        skipped += 1;
+      } else {
+        fs.copyFileSync(src, dst);
+        logInfo(`  ✅ Copied setup/ISSUE_TEMPLATE/${f} → .github/ISSUE_TEMPLATE/${f}`);
+        copied += 1;
       }
     }
   }
