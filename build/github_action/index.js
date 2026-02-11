@@ -43672,21 +43672,26 @@ class PullRequest {
     get isPullRequestReviewComment() {
         return (this.inputs?.eventName ?? github.context.eventName) === 'pull_request_review_comment';
     }
+    /** Review comment: GitHub sends it as payload.comment for pull_request_review_comment event. */
+    get reviewCommentPayload() {
+        const p = github.context.payload;
+        return this.inputs?.pull_request_review_comment ?? this.inputs?.comment ?? p.pull_request_review_comment ?? p.comment;
+    }
     get commentId() {
-        return this.inputs?.pull_request_review_comment?.id ?? github.context.payload.pull_request_review_comment?.id ?? -1;
+        return this.reviewCommentPayload?.id ?? -1;
     }
     get commentBody() {
-        return this.inputs?.pull_request_review_comment?.body ?? github.context.payload.pull_request_review_comment?.body ?? '';
+        return this.reviewCommentPayload?.body ?? '';
     }
     get commentAuthor() {
-        return this.inputs?.pull_request_review_comment?.user?.login ?? github.context.payload.pull_request_review_comment?.user.login ?? '';
+        return this.reviewCommentPayload?.user?.login ?? '';
     }
     get commentUrl() {
-        return this.inputs?.pull_request_review_comment?.html_url ?? github.context.payload.pull_request_review_comment?.html_url ?? '';
+        return this.reviewCommentPayload?.html_url ?? '';
     }
     /** When the comment is a reply, the id of the parent review comment (for bugbot: include parent body in intent prompt). */
     get commentInReplyToId() {
-        const raw = this.inputs?.pull_request_review_comment?.in_reply_to_id ?? github.context.payload?.pull_request_review_comment?.in_reply_to_id;
+        const raw = this.reviewCommentPayload?.in_reply_to_id;
         return raw != null ? Number(raw) : undefined;
     }
     constructor(desiredAssigneesCount, desiredReviewersCount, mergeTimeout, inputs = undefined) {

@@ -19,6 +19,8 @@ export declare class PullRequest {
     get isSynchronize(): boolean;
     get isPullRequest(): boolean;
     get isPullRequestReviewComment(): boolean;
+    /** Review comment: GitHub sends it as payload.comment for pull_request_review_comment event. */
+    private get reviewCommentPayload();
     get commentId(): number;
     get commentBody(): string;
     get commentAuthor(): string;
