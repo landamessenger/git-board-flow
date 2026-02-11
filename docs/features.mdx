@@ -1,11 +1,11 @@
 ---
 title: Features & Capabilities
-description: Complete reference of what the Git Board Flow GitHub Action does
+description: Complete reference of what the Copilot GitHub Action does
 ---
 
 # Features & Capabilities
 
-This page describes **every function** the Git Board Flow GitHub Action provides: workflow-triggered behavior (issues, pull requests, pushes) and **single actions** you can run on demand.
+This page describes **every function** the Copilot GitHub Action provides: workflow-triggered behavior (issues, pull requests, pushes) and **single actions** you can run on demand.
 
 <Columns cols={3}>
   <Card title="Issue events" icon="circle-dot" href="/issues">
@@ -110,10 +110,10 @@ Configuration: `opencode-server-url`, `opencode-model`, and optionally `opencode
 ## Workflow concurrency and sequential execution
 
 <Tip>
-  **Sequential runs:** When a new run starts, the action **waits** for any previous run of the **same workflow name** to finish. Runs of the same workflow (e.g. "Git Board Flow - Issue") execute one after another instead of in parallel or being cancelled — something GitHub does not offer natively.
+  **Sequential runs:** When a new run starts, the action **waits** for any previous run of the **same workflow name** to finish. Runs of the same workflow (e.g. "Copilot - Issue") execute one after another instead of in parallel or being cancelled — something GitHub does not offer natively.
 </Tip>
 
-GitHub's native [concurrency](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency) lets you cancel in-progress runs when a new one starts (`cancel-in-progress: true`). Git Board Flow adds **sequential execution** for the same workflow: when a new run starts, the action waits for any previous run of the same workflow name to finish before doing its work.
+GitHub's native [concurrency](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency) lets you cancel in-progress runs when a new one starts (`cancel-in-progress: true`). Copilot adds **sequential execution** for the same workflow: when a new run starts, the action waits for any previous run of the same workflow name to finish before doing its work.
 
 ### How it works
 
@@ -127,7 +127,7 @@ So you get a **per-workflow queue**: multiple triggers for the same workflow (e.
 ### Example
 
 ```yaml
-name: Git Board Flow - Issue
+name: Copilot - Issue
 
 on:
   issues:

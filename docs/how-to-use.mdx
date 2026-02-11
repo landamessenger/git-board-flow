@@ -1,9 +1,9 @@
 ---
 title: How To Use
-description: Steps for setting up Git Board Flow in your repository
+description: Steps for setting up Copilot in your repository
 ---
 
-Follow these steps to set up Git Board Flow in your repository:
+Follow these steps to set up Copilot in your repository:
 
 <Steps>
   <Step title="Create a PAT">
@@ -40,8 +40,8 @@ Follow these steps to set up Git Board Flow in your repository:
     Include the labels that match the [labels table](/issues#labels-by-issue-type-and-flow) so the action creates the correct branches and applies the right workflow.
   </Step>
 
-  <Step title="Install Git Board Flow">
-    Add the GitHub Action to your repository by creating three workflow files (you can choose any names; common choices are `gbf_commit.yml`, `gbf_issue.yml`, `gbf_pr.yml` or names like "Git Board Flow - Commit", etc.):
+  <Step title="Install Copilot">
+    Add the GitHub Action to your repository by creating three workflow files (you can choose any names; common choices are `gbf_commit.yml`, `gbf_issue.yml`, `gbf_pr.yml` or names like "Copilot - Commit", etc.):
     1. **Push (commit)** — runs on `push` to any branch: notifies issues of new commits, updates size and progress labels. Create e.g. `.github/workflows/gbf_commit.yml`.
     2. **Issues** — runs on `issues` (opened, edited, labeled, unlabeled): creates branches, links to projects, assignees. Create e.g. `.github/workflows/gbf_issue.yml`.
     3. **Pull requests** — runs on `pull_request`: links PR to issue, project, reviewers. Create e.g. `.github/workflows/gbf_pr.yml`.

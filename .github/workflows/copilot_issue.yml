@@ -1,15 +1,12 @@
-name: Git Board Flow - Commit
+name: Copilot - Issue
 
 on:
-  push:
-    branches:
-      - '**'
-      - '!master'
-      - '!develop'
+  issues:
+    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
 
 jobs:
-  git-board-commits:
-    name: Git Board - Commit
+  copilot-issues:
+    name: Copilot - Issue
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -17,7 +14,8 @@ jobs:
 
       - uses: ./
         with:
+          ai-ignore-files: build/*
           debug: ${{ vars.DEBUG }}
-          project-ids: 2
           opencode-model: ${{ vars.OPENCODE_MODEL }}
+          project-ids: 2
           token: ${{ secrets.PAT }}

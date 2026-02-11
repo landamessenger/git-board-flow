@@ -1,5 +1,5 @@
 {
-  "name": "Git Board Flow",
+  "name": "Copilot",
   "description": "A tool for managing Git workflow and board integration",
   "tabs": [
     { "id": "root", "title": "Home", "href": "/" },

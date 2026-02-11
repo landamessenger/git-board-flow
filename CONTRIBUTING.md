@@ -1,6 +1,6 @@
-# Contributing to Git Board Flow
+# Contributing to Copilot
 
-Thank you for your interest in contributing to Git Board Flow. This document provides guidelines for setting up the project and submitting changes.
+Thank you for your interest in contributing to Copilot. This document provides guidelines for setting up the project and submitting changes.
 
 ## Development Setup
 
@@ -71,7 +71,7 @@ npm run build
 2. Make your changes, following the conventions above.
 3. Ensure tests pass and lint is clean.
 4. Submit a pull request with a clear description of the changes.
-5. Link the PR to an issue if applicable (Git Board Flow will help with that!).
+5. Link the PR to an issue if applicable (Copilot will help with that!).
 
 ## Questions?
 

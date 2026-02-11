@@ -1,12 +1,12 @@
-name: Git Board Flow - Pull Request Review Comment
+name: Copilot - Issue Comment
 
 on:
-  pull_request_review_comment:
+  issue_comment:
     types: [created, edited]
 
 jobs:
-  git-board-pull-requests:
-    name: Git Board - Pull Request Review Comment
+  copilot-issues:
+    name: Copilot - Issue Comment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -19,4 +19,3 @@ jobs:
           opencode-model: ${{ vars.OPENCODE_MODEL }}
           project-ids: 2
           token: ${{ secrets.PAT }}
-          
