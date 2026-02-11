@@ -61,7 +61,7 @@ npm run build
 ## Documentation
 
 - Update the relevant docs in `docs/` when changing behavior or adding features.
-- For user-facing changes, update `README.md` and the docs at [docs.page/landamessenger/git-board-flow](https://docs.page/landamessenger/git-board-flow).
+- For user-facing changes, update `README.md` and the docs at [docs.page/vypdev/copilot](https://docs.page/vypdev/copilot).
 - The project uses [Mintlify](https://mintlify.com/) (docs.page) for docs; see `docs.json` for sidebar structure.
 - Use Mintlify components for a consistent, readable UI: **Card**, **Card** inside **Columns**, **Tabs**, **Accordion** / **AccordionGroup**, **Steps**, **Info** / **Warning** / **Tip** / **Note**. See [Mintlify Components](https://mintlify.com/docs/components).
 
@@ -75,4 +75,4 @@ npm run build
 
 ## Questions?
 
-Open an issue on [GitHub](https://github.com/landamessenger/git-board-flow) or check the [Support](https://docs.page/landamessenger/git-board-flow/support) page in the documentation.
+Open an issue on [GitHub](https://github.com/vypdev/copilot) or check the [Support](https://docs.page/vypdev/copilot/support) page in the documentation.

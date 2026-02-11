@@ -19,12 +19,12 @@ on:
     types: [opened, edited, labeled, unlabeled]
 
 jobs:
-  git-board-flow-pull-requests:
+  copilot-pull-requests:
     name: Git Board Flow - Pull Request
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: landamessenger/git-board-flow@master
+      - uses: vypdev/copilot@master
         with:
           token: ${{ secrets.PAT }}
           project-ids: '2,3'

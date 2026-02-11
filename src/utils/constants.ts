@@ -1,6 +1,6 @@
-export const COMMAND = 'giik'
-export const TITLE = 'Giik'
-export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
+export const COMMAND = 'copilot'
+export const TITLE = 'Copilot'
+export const REPO_URL = 'https://github.com/vypdev/copilot'
 
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export const OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free'

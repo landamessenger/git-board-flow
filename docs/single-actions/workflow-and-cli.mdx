@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: landamessenger/git-board-flow@master
+      - uses: vypdev/copilot@master
         with:
           token: ${{ secrets.PAT }}
           single-action: check_progress_action
@@ -28,7 +28,7 @@ Use `workflow_dispatch` to run on demand, or trigger from another event. See [Co
 
 ## From the CLI (`giik`)
 
-Build the CLI from the git-board-flow repo, then run it from **any repo** that has `origin` pointing to GitHub (or from the same repo):
+Build the CLI from the copilot repo, then run it from **any repo** that has `origin` pointing to GitHub (or from the same repo):
 
 ```bash
 nvm use 20

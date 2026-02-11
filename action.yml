@@ -1,4 +1,4 @@
-name: "Git Board Flow"
+name: "Copilot"
 description: "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology."
 author: "Landa Messenger"
 inputs:

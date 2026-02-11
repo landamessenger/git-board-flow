@@ -118,7 +118,7 @@ export async function startOpencodeServer(options?: {
     ['-y', 'opencode-ai', 'serve', '--port', String(port), '--hostname', hostname],
     {
       cwd,
-      env: { ...process.env, OPENCODE_CLIENT: 'git-board-flow' },
+      env: { ...process.env, OPENCODE_CLIENT: 'copilot' },
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
     }

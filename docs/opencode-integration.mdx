@@ -118,7 +118,7 @@ Then set `opencode-model: 'ollama/llama2'` (or the model ID you defined). See [O
 Set the variables for the provider you use in the workflow `env`. Only one primary provider is needed for the model you choose:
 
 ```yaml
-- uses: landamessenger/git-board-flow@master
+- uses: vypdev/copilot@master
   env:
     # Option A: Anthropic
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -150,7 +150,7 @@ For the full list of providers and any new env var names, see the official [Open
 Example (using your own OpenCode server):
 
 ```yaml
-- uses: landamessenger/git-board-flow@master
+- uses: vypdev/copilot@master
   with:
     opencode-server-url: 'http://your-opencode-host:4096'
     opencode-model: 'anthropic/claude-3-5-sonnet'
@@ -159,7 +159,7 @@ Example (using your own OpenCode server):
 Example (action starts and stops OpenCode for you; no separate server needed). Set the provider API key in `env` using the variable name OpenCode expects (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY`):
 
 ```yaml
-- uses: landamessenger/git-board-flow@master
+- uses: vypdev/copilot@master
   env:
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # or OPENAI_API_KEY, OPENROUTER_API_KEY, etc.
   with:

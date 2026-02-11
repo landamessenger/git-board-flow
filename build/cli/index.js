@@ -47092,14 +47092,14 @@ program
     (0, local_action_1.runLocalAction)(params);
 });
 /**
- * Copilot - AI development assistant using OpenCode "build" agent.
+ * Do - AI development assistant using OpenCode "build" agent.
  * When the OpenCode server is run locally from your repo (e.g. opencode serve), the build agent
  * can read and write files; changes are applied in the server workspace.
  */
 program
-    .command('copilot')
+    .command('do')
     .description(`${constants_1.TITLE} - AI development assistant (OpenCode build agent; can edit files when run locally)`)
-    .option('-p, --prompt <prompt...>', 'Prompt or question for the copilot (required)', '')
+    .option('-p, --prompt <prompt...>', 'Prompt or question (required)', '')
     .option('-d, --debug', 'Debug mode', false)
     .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
     .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
@@ -47139,7 +47139,7 @@ program
         const aiRepository = new ai_repository_1.AiRepository();
         const result = await aiRepository.copilotMessage(ai, prompt);
         if (!result) {
-            console.error('❌ Copilot request failed (check OpenCode server and model).');
+            console.error('❌ Request failed (check OpenCode server and model).');
             process.exit(1);
         }
         const { text, sessionId } = result;
@@ -47149,7 +47149,7 @@ program
             return;
         }
         console.log('\n' + '='.repeat(80));
-        console.log('🤖 COPILOT RESPONSE (OpenCode build agent)');
+        console.log('🤖 RESPONSE (OpenCode build agent)');
         console.log('='.repeat(80));
         console.log(`\n${text || '(No text response)'}\n`);
         const diff = await (0, ai_repository_1.getSessionDiff)(serverUrl, sessionId);
@@ -47166,7 +47166,7 @@ program
     }
     catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
-        console.error('❌ Error executing copilot:', err.message || error);
+        console.error('❌ Error executing do:', err.message || error);
         if (options.debug) {
             console.error(error);
         }
@@ -49732,7 +49732,7 @@ This PR merges **${head}** into **${base}**.
                     repo: repository,
                     pull_number: pullRequest.number,
                     body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
-                        '\n\nThis PR was automatically created by [`git-board-flow`](https://github.com/landamessenger/git-board-flow).'
+                        '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).'
                 });
                 const iteration = 10;
                 if (timeout > iteration) {
@@ -52048,7 +52048,7 @@ class ContentInterface {
         };
     }
     get _id() {
-        return `git-board-flow-${this.id}`;
+        return `copilot-${this.id}`;
     }
     get startPattern() {
         if (this.visibleContent) {
@@ -57248,9 +57248,9 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
-exports.COMMAND = 'giik';
-exports.TITLE = 'Giik';
-exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
+exports.COMMAND = 'copilot';
+exports.TITLE = 'Copilot';
+exports.REPO_URL = 'https://github.com/vypdev/copilot';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */

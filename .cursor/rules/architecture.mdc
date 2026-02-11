@@ -43,7 +43,7 @@ alwaysApply: true
 
 ## CLI-only (not single actions)
 
-- **Copilot**: `giik copilot -p "..."` uses OpenCode build agent via `AiRepository.copilotMessage` in `src/cli.ts`. No workflow single-action equivalent.
+- **Do (AI assistant)**: `copilot do -p "..."` uses OpenCode build agent via `AiRepository.copilotMessage` in `src/cli.ts`. No workflow single-action equivalent.
 
 ## Concurrency (sequential runs)
 

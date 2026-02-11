@@ -123,7 +123,7 @@ ${footer}
 
 ${errors}
 
-Check your project configuration, if everything is okay consider [opening an issue](https://github.com/landamessenger/git-board-flow/issues/new/choose).
+Check your project configuration, if everything is okay consider [opening an issue](https://github.com/vypdev/copilot/issues/new/choose).
 `
             }
 

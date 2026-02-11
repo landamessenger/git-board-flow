@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: landamessenger/git-board-flow@master
+      - uses: vypdev/copilot@master
         with:
           project-ids: '1,2'
           token: ${{ secrets.PAT }}
@@ -59,7 +59,7 @@ Git Board Flow rolls the dice for you by automatically assigning newly created i
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             desired-assignees-count: 1 // [!code highlight]
   ```
@@ -81,7 +81,7 @@ Git Board Flow takes care of organizing your issues by automatically assigning n
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             project-ids: 1, 2 // [!code highlight]
   ```
@@ -105,7 +105,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             branch-management-launcher-label: branched // [!code highlight]
   ```
@@ -122,7 +122,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             main-branch: master // [!code highlight]
             development-branch: develop // [!code highlight]
@@ -137,7 +137,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
 
 ### Smart Workflow Guidance
 
-Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Git-Board-Flow will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
+Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Copilot will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
 
 ### Real-Time Code Tracking
 
@@ -149,5 +149,5 @@ When the **push** workflow runs (or you run the single action `detect_potential_
 
 ### Auto-Closure
 
-Forget about closing issues when development is complete, Git-Board-Flow will automatically close them once the branches created by the issue are successfully merged.
+Forget about closing issues when development is complete, Copilot will automatically close them once the branches created by the issue are successfully merged.
 

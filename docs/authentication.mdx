@@ -13,7 +13,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
   <Step title="Who is the bot?">
     Choose which account will be used to create your PAT. This account will act as your bot.
     - For individual developers, it is recommended to use your own account as the bot.
-    - In organizations and enterprise accounts, it is better to use a separate, dedicated account. For example, this project belongs to [**landamessenger**](https://github.com/landamessenger), and the selected bot account is [**landa-bot**](https://github.com/landa-bot).
+    - In organizations and enterprise accounts, it is better to use a separate, dedicated account. For example, this project belongs to [**vypdev**](https://github.com/vypdev), and the selected bot account is [**landa-bot**](https://github.com/landa-bot).
   </Step>
   
   <Step title="Create the PAT">
@@ -95,7 +95,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
         name: Git Board - Issue
         runs-on: ubuntu-latest
         steps:
-          - uses: landamessenger/git-board-flow@v1
+          - uses: vypdev/copilot@v1
             with:
               project-ids: 1,2
               token: ${{ secrets.PAT }}

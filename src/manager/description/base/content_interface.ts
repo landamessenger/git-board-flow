@@ -4,7 +4,7 @@ export abstract class ContentInterface {
     abstract get id(): string
 
     private get _id(): string {
-        return `git-board-flow-${this.id}`
+        return `copilot-${this.id}`
     }
 
     abstract get visibleContent(): boolean

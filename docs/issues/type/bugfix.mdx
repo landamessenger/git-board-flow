@@ -15,7 +15,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           bugfix-label: bugfix // [!code highlight]
 ```
@@ -30,7 +30,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           bugfix-tree: bugfix // [!code highlight]
 ```
@@ -56,7 +56,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           development-branch: develop // [!code highlight]
 ```
@@ -73,7 +73,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           images-issue-bugfix: url1, url2, url3 // [!code highlight]
 ```
@@ -88,7 +88,7 @@ You can use this template for bugfix issues that helps capture all the necessary
 - Selecting affected actions and platforms
 - Providing a detailed bug description
 - Including steps to reproduce
-- Specifying git-board-flow version
+- Specifying copilot version
 - Adding relevant log output
 - Including additional context and comments
 
@@ -96,7 +96,7 @@ You can find this template in `.github/ISSUE_TEMPLATE/bug_report.yml`. Below is 
 
 ```yml
 name: 🐛 Bug Report
-description: Report a bug on git-board-flow
+description: Report a bug on copilot
 title: "<YOUR TITLE HERE>"
 labels: ["bug", "bugfix"]
 body:
@@ -165,8 +165,8 @@ body:
 
   - type: input
     attributes:
-      label: git-board-flow Version
-      description: What version of git-board-flow is being used?
+      label: copilot Version
+      description: What version of copilot is being used?
       placeholder: "master"
     validations:
       required: true

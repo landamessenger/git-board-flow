@@ -1,5 +1,5 @@
 name: ✨ Feature Request
-description: Propose an idea or improvement for git-board-flow
+description: Propose an idea or improvement for copilot
 title: "<YOUR TITLE HERE>"
 labels: ["enhancement", "feature", "priority: low"]
 body:
@@ -92,9 +92,9 @@ body:
 
   - type: input
     attributes:
-      label: Version of git-board-flow
+      label: Version of copilot
       description: |
-        What version of git-board-flow are you using, or does this proposal apply to all versions?
+        What version of copilot are you using, or does this proposal apply to all versions?
       placeholder: "master"
     validations:
       required: false

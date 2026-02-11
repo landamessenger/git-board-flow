@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Report a bug on git-board-flow
+description: Report a bug on copilot
 title: "<YOUR TITLE HERE>"
 labels: ["bug", "bugfix", "priority: high"]
 body:
@@ -68,8 +68,8 @@ body:
 
   - type: input
     attributes:
-      label: git-board-flow Version
-      description: What version of git-board-flow is being used?
+      label: copilot Version
+      description: What version of copilot is being used?
       placeholder: "master"
     validations:
       required: true

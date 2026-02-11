@@ -142,14 +142,14 @@ program
   });
 
 /**
- * Copilot - AI development assistant using OpenCode "build" agent.
+ * Do - AI development assistant using OpenCode "build" agent.
  * When the OpenCode server is run locally from your repo (e.g. opencode serve), the build agent
  * can read and write files; changes are applied in the server workspace.
  */
 program
-  .command('copilot')
+  .command('do')
   .description(`${TITLE} - AI development assistant (OpenCode build agent; can edit files when run locally)`)
-  .option('-p, --prompt <prompt...>', 'Prompt or question for the copilot (required)', '')
+  .option('-p, --prompt <prompt...>', 'Prompt or question (required)', '')
   .option('-d, --debug', 'Debug mode', false)
   .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
   .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
@@ -196,7 +196,7 @@ program
       const result = await aiRepository.copilotMessage(ai, prompt);
 
       if (!result) {
-        console.error('❌ Copilot request failed (check OpenCode server and model).');
+        console.error('❌ Request failed (check OpenCode server and model).');
         process.exit(1);
       }
 
@@ -209,7 +209,7 @@ program
       }
 
       console.log('\n' + '='.repeat(80));
-      console.log('🤖 COPILOT RESPONSE (OpenCode build agent)');
+      console.log('🤖 RESPONSE (OpenCode build agent)');
       console.log('='.repeat(80));
       console.log(`\n${text || '(No text response)'}\n`);
 
@@ -226,7 +226,7 @@ program
       }
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
-      console.error('❌ Error executing copilot:', err.message || error);
+      console.error('❌ Error executing do:', err.message || error);
       if (options.debug) {
         console.error(error);
       }

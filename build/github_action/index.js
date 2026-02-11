@@ -44832,7 +44832,7 @@ This PR merges **${head}** into **${base}**.
                     repo: repository,
                     pull_number: pullRequest.number,
                     body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
-                        '\n\nThis PR was automatically created by [`git-board-flow`](https://github.com/landamessenger/git-board-flow).'
+                        '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).'
                 });
                 const iteration = 10;
                 if (timeout > iteration) {
@@ -47148,7 +47148,7 @@ class ContentInterface {
         };
     }
     get _id() {
-        return `git-board-flow-${this.id}`;
+        return `copilot-${this.id}`;
     }
     get startPattern() {
         if (this.visibleContent) {
@@ -50188,7 +50188,7 @@ ${footer}
 
 ${errors}
 
-Check your project configuration, if everything is okay consider [opening an issue](https://github.com/landamessenger/git-board-flow/issues/new/choose).
+Check your project configuration, if everything is okay consider [opening an issue](https://github.com/vypdev/copilot/issues/new/choose).
 `;
             }
             const commentBody = `# ${title}
@@ -52565,9 +52565,9 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
-exports.COMMAND = 'giik';
-exports.TITLE = 'Giik';
-exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
+exports.COMMAND = 'copilot';
+exports.TITLE = 'Copilot';
+exports.REPO_URL = 'https://github.com/vypdev/copilot';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
@@ -53290,7 +53290,7 @@ async function startOpencodeServer(options) {
     (0, logger_1.logInfo)(`Starting OpenCode server at ${baseUrl} (this may take a moment on first run)...`);
     const child = (0, child_process_1.spawn)('npx', ['-y', 'opencode-ai', 'serve', '--port', String(port), '--hostname', hostname], {
         cwd,
-        env: { ...process.env, OPENCODE_CLIENT: 'git-board-flow' },
+        env: { ...process.env, OPENCODE_CLIENT: 'copilot' },
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
     });

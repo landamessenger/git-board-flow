@@ -1,6 +1,6 @@
 name: 🔥 Hotfix Issue
 
-description: Request a new hotfix for git-board-flow (only team members)
+description: Request a new hotfix for copilot (only team members)
 title: "<YOUR TITLE HERE>"
 labels: [ "hotfix", "branched", "priority: high" ]
 body:
@@ -8,7 +8,7 @@ body:
     attributes:
       value: |
         ### ⚠️ Disclaimer
-        > **Only members of the git-board-flow team can create hotfix issues.**
+        > **Only members of the copilot team can create hotfix issues.**
         > Any hotfix issue created by someone outside the team will be closed automatically.
 
         ---
