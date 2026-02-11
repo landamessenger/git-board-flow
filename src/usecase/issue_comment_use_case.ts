@@ -10,31 +10,10 @@ import { BugbotAutofixUseCase } from "./steps/commit/bugbot/bugbot_autofix_use_c
 import { runBugbotAutofixCommitAndPush } from "./steps/commit/bugbot/bugbot_autofix_commit";
 import { markFindingsResolved } from "./steps/commit/bugbot/mark_findings_resolved_use_case";
 import { sanitizeFindingIdForMarker } from "./steps/commit/bugbot/marker";
-
-type BugbotFixIntentPayload = {
-    isFixRequest: boolean;
-    targetFindingIds: string[];
-    context?: Parameters<typeof markFindingsResolved>[0]["context"];
-    branchOverride?: string;
-};
-
-function getBugbotFixIntentPayload(results: Result[]): BugbotFixIntentPayload | undefined {
-    const last = results[results.length - 1];
-    const payload = last?.payload;
-    if (!payload || typeof payload !== "object") return undefined;
-    return payload as BugbotFixIntentPayload;
-}
-
-function canRunBugbotAutofix(
-    payload: BugbotFixIntentPayload | undefined
-): payload is BugbotFixIntentPayload & { context: NonNullable<BugbotFixIntentPayload["context"]> } {
-    return (
-        !!payload?.isFixRequest &&
-        Array.isArray(payload.targetFindingIds) &&
-        payload.targetFindingIds.length > 0 &&
-        !!payload.context
-    );
-}
+import {
+    getBugbotFixIntentPayload,
+    canRunBugbotAutofix,
+} from "./steps/commit/bugbot/bugbot_fix_intent_payload";
 
 export class IssueCommentUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = "IssueCommentUseCase";

@@ -53294,19 +53294,7 @@ const bugbot_autofix_use_case_1 = __nccwpck_require__(4570);
 const bugbot_autofix_commit_1 = __nccwpck_require__(6263);
 const mark_findings_resolved_use_case_1 = __nccwpck_require__(61);
 const marker_1 = __nccwpck_require__(2401);
-function getBugbotFixIntentPayload(results) {
-    const last = results[results.length - 1];
-    const payload = last?.payload;
-    if (!payload || typeof payload !== "object")
-        return undefined;
-    return payload;
-}
-function canRunBugbotAutofix(payload) {
-    return (!!payload?.isFixRequest &&
-        Array.isArray(payload.targetFindingIds) &&
-        payload.targetFindingIds.length > 0 &&
-        !!payload.context);
-}
+const bugbot_fix_intent_payload_1 = __nccwpck_require__(2528);
 class IssueCommentUseCase {
     constructor() {
         this.taskId = "IssueCommentUseCase";
@@ -53318,8 +53306,8 @@ class IssueCommentUseCase {
         (0, logger_1.logInfo)("Running bugbot fix intent detection (before Think).");
         const intentResults = await new detect_bugbot_fix_intent_use_case_1.DetectBugbotFixIntentUseCase().invoke(param);
         results.push(...intentResults);
-        const intentPayload = getBugbotFixIntentPayload(intentResults);
-        const runAutofix = canRunBugbotAutofix(intentPayload);
+        const intentPayload = (0, bugbot_fix_intent_payload_1.getBugbotFixIntentPayload)(intentResults);
+        const runAutofix = (0, bugbot_fix_intent_payload_1.canRunBugbotAutofix)(intentPayload);
         if (intentPayload) {
             (0, logger_1.logInfo)(`Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`);
         }
@@ -53474,12 +53462,14 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestReviewCommentUseCase = void 0;
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
+const think_use_case_1 = __nccwpck_require__(3841);
 const check_pull_request_comment_language_use_case_1 = __nccwpck_require__(7112);
 const detect_bugbot_fix_intent_use_case_1 = __nccwpck_require__(5289);
 const bugbot_autofix_use_case_1 = __nccwpck_require__(4570);
 const bugbot_autofix_commit_1 = __nccwpck_require__(6263);
 const mark_findings_resolved_use_case_1 = __nccwpck_require__(61);
 const marker_1 = __nccwpck_require__(2401);
+const bugbot_fix_intent_payload_1 = __nccwpck_require__(2528);
 class PullRequestReviewCommentUseCase {
     constructor() {
         this.taskId = "PullRequestReviewCommentUseCase";
@@ -53488,38 +53478,60 @@ class PullRequestReviewCommentUseCase {
         (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         results.push(...(await new check_pull_request_comment_language_use_case_1.CheckPullRequestCommentLanguageUseCase().invoke(param)));
+        (0, logger_1.logInfo)("Running bugbot fix intent detection (before Think).");
         const intentResults = await new detect_bugbot_fix_intent_use_case_1.DetectBugbotFixIntentUseCase().invoke(param);
         results.push(...intentResults);
-        const intentPayload = intentResults[intentResults.length - 1]?.payload;
-        if (intentPayload?.isFixRequest &&
-            Array.isArray(intentPayload.targetFindingIds) &&
-            intentPayload.targetFindingIds.length > 0 &&
-            intentPayload.context) {
+        const intentPayload = (0, bugbot_fix_intent_payload_1.getBugbotFixIntentPayload)(intentResults);
+        const runAutofix = (0, bugbot_fix_intent_payload_1.canRunBugbotAutofix)(intentPayload);
+        if (intentPayload) {
+            (0, logger_1.logInfo)(`Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`);
+        }
+        else {
+            (0, logger_1.logInfo)("Bugbot fix intent: no payload from intent detection.");
+        }
+        if (runAutofix && intentPayload) {
+            const payload = intentPayload;
+            (0, logger_1.logInfo)("Running bugbot autofix.");
             const userComment = param.pullRequest.commentBody ?? "";
             const autofixResults = await new bugbot_autofix_use_case_1.BugbotAutofixUseCase().invoke({
                 execution: param,
-                targetFindingIds: intentPayload.targetFindingIds,
+                targetFindingIds: payload.targetFindingIds,
                 userComment,
-                context: intentPayload.context,
-                branchOverride: intentPayload.branchOverride,
+                context: payload.context,
+                branchOverride: payload.branchOverride,
             });
             results.push(...autofixResults);
             const lastAutofix = autofixResults[autofixResults.length - 1];
             if (lastAutofix?.success) {
+                (0, logger_1.logInfo)("Bugbot autofix succeeded; running commit and push.");
                 const commitResult = await (0, bugbot_autofix_commit_1.runBugbotAutofixCommitAndPush)(param, {
-                    branchOverride: intentPayload.branchOverride,
+                    branchOverride: payload.branchOverride,
                 });
-                if (commitResult.committed && intentPayload.context) {
-                    const ids = intentPayload.targetFindingIds;
+                if (commitResult.committed && payload.context) {
+                    const ids = payload.targetFindingIds;
                     const normalized = new Set(ids.map(marker_1.sanitizeFindingIdForMarker));
                     await (0, mark_findings_resolved_use_case_1.markFindingsResolved)({
                         execution: param,
-                        context: intentPayload.context,
+                        context: payload.context,
                         resolvedFindingIds: new Set(ids),
                         normalizedResolvedIds: normalized,
                     });
+                    (0, logger_1.logInfo)(`Marked ${ids.length} finding(s) as resolved.`);
+                }
+                else if (!commitResult.committed) {
+                    (0, logger_1.logInfo)("No commit performed (no changes or error).");
                 }
             }
+            else {
+                (0, logger_1.logInfo)("Bugbot autofix did not succeed; skipping commit.");
+            }
+        }
+        else {
+            (0, logger_1.logInfo)("Skipping bugbot autofix (no fix request, no targets, or no context).");
+        }
+        if (!runAutofix) {
+            (0, logger_1.logInfo)("Running ThinkUseCase (comment was not a bugbot fix request).");
+            results.push(...(await new think_use_case_1.ThinkUseCase().invoke(param)));
         }
         return results;
     }
@@ -53934,6 +53946,31 @@ class BugbotAutofixUseCase {
     }
 }
 exports.BugbotAutofixUseCase = BugbotAutofixUseCase;
+
+
+/***/ }),
+
+/***/ 2528:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getBugbotFixIntentPayload = getBugbotFixIntentPayload;
+exports.canRunBugbotAutofix = canRunBugbotAutofix;
+function getBugbotFixIntentPayload(results) {
+    const last = results[results.length - 1];
+    const payload = last?.payload;
+    if (!payload || typeof payload !== "object")
+        return undefined;
+    return payload;
+}
+function canRunBugbotAutofix(payload) {
+    return (!!payload?.isFixRequest &&
+        Array.isArray(payload.targetFindingIds) &&
+        payload.targetFindingIds.length > 0 &&
+        !!payload.context);
+}
 
 
 /***/ }),
