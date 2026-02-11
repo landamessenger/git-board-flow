@@ -143,7 +143,7 @@ Many developers are familiar with the Git-Flow methodology, but that doesn’t p
 
 Issues take time to be resolved, and interest in their progress increases. Therefore, any changes in the branches created by the issue will be notified as comments, providing real-time feedback on the issue's progress.
 
-### Bugbot (potential problems) {#bugbot-potential-problems}
+### Bugbot (potential problems)
 
 When the **push** workflow runs (or you run the single action `detect_potential_problems_action` with `single-action-issue`), OpenCode analyzes the branch vs the base and reports potential problems (bugs, risks, improvements) as **comments on the issue**. Each finding appears as a comment with title, severity, and optional file/line. If a previously reported finding is later fixed, the action **updates** that comment (e.g. marks it as resolved) so the issue stays in sync. Findings are also posted as **review comments on open PRs** for the same branch; see [Pull Requests → Bugbot](/pull-requests#bugbot-potential-problems). You can set a minimum severity with `bugbot-severity` and exclude paths with `ai-ignore-files`; see [Configuration](/configuration).
 
