@@ -47144,25 +47144,14 @@ program
         }
         const { text, sessionId } = result;
         if (outputFormat === 'json') {
-            const diff = await (0, ai_repository_1.getSessionDiff)(serverUrl, sessionId);
-            console.log(JSON.stringify({ response: text, sessionId, diff }, null, 2));
+            console.log(JSON.stringify({ response: text, sessionId }, null, 2));
             return;
         }
         console.log('\n' + '='.repeat(80));
         console.log('🤖 RESPONSE (OpenCode build agent)');
         console.log('='.repeat(80));
         console.log(`\n${text || '(No text response)'}\n`);
-        const diff = await (0, ai_repository_1.getSessionDiff)(serverUrl, sessionId);
-        if (diff && diff.length > 0) {
-            console.log('='.repeat(80));
-            console.log('📝 FILES CHANGED (by OpenCode in this session)');
-            console.log('='.repeat(80));
-            diff.forEach((d, index) => {
-                const path = d.path ?? d.file ?? JSON.stringify(d);
-                console.log(`  ${index + 1}. ${path}`);
-            });
-            console.log('');
-        }
+        console.log('Changes are applied directly in the workspace when OpenCode runs from the repo (e.g. opencode serve).');
     }
     catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
