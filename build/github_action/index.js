@@ -41936,6 +41936,7 @@ const constants_1 = __nccwpck_require__(8593);
 const chalk_1 = __importDefault(__nccwpck_require__(7037));
 const boxen_1 = __importDefault(__nccwpck_require__(4506));
 const queue_utils_1 = __nccwpck_require__(9800);
+const setup_files_1 = __nccwpck_require__(1666);
 async function mainRun(execution) {
     const results = [];
     await execution.setup();
@@ -41976,6 +41977,19 @@ async function mainRun(execution) {
             title: constants_1.TITLE,
             titleAlignment: 'center'
         }));
+        if (execution.isSingleAction && execution.singleAction.currentSingleAction === constants_1.ACTIONS.INITIAL_SETUP) {
+            const cwd = process.cwd();
+            (0, logger_1.logInfo)('📁 Ensuring .github and .github/workflows exist...');
+            (0, setup_files_1.ensureGitHubDirs)(cwd);
+            (0, logger_1.logInfo)('📋 Copying setup files from setup/ to .github/ (skipping existing)...');
+            const copied = (0, setup_files_1.copySetupFiles)(cwd);
+            if (copied > 0) {
+                (0, logger_1.logInfo)(`✅ Copied ${copied} file(s).`);
+            }
+            else {
+                (0, logger_1.logInfo)('ℹ️  No setup/ folder found or all files already exist; nothing to copy.');
+            }
+        }
     }
     try {
         if (execution.isSingleAction) {
@@ -53386,6 +53400,127 @@ const waitForPreviousRuns = async (params) => {
     throw new Error("Timeout waiting for previous runs to finish.");
 };
 exports.waitForPreviousRuns = waitForPreviousRuns;
+
+
+/***/ }),
+
+/***/ 1666:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ensureGitHubDirs = ensureGitHubDirs;
+exports.copySetupFiles = copySetupFiles;
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
+const logger_1 = __nccwpck_require__(8836);
+/**
+ * Ensure .github and .github/workflows exist; create them if missing.
+ * @param cwd - Directory (repo root)
+ */
+function ensureGitHubDirs(cwd) {
+    const githubDir = path.join(cwd, '.github');
+    const workflowsDir = path.join(cwd, '.github', 'workflows');
+    if (!fs.existsSync(githubDir)) {
+        (0, logger_1.logInfo)('📁 Creating .github/...');
+        fs.mkdirSync(githubDir, { recursive: true });
+    }
+    if (!fs.existsSync(workflowsDir)) {
+        (0, logger_1.logInfo)('📁 Creating .github/workflows/...');
+        fs.mkdirSync(workflowsDir, { recursive: true });
+    }
+}
+/**
+ * Copy setup files from setup/ to repo (.github/ workflows, pull_request_template.md, .env at root).
+ * Skips files that already exist at destination (no overwrite).
+ * Logs each file copied or skipped. No-op if setup/ does not exist.
+ * @param cwd - Repo root
+ * @returns Number of files copied
+ */
+function copySetupFiles(cwd) {
+    const setupDir = path.join(cwd, 'setup');
+    if (!fs.existsSync(setupDir))
+        return 0;
+    let copied = 0;
+    const workflowsSrc = path.join(setupDir, 'workflows');
+    const workflowsDst = path.join(cwd, '.github', 'workflows');
+    if (fs.existsSync(workflowsSrc)) {
+        const files = fs.readdirSync(workflowsSrc).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'));
+        for (const f of files) {
+            const src = path.join(workflowsSrc, f);
+            const dst = path.join(workflowsDst, f);
+            if (fs.statSync(src).isFile()) {
+                if (fs.existsSync(dst)) {
+                    (0, logger_1.logInfo)(`  ⏭️  .github/workflows/${f} already exists; skipping.`);
+                }
+                else {
+                    fs.copyFileSync(src, dst);
+                    (0, logger_1.logInfo)(`  ✅ Copied setup/workflows/${f} → .github/workflows/${f}`);
+                    copied += 1;
+                }
+            }
+        }
+    }
+    const prTemplateSrc = path.join(setupDir, 'pull_request_template.md');
+    const prTemplateDst = path.join(cwd, '.github', 'pull_request_template.md');
+    if (fs.existsSync(prTemplateSrc)) {
+        if (fs.existsSync(prTemplateDst)) {
+            (0, logger_1.logInfo)('  ⏭️  .github/pull_request_template.md already exists; skipping.');
+        }
+        else {
+            fs.copyFileSync(prTemplateSrc, prTemplateDst);
+            (0, logger_1.logInfo)('  ✅ Copied setup/pull_request_template.md → .github/pull_request_template.md');
+            copied += 1;
+        }
+    }
+    const envSrc = path.join(setupDir, '.env');
+    const envDst = path.join(cwd, '.env');
+    if (fs.existsSync(envSrc) && fs.statSync(envSrc).isFile()) {
+        if (fs.existsSync(envDst)) {
+            (0, logger_1.logInfo)('  ⏭️  .env already exists; skipping.');
+        }
+        else {
+            fs.copyFileSync(envSrc, envDst);
+            (0, logger_1.logInfo)('  ✅ Copied setup/.env → .env');
+            copied += 1;
+        }
+    }
+    return copied;
+}
 
 
 /***/ }),

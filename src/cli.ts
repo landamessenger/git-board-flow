@@ -3,8 +3,6 @@
 import { execSync } from 'child_process';
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
-import * as fs from 'fs';
-import * as path from 'path';
 import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
@@ -416,18 +414,6 @@ program
     }
   });
 
-/** Paths (relative to repo root) that must exist for the GitHub Action setup. */
-const GITHUB_SETUP_FILES = [
-  '.github/workflows/copilot_commit.yml',
-  '.github/workflows/copilot_issue_comment.yml',
-  '.github/workflows/copilot_issue.yml',
-  '.github/workflows/copilot_pull_request_comment.yml',
-  '.github/workflows/copilot_pull_request.yml',
-  '.github/workflows/hotfix_workflow.yml',
-  '.github/workflows/release_workflow.yml',
-  '.github/pull_request_template.md',
-];
-
 /** Returns true if cwd is inside a git repository (work tree). */
 function isInsideGitRepo(cwd: string): boolean {
   try {
@@ -436,34 +422,6 @@ function isInsideGitRepo(cwd: string): boolean {
   } catch {
     return false;
   }
-}
-
-/**
- * Ensure .github and .github/workflows exist; create them if missing.
- * @param cwd - Directory (repo root)
- */
-function ensureGitHubDirs(cwd: string): void {
-  const githubDir = path.join(cwd, '.github');
-  const workflowsDir = path.join(cwd, '.github', 'workflows');
-  if (!fs.existsSync(githubDir)) {
-    logInfo('Creating .github/...');
-    fs.mkdirSync(githubDir, { recursive: true });
-  }
-  if (!fs.existsSync(workflowsDir)) {
-    logInfo('Creating .github/workflows/...');
-    fs.mkdirSync(workflowsDir, { recursive: true });
-  }
-}
-
-/**
- * Check if the directory contains the required .github/ setup files for the GitHub Action.
- * @param cwd - Directory to check (e.g. process.cwd())
- * @returns { ok: true } or { ok: false, missing: string[] }
- */
-function checkGitHubSetupFiles(cwd: string): { ok: true } | { ok: false; missing: string[] } {
-  const missing = GITHUB_SETUP_FILES.filter((rel) => !fs.existsSync(path.join(cwd, rel)));
-  if (missing.length === 0) return { ok: true };
-  return { ok: false, missing };
 }
 
 /**
@@ -477,36 +435,22 @@ program
   .action(async (options) => {
     const cwd = process.cwd();
 
-    logInfo('Checking we are inside a git repository...');
+    logInfo('🔍 Checking we are inside a git repository...');
     if (!isInsideGitRepo(cwd)) {
-      logError('Not a git repository. Run "copilot setup" from the root of a git repo.');
+      logError('❌ Not a git repository. Run "copilot setup" from the root of a git repo.');
       process.exit(1);
     }
-    logInfo('Git repository detected.');
+    logInfo('✅ Git repository detected.');
 
-    logInfo('Ensuring .github and .github/workflows exist...');
-    ensureGitHubDirs(cwd);
-
-    logInfo('Checking GitHub Action setup files in .github/...');
-    const setupCheck = checkGitHubSetupFiles(cwd);
-    if (!setupCheck.ok) {
-      logError('Setup requires the GitHub Action files in .github/. Missing:');
-      setupCheck.missing.forEach((f) => logError(`   - ${f}`));
-      logError('Copy the contents of the setup/ folder (workflows, pull_request_template.md) into .github/ and run setup again.');
-      process.exit(1);
-    }
-    logInfo('All required setup files present.');
-
-    logInfo('Resolving repository (owner/repo)...');
+    logInfo('🔗 Resolving repository (owner/repo)...');
     const gitInfo = getGitInfo();
-
     if ('error' in gitInfo) {
       logError(gitInfo.error);
       process.exit(1);
     }
-    logInfo(`Repository: ${gitInfo.owner}/${gitInfo.repo}`);
+    logInfo(`📦 Repository: ${gitInfo.owner}/${gitInfo.repo}`);
 
-    logInfo('Running initial setup (labels, issue types, access)...');
+    logInfo('⚙️  Running initial setup (labels, issue types, access)...');
 
     const params: any = { // eslint-disable-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
