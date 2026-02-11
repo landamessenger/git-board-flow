@@ -47023,8 +47023,8 @@ program
     .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-        console.log(gitInfo.error);
-        return;
+        (0, logger_1.logError)(gitInfo.error);
+        process.exit(1);
     }
     // Helper function to clean CLI arguments that may have '=' prefix
     const cleanArg = (value) => {
@@ -47089,7 +47089,6 @@ program
         `Starting deep code analysis for ${gitInfo.owner}/${gitInfo.repo}/${branch}...`,
         `Question: ${question.substring(0, 100)}${question.length > 100 ? '...' : ''}`,
     ];
-    // logInfo(JSON.stringify(params, null, 2));
     (0, local_action_1.runLocalAction)(params);
 });
 /**
@@ -47108,8 +47107,8 @@ program
     .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-        console.log(gitInfo.error);
-        return;
+        (0, logger_1.logError)(gitInfo.error);
+        process.exit(1);
     }
     // Helper function to clean CLI arguments that may have '=' prefix
     const cleanArg = (value) => {
@@ -47189,8 +47188,8 @@ program
     .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-        console.log(gitInfo.error);
-        return;
+        (0, logger_1.logError)(gitInfo.error);
+        process.exit(1);
     }
     // Helper function to clean CLI arguments that may have '=' prefix
     const cleanArg = (value) => {
@@ -47264,8 +47263,8 @@ program
     .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-        console.log(gitInfo.error);
-        return;
+        (0, logger_1.logError)(gitInfo.error);
+        process.exit(1);
     }
     const cleanArg = (v) => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);
@@ -47304,8 +47303,8 @@ program
     .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-        console.log(gitInfo.error);
-        return;
+        (0, logger_1.logError)(gitInfo.error);
+        process.exit(1);
     }
     const cleanArg = (v) => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);

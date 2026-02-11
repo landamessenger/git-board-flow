@@ -60,8 +60,8 @@ program
     const gitInfo = getGitInfo();
     
     if ('error' in gitInfo) {
-      console.log(gitInfo.error);
-      return;
+      logError(gitInfo.error);
+      process.exit(1);
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
@@ -138,7 +138,6 @@ program
       `Question: ${question.substring(0, 100)}${question.length > 100 ? '...' : ''}`,
     ];
 
-    // logInfo(JSON.stringify(params, null, 2));
     runLocalAction(params);
   });
 
@@ -159,8 +158,8 @@ program
     const gitInfo = getGitInfo();
     
     if ('error' in gitInfo) {
-      console.log(gitInfo.error);
-      return;
+      logError(gitInfo.error);
+      process.exit(1);
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
@@ -251,8 +250,8 @@ program
     const gitInfo = getGitInfo();
     
     if ('error' in gitInfo) {
-      console.log(gitInfo.error);
-      return;
+      logError(gitInfo.error);
+      process.exit(1);
     }
 
     // Helper function to clean CLI arguments that may have '=' prefix
@@ -334,8 +333,8 @@ program
   .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-      console.log(gitInfo.error);
-      return;
+      logError(gitInfo.error);
+      process.exit(1);
     }
     const cleanArg = (v: unknown): string => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);
@@ -375,8 +374,8 @@ program
   .action(async (options) => {
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-      console.log(gitInfo.error);
-      return;
+      logError(gitInfo.error);
+      process.exit(1);
     }
     const cleanArg = (v: unknown): string => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
     const issueNumber = cleanArg(options.issue);
