@@ -65,6 +65,16 @@ npm run build
 - The project uses [docs.page](https://docs.page/) (invertase) for publishing; see `docs.json` for sidebar structure.
 - Use only **docs.page components** so the site builds without errors: **Card**, **CardGroup** (for multiple cards in a row; use `cols={2}` or `cols={3}`), **Callouts** (**Info**, **Warning**, **Error**, **Success** only — do not use Note or Tip), **Tabs**, **Accordion**, **Steps**, **Code Group**, etc. Do **not** use Mintlify-only components such as **Columns** (use **CardGroup** instead). See [docs.page Components](https://use.docs.page/components).
 
+## Commit messages
+
+Commit messages should start with the **current branch name** as prefix (with `/` replaced by `-`), e.g. `feature-292-github-action-rename: add concurrency to CI`.
+
+To apply this automatically (strip any existing prefix and add the correct one), install the hook:
+
+```bash
+cp scripts/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
+```
+
 ## Submitting Changes
 
 1. Fork the repository and create a branch from `master` or `develop` (if applicable).
