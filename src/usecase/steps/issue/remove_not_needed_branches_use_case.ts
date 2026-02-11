@@ -3,6 +3,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { BranchRepository } from "../../../data/repository/branch_repository";
 import { logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, Result[]> {
@@ -11,7 +12,7 @@ export class RemoveNotNeededBranchesUseCase implements ParamUseCase<Execution, R
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {

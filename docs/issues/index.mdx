@@ -3,7 +3,7 @@ title: Issues
 description: Boosted and connected issues.
 ---
 
-Git Board Flow automates issue tracking, ensuring smooth branch management and seamless project integration.
+Copilot automates issue tracking, ensuring smooth branch management and seamless project integration.
 
 ## Labels by issue type and flow
 
@@ -27,7 +27,7 @@ For **step-by-step flows** (how branches are created, naming, source branch, dep
 To enable the GitHub Action for issues, create a workflow with the following configuration:  
 
 ```yml
-name: Git Board Flow - Issue
+name: Copilot - Issue
 
 on:
   issues:
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: landamessenger/git-board-flow@master
+      - uses: vypdev/copilot@master
         with:
           project-ids: '1,2'
           token: ${{ secrets.PAT }}
@@ -47,7 +47,7 @@ jobs:
 
 ### Member Assignment
 
-Git Board Flow rolls the dice for you by automatically assigning newly created issues to a member of the organization or repository.
+Copilot rolls the dice for you by automatically assigning newly created issues to a member of the organization or repository.
 
 <Card title="How many members do we assign?" icon="person-circle-exclamation">
   
@@ -59,7 +59,7 @@ Git Board Flow rolls the dice for you by automatically assigning newly created i
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             desired-assignees-count: 1 // [!code highlight]
   ```
@@ -67,7 +67,7 @@ Git Board Flow rolls the dice for you by automatically assigning newly created i
 
 ### Board Assignment
 
-Git Board Flow takes care of organizing your issues by automatically assigning newly created issues to a designated project board, ensuring seamless tracking and management.
+Copilot takes care of organizing your issues by automatically assigning newly created issues to a designated project board, ensuring seamless tracking and management.
 
 <Warning>Linking the issue to a board requires a Personal Access Token (PAT).</Warning>
 
@@ -81,7 +81,7 @@ Git Board Flow takes care of organizing your issues by automatically assigning n
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             project-ids: 1, 2 // [!code highlight]
   ```
@@ -105,7 +105,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             branch-management-launcher-label: branched // [!code highlight]
   ```
@@ -122,7 +122,7 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             main-branch: master // [!code highlight]
             development-branch: develop // [!code highlight]
@@ -137,17 +137,17 @@ Some types of issues (`hotfix` and `release`) create branches automatically. Thi
 
 ### Smart Workflow Guidance
 
-Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Git-Board-Flow will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
+Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Copilot will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
 
 ### Real-Time Code Tracking
 
 Issues take time to be resolved, and interest in their progress increases. Therefore, any changes in the branches created by the issue will be notified as comments, providing real-time feedback on the issue's progress.
 
-### Bugbot (potential problems) {#bugbot-potential-problems}
+### Bugbot (potential problems)
 
 When the **push** workflow runs (or you run the single action `detect_potential_problems_action` with `single-action-issue`), OpenCode analyzes the branch vs the base and reports potential problems (bugs, risks, improvements) as **comments on the issue**. Each finding appears as a comment with title, severity, and optional file/line. If a previously reported finding is later fixed, the action **updates** that comment (e.g. marks it as resolved) so the issue stays in sync. Findings are also posted as **review comments on open PRs** for the same branch; see [Pull Requests → Bugbot](/pull-requests#bugbot-potential-problems). You can set a minimum severity with `bugbot-severity` and exclude paths with `ai-ignore-files`; see [Configuration](/configuration).
 
 ### Auto-Closure
 
-Forget about closing issues when development is complete, Git-Board-Flow will automatically close them once the branches created by the issue are successfully merged.
+Forget about closing issues when development is complete, Copilot will automatically close them once the branches created by the issue are successfully merged.
 

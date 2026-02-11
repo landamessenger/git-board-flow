@@ -3,7 +3,7 @@ title: Authentication
 description: Securely authenticate your workflows using personal access tokens (PATs).
 ---
 
-Git Board Flow requires a fine-grained personal access token to perform certain actions, such as creating branches, updating pull requests, or managing project boards.
+Copilot requires a fine-grained personal access token to perform certain actions, such as creating branches, updating pull requests, or managing project boards.
 
 <Info>Originally, the workflow also made use of the GITHUB_TOKEN for some basic tasks executed within the workflow's scope. However, to simplify the configuration and maintain a single unified bot, the use of this token has been removed, leaving only the necessary PAT.</Info>
 
@@ -13,7 +13,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
   <Step title="Who is the bot?">
     Choose which account will be used to create your PAT. This account will act as your bot.
     - For individual developers, it is recommended to use your own account as the bot.
-    - In organizations and enterprise accounts, it is better to use a separate, dedicated account. For example, this project belongs to [**landamessenger**](https://github.com/landamessenger), and the selected bot account is [**landa-bot**](https://github.com/landa-bot).
+    - In organizations and enterprise accounts, it is better to use a separate, dedicated account. For example, this project belongs to [**vypdev**](https://github.com/vypdev), and the selected bot account is [**vypbot**](https://github.com/vypbot).
   </Step>
   
   <Step title="Create the PAT">
@@ -30,7 +30,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
     - If your bot account does not belong to an organization (individual developer), you should keep your own account selected when creating the token (this is usually the default value, so you likely won’t need to change it).
     - If your account belongs to an organization, make sure to select the organization that this token will operate under. 
 
-    In the **Repository access** section, you need to select the scope for which you want this token to operate. We recommend choosing **All repositories** to quickly configure Git Board Flow on any repository the bot account has access to.
+    In the **Repository access** section, you need to select the scope for which you want this token to operate. We recommend choosing **All repositories** to quickly configure Copilot on any repository the bot account has access to.
 
     Set these permissions for the repository:
 
@@ -65,7 +65,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
     It’s time to create a new Secret:
 
     If your bot account does **not** belong to an organization (individual developer):
-    - Go to the repository where you want to implement Git Board Flow.
+    - Go to the repository where you want to implement Copilot.
     - Then, navigate to **Settings**.
     - In the left sidebar, click on **Secrets and variables**, then **Actions**.
     - Click **New repository secret**.
@@ -81,10 +81,10 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
     - Finally, click **Add secret**.
   </Step>
   <Step title="Consume the token">
-    In each workflow that consumes Git Board Flow, make sure to pass the PAT you just created with the `token` property:
+    In each workflow that consumes Copilot, make sure to pass the PAT you just created with the `token` property:
 
     ```yml
-    name: Git Board Flow - Issue
+    name: Copilot - Issue
 
     on:
       issues:
@@ -95,7 +95,7 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
         name: Git Board - Issue
         runs-on: ubuntu-latest
         steps:
-          - uses: landamessenger/git-board-flow@v1
+          - uses: vypdev/copilot@v1
             with:
               project-ids: 1,2
               token: ${{ secrets.PAT }}

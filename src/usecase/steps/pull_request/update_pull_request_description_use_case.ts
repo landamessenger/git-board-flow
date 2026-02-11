@@ -5,6 +5,7 @@ import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
 import { logDebugInfo, logError } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Execution, Result[]> {
@@ -16,7 +17,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logDebugInfo(`Executing ${this.taskId}.`);
+        logDebugInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const result: Result[] = [];
 

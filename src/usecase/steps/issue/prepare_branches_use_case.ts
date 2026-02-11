@@ -3,6 +3,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { BranchRepository } from "../../../data/repository/branch_repository";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 import { CommitPrefixBuilderUseCase } from "../common/execute_script_use_case";
 import { MoveIssueToInProgressUseCase } from "./move_issue_to_in_progress";
@@ -13,7 +14,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
     private branchRepository = new BranchRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {

@@ -1,6 +1,7 @@
 import { Execution } from "../data/model/execution";
 import { Result } from "../data/model/result";
 import { logDebugInfo, logError, logInfo } from "../utils/logger";
+import { getTaskEmoji } from "../utils/task_emoji";
 import { ParamUseCase } from "./base/param_usecase";
 import { CheckProgressUseCase } from "./actions/check_progress_use_case";
 import { NotifyNewCommitOnIssueUseCase } from "./steps/commit/notify_new_commit_on_issue_use_case";
@@ -11,7 +12,7 @@ export class CommitUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const results: Result[] = [];
         try {

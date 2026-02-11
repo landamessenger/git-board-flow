@@ -2,6 +2,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { IssueRepository, PROGRESS_LABEL_PATTERN } from "../../../data/repository/issue_repository";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 /**
@@ -15,7 +16,7 @@ export class SyncSizeAndProgressLabelsFromIssueToPrUseCase implements ParamUseCa
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const result: Result[] = [];
         try {

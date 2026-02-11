@@ -3,6 +3,7 @@ import { Result } from "../../data/model/result";
 import { ProjectRepository } from "../../data/repository/project_repository";
 import { INPUT_KEYS } from "../../utils/constants";
 import { logError, logInfo } from "../../utils/logger";
+import { getTaskEmoji } from "../../utils/task_emoji";
 import { ParamUseCase } from "../base/param_usecase";
 
 
@@ -12,7 +13,7 @@ export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> 
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const result: Result[] = [];
 

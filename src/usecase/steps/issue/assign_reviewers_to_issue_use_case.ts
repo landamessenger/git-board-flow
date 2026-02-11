@@ -4,6 +4,7 @@ import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Result[]> {
@@ -14,7 +15,7 @@ export class AssignReviewersToIssueUseCase implements ParamUseCase<Execution, Re
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const desiredReviewersCount = param.pullRequest.desiredReviewersCount
         const number = param.pullRequest.number

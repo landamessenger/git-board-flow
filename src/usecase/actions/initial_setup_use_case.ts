@@ -4,18 +4,26 @@ import { ProjectRepository } from "../../data/repository/project_repository";
 import { Result } from "../../data/model/result";
 import { ParamUseCase } from "../base/param_usecase";
 import { logError, logInfo } from "../../utils/logger";
+import { getTaskEmoji } from "../../utils/task_emoji";
+import { copySetupFiles, ensureGitHubDirs } from "../../utils/setup_files";
 
 export class InitialSetupUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'InitialSetupUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const results: Result[] = [];
         const steps: string[] = [];
         const errors: string[] = [];
 
         try {
+            // 0. Setup files (.github/workflows, .github/ISSUE_TEMPLATE, pull_request_template.md, .env)
+            logInfo('📋 Ensuring .github and copying setup files...');
+            ensureGitHubDirs(process.cwd());
+            const filesResult = copySetupFiles(process.cwd());
+            steps.push(`✅ Setup files: ${filesResult.copied} copied, ${filesResult.skipped} already existed`);
+
             // 1. Verificar acceso a GitHub con Personal Access Token
             logInfo('🔐 Checking GitHub access...');
             const githubAccessResult = await this.verifyGitHubAccess(param);

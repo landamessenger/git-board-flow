@@ -5,7 +5,7 @@ description: Run one-off actions on demand (check progress, think, create releas
 
 # Single Actions
 
-When you set the `single-action` input (and any required targets such as `single-action-issue` or `single-action-version`), Git Board Flow runs **only** that action and skips the normal issue, pull request, and push pipelines.
+When you set the `single-action` input (and any required targets such as `single-action-issue` or `single-action-version`), Copilot runs **only** that action and skips the normal issue, pull request, and push pipelines.
 
 ## Available single actions
 
@@ -21,9 +21,9 @@ When you set the `single-action` input (and any required targets such as `single
 | `publish_github_action` | — | Publishes or updates the GitHub Action (e.g. versioning, release). |
 | `deployed_action` | `single-action-issue` | Marks the issue as deployed; updates labels and project state. |
 
-<Note>
+<Info>
   **Actions that fail the job** if the last step fails: `publish_github_action`, `create_release`, `deployed_action`, `create_tag`. The workflow will be marked as failed so you can act on it.
-</Note>
+</Info>
 
 ## Next steps
 

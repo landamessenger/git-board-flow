@@ -3,6 +3,7 @@ import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Result[]> {
@@ -12,7 +13,7 @@ export class AssignMemberToIssueUseCase implements ParamUseCase<Execution, Resul
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const desiredAssigneesCount = param.isIssue ?
             param.issue.desiredAssigneesCount : param.pullRequest.desiredAssigneesCount;

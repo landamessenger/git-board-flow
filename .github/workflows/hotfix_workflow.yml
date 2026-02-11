@@ -118,7 +118,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Git Board Flow - Create Tag
+      - name: Copilot - Create Tag
         uses: ./
         if: ${{ success() }}
         with:
@@ -128,7 +128,7 @@ jobs:
           single-action-version: '${{ github.event.inputs.version }}'
           token: ${{ secrets.PAT }}
   
-      - name: Git Board Flow - Create Release
+      - name: Copilot - Create Release
         uses: ./
         if: ${{ success() }}
         with:
@@ -140,7 +140,7 @@ jobs:
           single-action-changelog: '${{ github.event.inputs.changelog }}'
           token: ${{ secrets.PAT }}
 
-      - name: Git Board Flow - Publish Github Action Version
+      - name: Copilot - Publish Github Action Version
         uses: ./
         if: ${{ success() }}
         with:
@@ -150,7 +150,7 @@ jobs:
           single-action-version: '${{ github.event.inputs.version }}'
           token: ${{ secrets.PAT }}
 
-      - name: Git Board Flow - Deploy success notification
+      - name: Copilot - Deploy success notification
         uses: ./
         if: ${{ success() }}
         with:

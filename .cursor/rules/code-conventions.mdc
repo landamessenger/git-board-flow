@@ -1,5 +1,5 @@
 ---
-description: Git Board Flow – coding conventions and where to change things
+description: Copilot – coding conventions and where to change things
 globs: src/**/*.ts
 alwaysApply: false
 ---

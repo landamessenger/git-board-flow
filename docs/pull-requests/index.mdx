@@ -1,30 +1,30 @@
 ---
 title: Pull Requests
-description: How Git Board Flow handles pull requests
+description: How Copilot handles pull requests
 ---
 
 # Pull Request Management
 
-When your workflow runs on `pull_request` events (e.g. opened, edited, labeled, unlabeled), Git Board Flow performs a set of actions so that PRs stay linked to issues, projects, and team workflows.
+When your workflow runs on `pull_request` events (e.g. opened, edited, labeled, unlabeled), Copilot performs a set of actions so that PRs stay linked to issues, projects, and team workflows.
 
 ## Enable the action for pull requests
 
-Create a workflow file (e.g. `.github/workflows/gbf_pull_request.yml`) that runs on `pull_request`:
+Create a workflow file (e.g. `.github/workflows/copilot_pull_request.yml`) that runs on `pull_request`:
 
 ```yaml
-name: Git Board Flow - Pull Request
+name: Copilot - Pull Request
 
 on:
   pull_request:
     types: [opened, edited, labeled, unlabeled]
 
 jobs:
-  git-board-flow-pull-requests:
-    name: Git Board Flow - Pull Request
+  copilot-pull-requests:
+    name: Copilot - Pull Request
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: landamessenger/git-board-flow@master
+      - uses: vypdev/copilot@master
         with:
           token: ${{ secrets.PAT }}
           project-ids: '2,3'
@@ -46,7 +46,7 @@ jobs:
 | **AI-generated PR description** | When enabled, generates or updates the PR description using OpenCode and your repo's PR template. See [AI PR description](/pull-requests/ai-description). |
 | **Comments & images** | Posts a comment with optional images per branch type (feature, bugfix, docs, chore, hotfix, release). |
 
-## Bugbot (potential problems) {#bugbot-potential-problems}
+## Bugbot (potential problems)
 
 When the **push** workflow runs (or the single action `detect_potential_problems_action`), OpenCode analyzes the branch vs the base and posts **review comments** on the PR at the relevant file and line for each finding (potential bugs, risks, or improvements). When OpenCode later reports a finding as resolved (e.g. after code changes), the action **marks that review thread as resolved**, so the PR review reflects the current status. Findings are also summarized as **comments on the linked issue**; see [Issues → Bugbot](/issues#bugbot-potential-problems). Configure minimum severity with `bugbot-severity` and excluded paths with `ai-ignore-files` in [Configuration](/configuration).
 

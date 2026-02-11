@@ -1,0 +1,5 @@
+#!/bin/sh
+# Launcher for prepare-commit-msg: runs the Node script from the repo.
+# On Windows: Git for Windows runs hooks with Bash, so this script runs there too.
+ROOT=$(git rev-parse --show-toplevel)
+exec node "$ROOT/scripts/git-hooks/prepare-commit-msg.cjs" "$@"

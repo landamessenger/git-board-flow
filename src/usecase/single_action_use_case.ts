@@ -1,6 +1,7 @@
 import { Execution } from "../data/model/execution";
 import { Result } from "../data/model/result";
 import { logDebugInfo, logError, logInfo } from "../utils/logger";
+import { getTaskEmoji } from "../utils/task_emoji";
 import { DeployedActionUseCase } from "./actions/deployed_action_use_case";
 import { ParamUseCase } from "./base/param_usecase";
 import { PublishGithubActionUseCase } from "./actions/publish_github_action_use_case";
@@ -16,7 +17,7 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'SingleActionUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const results: Result[] = []
         try {
