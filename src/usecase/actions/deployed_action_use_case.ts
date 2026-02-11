@@ -69,6 +69,8 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                 })
             );
 
+            const mergeResults: Result[] = [];
+
             if (param.currentConfiguration.releaseBranch) {
                 const mergeToDefaultResult = await this.branchRepository.mergeBranch(
                     param.owner,
@@ -79,6 +81,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.tokens.token,
                 );
                 result.push(...mergeToDefaultResult);
+                mergeResults.push(...mergeToDefaultResult);
 
                 const mergeToDevelopResult = await this.branchRepository.mergeBranch(
                     param.owner,
@@ -89,6 +92,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.tokens.token,
                 );
                 result.push(...mergeToDevelopResult);
+                mergeResults.push(...mergeToDevelopResult);
             } else if (param.currentConfiguration.hotfixBranch) {
                 const mergeToDefaultResult = await this.branchRepository.mergeBranch(
                     param.owner,
@@ -99,6 +103,7 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.tokens.token,
                 );
                 result.push(...mergeToDefaultResult);
+                mergeResults.push(...mergeToDefaultResult);
 
                 const mergeToDevelopResult = await this.branchRepository.mergeBranch(
                     param.owner,
@@ -109,8 +114,66 @@ export class DeployedActionUseCase implements ParamUseCase<Execution, Result[]> 
                     param.tokens.token,
                 );
                 result.push(...mergeToDevelopResult);
+                mergeResults.push(...mergeToDevelopResult);
             }
-            
+
+            const mergesAttempted = mergeResults.length > 0;
+            const allMergesSucceeded =
+                mergesAttempted && mergeResults.every((r) => r.success);
+
+            if (allMergesSucceeded) {
+                const issueNumber = Number(param.singleAction.issue);
+                const closed = await this.issueRepository.closeIssue(
+                    param.owner,
+                    param.repo,
+                    issueNumber,
+                    param.tokens.token,
+                );
+                if (closed) {
+                    logDebugInfo(`Issue #${issueNumber} closed after merges to default and develop.`);
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: true,
+                            steps: [
+                                `Issue #${issueNumber} closed after merge to \`${param.branches.defaultBranch}\` and \`${param.branches.development}\`.`,
+                            ],
+                        })
+                    );
+                }
+            } else {
+                if (mergesAttempted) {
+                    logDebugInfo(
+                        `Skipping issue close: one or more merges failed. Issue #${param.singleAction.issue} remains open.`
+                    );
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Issue #${param.singleAction.issue} was not closed because one or more merge operations failed.`,
+                            ],
+                        })
+                    );
+                } else {
+                    logDebugInfo(
+                        `Skipping issue close: no release or hotfix branch configured. Issue #${param.singleAction.issue} remains open.`
+                    );
+                    result.push(
+                        new Result({
+                            id: this.taskId,
+                            success: false,
+                            executed: true,
+                            steps: [
+                                `Issue #${param.singleAction.issue} was not closed because no release or hotfix branch was configured (no merge operations were performed).`,
+                            ],
+                        })
+                    );
+                }
+            }
+
             return result;
         } catch (error) {
             logError(error);

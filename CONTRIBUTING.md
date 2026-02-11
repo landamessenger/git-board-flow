@@ -35,6 +35,7 @@ npm run build
   - `local_action.ts` – CLI entry; same logic with local/config inputs.
   - `common_action.ts` – Shared flow: single actions vs issue/PR/push pipelines.
 - **`src/usecase/`** – Use cases (issue, pull request, commit, single actions).
+- **`src/manager/`** – Content handlers for PR descriptions, hotfix changelog, and markdown (e.g. `configuration_handler`, `markdown_content_hotfix_handler`).
 - **`src/data/model/`** – Domain models (Execution, Ai, Issue, etc.).
 - **`src/data/repository/`** – Repositories (GitHub API, OpenCode API).
 - **`src/utils/`** – Constants, logger, content utils, etc.
@@ -61,7 +62,8 @@ npm run build
 
 - Update the relevant docs in `docs/` when changing behavior or adding features.
 - For user-facing changes, update `README.md` and the docs at [docs.page/landamessenger/git-board-flow](https://docs.page/landamessenger/git-board-flow).
-- The project uses [Mintlify](https://mintlify.com/) for docs; see `docs.json` for sidebar structure.
+- The project uses [Mintlify](https://mintlify.com/) (docs.page) for docs; see `docs.json` for sidebar structure.
+- Use Mintlify components for a consistent, readable UI: **Card**, **Card** inside **Columns**, **Tabs**, **Accordion** / **AccordionGroup**, **Steps**, **Info** / **Warning** / **Tip** / **Note**. See [Mintlify Components](https://mintlify.com/docs/components).
 
 ## Submitting Changes
 

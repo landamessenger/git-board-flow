@@ -129,7 +129,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [`The description has been updated with AI-generated content (OpenCode Plan agent).`],
+                    steps: [],
                 })
             );
         } catch (error) {

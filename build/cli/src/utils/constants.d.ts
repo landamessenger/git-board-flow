@@ -3,8 +3,12 @@ export declare const TITLE = "Giik";
 export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export declare const OPENCODE_DEFAULT_MODEL = "opencode/kimi-k2.5-free";
-/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
-export declare const OPENCODE_REQUEST_TIMEOUT_MS = 600000;
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
+export declare const OPENCODE_REQUEST_TIMEOUT_MS = 900000;
+/** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
+export declare const OPENCODE_MAX_RETRIES = 5;
+/** Delay in ms between OpenCode retry attempts. */
+export declare const OPENCODE_RETRY_DELAY_MS = 2000;
 export declare const DEFAULT_IMAGE_CONFIG: {
     issue: {
         automatic: string[];
@@ -61,6 +65,8 @@ export declare const INPUT_KEYS: {
     readonly AI_MEMBERS_ONLY: "ai-members-only";
     readonly AI_IGNORE_FILES: "ai-ignore-files";
     readonly AI_INCLUDE_REASONING: "ai-include-reasoning";
+    readonly BUGBOT_SEVERITY: "bugbot-severity";
+    readonly BUGBOT_COMMENT_LIMIT: "bugbot-comment-limit";
     readonly PROJECT_IDS: "project-ids";
     readonly PROJECT_COLUMN_ISSUE_CREATED: "project-column-issue-created";
     readonly PROJECT_COLUMN_PULL_REQUEST_CREATED: "project-column-pull-request-created";
@@ -193,7 +199,13 @@ export declare const ACTIONS: {
     readonly THINK: "think_action";
     readonly INITIAL_SETUP: "initial_setup";
     readonly CHECK_PROGRESS: "check_progress_action";
-    readonly DETECT_ERRORS: "detect_errors_action";
+    readonly DETECT_POTENTIAL_PROBLEMS: "detect_potential_problems_action";
     readonly RECOMMEND_STEPS: "recommend_steps_action";
 };
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
+export declare const BUGBOT_MARKER_PREFIX = "gbf-bugbot";
+/** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
+export declare const BUGBOT_MAX_COMMENTS = 20;
+/** Minimum severity to publish (findings below this are dropped). Order: high > medium > low > info. */
+export declare const BUGBOT_MIN_SEVERITY: 'info' | 'low' | 'medium' | 'high';
 export declare const PROMPTS: {};

@@ -1,7 +1,7 @@
 /**
  * Integration-style tests for CheckProgressUseCase with the OpenCode-based flow.
  * Covers edge cases: missing AI config, no issue/branch/description, AI returns undefined/invalid
- * progress, retries when progress 0%, success path with label updates.
+ * progress, progress 0% (single call; HTTP retries are in AiRepository), success path with label updates.
  */
 
 import { CheckProgressUseCase } from '../check_progress_use_case';
@@ -65,7 +65,7 @@ function baseParam(overrides: Record<string, unknown> = {}): Execution {
     repo: 'repo',
     issueNumber: 123,
     tokens: { token: 'token' },
-    ai: new Ai('http://localhost:4096', 'opencode/kimi-k2.5', false, false, [], false),
+    ai: new Ai('http://localhost:4096', 'opencode/kimi-k2.5', false, false, [], false, 'low', 20),
     commit: { branch: 'feature/123-add-feature' },
     branches,
     ...overrides,
@@ -88,7 +88,7 @@ describe('CheckProgressUseCase', () => {
 
   it('returns error when AI config is missing (no server URL)', async () => {
     const param = baseParam({
-      ai: new Ai('', 'opencode/model', false, false, [], false),
+      ai: new Ai('', 'opencode/model', false, false, [], false, 'low', 20),
     });
     const results = await useCase.invoke(param);
 
@@ -102,7 +102,7 @@ describe('CheckProgressUseCase', () => {
 
   it('returns error when AI config is missing (no model)', async () => {
     const param = baseParam({
-      ai: new Ai('http://localhost:4096', '', false, false, [], false),
+      ai: new Ai('http://localhost:4096', '', false, false, [], false, 'low', 20),
     });
     const results = await useCase.invoke(param);
 
@@ -179,26 +179,25 @@ describe('CheckProgressUseCase', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(false);
-    expect(results[0].errors?.some((e) => String(e).includes('Progress detection failed: received 0% after 3 attempts'))).toBe(true);
-    expect(mockAskAgent).toHaveBeenCalledTimes(3);
+    expect(results[0].errors?.some((e) => String(e).includes('Progress detection returned 0%'))).toBe(true);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
   });
 
-  it('retries up to MAX_PROGRESS_ATTEMPTS when progress is 0%', async () => {
+  it('returns error when progress is 0% (single call; HTTP retries are in AiRepository)', async () => {
     mockGetDescription.mockResolvedValue('Issue body');
-    mockAskAgent
-      .mockResolvedValueOnce({ progress: 0, summary: 'No progress' })
-      .mockResolvedValueOnce({ progress: 0, summary: 'Still none' })
-      .mockResolvedValueOnce({ progress: 50, summary: 'Half done' });
+    mockAskAgent.mockResolvedValue({ progress: 0, summary: 'No progress yet' });
     mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([]);
 
     const results = await useCase.invoke(baseParam());
 
-    expect(results[0].success).toBe(true);
-    expect(results[0].payload).toMatchObject({ progress: 50 });
-    expect(mockAskAgent).toHaveBeenCalledTimes(3);
+    expect(results[0].success).toBe(false);
+    expect(results[0].payload).toMatchObject({ progress: 0 });
+    expect(results[0].errors?.some((e) => String(e).includes('Progress detection returned 0%'))).toBe(true);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockSetProgressLabel).not.toHaveBeenCalled();
   });
 
-  it('treats negative progress as 0% and returns failure-after-retries (no label set)', async () => {
+  it('treats negative progress as 0% and returns failure (no label set)', async () => {
     mockGetDescription.mockResolvedValue('Issue body');
     mockAskAgent.mockResolvedValue({ progress: -10, summary: 'Invalid' });
     mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([]);

@@ -6,11 +6,11 @@ jest.mock('../../../../utils/logger', () => ({
   logError: jest.fn(),
 }));
 
-const mockAsk = jest.fn();
+const mockAskAgent = jest.fn();
 const mockAddComment = jest.fn();
 const mockGetDescription = jest.fn();
 jest.mock('../../../../data/repository/ai_repository', () => ({
-  AiRepository: jest.fn().mockImplementation(() => ({ ask: mockAsk })),
+  AiRepository: jest.fn().mockImplementation(() => ({ askAgent: mockAskAgent })),
 }));
 jest.mock('../../../../data/repository/issue_repository', () => ({
   IssueRepository: jest.fn().mockImplementation(() => ({
@@ -26,7 +26,8 @@ function baseParam(overrides: Record<string, unknown> = {}) {
     issueNumber: 1,
     tokenUser: 'bot',
     tokens: { token: 't' },
-    ai: new Ai('https://opencode.example.com', 'model-x', false, false, [], false),
+    ai: new Ai('https://opencode.example.com', 'model-x', false, false, [], false, 'low', 20),
+    labels: { isQuestion: false, isHelp: false },
     issue: {
       isIssueComment: true,
       isIssue: false,
@@ -46,7 +47,7 @@ describe('ThinkUseCase', () => {
 
   beforeEach(() => {
     useCase = new ThinkUseCase();
-    mockAsk.mockReset();
+    mockAskAgent.mockReset();
     mockAddComment.mockReset();
     mockGetDescription.mockReset();
     mockGetDescription.mockResolvedValue(undefined);
@@ -60,7 +61,7 @@ describe('ThinkUseCase', () => {
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(false);
-    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockAskAgent).not.toHaveBeenCalled();
     expect(mockAddComment).not.toHaveBeenCalled();
   });
 
@@ -74,7 +75,7 @@ describe('ThinkUseCase', () => {
 
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(false);
-    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockAskAgent).not.toHaveBeenCalled();
   });
 
   it('returns success executed false when comment does not mention @user', async () => {
@@ -87,13 +88,49 @@ describe('ThinkUseCase', () => {
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(false);
-    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockAskAgent).not.toHaveBeenCalled();
     expect(mockAddComment).not.toHaveBeenCalled();
+  });
+
+  it('responds without mention when issue has question label', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAskAgent.mockResolvedValue({ answer: 'Here is the answer.' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      labels: { isQuestion: true, isHelp: false },
+      issue: { ...baseParam().issue, commentBody: 'how do I configure the webhook?' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent.mock.calls[0][2]).toContain('how do I configure the webhook?');
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'Here is the answer.', 't');
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+  });
+
+  it('responds without mention when issue has help label', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAskAgent.mockResolvedValue({ answer: 'I can help with that.' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      labels: { isQuestion: false, isHelp: true },
+      issue: { ...baseParam().issue, commentBody: 'I need help with deployment' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent.mock.calls[0][2]).toContain('I need help with deployment');
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'I can help with that.', 't');
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
   });
 
   it('returns error when OpenCode model is empty', async () => {
     const param = baseParam({
-      ai: new Ai('https://server', '', false, false, [], false),
+      ai: new Ai('https://server', '', false, false, [], false, 'low', 20),
       issue: { ...baseParam().issue, commentBody: '@bot hi' },
     });
 
@@ -102,12 +139,12 @@ describe('ThinkUseCase', () => {
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(false);
     expect(results[0].errors).toContain('OpenCode server URL or model not found.');
-    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockAskAgent).not.toHaveBeenCalled();
   });
 
   it('returns error when OpenCode server URL is empty', async () => {
     const param = baseParam({
-      ai: new Ai('', 'model', false, false, [], false),
+      ai: new Ai('', 'model', false, false, [], false, 'low', 20),
       issue: { ...baseParam().issue, commentBody: '@bot hi' },
     });
 
@@ -126,12 +163,12 @@ describe('ThinkUseCase', () => {
 
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(false);
-    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockAskAgent).not.toHaveBeenCalled();
   });
 
-  it('calls getDescription then ask and addComment when comment mentions bot', async () => {
+  it('calls getDescription then askAgent and addComment when comment mentions bot', async () => {
     mockGetDescription.mockResolvedValue(undefined);
-    mockAsk.mockResolvedValue('4');
+    mockAskAgent.mockResolvedValue({ answer: '4' });
     mockAddComment.mockResolvedValue(undefined);
     const param = baseParam({
       issue: { ...baseParam().issue, commentBody: '@bot what is 2+2?' },
@@ -140,7 +177,7 @@ describe('ThinkUseCase', () => {
     const results = await useCase.invoke(param);
 
     expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 1, 't');
-    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
     expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, '4', 't');
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(true);
@@ -149,7 +186,7 @@ describe('ThinkUseCase', () => {
 
   it('includes issue description in prompt when getDescription returns content', async () => {
     mockGetDescription.mockResolvedValue('Implement login feature for the app.');
-    mockAsk.mockResolvedValue('Sure, here is how...');
+    mockAskAgent.mockResolvedValue({ answer: 'Sure, here is how...' });
     mockAddComment.mockResolvedValue(undefined);
     const param = baseParam({
       issue: { ...baseParam().issue, commentBody: '@bot how should I start?', number: 42 },
@@ -158,7 +195,7 @@ describe('ThinkUseCase', () => {
     await useCase.invoke(param);
 
     expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 42, 't');
-    const prompt = mockAsk.mock.calls[0][1];
+    const prompt = mockAskAgent.mock.calls[0][2];
     expect(prompt).toContain('Context (issue #42 description):');
     expect(prompt).toContain('Implement login feature for the app.');
     expect(prompt).toContain('Question: how should I start?');
@@ -166,7 +203,7 @@ describe('ThinkUseCase', () => {
 
   it('for PR review comment uses issueNumber to fetch issue description', async () => {
     mockGetDescription.mockResolvedValue('Original issue description.');
-    mockAsk.mockResolvedValue('Reply');
+    mockAskAgent.mockResolvedValue({ answer: 'Reply' });
     mockAddComment.mockResolvedValue(undefined);
     const param = baseParam({
       issue: { ...baseParam().issue, isIssueComment: false, commentBody: '', number: 0 },
@@ -181,28 +218,42 @@ describe('ThinkUseCase', () => {
     await useCase.invoke(param);
 
     expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 123, 't');
-    const prompt = mockAsk.mock.calls[0][1];
+    const prompt = mockAskAgent.mock.calls[0][2];
     expect(prompt).toContain('Context (issue #123 description):');
     expect(prompt).toContain('Original issue description.');
   });
 
   it('returns error when OpenCode returns no answer', async () => {
-    mockAsk.mockResolvedValue(undefined);
+    mockAskAgent.mockResolvedValue(undefined);
     const param = baseParam({
       issue: { ...baseParam().issue, commentBody: '@bot hello' },
     });
 
     const results = await useCase.invoke(param);
 
-    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
     expect(mockAddComment).not.toHaveBeenCalled();
     expect(results[0].success).toBe(false);
     expect(results[0].executed).toBe(true);
     expect(results[0].errors).toContain('OpenCode returned no answer.');
   });
 
+  it('returns error when OpenCode returns empty answer', async () => {
+    mockAskAgent.mockResolvedValue({ answer: '' });
+    const param = baseParam({
+      issue: { ...baseParam().issue, commentBody: '@bot hello' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockAddComment).not.toHaveBeenCalled();
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors).toContain('OpenCode returned no answer.');
+  });
+
   it('posts comment to PR number when pull_request_review_comment', async () => {
-    mockAsk.mockResolvedValue('Reply');
+    mockAskAgent.mockResolvedValue({ answer: 'Reply' });
     mockAddComment.mockResolvedValue(undefined);
     const param = baseParam({
       issue: { ...baseParam().issue, isIssueComment: false, commentBody: '' },
@@ -221,7 +272,7 @@ describe('ThinkUseCase', () => {
   });
 
   it('returns error result when addComment throws', async () => {
-    mockAsk.mockResolvedValue('ok');
+    mockAskAgent.mockResolvedValue({ answer: 'ok' });
     mockAddComment.mockRejectedValue(new Error('API error'));
     const param = baseParam({
       issue: { ...baseParam().issue, commentBody: '@bot hi' },

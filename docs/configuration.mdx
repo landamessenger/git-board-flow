@@ -5,142 +5,118 @@ description: Detailed configuration options for Git Board Flow
 
 # Configuration Options
 
-Git Board Flow provides extensive configuration options to customize your workflow. Below you'll find detailed information about each configuration option available.
+Git Board Flow provides extensive configuration options to customize your workflow. Use the tabs below to jump to the category you need.
 
-## Authentication
+<Tabs sync={false}>
+  <Tab title="Authentication & AI" icon="key">
+    ## Authentication
 
-- `token`: GitHub token for repository operations (required)
+    - `token`: GitHub token for repository operations (required)
 
-## AI (OpenCode)
+    ## AI (OpenCode)
 
-- `opencode-server-url`: OpenCode server URL for AI operations (default: "http://localhost:4096"). See [OpenCode (AI)](/opencode-integration).
-- `opencode-model`: Model in provider/model format, e.g. `opencode/kimi-k2.5` or `anthropic/claude-3-5-sonnet` (default: "opencode/kimi-k2.5")
-- `opencode-start-server`: If true, the action starts an OpenCode server at job start and stops it at job end; no separate install needed (default: "false")
+    - `opencode-server-url`: OpenCode server URL for AI operations (default: "http://localhost:4096"). See [OpenCode (AI)](/opencode-integration).
+    - `opencode-model`: Model in provider/model format, e.g. `opencode/kimi-k2.5-free` or `anthropic/claude-3-5-sonnet` (default: "opencode/kimi-k2.5-free")
+    - `opencode-start-server`: If true, the action starts an OpenCode server at job start and stops it at job end; no separate install needed (default: "true")
 
-## Branch Management
+    ## AI Features
 
-- `branch-management-launcher-label`: Label to trigger branch management (default: "branched")
-- `branch-management-always`: Ignore launcher label requirement (default: "false")
-- `branch-management-emoji`: Emoji for branched issues (default: "🧑‍💻")
+    - `ai-pull-request-description`: Enable AI-powered automatic updates for pull request descriptions (default: "true"). When enabled, the OpenCode Plan agent fills your repository's pull request template (`.github/pull_request_template.md`) using the issue description and the branch diff. See [Pull Requests → AI-generated PR description](/pull-requests/ai-description).
+    - `issues-locale`: Target locale for issue comments (default: "en-US"). When comments are in another language, OpenCode translates them to this locale. See [OpenCode → Comment translation](/opencode-integration#how-comment-translation-works).
+    - `pull-requests-locale`: Target locale for PR review comments (default: "en-US"). Same translation behavior as `issues-locale` but for PR comments.
+    - `ai-ignore-files`: Comma-separated list of paths to ignore for AI operations (e.g. progress detection, Bugbot; not used for PR description, where the agent computes the diff in the workspace).
+    - `bugbot-severity`: Minimum severity for Bugbot findings to report: `info`, `low`, `medium`, or `high` (default: `low`). Findings below this threshold are not posted on the issue or PR.
+    - `bugbot-comment-limit`: Maximum number of findings to publish as individual comments on the issue and PR (default: `20`). Extra findings are summarized in a single overflow comment. Clamped between 1 and 200.
+    - `ai-members-only`: Restrict AI features to only organization/project members (default: "false"); when true, AI PR description is skipped if the PR author is not a member.
+    - `ai-include-reasoning`: Include reasoning or chain-of-thought in AI responses when supported by the model (default: "true").
+  </Tab>
 
-## Branch Types and Labels
+  <Tab title="Branches & Labels" icon="git-branch">
+    ## Branch Management
 
-- `main-branch`: Main branch name (default: "master")
-- `development-branch`: Development branch name (default: "develop")
-- `feature-tree`: Feature branch prefix (default: "feature")
-- `bugfix-tree`: Bugfix branch prefix (default: "bugfix")
-- `hotfix-tree`: Hotfix branch prefix (default: "hotfix")
-- `release-tree`: Release branch prefix (default: "release")
-- `docs-tree`: Documentation branch prefix (default: "docs")
-- `chore-tree`: Chore branch prefix (default: "chore")
+    - `branch-management-launcher-label`: Label to trigger branch management (default: "branched")
+    - `branch-management-always`: Ignore launcher label requirement (default: "false")
+    - `branch-management-emoji`: Emoji for branched issues (default: "🧑‍💻")
 
-## Issue Labels
+    ## Branch Types
 
-- `feature-label`: Feature branch label (default: "feature")
-- `bugfix-label`: Bugfix branch label (default: "bugfix")
-- `hotfix-label`: Hotfix branch label (default: "hotfix")
-- `release-label`: Release branch label (default: "release")
-- `docs-label`: Documentation label (default: "docs")
-- `documentation-label`: Alternative documentation label (default: "documentation")
-- `chore-label`: Chore label (default: "chore")
-- `maintenance-label`: Maintenance label (default: "maintenance")
-- `bug-label`: Bug type label (default: "bug")
-- `enhancement-label`: Enhancement type label (default: "enhancement")
-- `question-label`: Question label (default: "question")
-- `help-label`: Help request label (default: "help")
-- `deploy-label`: Deploy action label (default: "deploy")
-- `deployed-label`: Deployed status label (default: "deployed")
+    - `main-branch`: Main branch name (default: "master")
+    - `development-branch`: Development branch name (default: "develop")
+    - `feature-tree`: Feature branch prefix (default: "feature")
+    - `bugfix-tree`: Bugfix branch prefix (default: "bugfix")
+    - `hotfix-tree`: Hotfix branch prefix (default: "hotfix")
+    - `release-tree`: Release branch prefix (default: "release")
+    - `docs-tree`: Documentation branch prefix (default: "docs")
+    - `chore-tree`: Chore branch prefix (default: "chore")
 
-## Size Labels and Thresholds
+    ## Issue Labels
 
-### Size Labels
-- `size-xxl-label`: XXL size label (default: "size: XXL")
-- `size-xl-label`: XL size label (default: "size: XL")
-- `size-l-label`: L size label (default: "size: L")
-- `size-m-label`: M size label (default: "size: M")
-- `size-s-label`: S size label (default: "size: S")
-- `size-xs-label`: XS size label (default: "size: XS")
+    - `feature-label`: Feature branch label (default: "feature")
+    - `bugfix-label`: Bugfix branch label (default: "bugfix")
+    - `hotfix-label`: Hotfix branch label (default: "hotfix")
+    - `release-label`: Release branch label (default: "release")
+    - `docs-label`: Documentation label (default: "docs")
+    - `documentation-label`: Alternative documentation label (default: "documentation")
+    - `chore-label`: Chore label (default: "chore")
+    - `maintenance-label`: Maintenance label (default: "maintenance")
+    - `bug-label`: Bug type label (default: "bug")
+    - `enhancement-label`: Enhancement type label (default: "enhancement")
+    - `question-label`: Question label (default: "question")
+    - `help-label`: Help request label (default: "help")
+    - `deploy-label`: Deploy action label (default: "deploy")
+    - `deployed-label`: Deployed status label (default: "deployed")
+    - `priority-high-label` through `priority-none-label`: Priority labels (default: "priority: high", etc.)
 
-### Size Thresholds
-Each size has three threshold parameters:
-- `size-{size}-threshold-lines`: Number of lines threshold
-- `size-{size}-threshold-files`: Number of files threshold
-- `size-{size}-threshold-commits`: Number of commits threshold
+    ## Size Labels and Thresholds
 
-Default thresholds:
-- XXL: 1000 lines, 20 files, 10 commits
-- XL: 500 lines, 10 files, 5 commits
-- L: 250 lines, 5 files, 3 commits
-- M: 100 lines, 3 files, 2 commits
-- S: 50 lines, 2 files, 1 commit
-- XS: 25 lines, 1 file, 1 commit
+    **Size labels:** `size-xxl-label`, `size-xl-label`, `size-l-label`, `size-m-label`, `size-s-label`, `size-xs-label` (defaults: "size: XXL", etc.)
 
-## Project Integration
+    **Thresholds** (each size has three): `size-{size}-threshold-lines`, `size-{size}-threshold-files`, `size-{size}-threshold-commits`
 
-- `project-ids`: Comma-separated list of GitHub Project IDs to link issues and PRs
-- `project-column-issue-created`: Project column for new issues (default: "Todo")
-- `project-column-pull-request-created`: Project column for new PRs (default: "In Progress")
-- `project-column-issue-in-progress`: Project column for in-progress issues (default: "In Progress")
-- `project-column-pull-request-in-progress`: Project column for in-progress PRs (default: "In Progress")
-- `desired-assignees-count`: Number of assignees for issues/PRs (default: 1, max: 10)
-- `desired-reviewers-count`: Number of reviewers for PRs (default: 1, max: 15)
+    Default thresholds: XXL 1000/20/10, XL 500/10/5, L 250/5/3, M 100/3/2, S 50/2/1, XS 25/1/1 (lines/files/commits).
+  </Tab>
 
-## Customization
+  <Tab title="Project & Behavior" icon="layout-grid">
+    ## Project Integration
 
-- `emoji-labeled-title`: Enable emoji titles based on labels (default: "true")
-- `commit-prefix-transforms`: Comma-separated list of transforms for commit prefix from branch name (e.g. "replace-slash", "kebab-case"). See README for full list.
-- `reopen-issue-on-push`: Reopen closed issues on new commits (default: "true")
-- `merge-timeout`: Timeout for merge operations in seconds (default: 600)
+    - `project-ids`: Comma-separated list of GitHub Project IDs to link issues and PRs
+    - `project-column-issue-created`: Project column for new issues (default: "Todo")
+    - `project-column-pull-request-created`: Project column for new PRs (default: "In Progress")
+    - `project-column-issue-in-progress`: Project column for in-progress issues (default: "In Progress")
+    - `project-column-pull-request-in-progress`: Project column for in-progress PRs (default: "In Progress")
+    - `desired-assignees-count`: Number of assignees for issues/PRs (default: 1, max: 10)
+    - `desired-reviewers-count`: Number of reviewers for PRs (default: 1, max: 15)
 
-## Workflow Files
+    ## Customization
 
-- `release-workflow`: Release workflow filename (default: "release_workflow.yml")
-- `hotfix-workflow`: Hotfix workflow filename (default: "hotfix_workflow.yml")
+    - `emoji-labeled-title`: Enable emoji titles based on labels (default: "true")
+    - `commit-prefix-transforms`: Comma-separated list of transforms for commit prefix from branch name (e.g. "replace-slash", "kebab-case"). See README for full list.
+    - `reopen-issue-on-push`: Reopen closed issues on new commits (default: "true")
+    - `merge-timeout`: Timeout for merge operations in seconds (default: 600)
 
-## Single Actions
+    ## Workflow Files
 
-- `single-action`: Single action to run (e.g. `check_progress_action`, `think_action`, `create_release`). See [Single Actions](/single-actions).
-- `single-action-issue`: Issue number for actions that require one (e.g. `check_progress_action`, `deployed_action`)
-- `single-action-version`: Version for `create_release` or `create_tag`
-- `single-action-title`: Title for `create_release`
-- `single-action-changelog`: Changelog body for `create_release`
+    - `release-workflow`: Release workflow filename (default: "release_workflow.yml")
+    - `hotfix-workflow`: Hotfix workflow filename (default: "hotfix_workflow.yml")
+  </Tab>
 
-## Image Configuration
+  <Tab title="Single Actions & Images" icon="image">
+    ## Single Actions
 
-### Image Display Settings
-- `images-on-issue`: Enable images in issue comments (default: "true")
-- `images-on-pull-request`: Enable images in PR comments (default: "true")
-- `images-on-commit`: Enable images in commit comments (default: "true")
+    - `single-action`: Single action to run (e.g. `check_progress_action`, `think_action`, `create_release`). See [Single Actions](/single-actions).
+    - `single-action-issue`: Issue number for actions that require one (e.g. `check_progress_action`, `deployed_action`)
+    - `single-action-version`: Version for `create_release` or `create_tag`
+    - `single-action-title`: Title for `create_release`
+    - `single-action-changelog`: Changelog body for `create_release`
 
-### Issue Images
-- `images-issue-automatic`: Image URLs for automatic action issue comments
-- `images-issue-feature`: Image URLs for feature action issue comments
-- `images-issue-bugfix`: Image URLs for bugfix action issue comments
-- `images-issue-docs`: Image URLs for docs action issue comments
-- `images-issue-chore`: Image URLs for chore action issue comments
-- `images-issue-hotfix`: Image URLs for hotfix action issue comments
-- `images-issue-release`: Image URLs for release action issue comments
+    ## Image Configuration
 
-### Pull Request Images
-- `images-pull-request-automatic`: Image URLs for automatic action PR comments
-- `images-pull-request-feature`: Image URLs for feature action PR comments
-- `images-pull-request-bugfix`: Image URLs for bugfix action PR comments
-- `images-pull-request-docs`: Image URLs for docs action PR comments
-- `images-pull-request-chore`: Image URLs for chore action PR comments
-- `images-pull-request-hotfix`: Image URLs for hotfix action PR comments
-- `images-pull-request-release`: Image URLs for release action PR comments
+    **Display:** `images-on-issue`, `images-on-pull-request`, `images-on-commit` (default: "true")
 
-### Commit Images
-- `images-commit-automatic`: Image URLs for automatic action commit comments
-- `images-commit-feature`: Image URLs for feature action commit comments
-- `images-commit-bugfix`: Image URLs for bugfix action commit comments
-- `images-commit-docs`: Image URLs for docs action commit comments
-- `images-commit-chore`: Image URLs for chore action commit comments
-- `images-commit-hotfix`: Image URLs for hotfix action commit comments
-- `images-commit-release`: Image URLs for release action commit comments
+    **Issue images:** `images-issue-automatic`, `images-issue-feature`, `images-issue-bugfix`, `images-issue-docs`, `images-issue-chore`, `images-issue-hotfix`, `images-issue-release`
 
-## AI Features
+    **Pull request images:** `images-pull-request-automatic`, `images-pull-request-feature`, `images-pull-request-bugfix`, `images-pull-request-docs`, `images-pull-request-chore`, `images-pull-request-hotfix`, `images-pull-request-release`
 
-- `ai-pull-request-description`: Enable AI-powered automatic updates for pull request descriptions (default: "false"). When enabled, the OpenCode Plan agent fills your repository's pull request template (`.github/pull_request_template.md`) using the issue description and the branch diff. See [Pull Requests → AI-generated PR description](/pull-requests#ai-generated-pr-description).
-- `ai-ignore-files`: Comma-separated list of files to ignore for AI operations (e.g. progress detection, error detection; not used for PR description, where the agent computes the diff in the workspace).
-- `ai-members-only`: Restrict AI features to only organization/project members (default: "true"); when true, AI PR description is skipped if the PR author is not a member. 
+    **Commit images:** `images-commit-automatic`, `images-commit-feature`, `images-commit-bugfix`, `images-commit-docs`, `images-commit-chore`, `images-commit-hotfix`, `images-commit-release`
+  </Tab>
+</Tabs>

@@ -7,7 +7,7 @@ on:
 jobs:
   git-board-issues:
     name: Git Board - Issue Comment
-    runs-on: [self-hosted, macOS, X64]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -16,7 +16,6 @@ jobs:
         with:
           ai-ignore-files: build/*
           debug: ${{ vars.DEBUG }}
-          hotfix-workflow: release_workflow.yml
           opencode-model: ${{ vars.OPENCODE_MODEL }}
           project-ids: 2
           token: ${{ secrets.PAT }}

@@ -29,20 +29,22 @@ Follow these steps to set up Git Board Flow in your repository:
   </Step>
 
   <Step title="Implement Issue Templates">
-    Create issue templates to standardize task creation:
-    - Define templates for different types of issues (features, bugs, docs, releases, hotfixes etc.)
-    - Include necessary sections like Description, Acceptance Criteria, and Technical Details
-    - Include predefined labels on these templates.
-    
-    The action will use these templates to automatically create appropriately named branches and set up tracking.
+    Create issue templates to standardize task creation (in `.github/ISSUE_TEMPLATE/`):
+    - **Feature**: `feature_request.yml` — use labels such as `enhancement`, `feature`; add `branched` when the user should get a branch, or set `branch-management-always: true`.
+    - **Bugfix**: `bug_report.yml` — use labels `bug`, `bugfix`; add `branched` if needed.
+    - **Docs**: `doc_update.yml` — use labels `documentation`, `docs`.
+    - **Chore / maintenance**: `chore_task.yml` — use labels `chore`, `maintenance`.
+    - **Hotfix**: `hotfix.yml` — use labels `hotfix`, `branched` (branch is created from main at latest tag).
+    - **Release**: `release.yml` — use labels `release`, `branched` (branch is created from develop).
+    - **Help**: `help_request.yml` — for support requests (no branch).
+    Include the labels that match the [labels table](/issues#labels-by-issue-type-and-flow) so the action creates the correct branches and applies the right workflow.
   </Step>
 
   <Step title="Install Git Board Flow">
-    Add the GitHub Action to your repository by creating a workflow file per section:
-    1. Configure the behavior on each push on `.github/workflows/gbf_commit.yml`
-    2. Configure the issues behavior on `.github/workflows/gbf_issue.yml`
-    3. Pull Request configuration must be on `.github/workflows/gbf_pr.yml`
-    
-    These workflows will then automatically manage everything under the hood, creating branches, updating project boards, and maintaining the relationship between issues and code.
+    Add the GitHub Action to your repository by creating three workflow files (you can choose any names; common choices are `gbf_commit.yml`, `gbf_issue.yml`, `gbf_pr.yml` or names like "Git Board Flow - Commit", etc.):
+    1. **Push (commit)** — runs on `push` to any branch: notifies issues of new commits, updates size and progress labels. Create e.g. `.github/workflows/gbf_commit.yml`.
+    2. **Issues** — runs on `issues` (opened, edited, labeled, unlabeled): creates branches, links to projects, assignees. Create e.g. `.github/workflows/gbf_issue.yml`.
+    3. **Pull requests** — runs on `pull_request`: links PR to issue, project, reviewers. Create e.g. `.github/workflows/gbf_pr.yml`.
+    See the [README](https://github.com/landamessenger/git-board-flow#quick-start) for full YAML examples. These workflows will then automatically manage branches, project boards, and the relationship between issues and code.
   </Step>
 </Steps>

@@ -2,6 +2,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import {
     AiRepository,
+    LANGUAGE_CHECK_RESPONSE_SCHEMA,
     OPENCODE_AGENT_PLAN,
     TRANSLATION_RESPONSE_SCHEMA,
 } from "../../../data/repository/ai_repository";
@@ -48,13 +49,23 @@ If you'd like this comment to be translated again, please delete the entire comm
         
         The text is: ${commentBody}
         `;
-        
-        let result = await this.aiRepository.ask(
+        const checkResponse = await this.aiRepository.askAgent(
             param.ai,
+            OPENCODE_AGENT_PLAN,
             prompt,
+            {
+                expectJson: true,
+                schema: LANGUAGE_CHECK_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+                schemaName: 'language_check_response',
+            },
         );
-        
-        if (result === "done") {
+        const status =
+            checkResponse != null &&
+            typeof checkResponse === 'object' &&
+            typeof (checkResponse as Record<string, unknown>).status === 'string'
+                ? ((checkResponse as Record<string, unknown>).status as string)
+                : '';
+        if (status === 'done') {
             results.push(
                 new Result({
                     id: this.taskId,

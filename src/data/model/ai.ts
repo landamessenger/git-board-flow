@@ -12,6 +12,8 @@ export class Ai {
     private aiMembersOnly: boolean;
     private aiIgnoreFiles: string[];
     private aiIncludeReasoning: boolean;
+    private bugbotMinSeverity: string;
+    private bugbotCommentLimit: number;
 
     constructor(
         opencodeServerUrl: string,
@@ -19,7 +21,9 @@ export class Ai {
         aiPullRequestDescription: boolean,
         aiMembersOnly: boolean,
         aiIgnoreFiles: string[],
-        aiIncludeReasoning: boolean
+        aiIncludeReasoning: boolean,
+        bugbotMinSeverity: string,
+        bugbotCommentLimit: number
     ) {
         this.opencodeServerUrl = opencodeServerUrl;
         this.opencodeModel = opencodeModel;
@@ -27,6 +31,8 @@ export class Ai {
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
         this.aiIncludeReasoning = aiIncludeReasoning;
+        this.bugbotMinSeverity = bugbotMinSeverity;
+        this.bugbotCommentLimit = bugbotCommentLimit;
     }
 
     getOpencodeServerUrl(): string {
@@ -51,6 +57,14 @@ export class Ai {
 
     getAiIncludeReasoning(): boolean {
         return this.aiIncludeReasoning;
+    }
+
+    getBugbotMinSeverity(): string {
+        return this.bugbotMinSeverity;
+    }
+
+    getBugbotCommentLimit(): number {
+        return this.bugbotCommentLimit;
     }
 
     /**

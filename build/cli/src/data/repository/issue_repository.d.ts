@@ -39,6 +39,17 @@ export declare class IssueRepository {
     getHeadBranch: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string | undefined>;
     addComment: (owner: string, repository: string, issueNumber: number, comment: string, token: string) => Promise<void>;
     updateComment: (owner: string, repository: string, issueNumber: number, commentId: number, comment: string, token: string) => Promise<void>;
+    /**
+     * Lists all comments on an issue (for bugbot: find existing findings by marker).
+     * Uses pagination to fetch every comment (default API returns only 30 per page).
+     */
+    listIssueComments: (owner: string, repository: string, issueNumber: number, token: string) => Promise<Array<{
+        id: number;
+        body: string | null;
+        user?: {
+            login?: string;
+        };
+    }>>;
     closeIssue: (owner: string, repository: string, issueNumber: number, token: string) => Promise<boolean>;
     openIssue: (owner: string, repository: string, issueNumber: number, token: string) => Promise<boolean>;
     getCurrentAssignees: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string[]>;

@@ -20,7 +20,7 @@ import { Tokens } from '../data/model/tokens';
 import { Welcome } from '../data/model/welcome';
 import { Workflows } from '../data/model/workflows';
 import { ProjectRepository } from '../data/repository/project_repository';
-import { DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from '../utils/constants';
+import { BUGBOT_MAX_COMMENTS, BUGBOT_MIN_SEVERITY, DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from '../utils/constants';
 import { logInfo } from '../utils/logger';
 import { getActionInputsWithDefaults } from '../utils/yml_utils';
 import { mainRun } from './common_action';
@@ -72,6 +72,13 @@ export async function runLocalAction(
         .split(',')
         .map(path => path.trim())
         .filter(path => path.length > 0);
+    const bugbotSeverity = (additionalParams[INPUT_KEYS.BUGBOT_SEVERITY] ?? actionInputs[INPUT_KEYS.BUGBOT_SEVERITY]) || BUGBOT_MIN_SEVERITY;
+    const bugbotCommentLimitRaw = additionalParams[INPUT_KEYS.BUGBOT_COMMENT_LIMIT] ?? actionInputs[INPUT_KEYS.BUGBOT_COMMENT_LIMIT];
+    const bugbotCommentLimitNum = typeof bugbotCommentLimitRaw === 'number' ? bugbotCommentLimitRaw : parseInt(String(bugbotCommentLimitRaw ?? ''), 10);
+    const bugbotCommentLimit =
+        Number.isNaN(bugbotCommentLimitNum) || bugbotCommentLimitNum < 1
+            ? BUGBOT_MAX_COMMENTS
+            : Math.min(bugbotCommentLimitNum, 200);
 
     /**
      * Projects Details
@@ -514,6 +521,8 @@ export async function runLocalAction(
             aiMembersOnly,
             aiIgnoreFiles,
             aiIncludeReasoning,
+            bugbotSeverity,
+            bugbotCommentLimit,
         ),
         new Labels(
             branchManagementLauncherLabel,

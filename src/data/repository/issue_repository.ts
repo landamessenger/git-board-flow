@@ -534,6 +534,36 @@ export class IssueRepository {
         logDebugInfo(`Comment ${commentId} updated in Issue ${issueNumber}.`);
     }
 
+    /**
+     * Lists all comments on an issue (for bugbot: find existing findings by marker).
+     * Uses pagination to fetch every comment (default API returns only 30 per page).
+     */
+    listIssueComments = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string,
+    ): Promise<Array<{ id: number; body: string | null; user?: { login?: string } }>> => {
+        const octokit = github.getOctokit(token);
+        const all: Array<{ id: number; body: string | null; user?: { login?: string } }> = [];
+        for await (const response of octokit.paginate.iterator(octokit.rest.issues.listComments, {
+            owner,
+            repo: repository,
+            issue_number: issueNumber,
+            per_page: 100,
+        })) {
+            const data = response.data || [];
+            for (const c of data) {
+                all.push({
+                    id: c.id,
+                    body: c.body ?? null,
+                    user: c.user as { login?: string } | undefined,
+                });
+            }
+        }
+        return all;
+    };
+
     closeIssue = async (
         owner: string,
         repository: string,
