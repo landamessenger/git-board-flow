@@ -1,42 +1,5 @@
 #!/bin/sh
-# Ensures the commit message starts with the current branch name (with / replaced by -).
-# Strips any existing prefix so the correct one is always applied.
-#
-# Install: npm install (postinstall) or node scripts/install-git-hooks.cjs
-
-MSG_FILE="$1"
-SOURCE="$2"
-
-# Skip merge and squash commits (message is usually auto-generated)
-case "$SOURCE" in
-  merge|squash) exit 0 ;;
-esac
-
-# Skip if no message file (shouldn't happen)
-[ -f "$MSG_FILE" ] || exit 0
-
-BRANCH=$(git branch --show-current 2>/dev/null)
-[ -n "$BRANCH" ] || exit 0
-
-# Normalize branch: replace / with -
-PREFIX=$(echo "$BRANCH" | tr '/' '-')
-
-# Read first line and rest of file (preserve order, including # comment lines)
-FIRST_LINE=$(sed -n '1p' "$MSG_FILE")
-REST=$(sed -n '2,$p' "$MSG_FILE")
-[ -z "$FIRST_LINE" ] && exit 0
-
-# Strip any existing "prefix: " from the first line
-if echo "$FIRST_LINE" | grep -qE '^[^:]+:\s*.+'; then
-  BODY=$(echo "$FIRST_LINE" | sed -E 's/^[^:]+:\s*//')
-else
-  BODY="$FIRST_LINE"
-fi
-
-# Write back: normalized prefix + body, then rest unchanged
-{
-  printf '%s: %s\n' "$PREFIX" "$BODY"
-  [ -n "$REST" ] && echo "$REST"
-} > "$MSG_FILE"
-
-exit 0
+# Launcher for prepare-commit-msg: runs the Node script from the repo.
+# On Windows: Git for Windows runs hooks with Bash, so this script runs there too.
+ROOT=$(git rev-parse --show-toplevel)
+exec node "$ROOT/scripts/git-hooks/prepare-commit-msg.cjs" "$@"
