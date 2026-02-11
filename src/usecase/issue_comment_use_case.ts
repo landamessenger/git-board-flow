@@ -46,6 +46,7 @@ export class IssueCommentUseCase implements ParamUseCase<Execution, Result[]> {
 
         results.push(...(await new CheckIssueCommentLanguageUseCase().invoke(param)));
 
+        logInfo("Running bugbot fix intent detection (before Think).");
         const intentResults = await new DetectBugbotFixIntentUseCase().invoke(param);
         results.push(...intentResults);
 

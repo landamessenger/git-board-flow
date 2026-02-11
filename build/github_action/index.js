@@ -48406,6 +48406,7 @@ class IssueCommentUseCase {
         (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         results.push(...(await new check_issue_comment_language_use_case_1.CheckIssueCommentLanguageUseCase().invoke(param)));
+        (0, logger_1.logInfo)("Running bugbot fix intent detection (before Think).");
         const intentResults = await new detect_bugbot_fix_intent_use_case_1.DetectBugbotFixIntentUseCase().invoke(param);
         results.push(...intentResults);
         const intentPayload = getBugbotFixIntentPayload(intentResults);
