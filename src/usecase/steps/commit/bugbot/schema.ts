@@ -29,3 +29,27 @@ export const BUGBOT_RESPONSE_SCHEMA = {
     required: ['findings'],
     additionalProperties: false,
 } as const;
+
+/**
+ * OpenCode (plan agent) response schema for bugbot fix intent.
+ * Given the user comment and the list of unresolved findings, the agent decides whether
+ * the user is asking to fix one or more of them and which finding ids to target.
+ */
+export const BUGBOT_FIX_INTENT_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        is_fix_request: {
+            type: 'boolean',
+            description:
+                'True if the user comment is clearly requesting to fix one or more of the reported findings (e.g. "fix it", "arregla", "fix this vulnerability", "fix all"). False for questions, unrelated messages, or ambiguous text.',
+        },
+        target_finding_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+                'When is_fix_request is true: the exact finding ids from the list we provided that the user wants fixed. Use the exact id strings. For "fix all" or "fix everything" include all listed ids. When is_fix_request is false, return an empty array.',
+        },
+    },
+    required: ['is_fix_request', 'target_finding_ids'],
+    additionalProperties: false,
+} as const;

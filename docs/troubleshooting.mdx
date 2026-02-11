@@ -72,6 +72,11 @@ This guide helps you resolve common issues you might encounter while using Copil
     - **Invalid JSON response**: If the AI returns malformed JSON (e.g. for progress/error detection), the model may not follow the schema. Try a different model or check the OpenCode logs.
   </Accordion>
 
+  <Accordion title="Bugbot autofix" icon="wrench">
+    - **Bot didn't run autofix**: OpenCode must be configured and the comment must be interpreted as a fix request (e.g. "fix it", "arregla", "fix all"). There must be at least one unresolved finding. On issue comments, the action needs an open PR that references the issue so it can resolve the branch to checkout and push; otherwise autofix is skipped.
+    - **Commit not made**: Verify commands (`bugbot-fix-verify-commands`) run after OpenCode applies changes; if any command fails, the action does not commit. If there are no file changes after the fix, nothing is committed. If push fails (e.g. conflict or permissions), check workflow `contents: write` and that the token can push to the branch.
+  </Accordion>
+
   <Accordion title="CLI issues" icon="terminal">
     - **"Git repository not found"**: Ensure you're in a directory with `git` initialized and `remote.origin.url` pointing to a GitHub repository (e.g. `github.com/owner/repo`).
     - **"Please provide a prompt using -p or --prompt"**: The `copilot` command requires a prompt. Use `-p "your prompt"` or `--prompt "your prompt"`.

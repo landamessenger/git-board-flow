@@ -29,6 +29,7 @@ alwaysApply: true
 | Steps (commit) | `src/usecase/steps/commit/` | notify commit, check size |
 | Steps (issue comment) | `src/usecase/steps/issue_comment/` | check_issue_comment_language (translation) |
 | Steps (PR review comment) | `src/usecase/steps/pull_request_review_comment/` | check_pull_request_comment_language (translation) |
+| Bugbot autofix | `src/usecase/steps/commit/bugbot/` | detect_bugbot_fix_intent_use_case (OpenCode decides if user asks to fix findings), bugbot_autofix_use_case (build agent applies fixes), bugbot_autofix_commit (verify + git commit/push). Intent via OpenCode plan agent; fix via build agent; no diff API. |
 | Manager (content) | `src/manager/` | description handlers, configuration_handler, markdown_content_hotfix_handler (PR description, hotfix changelog content) |
 | Models | `src/data/model/` | Execution, Issue, PullRequest, SingleAction, etc. |
 | Repos | `src/data/repository/` | branch_repository, issue_repository, workflow_repository, ai_repository (OpenCode), file_repository, project_repository |

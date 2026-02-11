@@ -24,14 +24,22 @@ ${items}
 Return in \`resolved_finding_ids\` only the ids from the list above that are now fixed or no longer apply. Use the exact id shown in each "Finding id" line.`;
 }
 
+export interface LoadBugbotContextOptions {
+    /** When set (e.g. for issue_comment when commit.branch is empty), use this branch to find open PRs. */
+    branchOverride?: string;
+}
+
 /**
  * Loads all context needed for bugbot: existing findings from issue + PR comments,
  * open PR numbers, and the prompt block for previously reported issues.
  * Also loads PR context (head sha, files, diff lines) for the first open PR.
  */
-export async function loadBugbotContext(param: Execution): Promise<BugbotContext> {
+export async function loadBugbotContext(
+    param: Execution,
+    options?: LoadBugbotContextOptions
+): Promise<BugbotContext> {
     const issueNumber = param.issueNumber;
-    const headBranch = param.commit.branch;
+    const headBranch = options?.branchOverride ?? param.commit.branch;
     const token = param.tokens.token;
     const owner = param.owner;
     const repo = param.repo;
@@ -95,6 +103,9 @@ export async function loadBugbotContext(param: Execution): Promise<BugbotContext
 
     const previousFindingsBlock = buildPreviousFindingsBlock(previousFindingsForPrompt);
 
+    const unresolvedFindingsWithBody: BugbotContext['unresolvedFindingsWithBody'] =
+        previousFindingsForPrompt.map((p) => ({ id: p.id, fullBody: p.fullBody }));
+
     let prContext: BugbotContext['prContext'] = null;
     if (openPrNumbers.length > 0) {
         const prHeadSha = await pullRequestRepository.getPullRequestHeadSha(
@@ -130,5 +141,6 @@ export async function loadBugbotContext(param: Execution): Promise<BugbotContext
         openPrNumbers,
         previousFindingsBlock,
         prContext,
+        unresolvedFindingsWithBody,
     };
 }

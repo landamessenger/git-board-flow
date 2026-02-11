@@ -66,6 +66,7 @@ export declare const INPUT_KEYS: {
     readonly AI_INCLUDE_REASONING: "ai-include-reasoning";
     readonly BUGBOT_SEVERITY: "bugbot-severity";
     readonly BUGBOT_COMMENT_LIMIT: "bugbot-comment-limit";
+    readonly BUGBOT_FIX_VERIFY_COMMANDS: "bugbot-fix-verify-commands";
     readonly PROJECT_IDS: "project-ids";
     readonly PROJECT_COLUMN_ISSUE_CREATED: "project-column-issue-created";
     readonly PROJECT_COLUMN_PULL_REQUEST_CREATED: "project-column-pull-request-created";

@@ -23,6 +23,11 @@ export interface BugbotPrContext {
     }>;
     pathToFirstDiffLine: Record<string, number>;
 }
+/** Unresolved finding with full comment body (for intent prompt). */
+export interface UnresolvedFindingWithBody {
+    id: string;
+    fullBody: string;
+}
 export interface BugbotContext {
     existingByFindingId: ExistingByFindingId;
     issueComments: Array<{
@@ -32,4 +37,6 @@ export interface BugbotContext {
     openPrNumbers: number[];
     previousFindingsBlock: string;
     prContext: BugbotPrContext | null;
+    /** Unresolved findings with full body (issue or PR comment) for bugbot autofix intent. */
+    unresolvedFindingsWithBody: UnresolvedFindingWithBody[];
 }

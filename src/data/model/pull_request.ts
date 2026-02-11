@@ -89,6 +89,12 @@ export class PullRequest {
         return this.inputs?.pull_request_review_comment?.html_url ?? github.context.payload.pull_request_review_comment?.html_url ?? '';
     }
 
+    /** When the comment is a reply, the id of the parent review comment (for bugbot: include parent body in intent prompt). */
+    get commentInReplyToId(): number | undefined {
+        const raw = this.inputs?.pull_request_review_comment?.in_reply_to_id ?? (github.context.payload as { pull_request_review_comment?: { in_reply_to_id?: number } })?.pull_request_review_comment?.in_reply_to_id;
+        return raw != null ? Number(raw) : undefined;
+    }
+
     constructor(
         desiredAssigneesCount: number,
         desiredReviewersCount: number,

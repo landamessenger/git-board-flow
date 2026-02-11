@@ -1,218 +1,109 @@
-# Plan de acción: Bugbot Autofix (corregir vulnerabilidades bajo petición)
+# Plan: Bugbot Autofix (fix vulnerabilities on user request)
 
-Este documento describe el plan para añadir la funcionalidad de **autofix** al bugbot: que el usuario pueda pedir desde una issue o un pull request que se corrijan una o varias vulnerabilidades ya detectadas, y que el bugbot (vía OpenCode) aplique los cambios, ejecute checks (build, test, lint) y, si todo pasa, la GitHub Action haga commit y push de los cambios.
-
----
-
-## 1. Resumen de requisitos
-
-| Origen | Escenario | Comportamiento esperado |
-|--------|-----------|-------------------------|
-| **Issue** | Comentario general (ej. "arréglalo", "arregla las vulnerabilidades") | OpenCode interpreta qué vulnerabilidades abiertas debe solucionar. |
-| **PR** | Respuesta en el **mismo hilo** del comentario de una vulnerabilidad | El bugbot soluciona **solo** el problema de ese comentario (finding_id del marcador). |
-| **PR** | Comentario nuevo mencionando al bot (ej. "arregla X", "arregla todas") | OpenCode interpreta qué vulnerabilidad(es) corregir. |
-
-Restricciones:
-
-- Solo actuar **bajo petición explícita** del usuario; no exceder ese scope.
-- Centrarse en uno o varios problemas **detectados** (findings existentes); como máximo añadir tests para validar.
-- Tras las correcciones: ejecutar comandos de compilación, test y linter (los que el usuario haya configurado, por ejemplo en rules de AI en el proyecto); si todos pasan, la Action hace **commit y push** de los cambios.
+This document describes the **bugbot autofix** feature: the user can ask from an issue or pull request comment to fix one or more detected vulnerabilities; OpenCode interprets the request, applies fixes directly in the workspace, runs verify commands (build/test/lint), and the GitHub Action commits and pushes the changes.
 
 ---
 
-## 2. Arquitectura actual relevante
+## 1. Requirements summary
 
-- **Bugbot (detección):** `DetectPotentialProblemsUseCase` → `loadBugbotContext`, `buildBugbotPrompt`, OpenCode agente `plan` → publica findings en issue y/o PR con marcador `<!-- copilot-bugbot finding_id:"id" resolved:true|false -->`.
-- **Issue comment:** `IssueCommentUseCase` → `CheckIssueCommentLanguageUseCase`, `ThinkUseCase`. El cuerpo del comentario está en `param.issue.commentBody`.
-- **PR review comment:** `PullRequestReviewCommentUseCase` → `CheckPullRequestCommentLanguageUseCase`. El cuerpo en `param.pullRequest.commentBody`; existe `param.pullRequest.commentId` (y en payload de GitHub puede existir `in_reply_to_id` para saber el hilo).
-- **OpenCode:** `AiRepository.askAgent` (agente `plan`, solo análisis) y `AiRepository.copilotMessage` (agente `build`, puede editar y ejecutar comandos). OpenCode aplica los cambios **directamente** en su workspace (mismo cwd que el runner cuando el servidor se arranca desde el repo); no se usa lógica de diffs.
-- **Workflows:** `copilot_issue_comment.yml` (issue_comment created/edited), `copilot_pull_request_comment.yml` (pull_request_review_comment created/edited).
+| Origin | Scenario | Expected behaviour |
+|--------|----------|--------------------|
+| **Issue** | General comment (e.g. "fix it", "arregla las vulnerabilidades") | OpenCode interprets whether the user is asking to fix one or several open findings and which ones. |
+| **PR** | Reply in the **same thread** as a vulnerability comment | OpenCode can use the parent comment as context and fix that specific finding (or the user may say "fix all"). |
+| **PR** | New comment mentioning the bot (e.g. "fix X", "fix all") | OpenCode interprets which finding(s) to fix. |
 
----
+Constraints:
 
-## 3. Plan de tareas (orden sugerido)
-
-### Fase 1: Detección de intención “arreglar” y contexto de findings
-
-1. **Definir “petición de fix”**
-   - Crear utilidad (ej. `src/usecase/steps/commit/bugbot/parse_fix_request.ts` o dentro de un nuevo step):
-     - Entrada: texto del comentario (`commentBody`).
-     - Salida: `{ isFixRequest: boolean; intent?: 'fix_one' | 'fix_some' | 'fix_all'; findingId?: string }`.
-   - Considerar frases en español/inglés: "arréglalo", "arregla", "fix it", "fix this", "fix vulnerability X", "fix all", "corrige", etc., y opcionalmente mención al bot (e.g. @copilot).
-
-2. **Exponer comentario y tipo de evento en Execution**
-   - Ya existe: `param.issue.commentBody` (issue_comment), `param.pullRequest.commentBody` (pull_request_review_comment).
-   - Asegurar que en `github_action.ts` / `local_action.ts` el payload de `issue_comment` y `pull_request_review_comment` se pasa correctamente para que `Issue`/`PullRequest` tengan `commentBody` y `commentId`.
-
-3. **En PR: obtener finding_id cuando el comentario es respuesta en un hilo**
-   - Añadir en modelo/repositorio lo necesario para saber “comentario padre” en PR:
-     - GitHub REST para review comment incluye `in_reply_to_id`. Añadir en `PullRequest` (o en el payload que construye la action) el campo `commentInReplyToId` (o leerlo de `github.context.payload.pull_request_review_comment?.in_reply_to_id` o equivalente).
-   - En `PullRequestRepository`: método para obtener un review comment por id (o listar y filtrar por id). Con el id del comentario padre, obtener su `body` y extraer `finding_id` con `parseMarker(body)` (de `bugbot/marker.ts`). Así, si el usuario responde en el mismo hilo, tenemos el `finding_id` sin ambigüedad.
-   - Si `commentInReplyToId` existe y el padre tiene marcador bugbot → `intent = 'fix_one'` y `findingId = <id del marcador>`.
-
-4. **Integrar detección en flujos de comentarios**
-   - **Issue comment:** al inicio de `IssueCommentUseCase`, si `isFixRequest(commentBody)` y hay issue number:
-     - Cargar `loadBugbotContext(param)` para tener `existingByFindingId` y lista de findings no resueltos.
-     - Si intent es “fix_one” y se proporciona findingId (ej. por referencia en el texto), usar ese id; si es “fix_some”/“fix_all”, OpenCode decidirá más adelante qué ids abordar.
-   - **PR review comment:** igual en `PullRequestReviewCommentUseCase`: si es fix request, cargar bugbot context; si es respuesta en hilo con padre con marcador, fijar `findingId` único.
-
-5. **Comprobar que el comentario es del usuario correcto**
-   - Solo reaccionar a comentarios de usuarios autorizados (misma lógica que en otros use cases: token user, permisos, o “solo miembros”). No ejecutar autofix si el comentario es del propio bot.
+- Act **only on explicit user request**; never exceed that scope.
+- Focus on one or more **existing findings**; at most add tests to validate. No unrelated code changes.
+- After fixes: run build/test/lint (configured by the user); if all pass, the Action commits and pushes. OpenCode applies changes **directly** in its workspace (no diff handling).
 
 ---
 
-### Fase 2: Nuevo caso de uso “Bugbot Autofix”
+## 2. Intent detection: via OpenCode (no local parsing)
 
-6. **Crear `BugbotAutofixUseCase` (o `FixBugbotFindingsUseCase`)**
-   - Ubicación sugerida: `src/usecase/steps/commit/bugbot/fix_findings_use_case.ts` (o `src/usecase/actions/bugbot_autofix_use_case.ts` si se considera single action).
-   - Entradas (derivadas de Execution + resultado de “parse fix request”):
-     - `param: Execution`
-     - `targetFindingIds: string[]` (ids a corregir; puede ser uno o varios; si “fix_all”, todos los no resueltos de `loadBugbotContext`).
-     - Opcional: comandos de verificación (build, test, lint) — ver Fase 3.
-   - Flujo alto nivel:
-     1. Cargar `loadBugbotContext(param)` si no se hizo antes.
-     2. Filtrar findings a corregir por `targetFindingIds` (y que existan en `existingByFindingId` y no estén ya resueltos).
-     3. Construir **prompt para el agente build** de OpenCode con:
-        - Repo, branch, issue number, PR number (si aplica).
-        - Lista de findings a corregir (id, title, description, file, line, severity, suggestion).
-        - Instrucciones estrictas: solo tocar lo necesario para esos findings; como máximo añadir tests que validen el arreglo; no cambiar código fuera de ese scope.
-        - Especificar que debe ejecutar los comandos de verificación (build, test, lint) que se le pasen y solo considerar el fix exitoso si todos pasan.
-     4. Llamar a `AiRepository.copilotMessage(param.ai, prompt)` (agente **build**). OpenCode aplica los cambios directamente en el workspace.
-     5. Si la respuesta indica éxito: los cambios ya están en disco. Devolver resultado “listo para commit” (los archivos modificados se detectan después con `git status` / `git diff --name-only` en el step de commit).
-     6. No se usa `getSessionDiff` ni ninguna lógica de diffs.
+**Decision:** Any analysis to determine if the user is asking for a fix is done **through OpenCode**. We do not use local regex or keyword parsing.
 
-7. **Construcción del prompt de autofix**
-   - Nuevo módulo o función: `buildBugbotFixPrompt(param, context, targetFindingIds, verifyCommands)`.
-   - Incluir en el prompt:
-     - Los findings seleccionados (id, title, description, file, line, suggestion).
-     - Repo, branch, issue, PR.
-     - Reglas: solo corregir esos problemas; permitir solo tests adicionales para validar; **ejecutar en el workspace** los comandos de verificación (build, test, lint) que se le pasen y solo considerar el fix exitoso si todos pasan.
-   - OpenCode build agent ejecuta build/test/lint en su entorno; tras su ejecución, el runner puede opcionalmente re-ejecutar los mismos comandos como verificación antes de commit.
+- We send OpenCode (plan agent):
+  - The **user's comment** (and, for PR, optional **parent comment body** when the user replied in a thread).
+  - The list of **unresolved findings** (id, title, description, file, line, suggestion) from `loadBugbotContext`.
+- We ask OpenCode: *"Is this comment requesting to fix one or more of these findings? If yes, return which finding ids to fix (or all). If no, return that it is not a fix request."*
+- OpenCode responds with a structured payload, e.g. `{ is_fix_request: boolean, target_finding_ids: string[] }`.
+- If `is_fix_request` is true and `target_finding_ids` is non-empty, we run the autofix flow (build agent with those findings + user comment; then verify, commit, push). OpenCode decides which problems to focus on based on the original comment.
 
 ---
 
-### Fase 3: Comandos de verificación (build, test, lint)
+## 3. Architecture (relevant paths)
 
-8. **Inputs de configuración**
-   - Añadir en `action.yml` (y `constants.ts`, `github_action.ts`, opcionalmente CLI):
-     - `bugbot-fix-verify-commands`: string (ej. lista separada por comas o newline: `npm run build`, `npm test`, `npm run lint`). Por defecto puede ser vacío o un valor por defecto razonable.
-   - Esos comandos se incluyen en el **prompt** de OpenCode para que el agente build los ejecute en su workspace. Opcionalmente el runner puede volver a ejecutarlos tras OpenCode como verificación adicional antes de commit.
-
-9. **Ejecución de checks**
-   - OpenCode (agente build) ejecuta build/test/lint según el prompt. Si fallan, OpenCode puede indicarlo en la respuesta.
-   - Opcionalmente, el runner ejecuta en orden los mismos comandos configurados después de que OpenCode termine (los cambios ya están en disco).
-   - Si alguno falla: no hacer commit; reportar en comentario (issue o PR) que el fix no pasó los checks.
-   - Si todos pasan: proceder a commit y push.
+- **Bugbot (detection):** `DetectPotentialProblemsUseCase` → `loadBugbotContext`, `buildBugbotPrompt`, OpenCode plan agent → publishes findings with marker `<!-- copilot-bugbot finding_id:"id" resolved:true|false -->`.
+- **Issue comment:** `IssueCommentUseCase` → language check, Think, **Bugbot autofix** (intent + fix + commit).
+- **PR review comment:** `PullRequestReviewCommentUseCase` → language check, **Bugbot autofix** (intent + fix + commit).
+- **OpenCode:** `askAgent` (plan: intent + which findings) and `copilotMessage` (build: apply fixes, run commands). No diff API usage.
+- **Branch for issue_comment:** When the event is issue_comment, `param.commit.branch` may be empty; we resolve the branch from an open PR that references the issue (e.g. head branch of first such PR).
 
 ---
 
-### Fase 4: Commit y push (OpenCode aplica siempre en disco)
+## 4. Implementation checklist
 
-**Enfoque:** OpenCode aplica los cambios **siempre directamente** en su workspace (el servidor debe arrancarse desde el directorio del repo, p. ej. `opencode-start-server: true` con `cwd: process.cwd()`). No se usa en ningún caso la API de diffs (`getSessionDiff`) ni lógica para aplicar parches en el runner.
+Use this section to track progress. Tick when done.
 
-10. **Flujo en el runner**
-    - Checkout del repo y, si aplica, arranque de OpenCode con `cwd: process.cwd()`.
-    - Tras `copilotMessage` (build agent), los cambios **ya están** en el árbol de trabajo.
-    - Ejecutar los comandos de verificación (Fase 3) si se configuraron; si fallan, no hacer commit.
-    - Para saber qué archivos commitear: usar **git** (`git status --short`, `git diff --name-only`, etc.), no la API de OpenCode.
+### Phase 1: Config and OpenCode intent
 
-11. **Commit y push**
-    - Tras verificar que los checks pasan:
-      - `git add` de los archivos modificados (según salida de git).
-      - `git commit` con mensaje según convenio (ej. prefijo de branch + “fix: resolve bugbot findings …”).
-      - `git push` al mismo branch.
-    - Si no hay cambios (git no muestra archivos modificados), no hacer commit.
+- [x] **1.1** Add `BUGBOT_FIX_VERIFY_COMMANDS` in `constants.ts`, `action.yml`, `github_action.ts`, `local_action.ts`; add `getBugbotFixVerifyCommands()` to `Ai` model.
+- [x] **1.2** Add `BUGBOT_FIX_INTENT_RESPONSE_SCHEMA` (e.g. `is_fix_request`, `target_finding_ids: string[]`) in `bugbot/schema.ts`.
+- [x] **1.3** Add `buildBugbotFixIntentPrompt(commentBody, unresolvedFindingsSummary, parentCommentBody?)` in `bugbot/build_bugbot_fix_intent_prompt.ts` (English; prompt asks OpenCode to decide if fix is requested and which ids).
+- [x] **1.4** Create `DetectBugbotFixIntentUseCase`: load bugbot context (with optional branch override for issue_comment), build intent prompt, call `askAgent(plan)` with schema, parse response, return `{ isFixRequest, targetFindingIds }`. Skip when no OpenCode or no issue number or no unresolved findings.
 
-12. **Manejo de errores**
-    - Si build/test/lint fallan: no commit; comentar en issue/PR con el log.
-    - Si push falla (ej. conflicto): comentar y reportar al usuario.
+### Phase 2: PR parent comment context
 
----
+- [x] **2.1** Add `commentInReplyToId` to `PullRequest` model (from `github.context.payload.pull_request_review_comment?.in_reply_to_id` or equivalent).
+- [x] **2.2** In `PullRequestRepository` add `getPullRequestReviewCommentBody(owner, repo, prNumber, commentId, token)` to fetch a single comment body.
+- [x] **2.3** When building the intent prompt for PR review comment, if `commentInReplyToId` is set, fetch the parent comment body and include it in the prompt so OpenCode knows the thread context.
 
-### Fase 5: Integración en los flujos Issue Comment y PR Review Comment
+### Phase 3: Autofix use case and prompt
 
-14. **IssueCommentUseCase**
-    - Después de los steps actuales (idioma, think), o como step condicional al inicio:
-      - Si el comentario es de tipo “fix request” y OpenCode está configurado y hay issue number:
-        - Resolver `targetFindingIds` (uno, varios o todos desde `loadBugbotContext`).
-        - Invocar `BugbotAutofixUseCase` (o el nombre elegido) con `param` y `targetFindingIds`.
-        - Si el use case devuelve “éxito y cambios listos”, ejecutar verify commands (si aplica), luego commit y push (los cambios ya están en disco).
-        - Opcional: postear comentario en la issue resumiendo qué se corrigió y que se hizo commit.
+- [x] **3.1** Add `buildBugbotFixPrompt(param, context, targetFindingIds, userComment, verifyCommands)` in `bugbot/build_bugbot_fix_prompt.ts`: include repo, branch, issue, PR, selected findings (id, title, description, file, line, suggestion), user comment, strict rules (only those findings; at most add tests; run verify commands and confirm they pass).
+- [x] **3.2** Create `BugbotAutofixUseCase`: input `(param, targetFindingIds, userComment)`. Load context if needed, filter findings by `targetFindingIds`, build fix prompt, call `copilotMessage` (build agent). Return success/failure (no diff handling; changes are already on disk).
 
-15. **PullRequestReviewCommentUseCase**
-    - Igual que arriba, pero:
-      - Si el comentario es respuesta en un hilo cuyo padre tiene marcador bugbot, usar ese `finding_id` como único target (no interpretar “todas” a menos que sea un comentario de nivel PR, no respuesta).
-      - Tras commit/push, opcionalmente marcar el hilo de revisión como resuelto (`resolvePullRequestReviewThread`) y/o actualizar el comentario del finding a `resolved: true` (reutilizar lógica de `markFindingsResolved`).
+### Phase 4: Branch resolution and commit/push
 
-16. **Marcar findings como resueltos tras autofix**
-    - Después de un commit exitoso de autofix, llamar a `markFindingsResolved` con los `targetFindingIds` que se corrigieron (y el mismo `context` actualizado si hace falta recargar), para que los comentarios en issue y PR pasen a `resolved: true`.
+- [x] **4.1** Add `getHeadBranchForIssue(owner, repo, issueNumber, token): Promise<string | undefined>` in `PullRequestRepository`: list open PRs, return head ref of the first PR that references the issue (body contains `#issueNumber` or head ref contains issue number).
+- [x] **4.2** In autofix flow, when `param.commit.branch` is empty (e.g. issue_comment), resolve branch via `getHeadBranchForIssue`; pass branch override to `loadBugbotContext` (optional `LoadBugbotContextOptions.branchOverride`) so context uses the correct branch.
+- [x] **4.3** Create `runBugbotAutofixCommitAndPush(execution, options?)` in `bugbot/bugbot_autofix_commit.ts`: (1) optionally checkout branch when `branchOverride` set; (2) run verify commands in order; if any fails, return failure. (3) `git status --short`; if no changes, return success without commit. (4) `git add -A`, `git commit`, `git push`. Uses `@actions/exec`.
+- [ ] **4.4** Ensure workflows that run on issue_comment / pull_request_review_comment have `contents: write` and document that for issue_comment the action checks out the resolved branch when needed.
 
----
+### Phase 5: Integration
 
-### Fase 6: Configuración, documentación y pruebas
+- [x] **5.1** In `IssueCommentUseCase`: after existing steps, call `DetectBugbotFixIntentUseCase`. If `isFixRequest` and `targetFindingIds.length > 0`, run `BugbotAutofixUseCase`, then `runBugbotAutofixCommitAndPush`, then `markFindingsResolved` with those ids.
+- [x] **5.2** In `PullRequestReviewCommentUseCase`: same as above; parent comment body is included in intent prompt when `commentInReplyToId` is set. After successful commit, `markFindingsResolved` updates issue/PR comments and PR threads.
 
-17. **Constantes y action.yml**
-    - `INPUT_KEYS.BUGBOT_FIX_VERIFY_COMMANDS` (o nombre elegido).
-    - `action.yml`: descripción del nuevo input y default.
-    - Si se añade un single action explícito “bugbot_autofix”, registrar en `ACTIONS` y en `SingleAction`; en ese caso el flujo también podría dispararse por workflow con `single-action: bugbot_autofix`. No es estrictamente necesario si el autofix solo se dispara por comentarios.
+### Phase 6: Tests, docs, rules
 
-18. **Documentación**
-    - Actualizar `docs/features.mdx` (o equivalente) con:
-      - Cómo pedir un fix en una issue (ej. “arréglalo”, “arregla la vulnerabilidad X”).
-      - Cómo pedirlo en un PR: respondiendo en el hilo de un finding vs. comentario nuevo.
-      - Configuración de `bugbot-fix-verify-commands`.
-    - Añadir en `docs/troubleshooting.mdx` casos típicos: “el bot no reaccionó” (¿es fix request?, ¿OpenCode configurado?), “el commit no se hizo” (checks fallaron, conflictos).
-
-19. **Tests**
-    - Unit tests para:
-      - `parseFixRequest(commentBody)`: distintos textos (español/inglés, fix one/all, sin intención).
-      - `buildBugbotFixPrompt`: que incluya los findings y las restricciones de scope.
-      - Lógica de “obtener finding_id del comentario padre” en PR (mock de repo).
-    - Tests de integración o E2E opcionales: comentar en issue/PR y verificar que no se rompe el flujo; con mocks de OpenCode y de git.
-
-20. **Límites y seguridad**
-    - No ejecutar autofix si no hay findings objetivo (lista vacía tras filtrar).
-    - Respetar `ai-members-only` / permisos existentes para comentarios.
-    - Timeout: el agente build puede tardar; mantener `OPENCODE_REQUEST_TIMEOUT_MS` o un valor específico para autofix si se quiere mayor margen.
-    - Rate limiting: si hay muchos comentarios “arréglalo” en poco tiempo, considerar no encolar múltiples autofix seguidos (o dejarlo para una iteración posterior).
+- [x] **6.1** Unit tests: `build_bugbot_fix_intent_prompt.test.ts`, `build_bugbot_fix_prompt.test.ts` (prompt shape and content).
+- [x] **6.2** Update `docs/features.mdx`: Bugbot autofix row in AI features table; config `bugbot-fix-verify-commands`.
+- [x] **6.3** Update `docs/troubleshooting.mdx`: Bugbot autofix accordion (bot didn't run, commit not made).
+- [x] **6.4** Update `.cursor/rules/architecture.mdc`: Bugbot autofix row in key paths table.
 
 ---
 
-## 4. Orden de implementación sugerido (resumen)
+## 5. Key files (reference)
 
-1. Utilidad de detección de “fix request” y tests.
-2. Soporte en PR para “comentario padre” y extracción de `finding_id` del hilo.
-3. Inputs y configuración de comandos de verificación.
-4. `BugbotAutofixUseCase`: prompt, llamada a `copilotMessage` (OpenCode aplica cambios en disco).
-5. Lógica de commit y push (detectar cambios con git, ejecutar verify commands, luego commit/push).
-6. Integración en `IssueCommentUseCase` y `PullRequestReviewCommentUseCase`.
-7. Marcar findings como resueltos tras autofix exitoso.
-8. Documentación y ajustes en workflows (permisos de push en el job).
-9. Revisión de límites, permisos y mensajes al usuario.
-
----
-
-## 5. Archivos clave a tocar (referencia)
-
-| Área | Archivos |
-|------|----------|
-| Detección fix request | Nuevo: `src/usecase/steps/commit/bugbot/parse_fix_request.ts` (o similar) |
-| Contexto PR (reply) | `src/data/model/pull_request.ts`, `src/actions/github_action.ts`, `src/data/repository/pull_request_repository.ts` |
-| Autofix use case | Nuevo: `src/usecase/steps/commit/bugbot/fix_findings_use_case.ts` (o en `usecase/actions/`) |
-| Prompt fix | Nuevo: `src/usecase/steps/commit/bugbot/build_bugbot_fix_prompt.ts` |
-| Commit/push | Nuevo step o helper: detectar cambios con git, ejecutar verify commands, luego git add/commit/push |
-| Config | `action.yml`, `src/utils/constants.ts`, `src/actions/github_action.ts`, `src/data/model/ai.ts` (si se guardan comandos de verify en Ai) |
-| Integración | `src/usecase/issue_comment_use_case.ts`, `src/usecase/pull_request_review_comment_use_case.ts` |
-| Resolver hilo / marcar resueltos | `mark_findings_resolved_use_case.ts`, `pull_request_repository.resolvePullRequestReviewThread` |
-| Docs | `docs/features.mdx`, `docs/troubleshooting.mdx` |
+| Area | Path |
+|------|------|
+| Intent schema + prompt | `src/usecase/steps/commit/bugbot/` (schema, `build_bugbot_fix_intent_prompt.ts`) |
+| Intent use case | `src/usecase/steps/commit/bugbot/detect_bugbot_fix_intent_use_case.ts` |
+| Fix prompt | `src/usecase/steps/commit/bugbot/build_bugbot_fix_prompt.ts` |
+| Autofix use case | `src/usecase/steps/commit/bugbot/bugbot_autofix_use_case.ts` |
+| Commit/push | `src/usecase/steps/commit/bugbot/bugbot_autofix_commit.ts` or under `steps/commit/` |
+| PR parent comment | `src/data/model/pull_request.ts` (`commentInReplyToId`), `PullRequestRepository` (get comment by id) |
+| Branch for issue | `PullRequestRepository.getHeadBranchForIssue` or similar |
+| Config | `action.yml`, `constants.ts`, `github_action.ts`, `src/data/model/ai.ts` |
+| Integration | `issue_comment_use_case.ts`, `pull_request_review_comment_use_case.ts` |
 
 ---
 
-## 6. Notas
+## 6. Notes
 
-- **OpenCode aplica siempre en disco:** el servidor debe ejecutarse desde el directorio del repo (p. ej. `opencode-start-server: true`). No se usa `getSessionDiff` ni lógica de diffs en ningún flujo (incluido el comando `copilot do`).
-- **OpenCode build agent:** edita archivos y ejecuta build/test/lint en su workspace según el prompt; tras su ejecución, el runner solo comprueba con git qué cambió, opcionalmente re-ejecuta verify commands y hace commit/push.
-- **Branch en el runner:** en issue_comment el branch puede no estar claro; puede ser necesario obtener el branch asociado a la issue (convención de nombre o API de GitHub) para hacer checkout y push.
-- **Permisos del job:** el job que hace push debe tener permisos de escritura (e.g. `contents: write` en el workflow).
-
-Con este plan se cubre la detección de la petición, el scope (uno/varios/todos), la ejecución de OpenCode (cambios directos en disco), la verificación con build/test/lint y el commit/push por la Action, sin exceder el scope definido por el usuario.
+- **OpenCode applies changes in disk:** The server must run from the repo directory (e.g. `opencode-start-server: true`). We do not use `getSessionDiff` or any diff logic.
+- **Intent only via OpenCode:** No local "fix request" parsing; OpenCode returns `is_fix_request` and `target_finding_ids` from the user comment and the list of pending findings.
+- **Branch on issue_comment:** When the trigger is issue_comment, we resolve the branch from an open PR that references the issue, and use that for loading context and for checkout/commit/push when needed.

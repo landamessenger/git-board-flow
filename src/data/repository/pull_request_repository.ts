@@ -30,6 +30,46 @@ export class PullRequestRepository {
         }
     };
 
+    /**
+     * Returns the head branch of the first open PR that references the given issue number
+     * (e.g. body contains "#123" or head ref contains "123" as in feature/123-...).
+     * Used for issue_comment events where commit.branch is empty.
+     */
+    getHeadBranchForIssue = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string
+    ): Promise<string | undefined> => {
+        const octokit = github.getOctokit(token);
+        const issueRef = `#${issueNumber}`;
+        const issueNumStr = String(issueNumber);
+        try {
+            const { data } = await octokit.rest.pulls.list({
+                owner,
+                repo: repository,
+                state: 'open',
+                per_page: 100,
+            });
+            for (const pr of data || []) {
+                const body = pr.body ?? '';
+                const headRef = pr.head?.ref ?? '';
+                if (
+                    body.includes(issueRef) ||
+                    headRef.includes(issueNumStr)
+                ) {
+                    logDebugInfo(`Found head branch "${headRef}" for issue #${issueNumber} (PR #${pr.number}).`);
+                    return headRef;
+                }
+            }
+            logDebugInfo(`No open PR referencing issue #${issueNumber} found.`);
+            return undefined;
+        } catch (error) {
+            logError(`Error getting head branch for issue #${issueNumber}: ${error}`);
+            return undefined;
+        }
+    };
+
     isLinked = async (pullRequestUrl: string) => {
         const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
         return !htmlContent.includes('has_github_issues=false');
@@ -298,6 +338,31 @@ export class PullRequestRepository {
         } catch (error) {
             logError(`Error listing PR review comments (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
             return [];
+        }
+    };
+
+    /**
+     * Fetches a single PR review comment by id (e.g. parent comment when user replied in thread).
+     * Returns the comment body or null if not found.
+     */
+    getPullRequestReviewCommentBody = async (
+        owner: string,
+        repository: string,
+        _pullNumber: number,
+        commentId: number,
+        token: string
+    ): Promise<string | null> => {
+        const octokit = github.getOctokit(token);
+        try {
+            const { data } = await octokit.rest.pulls.getReviewComment({
+                owner,
+                repo: repository,
+                comment_id: commentId,
+            });
+            return data.body ?? null;
+        } catch (error) {
+            logError(`Error getting PR review comment ${commentId}: ${error}`);
+            return null;
         }
     };
 

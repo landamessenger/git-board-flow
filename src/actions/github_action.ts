@@ -77,6 +77,11 @@ export async function runGitHubAction(): Promise<void> {
         Number.isNaN(bugbotCommentLimitRaw) || bugbotCommentLimitRaw < 1
             ? BUGBOT_MAX_COMMENTS
             : Math.min(bugbotCommentLimitRaw, 200);
+    const bugbotFixVerifyCommandsInput = getInput(INPUT_KEYS.BUGBOT_FIX_VERIFY_COMMANDS);
+    const bugbotFixVerifyCommands = bugbotFixVerifyCommandsInput
+        .split(',')
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0);
 
     /**
      * Projects Details
@@ -519,6 +524,7 @@ export async function runGitHubAction(): Promise<void> {
             aiIncludeReasoning,
             bugbotSeverity,
             bugbotCommentLimit,
+            bugbotFixVerifyCommands,
         ),
         new Labels(
             branchManagementLauncherLabel,

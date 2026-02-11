@@ -23,5 +23,7 @@ export declare class PullRequest {
     get commentBody(): string;
     get commentAuthor(): string;
     get commentUrl(): string;
+    /** When the comment is a reply, the id of the parent review comment (for bugbot: include parent body in intent prompt). */
+    get commentInReplyToId(): number | undefined;
     constructor(desiredAssigneesCount: number, desiredReviewersCount: number, mergeTimeout: number, inputs?: any | undefined);
 }
