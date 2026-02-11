@@ -49152,7 +49152,7 @@ async function opencodeMessageWithAgentRaw(baseUrl, options) {
     (0, logger_1.logDebugInfo)(`OpenCode message body: agent=${options.agent}, model=${options.providerID}/${options.modelID}, parts[0].text length=${options.promptText.length}`);
     const base = ensureNoTrailingSlash(baseUrl);
     const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-    const sessionBody = { title: 'gbf' };
+    const sessionBody = { title: 'copilot' };
     (0, logger_1.logDebugInfo)(`OpenCode session create body: ${JSON.stringify(sessionBody)}`);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
@@ -57683,8 +57683,8 @@ exports.ACTIONS = {
     DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 };
-/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
-exports.BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- copilot-bugbot finding_id:"id" resolved:true|false --> */
+exports.BUGBOT_MARKER_PREFIX = 'copilot-bugbot';
 /** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
 exports.BUGBOT_MAX_COMMENTS = 20;
 /** Minimum severity to publish (findings below this are dropped). Order: high > medium > low > info. */

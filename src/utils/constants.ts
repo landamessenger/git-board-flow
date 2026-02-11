@@ -400,8 +400,8 @@ export const ACTIONS = {
     RECOMMEND_STEPS: 'recommend_steps_action',
 } as const; 
 
-/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
-export const BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- copilot-bugbot finding_id:"id" resolved:true|false --> */
+export const BUGBOT_MARKER_PREFIX = 'copilot-bugbot';
 
 /** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
 export const BUGBOT_MAX_COMMENTS = 20;

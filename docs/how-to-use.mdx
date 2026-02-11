@@ -57,10 +57,10 @@ Follow these steps to set up Copilot in your repository:
   </Step>
 
   <Step title="Install Copilot">
-    Add the GitHub Action to your repository by creating three workflow files (you can choose any names; common choices are `gbf_commit.yml`, `gbf_issue.yml`, `gbf_pr.yml` or names like "Copilot - Commit", etc.):
-    1. **Push (commit)** — runs on `push` to any branch: notifies issues of new commits, updates size and progress labels. Create e.g. `.github/workflows/gbf_commit.yml`.
-    2. **Issues** — runs on `issues` (opened, edited, labeled, unlabeled): creates branches, links to projects, assignees. Create e.g. `.github/workflows/gbf_issue.yml`.
-    3. **Pull requests** — runs on `pull_request`: links PR to issue, project, reviewers. Create e.g. `.github/workflows/gbf_pr.yml`.
+    Add the GitHub Action to your repository by creating three workflow files (you can choose any names; common choices are `copilot_commit.yml`, `copilot_issue.yml`, `copilot_pull_request.yml` or names like "Copilot - Commit", etc.):
+    1. **Push (commit)** — runs on `push` to any branch: notifies issues of new commits, updates size and progress labels. Create e.g. `.github/workflows/copilot_commit.yml`.
+    2. **Issues** — runs on `issues` (opened, edited, labeled, unlabeled): creates branches, links to projects, assignees. Create e.g. `.github/workflows/copilot_issue.yml`.
+    3. **Pull requests** — runs on `pull_request`: links PR to issue, project, reviewers. Create e.g. `.github/workflows/copilot_pull_request.yml`.
     See the [README](https://github.com/vypdev/copilot#quick-start) for full YAML examples. These workflows will then automatically manage branches, project boards, and the relationship between issues and code.
   </Step>
 </Steps>

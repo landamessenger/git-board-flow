@@ -338,7 +338,7 @@ async function opencodeMessageWithAgentRaw(
     );
     const base = ensureNoTrailingSlash(baseUrl);
     const signal = createTimeoutSignal(OPENCODE_REQUEST_TIMEOUT_MS);
-    const sessionBody = { title: 'gbf' };
+    const sessionBody = { title: 'copilot' };
     logDebugInfo(`OpenCode session create body: ${JSON.stringify(sessionBody)}`);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
