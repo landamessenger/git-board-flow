@@ -1,4 +1,3 @@
-export declare const COMMAND = "copilot";
 export declare const TITLE = "Copilot";
 export declare const REPO_URL = "https://github.com/vypdev/copilot";
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */

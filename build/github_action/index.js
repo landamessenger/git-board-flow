@@ -52614,8 +52614,7 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
-exports.COMMAND = 'copilot';
+exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = void 0;
 exports.TITLE = 'Copilot';
 exports.REPO_URL = 'https://github.com/vypdev/copilot';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
