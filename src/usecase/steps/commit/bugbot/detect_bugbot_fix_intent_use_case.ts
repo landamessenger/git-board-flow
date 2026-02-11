@@ -1,7 +1,7 @@
 import type { Execution } from "../../../../data/model/execution";
 import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../../data/repository/ai_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";
-import { logDebugInfo, logInfo } from "../../../../utils/logger";
+import { logInfo } from "../../../../utils/logger";
 import { getTaskEmoji } from "../../../../utils/task_emoji";
 import { ParamUseCase } from "../../../base/param_usecase";
 import { Result } from "../../../../data/model/result";
@@ -35,12 +35,12 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
         const results: Result[] = [];
 
         if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
-            logDebugInfo("OpenCode not configured; skipping bugbot fix intent detection.");
+            logInfo("OpenCode not configured; skipping bugbot fix intent detection.");
             return results;
         }
 
         if (param.issueNumber === -1) {
-            logDebugInfo("No issue number; skipping bugbot fix intent detection.");
+            logInfo("No issue number; skipping bugbot fix intent detection.");
             return results;
         }
 
@@ -51,7 +51,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
                   ? param.pullRequest.commentBody
                   : "";
         if (!commentBody?.trim()) {
-            logDebugInfo("No comment body; skipping bugbot fix intent detection.");
+            logInfo("No comment body; skipping bugbot fix intent detection.");
             return results;
         }
 
@@ -65,7 +65,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
                 param.tokens.token
             );
             if (!branchOverride) {
-                logDebugInfo("Could not resolve branch for issue; skipping bugbot fix intent detection.");
+                logInfo("Could not resolve branch for issue; skipping bugbot fix intent detection.");
                 return results;
             }
         }
@@ -77,7 +77,9 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
 
         const unresolvedWithBody = context.unresolvedFindingsWithBody ?? [];
         if (unresolvedWithBody.length === 0) {
-            logDebugInfo("No unresolved findings; skipping bugbot fix intent detection.");
+            logInfo(
+                "No unresolved bugbot findings for this issue/PR; skipping bugbot fix intent detection."
+            );
             return results;
         }
 
@@ -111,7 +113,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
         });
 
         if (response == null || typeof response !== "object") {
-            logDebugInfo("No response from OpenCode for fix intent.");
+            logInfo("No response from OpenCode for fix intent.");
             results.push(
                 new Result({
                     id: this.taskId,
