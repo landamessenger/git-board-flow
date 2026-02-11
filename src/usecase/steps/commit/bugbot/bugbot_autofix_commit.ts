@@ -1,9 +1,11 @@
 /**
  * Runs verify commands and then git add/commit/push for bugbot autofix.
  * Uses @actions/exec; intended to run in the GitHub Action runner where the repo is checked out.
+ * Configures git user.name and user.email from the token user so the commit has a valid author.
  */
 
 import * as exec from "@actions/exec";
+import { ProjectRepository } from "../../../../data/repository/project_repository";
 import { logDebugInfo, logError, logInfo } from "../../../../utils/logger";
 import type { Execution } from "../../../../data/model/execution";
 
@@ -108,6 +110,12 @@ export async function runBugbotAutofixCommitAndPush(
     }
 
     try {
+        const projectRepository = new ProjectRepository();
+        const { name, email } = await projectRepository.getTokenUserDetails(execution.tokens.token);
+        await exec.exec("git", ["config", "user.name", name]);
+        await exec.exec("git", ["config", "user.email", email]);
+        logDebugInfo(`Git author set to ${name} <${email}>.`);
+
         await exec.exec("git", ["add", "-A"]);
         const commitMessage = "fix: bugbot autofix - resolve reported findings";
         await exec.exec("git", ["commit", "-m", commitMessage]);

@@ -51379,6 +51379,16 @@ class ProjectRepository {
             const { data: user } = await octokit.rest.users.getAuthenticated();
             return user.login;
         };
+        /** Name and email of the token user, for git commit author (e.g. bugbot autofix). */
+        this.getTokenUserDetails = async (token) => {
+            const octokit = github.getOctokit(token);
+            const { data: user } = await octokit.rest.users.getAuthenticated();
+            const name = (user.name ?? user.login ?? "GitHub Action").trim() || "GitHub Action";
+            const email = (typeof user.email === "string" && user.email.trim().length > 0)
+                ? user.email.trim()
+                : `${user.login}@users.noreply.github.com`;
+            return { name, email };
+        };
         this.findTag = async (owner, repo, tag, token) => {
             const octokit = github.getOctokit(token);
             try {
@@ -53743,6 +53753,7 @@ exports.SingleActionUseCase = SingleActionUseCase;
 /**
  * Runs verify commands and then git add/commit/push for bugbot autofix.
  * Uses @actions/exec; intended to run in the GitHub Action runner where the repo is checked out.
+ * Configures git user.name and user.email from the token user so the commit has a valid author.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -53780,6 +53791,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.runBugbotAutofixCommitAndPush = runBugbotAutofixCommitAndPush;
 const exec = __importStar(__nccwpck_require__(1514));
+const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
 /**
  * Optionally check out the branch (when event is issue_comment and we resolved the branch from an open PR).
@@ -53867,6 +53879,11 @@ async function runBugbotAutofixCommitAndPush(execution, options) {
         return { success: true, committed: false };
     }
     try {
+        const projectRepository = new project_repository_1.ProjectRepository();
+        const { name, email } = await projectRepository.getTokenUserDetails(execution.tokens.token);
+        await exec.exec("git", ["config", "user.name", name]);
+        await exec.exec("git", ["config", "user.email", email]);
+        (0, logger_1.logDebugInfo)(`Git author set to ${name} <${email}>.`);
         await exec.exec("git", ["add", "-A"]);
         const commitMessage = "fix: bugbot autofix - resolve reported findings";
         await exec.exec("git", ["commit", "-m", commitMessage]);

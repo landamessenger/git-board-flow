@@ -1,5 +1,5 @@
 /**
- * Unit tests for runBugbotAutofixCommitAndPush: no branch, branchOverride checkout, verify commands, no changes, commit/push.
+ * Unit tests for runBugbotAutofixCommitAndPush: no branch, branchOverride checkout, verify commands, no changes, commit/push, git author.
  */
 
 import * as exec from "@actions/exec";
@@ -10,6 +10,13 @@ jest.mock("../../../../../utils/logger", () => ({
     logInfo: jest.fn(),
     logDebugInfo: jest.fn(),
     logError: jest.fn(),
+}));
+
+const mockGetTokenUserDetails = jest.fn();
+jest.mock("../../../../../data/repository/project_repository", () => ({
+    ProjectRepository: jest.fn().mockImplementation(() => ({
+        getTokenUserDetails: mockGetTokenUserDetails,
+    })),
 }));
 
 const mockExec = jest.spyOn(exec, "exec") as jest.Mock;
@@ -37,6 +44,10 @@ function baseExecution(overrides: Partial<Execution> = {}): Execution {
 describe("runBugbotAutofixCommitAndPush", () => {
     beforeEach(() => {
         mockExec.mockReset();
+        mockGetTokenUserDetails.mockResolvedValue({
+            name: "Test User",
+            email: "test@users.noreply.github.com",
+        });
     });
 
     it("returns success false and committed false when branch is empty", async () => {
@@ -113,7 +124,7 @@ describe("runBugbotAutofixCommitAndPush", () => {
         expect(result.committed).toBe(false);
     });
 
-    it("runs git add, commit, push when there are changes", async () => {
+    it("runs git config (user.name, user.email), add, commit, push when there are changes", async () => {
         (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
             const a = args ?? [];
             if (a[0] === "status" && opts?.listeners?.stdout) {
@@ -126,6 +137,9 @@ describe("runBugbotAutofixCommitAndPush", () => {
 
         expect(result.success).toBe(true);
         expect(result.committed).toBe(true);
+        expect(mockGetTokenUserDetails).toHaveBeenCalledWith("t");
+        expect(mockExec).toHaveBeenCalledWith("git", ["config", "user.name", "Test User"]);
+        expect(mockExec).toHaveBeenCalledWith("git", ["config", "user.email", "test@users.noreply.github.com"]);
         expect(mockExec).toHaveBeenCalledWith("git", ["add", "-A"]);
         expect(mockExec).toHaveBeenCalledWith("git", [
             "commit",
@@ -144,6 +158,7 @@ describe("runBugbotAutofixCommitAndPush", () => {
             if (a[0] === "commit") return Promise.reject(new Error("commit failed"));
             return Promise.resolve(0);
         });
+        mockGetTokenUserDetails.mockResolvedValue({ name: "U", email: "u@x.com" });
 
         const result = await runBugbotAutofixCommitAndPush(baseExecution());
 

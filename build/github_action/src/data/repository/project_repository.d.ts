@@ -21,6 +21,11 @@ export declare class ProjectRepository {
     getRandomMembers: (organization: string, membersToAdd: number, currentMembers: string[], token: string) => Promise<string[]>;
     getAllMembers: (organization: string, token: string) => Promise<string[]>;
     getUserFromToken: (token: string) => Promise<string>;
+    /** Name and email of the token user, for git commit author (e.g. bugbot autofix). */
+    getTokenUserDetails: (token: string) => Promise<{
+        name: string;
+        email: string;
+    }>;
     private findTag;
     private getTagSHA;
     updateTag: (owner: string, repo: string, sourceTag: string, targetTag: string, token: string) => Promise<void>;

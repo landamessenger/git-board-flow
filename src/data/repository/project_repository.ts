@@ -558,7 +558,19 @@ export class ProjectRepository {
         const octokit = github.getOctokit(token);
         const {data: user} = await octokit.rest.users.getAuthenticated();
         return user.login;
-    }
+    };
+
+    /** Name and email of the token user, for git commit author (e.g. bugbot autofix). */
+    getTokenUserDetails = async (token: string): Promise<{ name: string; email: string }> => {
+        const octokit = github.getOctokit(token);
+        const { data: user } = await octokit.rest.users.getAuthenticated();
+        const name = (user.name ?? user.login ?? "GitHub Action").trim() || "GitHub Action";
+        const email =
+            (typeof user.email === "string" && user.email.trim().length > 0)
+                ? user.email.trim()
+                : `${user.login}@users.noreply.github.com`;
+        return { name, email };
+    };
 
     private findTag = async (owner: string, repo: string, tag: string, token: string): Promise<{ object: { sha: string } } | undefined> => {
       const octokit = github.getOctokit(token);
