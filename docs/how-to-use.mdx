@@ -1,6 +1,6 @@
 ---
 title: How To Use
-description: Steps for setting up Copilot in your repository
+description: Quick setup with copilot setup, then customize labels, templates, and workflows.
 ---
 
 ## Quick installation (CLI)
@@ -15,58 +15,206 @@ npm install . -g
 
 If the repo does not include the compiled `build/` folder (e.g. it is gitignored), run `npm install` and `npm run build` before `npm install . -g`.
 
-Then you can run `copilot setup`, `copilot check-progress -i 123`, and other [CLI commands](/single-actions/workflow-and-cli) from any directory.
-
-Setup copilot inside a new repository:
-
-```bash
-copilot setup
-```
+You can then run `copilot setup`, `copilot check-progress -i 123`, and other [CLI commands](/single-actions/workflow-and-cli) from any directory.
 
 ---
 
-Follow these steps to set up Copilot in your repository:
+## Tutorial: Get Copilot running in three steps
 
 <Steps>
-  <Step title="Create a PAT">
-    Define a personal access token to interact with issues, pull requests and boards. Check out the [Authentication](/authentication) page to create a proper token.
-  </Step>
-  
-  <Step title="Configure Branch Structure">
-    Set up your repository's branch structure:
-    - **Primary Branch**: Default is `master` (or `main` for newer repositories)
-    - **Development Branch**: Default is `develop`
-    
-    You can customize these branch names in the configuration. These branches will serve as the foundation for your development workflow, where feature, bugfix, hotfix, release, docs and chore branches will be created from and merged back into.
+  <Step title="1. Create a PAT">
+    The action needs a **Personal Access Token** to manage issues, branches, projects, and workflows. You must create it manually; `copilot setup` does not create it.
+    Follow the [Authentication](/authentication) guide to create a **fine-grained PAT** with the right permissions (Actions, Administration, Contents, Issues, Metadata, Pull requests, etc.) and store it as a secret (e.g. `PAT`) in your repository or organization.
   </Step>
 
-  <Step title="Set Up Required Labels">
-    Configure the following essential labels in your repository:
-    - **Type Labels**: For categorizing issues (e.g., `feature`, `enhancement`, `bug`, `bugfix`, `hotfix`, `release`, `docs`, `documentation`, `chore`, `maintenance`)
-    - **Action Labels**: For performing different actions (e.g., `branched`, `deploy`, `deployed`)
-    - **Priority Labels**: For issue prioritization (e.g., `priority: high`, `priority: medium`, `priority: low`)
-    - **Size Labels**: For control task sizes (e.g., `size: XS`, `size: S`, `size: M`, `size: L`, `size: XL`, `size: XXL`)
-    
-    These labels will be used by the action to automate workflows and organize your tasks effectively.
+  <Step title="2. Clone your repo and run copilot setup">
+    From your **repository root** (the repo where you want Copilot to run):
+
+    ```bash
+    git clone https://github.com/YOUR_ORG/YOUR_REPO.git
+    cd YOUR_REPO
+    copilot setup
+    ```
+
+    `copilot setup` will:
+    - Create `.github/`, `.github/workflows/`, and `.github/ISSUE_TEMPLATE/` if they do not exist.
+    - Copy all files from the Copilot `setup/` folder into your repo (workflows, issue templates, pull request template). Existing files are **not** overwritten.
+    - Verify GitHub access with your token (you will be prompted or use `PAT` from env).
+    - Create all required **labels** in the repository (type, action, priority, size, progress 0%–100%).
+    - Create all required **issue types** in the organization (Task, Bug, Feature, Release, Hotfix, etc.), if your plan supports it.
+
+    After this step you have a working baseline: labels, templates, and workflow files are in place.
   </Step>
 
-  <Step title="Implement Issue Templates">
-    Create issue templates to standardize task creation (in `.github/ISSUE_TEMPLATE/`):
-    - **Feature**: `feature_request.yml` — use labels such as `enhancement`, `feature`; add `branched` when the user should get a branch, or set `branch-management-always: true`.
-    - **Bugfix**: `bug_report.yml` — use labels `bug`, `bugfix`; add `branched` if needed.
-    - **Docs**: `doc_update.yml` — use labels `documentation`, `docs`.
-    - **Chore / maintenance**: `chore_task.yml` — use labels `chore`, `maintenance`.
-    - **Hotfix**: `hotfix.yml` — use labels `hotfix`, `branched` (branch is created from main at latest tag).
-    - **Release**: `release.yml` — use labels `release`, `branched` (branch is created from develop).
-    - **Help**: `help_request.yml` — for support requests (no branch).
-    Include the labels that match the [labels table](/issues#labels-by-issue-type-and-flow) so the action creates the correct branches and applies the right workflow.
-  </Step>
+  <Step title="3. Adapt files to your repository">
+    You can tweak issue templates (text, dropdowns), workflow names, and branch names. The following points are **required** for the GitHub Action to behave correctly; the rest is optional.
 
-  <Step title="Install Copilot">
-    Add the GitHub Action to your repository by creating three workflow files (you can choose any names; common choices are `copilot_commit.yml`, `copilot_issue.yml`, `copilot_pull_request.yml` or names like "Copilot - Commit", etc.):
-    1. **Push (commit)** — runs on `push` to any branch: notifies issues of new commits, updates size and progress labels. Create e.g. `.github/workflows/copilot_commit.yml`.
-    2. **Issues** — runs on `issues` (opened, edited, labeled, unlabeled): creates branches, links to projects, assignees. Create e.g. `.github/workflows/copilot_issue.yml`.
-    3. **Pull requests** — runs on `pull_request`: links PR to issue, project, reviewers. Create e.g. `.github/workflows/copilot_pull_request.yml`.
-    See the [README](https://github.com/vypdev/copilot#quick-start) for full YAML examples. These workflows will then automatically manage branches, project boards, and the relationship between issues and code.
+    **Required for the action to work:**
+    - **Token**: Every workflow that runs Copilot must pass the `token` input (your PAT). Typically you set `token: ${{ secrets.PAT }}` in each Copilot step. Without it, the action cannot create branches, update issues, or call the API.
+    - **Workflow file names for release/hotfix**: When an issue has the **deploy** label, Copilot *dispatches* a workflow by **filename**. The action inputs `release-workflow` (default: `release_workflow.yml`) and `hotfix-workflow` (default: `hotfix_workflow.yml`) must match the **exact filenames** in `.github/workflows/`. If you rename `release_workflow.yml` or `hotfix_workflow.yml`, you **must** pass the new names to the action in the workflows that invoke Copilot (e.g. in `copilot_issue.yml` add `release-workflow: 'your_release.yml'` and `hotfix-workflow: 'your_hotfix.yml'`).
+    - **Deploy label**: The label that triggers the deploy flow is configured by the `deploy-label` input (default: `deploy`). The issue templates and your usage must use this same label when you want to run the release or hotfix workflow.
+    - **Branch names in workflows**: The Commit workflow (push) often excludes the main and development branches from running (e.g. `!master`, `!develop`). If you change the default branch names (e.g. `main-branch: 'main'`, `development-branch: 'develop'`), update the `push.branches` filter in `.github/workflows/copilot_commit.yml` so it excludes those same names; otherwise the action may run on every push to main/develop or never run on feature branches.
+
+    **Optional but keep coherence:**
+    - **Labels**: If you change any label input (e.g. `feature-label`, `bugfix-label`, `deploy-label`), use the **same** label names in your issue templates (`labels:` in each `.yml`) and when labeling issues manually. Otherwise the action will not recognize the type or flow.
+    - **Branch name prefixes**: The action uses inputs like `feature-tree`, `bugfix-tree`, `release-tree`, `hotfix-tree` (defaults: `feature`, `bugfix`, `release`, `hotfix`) to create branch names. If you change them, branch names will follow the new prefixes; keep templates and docs in sync.
+    - **Project columns**: Default column names are "Todo" and "In Progress". If you rename columns in GitHub Projects, set the corresponding action inputs (`project-column-issue-created`, `project-column-issue-in-progress`, etc.) so the action moves issues/PRs to the correct columns.
   </Step>
 </Steps>
+
+---
+
+## What lives in `setup/` (and what gets created)
+
+Everything under the `setup/` directory is copied into your repo by `copySetupFiles` (run during `copilot setup`). Below is a desglose of labels (with defaults), issue types, and the contents of `setup/` so you know what you can customize and what must stay consistent.
+
+### Coherence when customizing
+
+If you rename or change any of the following, keep these in sync:
+
+- **Label names** in the action inputs (e.g. in workflow `with:` or in repo/organization variables) must match the **labels** used in issue templates and on issues (e.g. `deploy`, `release`, `feature`).
+- **Workflow filenames** for release and hotfix (e.g. `release_workflow.yml`) must match the action inputs `release-workflow` and `hotfix-workflow` wherever you call the action (e.g. in the Issue workflow that reacts to the deploy label).
+- **Branch names** (main, develop, feature, bugfix, etc.) must match between the action inputs and any workflow filters (e.g. `push.branches` in the Commit workflow).
+
+---
+
+## Labels created by `copilot setup` (default values)
+
+The setup creates the following labels. Names come from the action input defaults; colors and descriptions are set by the code.
+
+### Type and flow labels
+
+| Input key | Default label name | Purpose |
+|-----------|--------------------|--------|
+| `branch-management-launcher-label` | `branched` | Triggers branch creation when added to an issue |
+| `feature-label` | `feature` | Feature branches |
+| `enhancement-label` | `enhancement` | Treated like feature |
+| `bug-label` | `bug` | Bug type |
+| `bugfix-label` | `bugfix` | Bugfix branches |
+| `hotfix-label` | `hotfix` | Hotfix branches (from main at tag) |
+| `release-label` | `release` | Release branches (from develop) |
+| `docs-label` | `docs` | Docs branches |
+| `documentation-label` | `documentation` | Treated like docs |
+| `chore-label` | `chore` | Chore branches |
+| `maintenance-label` | `maintenance` | Treated like chore |
+| `question-label` | `question` | Question issues (e.g. Think action) |
+| `help-label` | `help` | Help request issues |
+| `deploy-label` | `deploy` | Triggers release/hotfix workflow dispatch when added |
+| `deployed-label` | `deployed` | Mark issue as deployed after workflow runs |
+
+### Priority labels
+
+| Input key | Default label name |
+|-----------|---------------------|
+| `priority-high-label` | `priority: high` |
+| `priority-medium-label` | `priority: medium` |
+| `priority-low-label` | `priority: low` |
+| `priority-none-label` | `priority: none` |
+
+### Size labels
+
+| Input key | Default label name |
+|-----------|---------------------|
+| `size-xxl-label` | `size: XXL` |
+| `size-xl-label` | `size: XL` |
+| `size-l-label` | `size: L` |
+| `size-m-label` | `size: M` |
+| `size-s-label` | `size: S` |
+| `size-xs-label` | `size: XS` |
+
+### Progress labels
+
+The setup creates **21 progress labels**: `0%`, `5%`, `10%`, … `100%`. Colors go from red (0%) to yellow (50%) to green (100%). These are used by the Check Progress action and commit steps to update issue progress.
+
+---
+
+## Issue types created by `copilot setup` (defaults)
+
+For organizations that support issue types, the setup ensures these exist (name / description / color from action inputs):
+
+| Type | Default name | Default color |
+|------|--------------|---------------|
+| Task | Task | blue |
+| Bug | Bug | orange |
+| Feature | Feature | green |
+| Documentation | Documentation | pink |
+| Maintenance | Maintenance | purple |
+| Hotfix | Hotfix | red |
+| Release | Release | yellow |
+| Question | Question | gray |
+| Help | Help | purple |
+
+---
+
+## Branch name prefixes (defaults)
+
+Used to build branch names (e.g. `feature/42-my-title`). Configurable via action inputs:
+
+| Input key | Default value |
+|-----------|----------------|
+| `main-branch` | `master` |
+| `development-branch` | `develop` |
+| `feature-tree` | `feature` |
+| `bugfix-tree` | `bugfix` |
+| `hotfix-tree` | `hotfix` |
+| `release-tree` | `release` |
+| `docs-tree` | `docs` |
+| `chore-tree` | `chore` |
+
+---
+
+## Contents of `setup/` (workflows, templates, PR template)
+
+### `setup/workflows/`
+
+All `.yml` / `.yaml` files here are copied to `.github/workflows/`. Default filenames and roles:
+
+| File | Purpose |
+|------|--------|
+| `copilot_issue.yml` | Runs on issue events (opened, edited, labeled, unlabeled, etc.): creates branches, links to projects, assignees, deploy trigger. |
+| `copilot_pull_request.yml` | Runs on PR events: links PR to issue/project, reviewers, AI description, etc. |
+| `copilot_commit.yml` | Runs on push (all branches except main/develop by default): notifies issue, updates size and progress labels, bugbot. |
+| `copilot_issue_comment.yml` | Runs on issue comment: e.g. Think action (answer questions). |
+| `copilot_pull_request_comment.yml` | Runs on PR review comment: e.g. translation checks. |
+| `release_workflow.yml` | **Manual** (`workflow_dispatch`): release flow (version, changelog, tag, release, deployed). Filename must match the action input `release-workflow` (default: `release_workflow.yml`) so the Issue workflow can dispatch it when the **deploy** label is added. |
+| `hotfix_workflow.yml` | **Manual** (`workflow_dispatch`): hotfix flow. Filename must match the action input `hotfix-workflow` (default: `hotfix_workflow.yml`). |
+
+Each Copilot workflow step passes at least `token` (and often `project-ids`, `opencode-model`, `debug` via vars). The **release** and **hotfix** workflows are **dispatched by the action** when an issue has the deploy label and the corresponding release/hotfix context (branch, version, etc.); they are not triggered by issue events directly.
+
+### `setup/ISSUE_TEMPLATE/`
+
+All files here are copied to `.github/ISSUE_TEMPLATE/`.
+
+| File | Purpose |
+|------|--------|
+| `config.yml` | Issue template config (e.g. `blank_issues_enabled`, contact link to Git-Flow). |
+| `feature_request.yml` | Feature request; uses labels like `enhancement`, `feature`, `priority: low`. Add `branched` if you want a branch created automatically. |
+| `bug_report.yml` | Bug report; uses `bug`, `bugfix`, `priority: high`. Add `branched` if needed. |
+| `doc_update.yml` | Documentation; uses `documentation`, `docs`. |
+| `chore_task.yml` | Chore/maintenance; uses `chore`, `maintenance`. |
+| `help_request.yml` | Help request; uses `help` (no branch). |
+| `hotfix.yml` | Hotfix; uses `hotfix`, `branched`, `priority: high`. Includes Base Version, Hotfix Version, Changelog. |
+| `release.yml` | Release; uses `release`, `branched`, `priority: medium`. Includes Release Type, Version, Changelog. |
+
+The **labels** in each template must match the label names configured in the action (or your custom inputs). For example, if you change `deploy-label` to `ready-to-deploy`, then any template or process that adds the deploy trigger must use `ready-to-deploy`.
+
+### `setup/pull_request_template.md`
+
+Copied to `.github/pull_request_template.md`. Used as the default body for new PRs. The AI PR description feature can fill this structure; you can edit the sections (Summary, Related Issues, Scope, Technical Details, How to Test, etc.) to fit your repo. No Copilot logic depends on specific headings; only the deploy/release/hotfix flows depend on **workflow filenames** and **label names**.
+
+### `setup/.env`
+
+If present, copied to the repository root as `.env`. Useful for local CLI (e.g. `PAT=...`). Not used by the GitHub Action (secrets come from the workflow).
+
+---
+
+## Optional: Configure projects, AI, and workflows
+
+After the tutorial and file adaption, you can:
+
+- Set **repository or organization variables** (e.g. `PROJECT_IDS`, `OPENCODE_MODEL`, `DEBUG`) and reference them in the Copilot workflow steps (`project-ids: ${{ vars.PROJECT_IDS }}`, etc.).
+- Adjust **project column names** and **branch names** via action inputs so the action moves issues/PRs to the right columns and uses your branch naming.
+- Customize **issue templates** (copy, add fields, change labels) while keeping label and workflow names consistent as above.
+- Add or modify **release/hotfix** workflow steps (e.g. build, deploy) while keeping the workflow **filenames** and the action inputs `release-workflow` and `hotfix-workflow` in sync.
+
+For a full list of inputs and behaviors, see [Configuration](/configuration) and [Features & capabilities](/features).
