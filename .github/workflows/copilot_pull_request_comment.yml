@@ -19,4 +19,4 @@ jobs:
           opencode-model: ${{ vars.OPENCODE_MODEL }}
           project-ids: ${{ vars.PROJECT_IDS }}
           token: ${{ secrets.PAT }}
-          
+

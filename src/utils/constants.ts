@@ -1,4 +1,3 @@
-export const COMMAND = 'copilot'
 export const TITLE = 'Copilot'
 export const REPO_URL = 'https://github.com/vypdev/copilot'
 
