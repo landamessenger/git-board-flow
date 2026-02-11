@@ -1,0 +1,66 @@
+---
+title: Single Actions Configuration
+description: Inputs for running single actions in Git Board Flow
+---
+
+# Single Actions Configuration
+
+These inputs are used when you run the action in single-action mode. For the complete list of all action inputs, see [Configuration](/configuration).
+
+## Required for single-action mode
+
+| Input | Description | Example |
+|-------|-------------|---------|
+| `single-action` | The action to run | `check_progress_action`, `think_action`, `create_release`, etc. |
+| `token` | GitHub PAT (required for almost all single actions) | `${{ secrets.PAT }}` |
+
+## When the action needs an issue
+
+For `check_progress_action`, `detect_potential_problems_action`, `recommend_steps_action`, and `deployed_action`:
+
+| Input | Description | Example |
+|-------|-------------|---------|
+| `single-action-issue` | Issue number to run the action on | `'123'` |
+
+## When the action needs a version (release or tag)
+
+For `create_release` and `create_tag`:
+
+| Input | Description | Example |
+|-------|-------------|---------|
+| `single-action-version` | Version string (e.g. semver) | `'1.2.0'` |
+
+For **`create_release`** only:
+
+| Input | Description | Example |
+|-------|-------------|---------|
+| `single-action-title` | Release title | `'Release 1.2.0'` |
+| `single-action-changelog` | Changelog or release notes body (markdown) | Multi-line string or file content |
+
+## Example: workflow with single action
+
+```yaml
+- uses: landamessenger/git-board-flow@master
+  with:
+    token: ${{ secrets.PAT }}
+    single-action: check_progress_action
+    single-action-issue: '123'
+```
+
+For release:
+
+```yaml
+- uses: landamessenger/git-board-flow@master
+  with:
+    token: ${{ secrets.PAT }}
+    single-action: create_release
+    single-action-version: '1.2.0'
+    single-action-title: 'Release 1.2.0'
+    single-action-changelog: |
+      ## New features
+      - Added X
+      ## Fixes
+      - Fixed Y
+```
+
+See [Workflow & CLI](/single-actions/workflow-and-cli) for more examples and CLI equivalents.

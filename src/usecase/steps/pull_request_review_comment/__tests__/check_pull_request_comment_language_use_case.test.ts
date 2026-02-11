@@ -8,11 +8,10 @@ const translatedKey = `<!-- content_translated
 If you'd like this comment to be translated again, please delete the entire comment, including this message. It will then be processed as a new one.
 -->`;
 
-const mockAsk = jest.fn();
 const mockAskAgent = jest.fn();
 const mockUpdateComment = jest.fn();
 jest.mock('../../../../data/repository/ai_repository', () => ({
-  AiRepository: jest.fn().mockImplementation(() => ({ ask: mockAsk, askAgent: mockAskAgent })),
+  AiRepository: jest.fn().mockImplementation(() => ({ askAgent: mockAskAgent })),
 }));
 jest.mock('../../../../data/repository/issue_repository', () => ({
   IssueRepository: jest.fn().mockImplementation(() => ({ updateComment: mockUpdateComment })),
@@ -35,7 +34,6 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
 
   beforeEach(() => {
     useCase = new CheckPullRequestCommentLanguageUseCase();
-    mockAsk.mockReset();
     mockAskAgent.mockReset();
     mockUpdateComment.mockReset();
   });
@@ -48,7 +46,7 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(false);
-    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockAskAgent).not.toHaveBeenCalled();
   });
 
   it('returns success executed false when commentBody contains translatedKey', async () => {
@@ -60,30 +58,30 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
 
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(false);
-    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockAskAgent).not.toHaveBeenCalled();
   });
 
   it('returns success executed true when AI responds done', async () => {
-    mockAsk.mockResolvedValue('done');
+    mockAskAgent.mockResolvedValue({ status: 'done' });
     const param = baseParam();
 
     const results = await useCase.invoke(param);
 
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
-    expect(mockAsk).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
   });
 
   it('calls updateComment when must_translate and askAgent returns schema with translatedText', async () => {
-    mockAsk.mockResolvedValueOnce('must_translate');
-    mockAskAgent.mockResolvedValueOnce({ translatedText: 'Hola traducido' });
+    mockAskAgent
+      .mockResolvedValueOnce({ status: 'must_translate' })
+      .mockResolvedValueOnce({ translatedText: 'Hola traducido' });
     mockUpdateComment.mockResolvedValue(undefined);
     const param = baseParam();
 
     const results = await useCase.invoke(param);
 
-    expect(mockAsk).toHaveBeenCalledTimes(1);
-    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(2);
     expect(mockUpdateComment).toHaveBeenCalledWith(
       'o',
       'r',
@@ -94,15 +92,15 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
     );
   });
 
-  it('does not update comment when askAgent returns undefined', async () => {
-    mockAsk.mockResolvedValueOnce('must_translate');
-    mockAskAgent.mockResolvedValueOnce(undefined);
+  it('does not update comment when askAgent returns undefined for translation', async () => {
+    mockAskAgent
+      .mockResolvedValueOnce({ status: 'must_translate' })
+      .mockResolvedValueOnce(undefined);
     const param = baseParam();
 
     const results = await useCase.invoke(param);
 
-    expect(mockAsk).toHaveBeenCalledTimes(1);
-    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(2);
     expect(mockUpdateComment).not.toHaveBeenCalled();
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(true);
@@ -110,13 +108,14 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
   });
 
   it('does not update comment when askAgent returns empty translatedText', async () => {
-    mockAsk.mockResolvedValueOnce('must_translate');
-    mockAskAgent.mockResolvedValueOnce({ translatedText: '' });
+    mockAskAgent
+      .mockResolvedValueOnce({ status: 'must_translate' })
+      .mockResolvedValueOnce({ translatedText: '' });
     const param = baseParam();
 
     const results = await useCase.invoke(param);
 
-    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    expect(mockAskAgent).toHaveBeenCalledTimes(2);
     expect(mockUpdateComment).not.toHaveBeenCalled();
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(true);

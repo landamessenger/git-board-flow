@@ -7,6 +7,18 @@ description: Complete reference of what the Git Board Flow GitHub Action does
 
 This page describes **every function** the Git Board Flow GitHub Action provides: workflow-triggered behavior (issues, pull requests, pushes) and **single actions** you can run on demand.
 
+<Columns cols={3}>
+  <Card title="Issue events" icon="circle-dot" href="/issues">
+    When you open, edit, or label issues: branch creation, project linking, assignees, issue type, size labels, and comments.
+  </Card>
+  <Card title="Pull request events" icon="git-pull-request" href="/pull-requests">
+    When PRs are opened or updated: link to issue, project column, reviewers, AI description, size/progress sync.
+  </Card>
+  <Card title="Push events" icon="git-commit">
+    On every push: commit notifications on the issue, prefix check, reopen option, size & progress labels (with OpenCode). Details below.
+  </Card>
+</Columns>
+
 ---
 
 ## Workflow-triggered behavior
@@ -39,7 +51,7 @@ When the workflow runs on `pull_request` (opened, edited, etc.):
 | **Project linking** | Adds the PR to the configured GitHub Projects and moves it to the configured column. |
 | **Reviewers** | Assigns up to `desired-reviewers-count` reviewers. |
 | **Priority & size** | Applies priority and size checks (labels and thresholds). |
-| **AI PR description** | If `ai-pull-request-description` is true and OpenCode is configured, generates or updates the PR description by filling the repo's `.github/pull_request_template.md` from the issue and the branch diff (OpenCode Plan agent). See [Pull Requests → AI-generated PR description](/pull-requests#ai-generated-pr-description). |
+| **AI PR description** | If `ai-pull-request-description` is true and OpenCode is configured, generates or updates the PR description by filling the repo's `.github/pull_request_template.md` from the issue and the branch diff (OpenCode Plan agent). See [Pull Requests → AI-generated PR description](/pull-requests/ai-description). |
 | **Comments & images** | Posts comments with optional images per branch type. |
 
 ### 3. Push events (`on: push`)
@@ -52,6 +64,7 @@ When the workflow runs on `push` (e.g. to any branch):
 | **Commit prefix check** | Warns if commit messages do not follow the prefix derived from the branch name (using `commit-prefix-transforms`). |
 | **Reopen issue** | If `reopen-issue-on-push` is true, reopens the issue when new commits are pushed to its branch. |
 | **Size & progress** | Computes size (XS–XXL) and progress (0–100%) from the branch diff; updates the **issue** and any **open PRs** for that branch with the same labels. Requires OpenCode for progress. No separate workflow is needed. |
+| **Bugbot (potential problems)** | OpenCode analyzes the branch vs base and reports findings as **comments on the issue** and **review comments on open PRs**; updates issue comments when findings are resolved and **marks PR review threads as resolved** when applicable. Configurable via `bugbot-severity` and `ai-ignore-files`. See [Issues](/issues#bugbot-potential-problems) and [Pull Requests](/pull-requests#bugbot-potential-problems). |
 | **Comments & images** | Posts commit summary comments with optional images. |
 
 ---
@@ -63,7 +76,7 @@ When you set `single-action` (and, when required, `single-action-issue`, `single
 | Single action value | Inputs required | Description |
 |--------------------|----------------|-------------|
 | **`check_progress_action`** | `single-action-issue` | Runs progress check on demand (e.g. without pushing). Progress is normally updated automatically on every push; use this to re-run the check or when no push workflow is configured. |
-| **`detect_errors_action`** | `single-action-issue` | Uses OpenCode Plan to detect potential errors in the branch vs base; posts a comment on the issue. |
+| **`detect_potential_problems_action`** | `single-action-issue` | Bugbot: OpenCode analyzes the branch vs base; reports findings as comments on the issue and as PR review comments; updates issue comments and marks PR review threads as resolved when findings are fixed. |
 | **`recommend_steps_action`** | `single-action-issue` | Uses OpenCode Plan to recommend implementation steps from the issue description; posts a comment on the issue. |
 | **`think_action`** | — | Uses OpenCode Plan for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
 | **`initial_setup`** | — | Performs initial setup steps (e.g. for repo or project). No issue required. |
@@ -83,13 +96,55 @@ All AI features go through **OpenCode** (one server URL + model). You can use 75
 | Feature | Where it runs | Description |
 |--------|----------------|-------------|
 | **Check progress** | Push (commit) pipeline; optional single action `check_progress_action` / CLI `check-progress` | On every push, OpenCode Plan compares issue vs branch diff and updates the progress label on the issue and on any open PRs for that branch. You can also run it on demand via single action or CLI. |
-| **Think / reasoning** | Single action `think_action` | Deep code analysis and change proposals (OpenCode Plan agent). |
+| **Bugbot (potential problems)** | Push (commit) pipeline; optional single action `detect_potential_problems_action` / CLI `detect-potential-problems` | Analyzes branch vs base and posts findings as **comments on the issue** and **review comments on open PRs**; updates issue comments and marks PR review threads as resolved when findings are fixed. Configurable: `bugbot-severity`, `ai-ignore-files`. |
+| **Think / reasoning** | Issue/PR comment pipeline; single action `think_action` | Deep code analysis and change proposals (OpenCode Plan agent). On comments: answers when mentioned (or on any comment for question/help issues). |
+| **Comment translation** | Issue comment; PR review comment | Translates comments to the configured locale (`issues-locale`, `pull-requests-locale`) when they are written in another language. |
 | **AI PR description** | Pull request pipeline | Fills the repo's `.github/pull_request_template.md` from issue and branch diff (OpenCode Plan agent). |
 | **Copilot** | CLI `giik copilot` | Code analysis and file edits via OpenCode Build agent. |
-| **Error detection** | Single action / CLI | Detects potential bugs and issues in the codebase (OpenCode Plan agent). |
 | **Recommend steps** | Single action / CLI | Suggests implementation steps from the issue description (OpenCode Plan agent). |
 
 Configuration: `opencode-server-url`, `opencode-model`, and optionally `opencode-start-server` (action starts and stops OpenCode in the job). See [OpenCode (AI)](/opencode-integration).
+
+---
+
+## Workflow concurrency and sequential execution
+
+<Tip>
+  **Sequential runs:** When a new run starts, the action **waits** for any previous run of the **same workflow name** to finish. Runs of the same workflow (e.g. "Git Board Flow - Issue") execute one after another instead of in parallel or being cancelled — something GitHub does not offer natively.
+</Tip>
+
+GitHub's native [concurrency](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency) lets you cancel in-progress runs when a new one starts (`cancel-in-progress: true`). Git Board Flow adds **sequential execution** for the same workflow: when a new run starts, the action waits for any previous run of the same workflow name to finish before doing its work.
+
+### How it works
+
+1. At the start of each run (except welcome/single-action-only flows), the action calls the GitHub API to list workflow runs for the repo.
+2. It filters runs that have the **same workflow name** as the current run, a **lower run ID** (i.e. started earlier), and status `in_progress` or `queued`.
+3. If any such run exists, the action waits 2 seconds and checks again, up to a long timeout (~4000 seconds).
+4. When no previous run of the same workflow is active, the action continues.
+
+So you get a **per-workflow queue**: multiple triggers for the same workflow (e.g. many issues labeled at once) will run sequentially.
+
+### Example
+
+```yaml
+name: Git Board Flow - Issue
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+
+jobs:
+  git-board-flow-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: landamessenger/git-board-flow@master
+        with:
+          token: ${{ secrets.PAT }}
+          project-ids: '2,3'
+```
+
+If you prefer to cancel the previous run when a new one is triggered (e.g. for PRs, so only the latest run matters), use `cancel-in-progress: true` and the same `concurrency.group` per PR or issue.
 
 ---
 

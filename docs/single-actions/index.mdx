@@ -1,0 +1,32 @@
+---
+title: Single Actions
+description: Run one-off actions on demand (check progress, think, create release, etc.)
+---
+
+# Single Actions
+
+When you set the `single-action` input (and any required targets such as `single-action-issue` or `single-action-version`), Git Board Flow runs **only** that action and skips the normal issue, pull request, and push pipelines.
+
+## Available single actions
+
+| Action | Inputs | Description |
+|--------|--------|-------------|
+| `check_progress_action` | `single-action-issue` | Runs progress check on demand. Progress is normally updated automatically on every push (commit workflow); use this to re-run without pushing or when you don't use the push workflow. |
+| `detect_potential_problems_action` | `single-action-issue` | Bugbot: detects potential problems in the branch vs base; reports on issue and PR, marks resolved when fixed (OpenCode). |
+| `recommend_steps_action` | `single-action-issue` | Recommends implementation steps for the issue based on its description (OpenCode Plan). |
+| `think_action` | — | Deep code analysis and change proposals (OpenCode Plan). No issue required; use from CLI with a question (`think -q "..."`) or from a workflow that provides context. |
+| `initial_setup` | — | Performs initial setup steps (e.g. for repo or project). No issue required. |
+| `create_release` | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release. |
+| `create_tag` | `single-action-version` | Creates a Git tag. |
+| `publish_github_action` | — | Publishes or updates the GitHub Action (e.g. versioning, release). |
+| `deployed_action` | `single-action-issue` | Marks the issue as deployed; updates labels and project state. |
+
+<Note>
+  **Actions that fail the job** if the last step fails: `publish_github_action`, `create_release`, `deployed_action`, `create_tag`. The workflow will be marked as failed so you can act on it.
+</Note>
+
+## Next steps
+
+- **[Configuration](/single-actions/configuration)** — Inputs for single actions (`single-action`, `single-action-issue`, `single-action-version`, etc.).
+- **[Workflow & CLI](/single-actions/workflow-and-cli)** — How to run from a workflow and from the `giik` CLI.
+- [Features & Capabilities](/features) — How each action fits into the full feature set.

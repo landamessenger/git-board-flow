@@ -31,6 +31,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate inputs
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          ISSUE: ${{ github.event.inputs.issue }}
+          TITLE: ${{ github.event.inputs.title }}
+          CHANGELOG: ${{ github.event.inputs.changelog }}
+        run: |
+          err=0
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must be in semver format (e.g. 1.0.0)."
+            err=1
+          fi
+          if ! [[ "$ISSUE" =~ ^-?[0-9]+$ ]]; then
+            echo "::error::Issue must be a number (e.g. 123 or -1)."
+            err=1
+          fi
+          if [[ ${#TITLE} -gt 1000 ]]; then
+            echo "::error::Title must be at most 1000 characters."
+            err=1
+          fi
+          if [[ ${#CHANGELOG} -gt 50000 ]]; then
+            echo "::error::Changelog must be at most 50000 characters."
+            err=1
+          fi
+          [[ $err -eq 0 ]] || exit 1
+
       - name: Update version
         uses: actions/github-script@v7
         with:
@@ -132,5 +158,4 @@ jobs:
           single-action: 'deployed_action'
           single-action-issue: '${{ github.event.inputs.issue }}'
           opencode-model: ${{ vars.OPENCODE_MODEL }}
-          opencode-start-server: true
           token: ${{ secrets.PAT }}

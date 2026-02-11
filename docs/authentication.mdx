@@ -7,6 +7,8 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
 
 <Info>Originally, the workflow also made use of the GITHUB_TOKEN for some basic tasks executed within the workflow's scope. However, to simplify the configuration and maintain a single unified bot, the use of this token has been removed, leaving only the necessary PAT.</Info>
 
+<Warning>**When the event actor is the same as the token user**: If the user who triggers the workflow (e.g. the person who opened the issue or pushed the branch) is the same as the account that owns the PAT, the action **only runs single actions** (if one is requested) or **skips** the normal issue/PR/push pipelines. This avoids the bot reacting to its own actions. Use a dedicated bot account (different from the actor) if you want full pipeline behavior on every event.</Warning>
+
 <Steps>
   <Step title="Who is the bot?">
     Choose which account will be used to create your PAT. This account will act as your bot.
@@ -87,9 +89,6 @@ Git Board Flow requires a fine-grained personal access token to perform certain 
     on:
       issues:
         types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
-
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
 
     jobs:
       git-board-issues:

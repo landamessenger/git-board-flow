@@ -46572,6 +46572,12 @@ additionalParams) {
         .split(',')
         .map(path => path.trim())
         .filter(path => path.length > 0);
+    const bugbotSeverity = (additionalParams[constants_1.INPUT_KEYS.BUGBOT_SEVERITY] ?? actionInputs[constants_1.INPUT_KEYS.BUGBOT_SEVERITY]) || constants_1.BUGBOT_MIN_SEVERITY;
+    const bugbotCommentLimitRaw = additionalParams[constants_1.INPUT_KEYS.BUGBOT_COMMENT_LIMIT] ?? actionInputs[constants_1.INPUT_KEYS.BUGBOT_COMMENT_LIMIT];
+    const bugbotCommentLimitNum = typeof bugbotCommentLimitRaw === 'number' ? bugbotCommentLimitRaw : parseInt(String(bugbotCommentLimitRaw ?? ''), 10);
+    const bugbotCommentLimit = Number.isNaN(bugbotCommentLimitNum) || bugbotCommentLimitNum < 1
+        ? constants_1.BUGBOT_MAX_COMMENTS
+        : Math.min(bugbotCommentLimitNum, 200);
     /**
      * Projects Details
      */
@@ -46887,7 +46893,7 @@ additionalParams) {
     const pullRequestDesiredAssigneesCount = parseInt(additionalParams[constants_1.INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT] ?? actionInputs[constants_1.INPUT_KEYS.PULL_REQUEST_DESIRED_ASSIGNEES_COUNT]) ?? 0;
     const pullRequestDesiredReviewersCount = parseInt(additionalParams[constants_1.INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT] ?? actionInputs[constants_1.INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT]) ?? 0;
     const pullRequestMergeTimeout = parseInt(additionalParams[constants_1.INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT] ?? actionInputs[constants_1.INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT]) ?? 0;
-    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue, singleActionVersion, singleActionTitle, singleActionChangelog), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount, additionalParams), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout, additionalParams), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeTaskDescription, issueTypeTaskColor, issueTypeBug, issueTypeBugDescription, issueTypeBugColor, issueTypeFeature, issueTypeFeatureDescription, issueTypeFeatureColor, issueTypeDocumentation, issueTypeDocumentationDescription, issueTypeDocumentationColor, issueTypeMaintenance, issueTypeMaintenanceDescription, issueTypeMaintenanceColor, issueTypeHotfix, issueTypeHotfixDescription, issueTypeHotfixColor, issueTypeRelease, issueTypeReleaseDescription, issueTypeReleaseColor, issueTypeQuestion, issueTypeQuestionDescription, issueTypeQuestionColor, issueTypeHelp, issueTypeHelpDescription, issueTypeHelpColor), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress), new welcome_1.Welcome(welcomeTitle, welcomeMessages), additionalParams);
+    const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue, singleActionVersion, singleActionTitle, singleActionChangelog), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount, additionalParams), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout, additionalParams), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, bugbotSeverity, bugbotCommentLimit), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeTaskDescription, issueTypeTaskColor, issueTypeBug, issueTypeBugDescription, issueTypeBugColor, issueTypeFeature, issueTypeFeatureDescription, issueTypeFeatureColor, issueTypeDocumentation, issueTypeDocumentationDescription, issueTypeDocumentationColor, issueTypeMaintenance, issueTypeMaintenanceDescription, issueTypeMaintenanceColor, issueTypeHotfix, issueTypeHotfixDescription, issueTypeHotfixColor, issueTypeRelease, issueTypeReleaseDescription, issueTypeReleaseColor, issueTypeQuestion, issueTypeQuestionDescription, issueTypeQuestionColor, issueTypeHelp, issueTypeHelpDescription, issueTypeHelpColor), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress), new welcome_1.Welcome(welcomeTitle, welcomeMessages), additionalParams);
     const results = await (0, common_action_1.mainRun)(execution);
     let content = '';
     const stepsContent = results
@@ -46987,6 +46993,15 @@ function getGitInfo() {
     }
     catch {
         return { error: constants_1.ERRORS.GIT_REPOSITORY_NOT_FOUND };
+    }
+}
+/** Get current git branch (for CLI commands that need a branch when -b is omitted). */
+function getCurrentBranch() {
+    try {
+        return (0, child_process_1.execSync)('git rev-parse --abbrev-ref HEAD').toString().trim() || 'main';
+    }
+    catch {
+        return 'main';
     }
 }
 /**
@@ -47120,7 +47135,7 @@ program
         return;
     }
     try {
-        const ai = new ai_1.Ai(serverUrl, model, false, false, [], false);
+        const ai = new ai_1.Ai(serverUrl, model, false, false, [], false, 'low', 20);
         const aiRepository = new ai_repository_1.AiRepository();
         const result = await aiRepository.copilotMessage(ai, prompt);
         if (!result) {
@@ -47235,44 +47250,6 @@ program
     }
 });
 /**
- * Detect potential errors in the branch for an issue (vs base branch).
- */
-program
-    .command('detect-errors')
-    .description(`${constants_1.TITLE} - Detect potential errors in the branch (vs base) using OpenCode Plan agent`)
-    .option('-i, --issue <number>', 'Issue number (required)', '')
-    .option('-d, --debug', 'Debug mode', false)
-    .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
-    .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
-    .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
-    .action(async (options) => {
-    const gitInfo = getGitInfo();
-    if ('error' in gitInfo) {
-        console.log(gitInfo.error);
-        return;
-    }
-    const cleanArg = (v) => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
-    const issueNumber = cleanArg(options.issue);
-    if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
-        console.log('❌ Provide a valid issue number with -i or --issue');
-        return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
-    const params = {
-        [constants_1.INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
-        [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.DETECT_ERRORS,
-        [constants_1.INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
-        [constants_1.INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
-        [constants_1.INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
-        [constants_1.INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || constants_1.OPENCODE_DEFAULT_MODEL,
-        repo: { owner: gitInfo.owner, repo: gitInfo.repo },
-        issue: { number: parseInt(issueNumber) },
-    };
-    params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '🔍 Error detection';
-    params[constants_1.INPUT_KEYS.WELCOME_MESSAGES] = [`Detecting errors for issue #${issueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`];
-    await (0, local_action_1.runLocalAction)(params);
-});
-/**
  * Recommend implementation steps for an issue based on its description.
  */
 program
@@ -47309,6 +47286,61 @@ program
     params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '📋 Recommend steps';
     params[constants_1.INPUT_KEYS.WELCOME_MESSAGES] = [`Recommending steps for issue #${issueNumber} in ${gitInfo.owner}/${gitInfo.repo}...`];
     await (0, local_action_1.runLocalAction)(params);
+});
+/**
+ * Detect potential problems (bugbot): OpenCode analyzes branch vs base, reports findings
+ * as comments on the issue and open PR. Previously reported findings can be marked resolved.
+ */
+program
+    .command('detect-potential-problems')
+    .description(`${constants_1.TITLE} - Detect potential problems in the branch (bugbot): report as comments on issue and PR`)
+    .option('-i, --issue <number>', 'Issue number (required)', '')
+    .option('-b, --branch <name>', 'Branch name (optional, defaults to current git branch)', '')
+    .option('-d, --debug', 'Debug mode', false)
+    .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
+    .option('--opencode-server-url <url>', 'OpenCode server URL', process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096')
+    .option('--opencode-model <model>', 'OpenCode model', process.env.OPENCODE_MODEL)
+    .action(async (options) => {
+    const gitInfo = getGitInfo();
+    if ('error' in gitInfo) {
+        console.log(gitInfo.error);
+        return;
+    }
+    const cleanArg = (v) => (v != null ? (String(v).startsWith('=') ? String(v).substring(1) : String(v)) : '');
+    const issueNumber = cleanArg(options.issue);
+    if (!issueNumber || isNaN(parseInt(issueNumber)) || parseInt(issueNumber) <= 0) {
+        console.log('❌ Provide a valid issue number with -i or --issue');
+        return;
+    }
+    const branch = (cleanArg(options.branch) || getCurrentBranch()).trim() || 'main';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CLI options map to action inputs
+    const params = {
+        [constants_1.INPUT_KEYS.DEBUG]: options.debug?.toString() ?? 'false',
+        [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS,
+        [constants_1.INPUT_KEYS.SINGLE_ACTION_ISSUE]: parseInt(issueNumber),
+        [constants_1.INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN,
+        [constants_1.INPUT_KEYS.OPENCODE_SERVER_URL]: options.opencodeServerUrl || process.env.OPENCODE_SERVER_URL || 'http://127.0.0.1:4096',
+        [constants_1.INPUT_KEYS.OPENCODE_MODEL]: options.opencodeModel || process.env.OPENCODE_MODEL || constants_1.OPENCODE_DEFAULT_MODEL,
+        repo: { owner: gitInfo.owner, repo: gitInfo.repo },
+        issue: { number: parseInt(issueNumber) },
+        commits: { ref: `refs/heads/${branch}` },
+    };
+    params[constants_1.INPUT_KEYS.WELCOME_TITLE] = '🐛 Detect potential problems (bugbot)';
+    params[constants_1.INPUT_KEYS.WELCOME_MESSAGES] = [
+        `Detecting potential problems for issue #${issueNumber} on branch ${branch} in ${gitInfo.owner}/${gitInfo.repo}...`,
+    ];
+    try {
+        await (0, local_action_1.runLocalAction)(params);
+        process.exit(0);
+    }
+    catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error('❌ Error running detect-potential-problems:', error.message);
+        if (options.debug) {
+            console.error(err);
+        }
+        process.exit(1);
+    }
 });
 /**
  * Run the initial setup to configure labels, issue types, and verify access.
@@ -47363,13 +47395,15 @@ const constants_1 = __nccwpck_require__(8593);
  * API keys are configured on the OpenCode server, not here.
  */
 class Ai {
-    constructor(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning) {
+    constructor(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, bugbotMinSeverity, bugbotCommentLimit) {
         this.opencodeServerUrl = opencodeServerUrl;
         this.opencodeModel = opencodeModel;
         this.aiPullRequestDescription = aiPullRequestDescription;
         this.aiMembersOnly = aiMembersOnly;
         this.aiIgnoreFiles = aiIgnoreFiles;
         this.aiIncludeReasoning = aiIncludeReasoning;
+        this.bugbotMinSeverity = bugbotMinSeverity;
+        this.bugbotCommentLimit = bugbotCommentLimit;
     }
     getOpencodeServerUrl() {
         return this.opencodeServerUrl;
@@ -47388,6 +47422,12 @@ class Ai {
     }
     getAiIncludeReasoning() {
         return this.aiIncludeReasoning;
+    }
+    getBugbotMinSeverity() {
+        return this.bugbotMinSeverity;
+    }
+    getBugbotCommentLimit() {
+        return this.bugbotCommentLimit;
     }
     /**
      * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
@@ -47837,6 +47877,9 @@ class Execution {
             }
             else {
                 this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch;
+            }
+            if (this.currentConfiguration.parentBranch === undefined && this.previousConfiguration?.parentBranch != null) {
+                this.currentConfiguration.parentBranch = this.previousConfiguration.parentBranch;
             }
             if (this.isSingleAction) {
                 /**
@@ -48600,8 +48643,8 @@ class SingleAction {
     get isCheckProgressAction() {
         return this.currentSingleAction === constants_1.ACTIONS.CHECK_PROGRESS;
     }
-    get isDetectErrorsAction() {
-        return this.currentSingleAction === constants_1.ACTIONS.DETECT_ERRORS;
+    get isDetectPotentialProblemsAction() {
+        return this.currentSingleAction === constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS;
     }
     get isRecommendStepsAction() {
         return this.currentSingleAction === constants_1.ACTIONS.RECOMMEND_STEPS;
@@ -48629,7 +48672,7 @@ class SingleAction {
             constants_1.ACTIONS.THINK,
             constants_1.ACTIONS.INITIAL_SETUP,
             constants_1.ACTIONS.CHECK_PROGRESS,
-            constants_1.ACTIONS.DETECT_ERRORS,
+            constants_1.ACTIONS.DETECT_POTENTIAL_PROBLEMS,
             constants_1.ACTIONS.RECOMMEND_STEPS,
         ];
         /**
@@ -48814,10 +48857,52 @@ exports.Workflows = Workflows;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.AiRepository = exports.TRANSLATION_RESPONSE_SCHEMA = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
+exports.AiRepository = exports.LANGUAGE_CHECK_RESPONSE_SCHEMA = exports.THINK_RESPONSE_SCHEMA = exports.TRANSLATION_RESPONSE_SCHEMA = exports.OPENCODE_AGENT_BUILD = exports.OPENCODE_AGENT_PLAN = void 0;
 exports.getSessionDiff = getSessionDiff;
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+/**
+ * Runs an async OpenCode operation with retries. On failure, logs and retries up to OPENCODE_MAX_RETRIES.
+ * Single retry system for all OpenCode interactions: no parallel retry logic.
+ *
+ * Retries when the operation throws, including:
+ * - Network errors (fetch fails, connection refused, etc.)
+ * - HTTP errors (4xx/5xx from session create or message)
+ * - Timeout (OPENCODE_REQUEST_TIMEOUT_MS)
+ * - Empty or invalid JSON response body (parseJsonResponse throws)
+ * - Missing session id in create response
+ * - Parse failure of expected format (e.g. expectJson but text is not valid JSON) when parse is done inside the callback
+ */
+async function withOpenCodeRetry(fn, context) {
+    let lastError;
+    for (let attempt = 1; attempt <= constants_1.OPENCODE_MAX_RETRIES; attempt++) {
+        try {
+            return await fn();
+        }
+        catch (error) {
+            lastError = error;
+            const message = error instanceof Error ? error.message : String(error);
+            const cause = error instanceof Error && error.cause instanceof Error
+                ? error.cause.message
+                : '';
+            const detail = cause ? ` (cause: ${cause})` : '';
+            const noResponseHint = message === 'fetch failed'
+                ? ' No HTTP response; connection lost or timeout. If this was before the client timeout (see log above), the OpenCode server or a proxy may have a shorter timeout.'
+                : '';
+            if (attempt < constants_1.OPENCODE_MAX_RETRIES) {
+                (0, logger_1.logInfo)(`OpenCode [${context}] attempt ${attempt}/${constants_1.OPENCODE_MAX_RETRIES} failed: ${message}${detail}.${noResponseHint} Retrying in ${constants_1.OPENCODE_RETRY_DELAY_MS}ms...`);
+                await delay(constants_1.OPENCODE_RETRY_DELAY_MS);
+            }
+            else {
+                (0, logger_1.logError)(`OpenCode [${context}] failed after ${constants_1.OPENCODE_MAX_RETRIES} attempts: ${message}${detail}`);
+            }
+        }
+    }
+    throw lastError;
+}
 function createTimeoutSignal(ms) {
     const controller = new AbortController();
     setTimeout(() => controller.abort(new Error(`OpenCode request timeout after ${ms}ms`)), ms);
@@ -48826,7 +48911,121 @@ function createTimeoutSignal(ms) {
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, '') || url;
 }
-const OPENCODE_RESPONSE_LOG_MAX_LEN = 2000;
+function truncate(s, maxLen) {
+    return s.length <= maxLen ? s : s.slice(0, maxLen) + '...';
+}
+const OPENCODE_PROMPT_LOG_PREVIEW_LEN = 500;
+const OPENCODE_PROMPT_LOG_FULL_LEN = 3000;
+function getValidatedOpenCodeConfig(ai) {
+    const serverUrl = ai.getOpencodeServerUrl();
+    const model = ai.getOpencodeModel();
+    if (!serverUrl?.trim() || !model?.trim()) {
+        (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+        return null;
+    }
+    const { providerID, modelID } = ai.getOpencodeModelParts();
+    return { serverUrl, providerID, modelID, model };
+}
+/**
+ * Try to extract the first complete JSON object from text (from first `{` with balanced braces).
+ * Handles being inside a double-quoted string so we don't count braces there.
+ */
+function extractFirstJsonObject(text) {
+    const start = text.indexOf('{');
+    if (start === -1)
+        return null;
+    let depth = 1;
+    let inString = false;
+    let escape = false;
+    let quoteChar = '"';
+    for (let i = start + 1; i < text.length; i++) {
+        const c = text[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (c === '\\' && inString) {
+            escape = true;
+            continue;
+        }
+        if (inString) {
+            if (c === quoteChar)
+                inString = false;
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            inString = true;
+            quoteChar = c;
+            continue;
+        }
+        if (c === '{')
+            depth++;
+        else if (c === '}') {
+            depth--;
+            if (depth === 0)
+                return text.slice(start, i + 1);
+        }
+    }
+    return null;
+}
+/**
+ * Parse JSON from agent response text safely.
+ * Tries: (1) direct parse, (2) strip markdown code fence, (3) extract first JSON object from text (model often adds prose before JSON).
+ * @throws Error with clear message if parsing fails
+ */
+function parseJsonFromAgentText(text) {
+    const trimmed = text.trim();
+    if (!trimmed) {
+        throw new Error('Agent response text is empty');
+    }
+    // 1) Direct parse
+    try {
+        return JSON.parse(trimmed);
+    }
+    catch {
+        // 2) Model may wrap JSON in ```json ... ``` or ``` ... ```
+        const withoutFence = trimmed
+            .replace(/^```(?:json)?\s*\n?/i, '')
+            .replace(/\n?```\s*$/i, '')
+            .trim();
+        try {
+            return JSON.parse(withoutFence);
+        }
+        catch {
+            // 3) Model may add prose before the JSON (e.g. "Based on my analysis... { ... }")
+            const extracted = extractFirstJsonObject(trimmed);
+            if (extracted) {
+                try {
+                    return JSON.parse(extracted);
+                }
+                catch (e) {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): failed to parse extracted JSON. Full text length=${trimmed.length} firstChars=${JSON.stringify(trimmed.slice(0, 200))}`);
+                    throw new Error(`Agent response is not valid JSON: ${msg}`);
+                }
+            }
+            const previewLen = 500;
+            const msg = trimmed.length > previewLen ? `${trimmed.slice(0, previewLen)}...` : trimmed;
+            const fullTruncated = trimmed.length > 3000 ? `${trimmed.slice(0, 3000)}... [total ${trimmed.length} chars]` : trimmed;
+            (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): no JSON object found. length=${trimmed.length} preview=${JSON.stringify(msg)}`);
+            (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson) full text for debugging:\n${fullTruncated}`);
+            throw new Error(`Agent response is not valid JSON: no JSON object found. Response starts with: ${msg.slice(0, 150)}`);
+        }
+    }
+}
+/**
+ * Extract text from OpenCode message parts by type (e.g. 'text', 'reasoning'), joined with separator.
+ */
+function extractPartsByType(parts, type, joinWith) {
+    if (!Array.isArray(parts))
+        return '';
+    return parts
+        .filter((p) => p?.type === type && typeof p.text === 'string')
+        .map((p) => p.text)
+        .join(joinWith)
+        .trim();
+}
+const OPENCODE_RESPONSE_LOG_MAX_LEN = 80000;
 /** Parse response as JSON; on empty or invalid body throw a clear error with context. */
 async function parseJsonResponse(res, context) {
     const raw = await res.text();
@@ -48848,29 +49047,33 @@ async function parseJsonResponse(res, context) {
         throw err;
     }
 }
-/**
- * Extract plain text from OpenCode message response parts (type === 'text').
- */
+/** Extract plain text from OpenCode message response parts (type === 'text'). */
 function extractTextFromParts(parts) {
-    if (!Array.isArray(parts))
-        return '';
-    return parts
-        .filter((p) => p?.type === 'text' && typeof p.text === 'string')
-        .map((p) => p.text)
-        .join('');
+    return extractPartsByType(parts, 'text', '');
 }
-/**
- * Extract reasoning text from OpenCode message response parts (type === 'reasoning').
- * Used to include the agent's full reasoning in comments (e.g. progress detection).
- */
+/** Extract reasoning from OpenCode message parts (type === 'reasoning'). */
 function extractReasoningFromParts(parts) {
-    if (!Array.isArray(parts))
-        return '';
-    return parts
-        .filter((p) => p?.type === 'reasoning' && typeof p.text === 'string')
-        .map((p) => p.text)
-        .join('\n\n')
-        .trim();
+    return extractPartsByType(parts, 'reasoning', '\n\n');
+}
+/** Max length of per-part text preview in debug log (to avoid huge log lines). */
+const OPENCODE_PART_PREVIEW_LEN = 80;
+/**
+ * Build a short summary of OpenCode message parts for debug logs (types, text lengths, and short preview).
+ */
+function summarizePartsForLog(parts, context) {
+    if (!Array.isArray(parts) || parts.length === 0) {
+        return `${context}: 0 parts`;
+    }
+    const items = parts.map((p, i) => {
+        const type = p?.type ?? '(missing type)';
+        const text = typeof p?.text === 'string' ? p.text : '';
+        const len = text.length;
+        const preview = len > OPENCODE_PART_PREVIEW_LEN
+            ? `${text.slice(0, OPENCODE_PART_PREVIEW_LEN).replace(/\n/g, ' ')}...`
+            : text.replace(/\n/g, ' ');
+        return `[${i}] type=${type} length=${len}${preview ? ` preview=${JSON.stringify(preview)}` : ''}`;
+    });
+    return `${context}: ${parts.length} part(s) — ${items.join(' | ')}`;
 }
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 exports.OPENCODE_AGENT_PLAN = 'plan';
@@ -48892,57 +49095,48 @@ exports.TRANSLATION_RESPONSE_SCHEMA = {
     required: ['translatedText'],
     additionalProperties: false,
 };
-/**
- * OpenCode HTTP API: create session and send message, return assistant parts.
- * Uses fetch to avoid ESM-only SDK with ncc.
- */
-async function opencodePrompt(baseUrl, providerID, modelID, promptText) {
-    const base = ensureNoTrailingSlash(baseUrl);
-    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-    const createRes = await fetch(`${base}/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'gbf' }),
-        signal,
-    });
-    if (!createRes.ok) {
-        const err = await createRes.text();
-        throw new Error(`OpenCode session create failed: ${createRes.status} ${err}`);
-    }
-    const session = await parseJsonResponse(createRes, 'OpenCode session.create');
-    const sessionId = session?.id ?? session?.data?.id;
-    if (!sessionId) {
-        throw new Error('OpenCode session.create did not return session id');
-    }
-    const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: { providerID, modelID },
-            parts: [{ type: 'text', text: promptText }],
-        }),
-        signal,
-    });
-    if (!messageRes.ok) {
-        const err = await messageRes.text();
-        throw new Error(`OpenCode message failed: ${messageRes.status} ${err}`);
-    }
-    const messageData = await parseJsonResponse(messageRes, 'OpenCode message');
-    const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-    return extractTextFromParts(parts);
-}
+/** JSON schema for Think (Q&A) responses: single answer field. */
+exports.THINK_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        answer: {
+            type: 'string',
+            description: 'The concise answer to the user question. Required.',
+        },
+    },
+    required: ['answer'],
+    additionalProperties: false,
+};
+/** JSON schema for language check: done (already in locale) or must_translate. */
+exports.LANGUAGE_CHECK_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        status: {
+            type: 'string',
+            enum: ['done', 'must_translate'],
+            description: 'done if text is in the requested locale, must_translate otherwise.',
+        },
+    },
+    required: ['status'],
+    additionalProperties: false,
+};
 /**
  * Send a message to an OpenCode agent (e.g. "plan", "build") and wait for the full response.
- * The server runs the agent loop (tools, etc.) and returns when done.
- * Use this to delegate PR description, progress, error detection, recommendations, or copilot (build) to OpenCode.
+ * Raw call: no retries. Callers (askAgent, copilotMessage) wrap in withOpenCodeRetry.
  */
-async function opencodeMessageWithAgent(baseUrl, options) {
+async function opencodeMessageWithAgentRaw(baseUrl, options) {
+    (0, logger_1.logInfo)(`OpenCode request [agent ${options.agent}] model=${options.providerID}/${options.modelID} promptLength=${options.promptText.length}`);
+    (0, logger_1.logInfo)(`OpenCode sending prompt (preview): ${truncate(options.promptText, OPENCODE_PROMPT_LOG_PREVIEW_LEN)}`);
+    (0, logger_1.logDebugInfo)(`OpenCode prompt (full): ${truncate(options.promptText, OPENCODE_PROMPT_LOG_FULL_LEN)}`);
+    (0, logger_1.logDebugInfo)(`OpenCode message body: agent=${options.agent}, model=${options.providerID}/${options.modelID}, parts[0].text length=${options.promptText.length}`);
     const base = ensureNoTrailingSlash(baseUrl);
     const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
+    const sessionBody = { title: 'gbf' };
+    (0, logger_1.logDebugInfo)(`OpenCode session create body: ${JSON.stringify(sessionBody)}`);
     const createRes = await fetch(`${base}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'gbf' }),
+        body: JSON.stringify(sessionBody),
         signal,
     });
     if (!createRes.ok) {
@@ -48959,6 +49153,9 @@ async function opencodeMessageWithAgent(baseUrl, options) {
         model: { providerID: options.providerID, modelID: options.modelID },
         parts: [{ type: 'text', text: options.promptText }],
     };
+    (0, logger_1.logDebugInfo)(`OpenCode POST /session/${sessionId}/message body (keys): agent, model, parts (${body.parts.length} part(s))`);
+    const timeoutMin = Math.round(constants_1.OPENCODE_REQUEST_TIMEOUT_MS / 60000);
+    (0, logger_1.logInfo)(`OpenCode: waiting for agent "${options.agent}" message response (client timeout: ${timeoutMin} min)...`);
     const messageRes = await fetch(`${base}/session/${sessionId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48971,139 +49168,117 @@ async function opencodeMessageWithAgent(baseUrl, options) {
     }
     const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
-    const text = extractTextFromParts(parts);
-    return { text, parts, sessionId };
+    const partsArray = Array.isArray(parts) ? parts : [];
+    (0, logger_1.logDebugInfo)(summarizePartsForLog(partsArray, `OpenCode agent "${options.agent}" message parts`));
+    const text = extractTextFromParts(partsArray);
+    (0, logger_1.logInfo)(`OpenCode response [agent ${options.agent}] responseLength=${text.length} sessionId=${sessionId}`);
+    return { text, parts: partsArray, sessionId };
 }
 /**
  * Get the diff for an OpenCode session (files changed by the agent).
  * Call after opencodeMessageWithAgent when using the "build" agent so the user can see what was edited.
+ * Wrapped with retries (OPENCODE_MAX_RETRIES).
  */
 async function getSessionDiff(baseUrl, sessionId) {
-    const base = ensureNoTrailingSlash(baseUrl);
-    const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
-    const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET', signal });
-    if (!res.ok)
-        return [];
-    const raw = await res.text();
-    if (!raw?.trim())
-        return [];
-    let data;
-    try {
-        data = JSON.parse(raw);
-    }
-    catch {
-        return [];
-    }
-    if (Array.isArray(data))
-        return data;
-    if (Array.isArray(data.data))
-        return data.data;
-    return [];
+    return withOpenCodeRetry(async () => {
+        (0, logger_1.logInfo)(`OpenCode request [session diff] sessionId=${sessionId}`);
+        const base = ensureNoTrailingSlash(baseUrl);
+        const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
+        const res = await fetch(`${base}/session/${sessionId}/diff`, { method: 'GET', signal });
+        if (!res.ok) {
+            (0, logger_1.logInfo)(`OpenCode response [session diff] fileCount=0 (status ${res.status})`);
+            return [];
+        }
+        const raw = await res.text();
+        if (!raw?.trim()) {
+            (0, logger_1.logInfo)('OpenCode response [session diff] fileCount=0 (empty body)');
+            return [];
+        }
+        let data;
+        try {
+            data = JSON.parse(raw);
+        }
+        catch {
+            (0, logger_1.logInfo)('OpenCode response [session diff] fileCount=0 (invalid JSON)');
+            return [];
+        }
+        const list = Array.isArray(data)
+            ? data
+            : Array.isArray(data.data)
+                ? data.data
+                : [];
+        (0, logger_1.logInfo)(`OpenCode response [session diff] fileCount=${list.length}`);
+        return list;
+    }, 'session diff');
 }
 class AiRepository {
     constructor() {
-        this.ask = async (ai, prompt) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
-                return undefined;
-            }
-            try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
-                const text = await opencodePrompt(serverUrl, providerID, modelID, prompt);
-                return text || undefined;
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error querying OpenCode (${model}): ${error}`);
-                return undefined;
-            }
-        };
         /**
-         * Ask an OpenCode agent (e.g. Plan) to perform a task. The server runs the full agent loop.
-         * Returns the final message (including reasoning in parts when includeReasoning is true).
-         * @param ai - AI config (server URL, model)
-         * @param agentId - OpenCode agent id (e.g. OPENCODE_AGENT_PLAN)
-         * @param prompt - User prompt
-         * @param options - expectJson, schema, includeReasoning
-         * @returns Response text, or parsed JSON when expectJson is true
+         * Ask an OpenCode agent (e.g. Plan) to perform a task. All calls use strict response (expectJson + schema).
+         * Single retry system: HTTP failures and parse failures both retry up to OPENCODE_MAX_RETRIES.
          */
         this.askAgent = async (ai, agentId, prompt, options = {}) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+            const config = getValidatedOpenCodeConfig(ai);
+            if (!config)
                 return undefined;
-            }
+            const { serverUrl, providerID, modelID, model } = config;
+            const schemaName = options.schemaName ?? 'response';
+            const promptText = options.expectJson && options.schema
+                ? `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`
+                : prompt;
             try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
-                let promptText = prompt;
-                if (options.expectJson && options.schema) {
-                    const schemaName = options.schemaName ?? 'response';
-                    promptText = `Respond with a single JSON object that strictly conforms to this schema (name: ${schemaName}). No other text or markdown.\n\nSchema: ${JSON.stringify(options.schema)}\n\nUser request:\n${prompt}`;
-                }
-                const { text, parts } = await opencodeMessageWithAgent(serverUrl, {
-                    providerID,
-                    modelID,
-                    agent: agentId,
-                    promptText,
-                });
-                if (!text)
-                    return undefined;
-                const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
-                if (options.expectJson) {
-                    const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-                    const parsed = JSON.parse(cleaned);
-                    if (options.includeReasoning && reasoning) {
-                        return { ...parsed, reasoning };
+                return await withOpenCodeRetry(async () => {
+                    const { text, parts } = await opencodeMessageWithAgentRaw(serverUrl, {
+                        providerID,
+                        modelID,
+                        agent: agentId,
+                        promptText,
+                    });
+                    if (!text)
+                        throw new Error('Empty response text');
+                    const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
+                    if (options.expectJson && options.schema) {
+                        const maxLogLen = 5000000;
+                        const toLog = text.length > maxLogLen ? `${text.slice(0, maxLogLen)}\n... [truncated, total ${text.length} chars]` : text;
+                        (0, logger_1.logInfo)(`OpenCode agent response (full text, expectJson=true) length=${text.length}:\n${toLog}`);
+                        const parsed = parseJsonFromAgentText(text);
+                        if (options.includeReasoning && reasoning) {
+                            return { ...parsed, reasoning };
+                        }
+                        return parsed;
                     }
-                    return parsed;
-                }
-                return text;
+                    return text;
+                }, `agent ${agentId}`);
             }
             catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                const errWithCause = err;
-                const cause = errWithCause.cause instanceof Error
-                    ? errWithCause.cause.message
-                    : errWithCause.cause != null
-                        ? String(errWithCause.cause)
-                        : '';
-                const detail = cause ? ` (${cause})` : '';
+                const cause = err instanceof Error && err.cause;
+                const detail = cause != null ? ` (${cause instanceof Error ? cause.message : String(cause)})` : '';
                 (0, logger_1.logError)(`Error querying OpenCode agent ${agentId} (${model}): ${err.message}${detail}`);
                 return undefined;
             }
         };
         /**
          * Run the OpenCode "build" agent for the copilot command. Returns the final message and sessionId.
+         * Uses the same retry system (OPENCODE_MAX_RETRIES).
          */
         this.copilotMessage = async (ai, prompt) => {
-            const serverUrl = ai.getOpencodeServerUrl();
-            const model = ai.getOpencodeModel();
-            if (!serverUrl || !model) {
-                (0, logger_1.logError)('Missing required AI configuration: opencode-server-url and opencode-model');
+            const config = getValidatedOpenCodeConfig(ai);
+            if (!config)
                 return undefined;
-            }
+            const { serverUrl, providerID, modelID, model } = config;
             try {
-                const { providerID, modelID } = ai.getOpencodeModelParts();
-                const result = await opencodeMessageWithAgent(serverUrl, {
+                const result = await withOpenCodeRetry(() => opencodeMessageWithAgentRaw(serverUrl, {
                     providerID,
                     modelID,
                     agent: exports.OPENCODE_AGENT_BUILD,
                     promptText: prompt,
-                });
+                }), `agent ${exports.OPENCODE_AGENT_BUILD}`);
                 return { text: result.text, sessionId: result.sessionId };
             }
             catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                const errWithCause = err;
-                const cause = errWithCause.cause instanceof Error
-                    ? errWithCause.cause.message
-                    : errWithCause.cause != null
-                        ? String(errWithCause.cause)
-                        : '';
-                const detail = cause ? ` (${cause})` : '';
-                (0, logger_1.logError)(`Error querying OpenCode build agent (${model}): ${err.message}${detail}`);
+                (0, logger_1.logError)(`Error querying OpenCode build agent (${model}): ${err.message}`);
                 return undefined;
             }
         };
@@ -49330,7 +49505,7 @@ class BranchRepository {
                 else {
                     baseBranchName = hotfixBranch ?? developmentBranch;
                 }
-                if (!isRenamingBranch) {
+                if (!isRenamingBranch || param.currentConfiguration.parentBranch === undefined) {
                     param.currentConfiguration.parentBranch = baseBranchName;
                 }
                 (0, logger_1.logDebugInfo)(`============================================================================================`);
@@ -50220,6 +50395,30 @@ class IssueRepository {
                 body: comment,
             });
             (0, logger_1.logDebugInfo)(`Comment ${commentId} updated in Issue ${issueNumber}.`);
+        };
+        /**
+         * Lists all comments on an issue (for bugbot: find existing findings by marker).
+         * Uses pagination to fetch every comment (default API returns only 30 per page).
+         */
+        this.listIssueComments = async (owner, repository, issueNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const all = [];
+            for await (const response of octokit.paginate.iterator(octokit.rest.issues.listComments, {
+                owner,
+                repo: repository,
+                issue_number: issueNumber,
+                per_page: 100,
+            })) {
+                const data = response.data || [];
+                for (const c of data) {
+                    all.push({
+                        id: c.id,
+                        body: c.body ?? null,
+                        user: c.user,
+                    });
+                }
+            }
+            return all;
         };
         this.closeIssue = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
@@ -51400,15 +51599,35 @@ class PullRequestRepository {
             });
             (0, logger_1.logDebugInfo)(`Updated PR #${pullRequestNumber} description with: ${description}`);
         };
+        /**
+         * Returns all users involved in review: requested (pending) + those who already submitted a review.
+         * Used to avoid re-requesting someone who already reviewed when ensuring desired reviewer count.
+         */
         this.getCurrentReviewers = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
             try {
-                const { data } = await octokit.rest.pulls.listRequestedReviewers({
-                    owner,
-                    repo: repository,
-                    pull_number: pullNumber,
-                });
-                return data.users.map((user) => user.login);
+                const [requestedRes, reviewsRes] = await Promise.all([
+                    octokit.rest.pulls.listRequestedReviewers({
+                        owner,
+                        repo: repository,
+                        pull_number: pullNumber,
+                    }),
+                    octokit.rest.pulls.listReviews({
+                        owner,
+                        repo: repository,
+                        pull_number: pullNumber,
+                    }),
+                ]);
+                const logins = new Set();
+                for (const user of requestedRes.data.users) {
+                    logins.add(user.login);
+                }
+                for (const review of reviewsRes.data) {
+                    if (review.user?.login) {
+                        logins.add(review.user.login);
+                    }
+                }
+                return Array.from(logins);
             }
             catch (error) {
                 (0, logger_1.logError)(`Error getting reviewers of PR: ${error}.`);
@@ -51454,6 +51673,30 @@ class PullRequestRepository {
                 return [];
             }
         };
+        /**
+         * Returns for each changed file the first line number that appears in the diff (right side).
+         * Used so review comments use a line that GitHub can resolve (avoids "line could not be resolved").
+         */
+        this.getFilesWithFirstDiffLine = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.listFiles({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                });
+                return (data || [])
+                    .filter((f) => f.status !== 'removed' && (f.patch ?? '').length > 0)
+                    .map((f) => {
+                    const firstLine = PullRequestRepository.firstLineFromPatch(f.patch ?? '');
+                    return { path: f.filename, firstLine: firstLine ?? 1 };
+                });
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting files with diff lines (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
+                return [];
+            }
+        };
         this.getPullRequestChanges = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
             const allFiles = [];
@@ -51480,6 +51723,178 @@ class PullRequestRepository {
                 return [];
             }
         };
+        /** Head commit SHA of the PR (for creating review). */
+        this.getPullRequestHeadSha = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                const { data } = await octokit.rest.pulls.get({
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                });
+                return data.head?.sha;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting PR head SHA: ${error}.`);
+                return undefined;
+            }
+        };
+        /**
+         * List all review comments on a PR (for bugbot: find existing findings by marker).
+         * Uses pagination to fetch every comment (default API returns only 30 per page).
+         * Includes node_id for GraphQL (e.g. resolve review thread).
+         */
+        this.listPullRequestReviewComments = async (owner, repository, pullNumber, token) => {
+            const octokit = github.getOctokit(token);
+            const all = [];
+            try {
+                for await (const response of octokit.paginate.iterator(octokit.rest.pulls.listReviewComments, {
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                    per_page: 100,
+                })) {
+                    const data = response.data || [];
+                    all.push(...data.map((c) => ({
+                        id: c.id,
+                        body: c.body ?? null,
+                        path: c.path,
+                        line: c.line ?? undefined,
+                        node_id: c.node_id ?? undefined,
+                    })));
+                }
+                return all;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error listing PR review comments (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
+                return [];
+            }
+        };
+        /**
+         * Resolve a PR review thread (GraphQL only). Finds the thread that contains the given comment and marks it resolved.
+         * Uses repository.pullRequest.reviewThreads because the field pullRequestReviewThread on PullRequestReviewComment was removed from the API.
+         * Paginates through all threads and all comments in each thread so the comment is found regardless of PR size.
+         * No-op if thread is already resolved. Logs and does not throw on error.
+         */
+        this.resolvePullRequestReviewThread = async (owner, repository, pullNumber, commentNodeId, token) => {
+            const octokit = github.getOctokit(token);
+            try {
+                let threadId = null;
+                let threadsCursor = null;
+                outer: do {
+                    const threadsData = await octokit.graphql(`query ($owner: String!, $repo: String!, $prNumber: Int!, $threadsAfter: String) {
+                        repository(owner: $owner, name: $repo) {
+                            pullRequest(number: $prNumber) {
+                                reviewThreads(first: 100, after: $threadsAfter) {
+                                    nodes {
+                                        id
+                                        comments(first: 100) {
+                                            nodes { id }
+                                            pageInfo { hasNextPage endCursor }
+                                        }
+                                    }
+                                    pageInfo { hasNextPage endCursor }
+                                }
+                            }
+                        }
+                    }`, { owner, repo: repository, prNumber: pullNumber, threadsAfter: threadsCursor });
+                    const threads = threadsData?.repository?.pullRequest?.reviewThreads;
+                    if (!threads?.nodes?.length)
+                        break;
+                    for (const thread of threads.nodes) {
+                        let commentsCursor = null;
+                        let commentNodes = thread.comments?.nodes ?? [];
+                        let commentsPageInfo = thread.comments?.pageInfo;
+                        do {
+                            if (commentNodes.some((c) => c.id === commentNodeId)) {
+                                threadId = thread.id;
+                                break outer;
+                            }
+                            if (!commentsPageInfo?.hasNextPage || commentsPageInfo.endCursor == null)
+                                break;
+                            commentsCursor = commentsPageInfo.endCursor;
+                            const nextComments = await octokit.graphql(`query ($threadId: ID!, $commentsAfter: String) {
+                                node(id: $threadId) {
+                                    ... on PullRequestReviewThread {
+                                        comments(first: 100, after: $commentsAfter) {
+                                            nodes { id }
+                                            pageInfo { hasNextPage endCursor }
+                                        }
+                                    }
+                                }
+                            }`, { threadId: thread.id, commentsAfter: commentsCursor });
+                            commentNodes = nextComments?.node?.comments?.nodes ?? [];
+                            commentsPageInfo = nextComments?.node?.comments?.pageInfo ?? { hasNextPage: false, endCursor: null };
+                        } while (commentsPageInfo?.hasNextPage === true && commentsPageInfo?.endCursor != null);
+                    }
+                    const pageInfo = threads.pageInfo;
+                    if (threadId != null || !pageInfo?.hasNextPage)
+                        break;
+                    threadsCursor = pageInfo.endCursor ?? null;
+                } while (threadsCursor != null);
+                if (!threadId) {
+                    (0, logger_1.logError)(`[Bugbot] No review thread found for comment node_id=${commentNodeId}.`);
+                    return;
+                }
+                await octokit.graphql(`mutation ($threadId: ID!) {
+                    resolveReviewThread(input: { threadId: $threadId }) {
+                        thread { id }
+                    }
+                }`, { threadId });
+                (0, logger_1.logDebugInfo)(`Resolved PR review thread ${threadId}.`);
+            }
+            catch (err) {
+                (0, logger_1.logError)(`[Bugbot] Error resolving PR review thread (commentNodeId=${commentNodeId}, owner=${owner}, repo=${repository}): ${err}`);
+            }
+        };
+        /**
+         * Create a review on the PR with one or more inline comments (bugbot findings).
+         * Each comment requires path and line (use first file and line 1 if not specified).
+         */
+        this.createReviewWithComments = async (owner, repository, pullNumber, commitId, comments, token) => {
+            if (comments.length === 0)
+                return;
+            const octokit = github.getOctokit(token);
+            const results = await Promise.allSettled(comments.map((c) => octokit.rest.pulls.createReviewComment({
+                owner,
+                repo: repository,
+                pull_number: pullNumber,
+                commit_id: commitId,
+                path: c.path,
+                line: c.line,
+                side: 'RIGHT',
+                body: c.body,
+            })));
+            let created = 0;
+            results.forEach((result, i) => {
+                if (result.status === 'fulfilled') {
+                    created += 1;
+                }
+                else {
+                    const c = comments[i];
+                    (0, logger_1.logError)(`[Bugbot] Error creating PR review comment. path="${c.path}", line=${c.line}, prNumber=${pullNumber}, owner=${owner}, repo=${repository}: ${result.reason}`);
+                }
+            });
+            if (created > 0) {
+                (0, logger_1.logDebugInfo)(`Created ${created} review comment(s) on PR #${pullNumber}.`);
+            }
+        };
+        /** Update an existing PR review comment (e.g. to mark finding as resolved in body). */
+        this.updatePullRequestReviewComment = async (owner, repository, commentId, body, token) => {
+            const octokit = github.getOctokit(token);
+            await octokit.rest.pulls.updateReviewComment({
+                owner,
+                repo: repository,
+                comment_id: commentId,
+                body,
+            });
+            (0, logger_1.logDebugInfo)(`Updated review comment ${commentId}.`);
+        };
+    }
+    /** First line (right side) of the first hunk per file, for valid review comment placement. */
+    static firstLineFromPatch(patch) {
+        const match = patch.match(/^@@ -\d+,\d+ \+(\d+),\d+ @@/m);
+        return match ? parseInt(match[1], 10) : undefined;
     }
 }
 exports.PullRequestRepository = PullRequestRepository;
@@ -51752,12 +52167,46 @@ exports.ConfigurationHandler = void 0;
 const config_1 = __nccwpck_require__(1106);
 const logger_1 = __nccwpck_require__(8836);
 const issue_content_interface_1 = __nccwpck_require__(9913);
+/** Keys that must be preserved from stored config when current has undefined (e.g. when branch already existed). */
+const CONFIG_KEYS_TO_PRESERVE = [
+    'parentBranch',
+    'workingBranch',
+    'releaseBranch',
+    'hotfixBranch',
+    'hotfixOriginBranch',
+    'branchType',
+];
 class ConfigurationHandler extends issue_content_interface_1.IssueContentInterface {
     constructor() {
         super(...arguments);
         this.update = async (execution) => {
             try {
-                return await this.internalUpdate(execution, JSON.stringify(execution.currentConfiguration, null, 4));
+                const current = execution.currentConfiguration;
+                const payload = {
+                    branchType: current.branchType,
+                    releaseBranch: current.releaseBranch,
+                    workingBranch: current.workingBranch,
+                    parentBranch: current.parentBranch,
+                    hotfixOriginBranch: current.hotfixOriginBranch,
+                    hotfixBranch: current.hotfixBranch,
+                    results: current.results,
+                    branchConfiguration: current.branchConfiguration,
+                };
+                const storedRaw = await this.internalGetter(execution);
+                if (storedRaw != null && storedRaw.trim().length > 0) {
+                    try {
+                        const stored = JSON.parse(storedRaw);
+                        for (const key of CONFIG_KEYS_TO_PRESERVE) {
+                            if (payload[key] === undefined && stored[key] !== undefined) {
+                                payload[key] = stored[key];
+                            }
+                        }
+                    }
+                    catch {
+                        /* ignore parse errors, save current as-is */
+                    }
+                }
+                return await this.internalUpdate(execution, JSON.stringify(payload, null, 4));
             }
             catch (error) {
                 (0, logger_1.logError)(`Error updating issue description: ${error}`);
@@ -51814,7 +52263,6 @@ const PROGRESS_RESPONSE_SCHEMA = {
     required: ['progress', 'summary'],
     additionalProperties: false,
 };
-const MAX_PROGRESS_ATTEMPTS = 3;
 class CheckProgressUseCase {
     constructor() {
         this.taskId = 'CheckProgressUseCase';
@@ -51910,28 +52358,18 @@ class CheckProgressUseCase {
             const developmentBranch = param.branches.development || 'develop';
             (0, logger_1.logInfo)(`📦 Progress will be assessed from workspace diff: base branch "${developmentBranch}", current branch "${branch}" (OpenCode agent will run git diff).`);
             const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
-            let progress = 0;
-            let summary = 'Unable to determine progress.';
-            let reasoning = '';
-            let remaining = '';
-            for (let attempt = 1; attempt <= MAX_PROGRESS_ATTEMPTS; attempt++) {
-                (0, logger_1.logInfo)(`🤖 Analyzing progress using OpenCode Plan agent... (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS})`);
-                const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
-                progress = attemptResult.progress;
-                summary = attemptResult.summary;
-                reasoning = attemptResult.reasoning;
-                remaining = attemptResult.remaining;
-                if (progress > 0) {
-                    (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
-                    break;
-                }
-                if (attempt < MAX_PROGRESS_ATTEMPTS) {
-                    (0, logger_1.logInfo)(`⚠️ Progress returned 0% (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS}), retrying...`);
-                }
+            (0, logger_1.logInfo)('🤖 Analyzing progress using OpenCode Plan agent...');
+            const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
+            const progress = attemptResult.progress;
+            const summary = attemptResult.summary;
+            const reasoning = attemptResult.reasoning;
+            const remaining = attemptResult.remaining;
+            if (progress > 0) {
+                (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
             }
-            const progressFailedAfterRetries = progress === 0;
-            if (progressFailedAfterRetries) {
-                (0, logger_1.logError)(`Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error.`);
+            const progressFailed = progress === 0;
+            if (progressFailed) {
+                (0, logger_1.logError)('Progress detection returned 0%. This may be due to a model error or no changes detected.');
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -51941,7 +52379,7 @@ class CheckProgressUseCase {
                         summary,
                     ],
                     errors: [
-                        `Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error. There are changes on the branch; consider re-running the check.`,
+                        'Progress detection returned 0%. This may be due to a model error or no changes detected. Consider re-running the check.',
                     ],
                     payload: {
                         progress: 0,
@@ -52012,7 +52450,7 @@ class CheckProgressUseCase {
     }
     /**
      * Calls the OpenCode agent once and returns parsed progress, summary, and reasoning.
-     * Used inside the retry loop when progress is 0%.
+     * HTTP-level retries are handled by AiRepository (OPENCODE_MAX_RETRIES).
      */
     async fetchProgressAttempt(ai, prompt) {
         const agentResponse = await this.aiRepository.askAgent(ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
@@ -52311,17 +52749,63 @@ class DeployedActionUseCase {
                     `Label \`${param.labels.deployed}\` added after a success deploy.`,
                 ],
             }));
+            const mergeResults = [];
             if (param.currentConfiguration.releaseBranch) {
                 const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDefaultResult);
+                mergeResults.push(...mergeToDefaultResult);
                 const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDevelopResult);
+                mergeResults.push(...mergeToDevelopResult);
             }
             else if (param.currentConfiguration.hotfixBranch) {
                 const mergeToDefaultResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.currentConfiguration.hotfixBranch, param.branches.defaultBranch, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDefaultResult);
+                mergeResults.push(...mergeToDefaultResult);
                 const mergeToDevelopResult = await this.branchRepository.mergeBranch(param.owner, param.repo, param.branches.defaultBranch, param.branches.development, param.pullRequest.mergeTimeout, param.tokens.token);
                 result.push(...mergeToDevelopResult);
+                mergeResults.push(...mergeToDevelopResult);
+            }
+            const mergesAttempted = mergeResults.length > 0;
+            const allMergesSucceeded = mergesAttempted && mergeResults.every((r) => r.success);
+            if (allMergesSucceeded) {
+                const issueNumber = Number(param.singleAction.issue);
+                const closed = await this.issueRepository.closeIssue(param.owner, param.repo, issueNumber, param.tokens.token);
+                if (closed) {
+                    (0, logger_1.logDebugInfo)(`Issue #${issueNumber} closed after merges to default and develop.`);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `Issue #${issueNumber} closed after merge to \`${param.branches.defaultBranch}\` and \`${param.branches.development}\`.`,
+                        ],
+                    }));
+                }
+            }
+            else {
+                if (mergesAttempted) {
+                    (0, logger_1.logDebugInfo)(`Skipping issue close: one or more merges failed. Issue #${param.singleAction.issue} remains open.`);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Issue #${param.singleAction.issue} was not closed because one or more merge operations failed.`,
+                        ],
+                    }));
+                }
+                else {
+                    (0, logger_1.logDebugInfo)(`Skipping issue close: no release or hotfix branch configured. Issue #${param.singleAction.issue} remains open.`);
+                    result.push(new result_1.Result({
+                        id: this.taskId,
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Issue #${param.singleAction.issue} was not closed because no release or hotfix branch was configured (no merge operations were performed).`,
+                        ],
+                    }));
+                }
             }
             return result;
         }
@@ -52339,116 +52823,6 @@ class DeployedActionUseCase {
     }
 }
 exports.DeployedActionUseCase = DeployedActionUseCase;
-
-
-/***/ }),
-
-/***/ 938:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DetectErrorsUseCase = void 0;
-const result_1 = __nccwpck_require__(7305);
-const logger_1 = __nccwpck_require__(8836);
-const issue_repository_1 = __nccwpck_require__(57);
-const branch_repository_1 = __nccwpck_require__(7701);
-const ai_repository_1 = __nccwpck_require__(8307);
-class DetectErrorsUseCase {
-    constructor() {
-        this.taskId = 'DetectErrorsUseCase';
-        this.issueRepository = new issue_repository_1.IssueRepository();
-        this.branchRepository = new branch_repository_1.BranchRepository();
-        this.aiRepository = new ai_repository_1.AiRepository();
-    }
-    async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
-        const results = [];
-        try {
-            if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: ['Missing OPENCODE_SERVER_URL and OPENCODE_MODEL.'],
-                }));
-                return results;
-            }
-            const issueNumber = param.issueNumber;
-            if (issueNumber === -1) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: ['Issue number not found.'],
-                }));
-                return results;
-            }
-            let branch = param.commit.branch;
-            if (!branch) {
-                const branchTypes = [
-                    param.branches.featureTree,
-                    param.branches.bugfixTree,
-                    param.branches.docsTree,
-                    param.branches.choreTree,
-                ];
-                const branches = await this.branchRepository.getListOfBranches(param.owner, param.repo, param.tokens.token);
-                for (const type of branchTypes) {
-                    const prefix = `${type}/${issueNumber}-`;
-                    const found = branches.find((b) => b.indexOf(prefix) > -1);
-                    if (found) {
-                        branch = found;
-                        break;
-                    }
-                }
-            }
-            const developmentBranch = param.branches.development || 'develop';
-            if (!branch) {
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: false,
-                    executed: true,
-                    errors: [`No branch found for issue #${issueNumber}.`],
-                }));
-                return results;
-            }
-            const changes = await this.branchRepository.getChanges(param.owner, param.repo, branch, developmentBranch, param.tokens.token);
-            const prompt = `Review the code changes in branch "${branch}" compared to "${developmentBranch}" and identify potential errors, bugs, or issues.
-
-**Changed files and patches:**
-${changes.files
-                .slice(0, 30)
-                .map((f) => `### ${f.filename} (${f.status})\n\`\`\`diff\n${(f.patch ?? '').slice(0, 1500)}\n\`\`\``)
-                .join('\n\n')}
-
-List potential errors, bugs, or code quality issues. For each: file (if relevant), brief description, and severity if obvious. Use clear bullet points or numbered list.`;
-            (0, logger_1.logInfo)(`🤖 Detecting errors using OpenCode Plan agent...`);
-            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
-            const report = typeof response === 'string'
-                ? response
-                : (response && String(response.report)) || 'No response.';
-            results.push(new result_1.Result({
-                id: this.taskId,
-                success: true,
-                executed: true,
-                steps: ['Error detection completed (OpenCode Plan agent).', report],
-                payload: { issueNumber, branch, developmentBranch, report },
-            }));
-        }
-        catch (error) {
-            (0, logger_1.logError)(`Error in ${this.taskId}: ${error}`);
-            results.push(new result_1.Result({
-                id: this.taskId,
-                success: false,
-                executed: true,
-                errors: [`Error in ${this.taskId}: ${error}`],
-            }));
-        }
-        return results;
-    }
-}
-exports.DetectErrorsUseCase = DetectErrorsUseCase;
 
 
 /***/ }),
@@ -52774,6 +53148,7 @@ const logger_1 = __nccwpck_require__(8836);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(8020);
 const check_changes_issue_size_use_case_1 = __nccwpck_require__(5863);
+const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class CommitUseCase {
     constructor() {
         this.taskId = 'CommitUseCase';
@@ -52792,6 +53167,7 @@ class CommitUseCase {
             results.push(...(await new notify_new_commit_on_issue_use_case_1.NotifyNewCommitOnIssueUseCase().invoke(param)));
             results.push(...(await new check_changes_issue_size_use_case_1.CheckChangesIssueSizeUseCase().invoke(param)));
             results.push(...(await new check_progress_use_case_1.CheckProgressUseCase().invoke(param)));
+            results.push(...(await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param)));
         }
         catch (error) {
             (0, logger_1.logError)(error);
@@ -53071,8 +53447,8 @@ const create_tag_use_case_1 = __nccwpck_require__(5279);
 const think_use_case_1 = __nccwpck_require__(3841);
 const initial_setup_use_case_1 = __nccwpck_require__(3943);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
-const detect_errors_use_case_1 = __nccwpck_require__(938);
 const recommend_steps_use_case_1 = __nccwpck_require__(3538);
+const detect_potential_problems_use_case_1 = __nccwpck_require__(7395);
 class SingleActionUseCase {
     constructor() {
         this.taskId = 'SingleActionUseCase';
@@ -53106,8 +53482,8 @@ class SingleActionUseCase {
             else if (param.singleAction.isCheckProgressAction) {
                 results.push(...await new check_progress_use_case_1.CheckProgressUseCase().invoke(param));
             }
-            else if (param.singleAction.isDetectErrorsAction) {
-                results.push(...await new detect_errors_use_case_1.DetectErrorsUseCase().invoke(param));
+            else if (param.singleAction.isDetectPotentialProblemsAction) {
+                results.push(...await new detect_potential_problems_use_case_1.DetectPotentialProblemsUseCase().invoke(param));
             }
             else if (param.singleAction.isRecommendStepsAction) {
                 results.push(...await new recommend_steps_use_case_1.RecommendStepsUseCase().invoke(param));
@@ -53129,6 +53505,625 @@ class SingleActionUseCase {
     }
 }
 exports.SingleActionUseCase = SingleActionUseCase;
+
+
+/***/ }),
+
+/***/ 6339:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.buildBugbotPrompt = buildBugbotPrompt;
+function buildBugbotPrompt(param, context) {
+    const headBranch = param.commit.branch;
+    const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
+    const previousBlock = context.previousFindingsBlock;
+    const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
+    const ignoreBlock = ignorePatterns.length > 0
+        ? `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${ignorePatterns.join(', ')}.`
+        : '';
+    return `You are analyzing the latest code changes for potential bugs and issues.
+
+**Repository context:**
+- Owner: ${param.owner}
+- Repository: ${param.repo}
+- Branch (head): ${headBranch}
+- Base branch: ${baseBranch}
+- Issue number: ${param.issueNumber}
+${ignoreBlock}
+
+**Your task 1 (new/current problems):** Determine what has changed in the branch "${headBranch}" compared to "${baseBranch}" (you must compute or obtain the diff yourself using the repository context above). Then identify potential bugs, logic errors, security issues, and code quality problems. Be strict and descriptive. One finding per distinct problem. Return them in the \`findings\` array (each with id, title, description; optionally file, line, severity, suggestion). Only include findings in files that are not in the ignore list above.
+${previousBlock}
+
+**Output:** Return a JSON object with: "findings" (array of new/current problems from task 1), and if we gave you previously reported issues above, "resolved_finding_ids" (array of those ids that are now fixed or no longer apply, as per task 2).`;
+}
+
+
+/***/ }),
+
+/***/ 7384:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.deduplicateFindings = deduplicateFindings;
+/**
+ * Deduplicates findings by (file, line). When two findings share the same file and line,
+ * keeps the first; when they have no file, groups by normalized title and keeps the first.
+ * This reduces noise when the agent returns near-duplicate issues.
+ */
+function deduplicateFindings(findings) {
+    const seen = new Set();
+    const result = [];
+    for (const f of findings) {
+        const file = f.file?.trim() ?? '';
+        const line = f.line ?? 0;
+        const key = file || line
+            ? `${file}:${line}`
+            : `title:${(f.title ?? '').toLowerCase().trim().slice(0, 80)}`;
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        result.push(f);
+    }
+    return result;
+}
+
+
+/***/ }),
+
+/***/ 3770:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.fileMatchesIgnorePatterns = fileMatchesIgnorePatterns;
+/**
+ * Returns true if the file path matches any of the ignore patterns (glob-style).
+ * Used to exclude findings in test files, build output, etc.
+ */
+function fileMatchesIgnorePatterns(filePath, ignorePatterns) {
+    if (!filePath || ignorePatterns.length === 0)
+        return false;
+    const normalized = filePath.trim();
+    if (!normalized)
+        return false;
+    return ignorePatterns.some((pattern) => {
+        const p = pattern.trim();
+        if (!p)
+            return false;
+        const regexPattern = p
+            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*/g, '.*')
+            .replace(/\//g, '\\/');
+        const regex = p.endsWith('/*')
+            ? new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, '(\\/.*)?')}$`)
+            : new RegExp(`^${regexPattern}$`);
+        return regex.test(normalized);
+    });
+}
+
+
+/***/ }),
+
+/***/ 9072:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.applyCommentLimit = applyCommentLimit;
+const constants_1 = __nccwpck_require__(8593);
+/**
+ * Applies the max-comments limit: returns the first N findings to publish individually,
+ * and overflow count + titles for a single "revisar en local" summary comment.
+ */
+function applyCommentLimit(findings, maxComments = constants_1.BUGBOT_MAX_COMMENTS) {
+    if (findings.length <= maxComments) {
+        return { toPublish: findings, overflowCount: 0, overflowTitles: [] };
+    }
+    const toPublish = findings.slice(0, maxComments);
+    const overflow = findings.slice(maxComments);
+    return {
+        toPublish,
+        overflowCount: overflow.length,
+        overflowTitles: overflow.map((f) => f.title?.trim() || f.id).filter(Boolean),
+    };
+}
+
+
+/***/ }),
+
+/***/ 6319:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.loadBugbotContext = loadBugbotContext;
+const issue_repository_1 = __nccwpck_require__(57);
+const pull_request_repository_1 = __nccwpck_require__(634);
+const marker_1 = __nccwpck_require__(2401);
+function buildPreviousFindingsBlock(previousFindings) {
+    if (previousFindings.length === 0)
+        return '';
+    const items = previousFindings
+        .map((p) => `---\n**Finding id (use this exact id in resolved_finding_ids if resolved/no longer applies):** \`${p.id.replace(/`/g, '\\`')}\`\n\n**Full comment as posted (including metadata at the end):**\n${p.fullBody}\n`)
+        .join('\n');
+    return `
+**Previously reported issues (not yet marked resolved).** For each one we show the exact comment we posted (title, description, location, suggestion, and a hidden marker with the finding id at the end).
+
+${items}
+**Your task 2:** For each finding above, analyze the current code and decide:
+- If the problem **still exists** (same code or same issue present): do **not** include its id in \`resolved_finding_ids\`.
+- If the problem **no longer applies** (e.g. that code was removed or refactored away): include its id in \`resolved_finding_ids\`.
+- If the problem **has been fixed** (code was changed and the issue is resolved): include its id in \`resolved_finding_ids\`.
+
+Return in \`resolved_finding_ids\` only the ids from the list above that are now fixed or no longer apply. Use the exact id shown in each "Finding id" line.`;
+}
+/**
+ * Loads all context needed for bugbot: existing findings from issue + PR comments,
+ * open PR numbers, and the prompt block for previously reported issues.
+ * Also loads PR context (head sha, files, diff lines) for the first open PR.
+ */
+async function loadBugbotContext(param) {
+    const issueNumber = param.issueNumber;
+    const headBranch = param.commit.branch;
+    const token = param.tokens.token;
+    const owner = param.owner;
+    const repo = param.repo;
+    const issueRepository = new issue_repository_1.IssueRepository();
+    const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    const issueComments = await issueRepository.listIssueComments(owner, repo, issueNumber, token);
+    const existingByFindingId = {};
+    for (const c of issueComments) {
+        for (const { findingId, resolved } of (0, marker_1.parseMarker)(c.body)) {
+            if (!existingByFindingId[findingId]) {
+                existingByFindingId[findingId] = { issueCommentId: c.id, resolved };
+            }
+            else {
+                existingByFindingId[findingId].issueCommentId = c.id;
+                existingByFindingId[findingId].resolved = resolved;
+            }
+        }
+    }
+    const openPrNumbers = await pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(owner, repo, headBranch, token);
+    /** Full comment body per finding id (from PR when we don't have issue comment). */
+    const prFindingIdToBody = {};
+    for (const prNumber of openPrNumbers) {
+        const prComments = await pullRequestRepository.listPullRequestReviewComments(owner, repo, prNumber, token);
+        for (const c of prComments) {
+            const body = c.body ?? '';
+            for (const { findingId, resolved } of (0, marker_1.parseMarker)(body)) {
+                if (!existingByFindingId[findingId]) {
+                    existingByFindingId[findingId] = { resolved };
+                }
+                existingByFindingId[findingId].prCommentId = c.id;
+                existingByFindingId[findingId].prNumber = prNumber;
+                existingByFindingId[findingId].resolved = resolved;
+                prFindingIdToBody[findingId] = body;
+            }
+        }
+    }
+    /** Unresolved findings with full comment body (including hidden marker) for OpenCode to re-evaluate. */
+    const previousFindingsForPrompt = [];
+    for (const [findingId, data] of Object.entries(existingByFindingId)) {
+        if (data.resolved)
+            continue;
+        const issueBody = issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
+        const fullBody = (issueBody ?? prFindingIdToBody[findingId] ?? '').trim();
+        if (fullBody) {
+            previousFindingsForPrompt.push({ id: findingId, fullBody });
+        }
+    }
+    const previousFindingsBlock = buildPreviousFindingsBlock(previousFindingsForPrompt);
+    let prContext = null;
+    if (openPrNumbers.length > 0) {
+        const prHeadSha = await pullRequestRepository.getPullRequestHeadSha(owner, repo, openPrNumbers[0], token);
+        if (prHeadSha) {
+            const prFiles = await pullRequestRepository.getChangedFiles(owner, repo, openPrNumbers[0], token);
+            const filesWithLines = await pullRequestRepository.getFilesWithFirstDiffLine(owner, repo, openPrNumbers[0], token);
+            const pathToFirstDiffLine = {};
+            for (const { path, firstLine } of filesWithLines) {
+                pathToFirstDiffLine[path] = firstLine;
+            }
+            prContext = { prHeadSha, prFiles, pathToFirstDiffLine };
+        }
+    }
+    return {
+        existingByFindingId,
+        issueComments,
+        openPrNumbers,
+        previousFindingsBlock,
+        prContext,
+    };
+}
+
+
+/***/ }),
+
+/***/ 61:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.markFindingsResolved = markFindingsResolved;
+const issue_repository_1 = __nccwpck_require__(57);
+const pull_request_repository_1 = __nccwpck_require__(634);
+const logger_1 = __nccwpck_require__(8836);
+const marker_1 = __nccwpck_require__(2401);
+/**
+ * Marks as resolved the findings that OpenCode reported as fixed.
+ * Updates issue comments (with visible "Resolved" note) and PR review comments (marker only + resolve thread).
+ */
+async function markFindingsResolved(param) {
+    const { execution, context, resolvedFindingIds, normalizedResolvedIds } = param;
+    const { existingByFindingId, issueComments } = context;
+    const issueNumber = execution.issueNumber;
+    const token = execution.tokens.token;
+    const owner = execution.owner;
+    const repo = execution.repo;
+    const issueRepository = new issue_repository_1.IssueRepository();
+    const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    for (const [findingId, existing] of Object.entries(existingByFindingId)) {
+        const isResolvedByOpenCode = resolvedFindingIds.has(findingId) ||
+            normalizedResolvedIds.has((0, marker_1.sanitizeFindingIdForMarker)(findingId));
+        if (existing.resolved || !isResolvedByOpenCode)
+            continue;
+        const resolvedNote = '\n\n---\n**Resolved** (OpenCode confirmed fixed in latest analysis).\n';
+        const markerTrue = (0, marker_1.buildMarker)(findingId, true);
+        const replacementWithNote = resolvedNote + markerTrue;
+        if (existing.issueCommentId != null) {
+            const comment = issueComments.find((c) => c.id === existing.issueCommentId);
+            if (comment == null) {
+                (0, logger_1.logError)(`[Bugbot] No se encontró el comentario de la issue para marcar como resuelto. findingId="${findingId}", issueCommentId=${existing.issueCommentId}, issueNumber=${issueNumber}, owner=${owner}, repo=${repo}.`);
+            }
+            else {
+                const resolvedBody = comment.body ?? '';
+                const { updated, replaced } = (0, marker_1.replaceMarkerInBody)(resolvedBody, findingId, true, replacementWithNote);
+                if (replaced) {
+                    try {
+                        await issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, updated.trimEnd(), token);
+                        (0, logger_1.logDebugInfo)(`Marked finding "${findingId}" as resolved on issue #${issueNumber} (comment ${existing.issueCommentId}).`);
+                    }
+                    catch (err) {
+                        (0, logger_1.logError)(`[Bugbot] Error al actualizar comentario de la issue (marcar como resuelto). findingId="${findingId}", issueCommentId=${existing.issueCommentId}, issueNumber=${issueNumber}: ${err}`);
+                    }
+                }
+            }
+        }
+        if (existing.prCommentId != null && existing.prNumber != null) {
+            const prCommentsList = await pullRequestRepository.listPullRequestReviewComments(owner, repo, existing.prNumber, token);
+            const prComment = prCommentsList.find((c) => c.id === existing.prCommentId);
+            if (prComment == null) {
+                (0, logger_1.logError)(`[Bugbot] No se encontró el comentario de la PR para marcar como resuelto. findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}, owner=${owner}, repo=${repo}.`);
+            }
+            else {
+                const prBody = prComment.body ?? '';
+                const { updated, replaced } = (0, marker_1.replaceMarkerInBody)(prBody, findingId, true, markerTrue);
+                if (replaced) {
+                    try {
+                        await pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, updated.trimEnd(), token);
+                        (0, logger_1.logDebugInfo)(`Marked finding "${findingId}" as resolved on PR #${existing.prNumber} (review comment ${existing.prCommentId}).`);
+                        if (prComment.node_id) {
+                            await pullRequestRepository.resolvePullRequestReviewThread(owner, repo, existing.prNumber, prComment.node_id, token);
+                        }
+                    }
+                    catch (err) {
+                        (0, logger_1.logError)(`[Bugbot] Error al actualizar comentario de revisión de la PR (marcar como resuelto). findingId="${findingId}", prCommentId=${existing.prCommentId}, prNumber=${existing.prNumber}: ${err}`);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/***/ }),
+
+/***/ 2401:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.sanitizeFindingIdForMarker = sanitizeFindingIdForMarker;
+exports.buildMarker = buildMarker;
+exports.parseMarker = parseMarker;
+exports.markerRegexForFinding = markerRegexForFinding;
+exports.replaceMarkerInBody = replaceMarkerInBody;
+exports.extractTitleFromBody = extractTitleFromBody;
+exports.buildCommentBody = buildCommentBody;
+const constants_1 = __nccwpck_require__(8593);
+const logger_1 = __nccwpck_require__(8836);
+/** Sanitize finding ID so it cannot break HTML comment syntax (e.g. -->, <!, <, >, newlines, quotes). */
+function sanitizeFindingIdForMarker(findingId) {
+    return findingId
+        .replace(/-->/g, '')
+        .replace(/<!/g, '')
+        .replace(/</g, '')
+        .replace(/>/g, '')
+        .replace(/"/g, '')
+        .replace(/\r\n|\r|\n/g, '')
+        .trim();
+}
+function buildMarker(findingId, resolved) {
+    const safeId = sanitizeFindingIdForMarker(findingId);
+    return `<!-- ${constants_1.BUGBOT_MARKER_PREFIX} finding_id:"${safeId}" resolved:${resolved} -->`;
+}
+function parseMarker(body) {
+    if (!body)
+        return [];
+    const results = [];
+    const regex = new RegExp(`<!--\\s*${constants_1.BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"([^"]+)"\\s+resolved:(true|false)\\s*-->`, 'g');
+    let m;
+    while ((m = regex.exec(body)) !== null) {
+        results.push({ findingId: m[1], resolved: m[2] === 'true' });
+    }
+    return results;
+}
+/** Regex to match the marker for a specific finding (same flexible format as parseMarker). */
+function markerRegexForFinding(findingId) {
+    const safeId = sanitizeFindingIdForMarker(findingId);
+    const escapedId = safeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`<!--\\s*${constants_1.BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"${escapedId}"\\s+resolved:(?:true|false)\\s*-->`, 'g');
+}
+/**
+ * Find the marker for this finding in body (using same pattern as parseMarker) and replace it.
+ * Returns the updated body and whether a replacement was made. Logs an error with details if no replacement occurred.
+ */
+function replaceMarkerInBody(body, findingId, newResolved, replacement) {
+    const regex = markerRegexForFinding(findingId);
+    const newMarker = replacement ?? buildMarker(findingId, newResolved);
+    const updated = body.replace(regex, newMarker);
+    const replaced = updated !== body;
+    if (!replaced) {
+        (0, logger_1.logError)(`[Bugbot] No se pudo marcar como resuelto: no se encontró el marcador en el comentario. findingId="${findingId}", bodyLength=${body?.length ?? 0}, bodySnippet=${(body ?? '').slice(0, 200)}...`);
+    }
+    return { updated, replaced };
+}
+/** Extract title from comment body (first ## line) for context when sending to OpenCode. */
+function extractTitleFromBody(body) {
+    if (!body)
+        return '';
+    const match = body.match(/^##\s+(.+)$/m);
+    return (match?.[1] ?? '').trim();
+}
+function buildCommentBody(finding, resolved) {
+    const severity = finding.severity ? `**Severity:** ${finding.severity}\n\n` : '';
+    const fileLine = finding.file != null
+        ? `**Location:** \`${finding.file}${finding.line != null ? `:${finding.line}` : ''}\`\n\n`
+        : '';
+    const suggestion = finding.suggestion
+        ? `**Suggested fix:**\n${finding.suggestion}\n\n`
+        : '';
+    const resolvedNote = resolved ? '\n\n---\n**Resolved** (no longer reported in latest analysis).\n' : '';
+    const marker = buildMarker(finding.id, resolved);
+    return `## ${finding.title}
+
+${severity}${fileLine}${finding.description}
+${suggestion}${resolvedNote}${marker}`;
+}
+
+
+/***/ }),
+
+/***/ 1999:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Path validation for AI-returned finding.file to prevent path traversal and misuse.
+ * Rejects paths containing '..', null bytes, or absolute paths.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.isSafeFindingFilePath = isSafeFindingFilePath;
+exports.isAllowedPathForPr = isAllowedPathForPr;
+exports.resolveFindingPathForPr = resolveFindingPathForPr;
+const NULL_BYTE = '\0';
+const PARENT_SEGMENT = '..';
+const SLASH = '/';
+const BACKSLASH = '\\';
+/**
+ * Returns true if the path is safe to use: no '..', no null bytes, not absolute.
+ * Does not check against a list of allowed files; use isAllowedPathForPr for that.
+ */
+function isSafeFindingFilePath(path) {
+    if (path == null || typeof path !== 'string')
+        return false;
+    const trimmed = path.trim();
+    if (trimmed.length === 0)
+        return false;
+    if (trimmed.includes(NULL_BYTE))
+        return false;
+    if (trimmed.includes(PARENT_SEGMENT))
+        return false;
+    if (trimmed.startsWith(SLASH))
+        return false;
+    if (/^[a-zA-Z]:[/\\]/.test(trimmed))
+        return false;
+    if (trimmed.startsWith(BACKSLASH))
+        return false;
+    return true;
+}
+/**
+ * Returns true if path is safe (isSafeFindingFilePath) and is in the list of PR changed files.
+ * Used to validate finding.file before using it for PR review comments.
+ */
+function isAllowedPathForPr(path, prFiles) {
+    if (!isSafeFindingFilePath(path))
+        return false;
+    if (prFiles.length === 0)
+        return false;
+    const normalized = path.trim();
+    return prFiles.some((f) => f.filename === normalized);
+}
+/**
+ * Resolves the file path to use for a PR review comment: finding.file if valid and in prFiles.
+ * Returns undefined when the finding's file is not in the PR so we do not attach the comment
+ * to the wrong file (e.g. the first file in the list).
+ */
+function resolveFindingPathForPr(findingFile, prFiles) {
+    if (prFiles.length === 0)
+        return undefined;
+    if (isAllowedPathForPr(findingFile, prFiles))
+        return findingFile.trim();
+    return undefined;
+}
+
+
+/***/ }),
+
+/***/ 6697:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.publishFindings = publishFindings;
+const issue_repository_1 = __nccwpck_require__(57);
+const pull_request_repository_1 = __nccwpck_require__(634);
+const logger_1 = __nccwpck_require__(8836);
+const marker_1 = __nccwpck_require__(2401);
+const path_validation_1 = __nccwpck_require__(1999);
+/**
+ * Publishes current findings to issue and PR: creates or updates issue comments,
+ * creates or updates PR review comments (or creates new ones).
+ */
+async function publishFindings(param) {
+    const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
+    const { existingByFindingId, openPrNumbers, prContext } = context;
+    const issueNumber = execution.issueNumber;
+    const token = execution.tokens.token;
+    const owner = execution.owner;
+    const repo = execution.repo;
+    const issueRepository = new issue_repository_1.IssueRepository();
+    const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    const prFiles = prContext?.prFiles ?? [];
+    const pathToFirstDiffLine = prContext?.pathToFirstDiffLine ?? {};
+    const prCommentsToCreate = [];
+    for (const finding of findings) {
+        const existing = existingByFindingId[finding.id];
+        const commentBody = (0, marker_1.buildCommentBody)(finding, false);
+        if (existing?.issueCommentId != null) {
+            await issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token);
+            (0, logger_1.logDebugInfo)(`Updated bugbot comment for finding ${finding.id} on issue.`);
+        }
+        else {
+            await issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
+            (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
+        }
+        if (prContext && openPrNumbers.length > 0) {
+            const path = (0, path_validation_1.resolveFindingPathForPr)(finding.file, prFiles);
+            if (path) {
+                const line = finding.line ?? pathToFirstDiffLine[path] ?? 1;
+                if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
+                    await pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
+                }
+                else {
+                    prCommentsToCreate.push({ path, line, body: commentBody });
+                }
+            }
+        }
+    }
+    if (prCommentsToCreate.length > 0 && prContext && openPrNumbers.length > 0) {
+        await pullRequestRepository.createReviewWithComments(owner, repo, openPrNumbers[0], prContext.prHeadSha, prCommentsToCreate, token);
+    }
+    if (overflowCount > 0) {
+        const titlesList = overflowTitles.length > 0
+            ? '\n- ' + overflowTitles.slice(0, 15).join('\n- ') + (overflowTitles.length > 15 ? `\n- ... and ${overflowTitles.length - 15} more` : '')
+            : '';
+        const overflowBody = `## More findings (comment limit)
+
+There are **${overflowCount}** more finding(s) that were not published as individual comments. Review locally or in the full diff to see the list.${titlesList}`;
+        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
+        (0, logger_1.logDebugInfo)(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
+    }
+}
+
+
+/***/ }),
+
+/***/ 8267:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BUGBOT_RESPONSE_SCHEMA = void 0;
+/** OpenCode response schema: agent computes diff, returns new findings and which previous ones are resolved. */
+exports.BUGBOT_RESPONSE_SCHEMA = {
+    type: 'object',
+    properties: {
+        findings: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string', description: 'Stable unique id for this finding (e.g. file:line:summary)' },
+                    title: { type: 'string', description: 'Short title of the problem' },
+                    description: { type: 'string', description: 'Clear explanation of the issue' },
+                    file: { type: 'string', description: 'Repository-relative path when applicable' },
+                    line: { type: 'number', description: 'Line number when applicable' },
+                    severity: { type: 'string', description: 'Severity: high, medium, low, or info. Findings below the configured minimum are not published.' },
+                    suggestion: { type: 'string', description: 'Suggested fix when applicable' },
+                },
+                required: ['id', 'title', 'description'],
+                additionalProperties: true,
+            },
+        },
+        resolved_finding_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Ids of previously reported issues (from the list we sent) that are now fixed in the current code. Only include ids we asked you to check.',
+        },
+    },
+    required: ['findings'],
+    additionalProperties: false,
+};
+
+
+/***/ }),
+
+/***/ 3109:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.normalizeMinSeverity = normalizeMinSeverity;
+exports.severityLevel = severityLevel;
+exports.meetsMinSeverity = meetsMinSeverity;
+const VALID_SEVERITIES = ['info', 'low', 'medium', 'high'];
+/** Normalizes user input to a valid SeverityLevel; defaults to 'low' if invalid. */
+function normalizeMinSeverity(value) {
+    if (!value)
+        return 'low';
+    const normalized = value.toLowerCase().trim();
+    return VALID_SEVERITIES.includes(normalized) ? normalized : 'low';
+}
+const SEVERITY_ORDER = {
+    info: 0,
+    low: 1,
+    medium: 2,
+    high: 3,
+};
+function severityLevel(severity) {
+    if (!severity)
+        return SEVERITY_ORDER.low;
+    const normalized = severity.toLowerCase().trim();
+    return SEVERITY_ORDER[normalized] ?? SEVERITY_ORDER.low;
+}
+/** Returns true if the finding's severity is at or above the minimum threshold. */
+function meetsMinSeverity(findingSeverity, minSeverity) {
+    return severityLevel(findingSeverity) >= SEVERITY_ORDER[minSeverity];
+}
 
 
 /***/ }),
@@ -53158,12 +54153,14 @@ class CheckChangesIssueSizeUseCase {
         (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
         const result = [];
         try {
-            if (param.currentConfiguration.parentBranch === undefined) {
-                (0, logger_1.logDebugInfo)(`Parent branch is undefined.`);
+            const baseBranch = param.currentConfiguration.parentBranch ??
+                param.branches.development ??
+                'develop';
+            if (!baseBranch) {
+                (0, logger_1.logDebugInfo)(`Parent branch could not be determined.`);
                 return result;
             }
             const headBranch = param.commit.branch;
-            const baseBranch = param.currentConfiguration.parentBranch;
             const { size, githubSize, reason } = await this.branchRepository.getSizeCategoryAndReason(param.owner, param.repo, headBranch, baseBranch, param.sizeThresholds, param.labels, param.tokens.token);
             (0, logger_1.logDebugInfo)(`Size: ${size}`);
             (0, logger_1.logDebugInfo)(`Github Size: ${githubSize}`);
@@ -53224,6 +54221,124 @@ class CheckChangesIssueSizeUseCase {
     }
 }
 exports.CheckChangesIssueSizeUseCase = CheckChangesIssueSizeUseCase;
+
+
+/***/ }),
+
+/***/ 7395:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DetectPotentialProblemsUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const ai_repository_1 = __nccwpck_require__(8307);
+const constants_1 = __nccwpck_require__(8593);
+const logger_1 = __nccwpck_require__(8836);
+const build_bugbot_prompt_1 = __nccwpck_require__(6339);
+const deduplicate_findings_1 = __nccwpck_require__(7384);
+const file_ignore_1 = __nccwpck_require__(3770);
+const path_validation_1 = __nccwpck_require__(1999);
+const limit_comments_1 = __nccwpck_require__(9072);
+const load_bugbot_context_use_case_1 = __nccwpck_require__(6319);
+const mark_findings_resolved_use_case_1 = __nccwpck_require__(61);
+const publish_findings_use_case_1 = __nccwpck_require__(6697);
+const schema_1 = __nccwpck_require__(8267);
+const severity_1 = __nccwpck_require__(3109);
+const marker_1 = __nccwpck_require__(2401);
+class DetectPotentialProblemsUseCase {
+    constructor() {
+        this.taskId = 'DetectPotentialProblemsUseCase';
+        this.aiRepository = new ai_repository_1.AiRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        const results = [];
+        try {
+            if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
+                (0, logger_1.logDebugInfo)('OpenCode not configured; skipping potential problems detection.');
+                return results;
+            }
+            if (param.issueNumber === -1) {
+                (0, logger_1.logDebugInfo)('No issue number for this branch; skipping.');
+                return results;
+            }
+            const context = await (0, load_bugbot_context_use_case_1.loadBugbotContext)(param);
+            const prompt = (0, build_bugbot_prompt_1.buildBugbotPrompt)(param, context);
+            (0, logger_1.logInfo)('Detecting potential problems via OpenCode (agent computes changes and checks resolved)...');
+            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+                expectJson: true,
+                schema: schema_1.BUGBOT_RESPONSE_SCHEMA,
+                schemaName: 'bugbot_findings',
+            });
+            if (response == null || typeof response !== 'object') {
+                (0, logger_1.logDebugInfo)('No response from OpenCode.');
+                return results;
+            }
+            const payload = response;
+            let findings = Array.isArray(payload.findings) ? payload.findings : [];
+            const resolvedFindingIdsRaw = Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : [];
+            const resolvedFindingIds = new Set(resolvedFindingIdsRaw);
+            const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(marker_1.sanitizeFindingIdForMarker));
+            const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
+            const minSeverity = (0, severity_1.normalizeMinSeverity)(param.ai?.getBugbotMinSeverity?.());
+            findings = findings.filter((f) => f.file == null || String(f.file).trim() === '' || (0, path_validation_1.isSafeFindingFilePath)(f.file));
+            findings = findings.filter((f) => !(0, file_ignore_1.fileMatchesIgnorePatterns)(f.file, ignorePatterns));
+            findings = findings.filter((f) => (0, severity_1.meetsMinSeverity)(f.severity, minSeverity));
+            findings = (0, deduplicate_findings_1.deduplicateFindings)(findings);
+            const maxComments = param.ai?.getBugbotCommentLimit?.() ?? constants_1.BUGBOT_MAX_COMMENTS;
+            const { toPublish, overflowCount, overflowTitles } = (0, limit_comments_1.applyCommentLimit)(findings, maxComments);
+            if (toPublish.length === 0 && resolvedFindingIds.size === 0) {
+                (0, logger_1.logDebugInfo)('OpenCode returned no new findings (after filters) and no resolved ids.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: true,
+                    steps: ['Potential problems detection completed (no new findings, no resolved).'],
+                }));
+                return results;
+            }
+            await (0, mark_findings_resolved_use_case_1.markFindingsResolved)({
+                execution: param,
+                context,
+                resolvedFindingIds,
+                normalizedResolvedIds,
+            });
+            await (0, publish_findings_use_case_1.publishFindings)({
+                execution: param,
+                context,
+                findings: toPublish,
+                overflowCount: overflowCount > 0 ? overflowCount : undefined,
+                overflowTitles: overflowCount > 0 ? overflowTitles : undefined,
+            });
+            const stepParts = [`${toPublish.length} new/current finding(s) from OpenCode`];
+            if (overflowCount > 0) {
+                stepParts.push(`${overflowCount} more not published (see summary comment)`);
+            }
+            if (resolvedFindingIds.size > 0) {
+                stepParts.push(`${resolvedFindingIds.size} marked as resolved by OpenCode`);
+            }
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+                steps: [`Potential problems detection completed. ${stepParts.join('; ')}.`],
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error in ${this.taskId}: ${error}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [`Error in ${this.taskId}: ${error}`],
+            }));
+        }
+        return results;
+    }
+}
+exports.DetectPotentialProblemsUseCase = DetectPotentialProblemsUseCase;
 
 
 /***/ }),
@@ -53869,23 +54984,26 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            if (!param.tokenUser?.trim()) {
-                (0, logger_1.logInfo)('Bot username (tokenUser) not set; skipping Think response.');
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: false,
-                }));
-                return results;
-            }
-            if (!commentBody.includes(`@${param.tokenUser}`)) {
-                (0, logger_1.logInfo)(`Comment does not mention @${param.tokenUser}; skipping.`);
-                results.push(new result_1.Result({
-                    id: this.taskId,
-                    success: true,
-                    executed: false,
-                }));
-                return results;
+            const isHelpOrQuestionIssue = param.labels.isQuestion || param.labels.isHelp;
+            if (!isHelpOrQuestionIssue) {
+                if (!param.tokenUser?.trim()) {
+                    (0, logger_1.logInfo)('Bot username (tokenUser) not set; skipping Think response.');
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    }));
+                    return results;
+                }
+                if (!commentBody.includes(`@${param.tokenUser}`)) {
+                    (0, logger_1.logInfo)(`Comment does not mention @${param.tokenUser}; skipping.`);
+                    results.push(new result_1.Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    }));
+                    return results;
+                }
             }
             if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
                 results.push(new result_1.Result({
@@ -53896,7 +55014,9 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            const question = isHelpOrQuestionIssue
+                ? commentBody.trim()
+                : commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
             if (!question) {
                 results.push(new result_1.Result({
                     id: this.taskId,
@@ -53917,8 +55037,17 @@ class ThinkUseCase {
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
             const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.${contextBlock}Question: ${question}`;
-            const answer = await this.aiRepository.ask(param.ai, prompt);
-            if (answer === undefined || !answer.trim()) {
+            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+                expectJson: true,
+                schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
+                schemaName: 'think_response',
+            });
+            const answer = response != null &&
+                typeof response === 'object' &&
+                typeof response.answer === 'string'
+                ? response.answer.trim()
+                : '';
+            if (!answer) {
                 (0, logger_1.logError)('OpenCode returned no answer for Think.');
                 results.push(new result_1.Result({
                     id: this.taskId,
@@ -54505,6 +55634,7 @@ const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const content_utils_1 = __nccwpck_require__(7873);
 const logger_1 = __nccwpck_require__(8836);
+const move_issue_to_in_progress_1 = __nccwpck_require__(8203);
 class DeployAddedUseCase {
     constructor() {
         this.taskId = 'DeployAddedUseCase';
@@ -54517,6 +55647,7 @@ class DeployAddedUseCase {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
                 (0, logger_1.logDebugInfo)(`Deploying requested.`);
                 if (param.release.active && param.release.branch !== undefined) {
+                    result.push(...await new move_issue_to_in_progress_1.MoveIssueToInProgressUseCase().invoke(param));
                     const sanitizedTitle = param.issue.title
                         .replace(/\b\d+(\.\d+){2,}\b/g, '')
                         .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
@@ -54527,13 +55658,12 @@ class DeployAddedUseCase {
                         .replace(/- -/g, '-').trim()
                         .replace(/-+/g, '-')
                         .trim();
-                    const description = param.issue.body?.match(/### Changelog\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    const escapedDescription = description.replace(/\n/g, '\\n');
+                    const changelogBody = (0, content_utils_1.extractChangelogUpToAdditionalContext)(param.issue.body, 'Changelog');
                     const releaseUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.release.branch}`;
                     const parameters = {
                         version: param.release.version,
                         title: sanitizedTitle,
-                        changelog: escapedDescription,
+                        changelog: changelogBody,
                         issue: `${param.issue.number}`,
                     };
                     await this.branchRepository.executeWorkflow(param.owner, param.repo, param.release.branch, param.workflows.release, parameters, param.tokens.token);
@@ -54549,6 +55679,7 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                     }));
                 }
                 else if (param.hotfix.active && param.hotfix.branch !== undefined) {
+                    result.push(...await new move_issue_to_in_progress_1.MoveIssueToInProgressUseCase().invoke(param));
                     const sanitizedTitle = param.issue.title
                         .replace(/\b\d+(\.\d+){2,}\b/g, '')
                         .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
@@ -54559,16 +55690,15 @@ ${(0, content_utils_1.injectJsonAsMarkdownBlock)('Workflow Parameters', paramete
                         .replace(/- -/g, '-').trim()
                         .replace(/-+/g, '-')
                         .trim();
-                    const description = param.issue.body?.match(/### Hotfix Solution\n\n([\s\S]*?)(?=\n\n|$)/)?.[1]?.trim() ?? 'No changelog provided';
-                    const escapedDescription = description.replace(/\n/g, '\\n');
+                    const changelogBody = (0, content_utils_1.extractChangelogUpToAdditionalContext)(param.issue.body, 'Hotfix Solution');
                     const hotfixUrl = `https://github.com/${param.owner}/${param.repo}/tree/${param.hotfix.branch}`;
                     const parameters = {
                         version: param.hotfix.version,
                         title: sanitizedTitle,
-                        changelog: escapedDescription,
+                        changelog: changelogBody,
                         issue: param.issue.number,
                     };
-                    await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.release, parameters, param.tokens.token);
+                    await this.branchRepository.executeWorkflow(param.owner, param.repo, param.hotfix.branch, param.workflows.hotfix, parameters, param.tokens.token);
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
@@ -55426,8 +56556,17 @@ If you'd like this comment to be translated again, please delete the entire comm
         
         The text is: ${commentBody}
         `;
-        let result = await this.aiRepository.ask(param.ai, prompt);
-        if (result === "done") {
+        const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+            expectJson: true,
+            schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
+            schemaName: 'language_check_response',
+        });
+        const status = checkResponse != null &&
+            typeof checkResponse === 'object' &&
+            typeof checkResponse.status === 'string'
+            ? checkResponse.status
+            : '';
+        if (status === 'done') {
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -55834,9 +56973,7 @@ class SyncSizeAndProgressLabelsFromIssueToPrUseCase {
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [
-                    `Size and progress labels copied from issue #${param.issueNumber} to this PR.`,
-                ],
+                steps: [],
             }));
         }
         catch (error) {
@@ -55942,7 +57079,7 @@ class UpdatePullRequestDescriptionUseCase {
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [`The description has been updated with AI-generated content (OpenCode Plan agent).`],
+                steps: [],
             }));
         }
         catch (error) {
@@ -56039,8 +57176,17 @@ If you'd like this comment to be translated again, please delete the entire comm
         
         The text is: ${commentBody}
         `;
-        let result = await this.aiRepository.ask(param.ai, prompt);
-        if (result === "done") {
+        const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+            expectJson: true,
+            schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
+            schemaName: 'language_check_response',
+        });
+        const status = checkResponse != null &&
+            typeof checkResponse === 'object' &&
+            typeof checkResponse.status === 'string'
+            ? checkResponse.status
+            : '';
+        if (status === 'done') {
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -56101,14 +57247,18 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
+exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = exports.COMMAND = void 0;
 exports.COMMAND = 'giik';
 exports.TITLE = 'Giik';
 exports.REPO_URL = 'https://github.com/landamessenger/git-board-flow';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
-/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
-exports.OPENCODE_REQUEST_TIMEOUT_MS = 600000;
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
+exports.OPENCODE_REQUEST_TIMEOUT_MS = 900000;
+/** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
+exports.OPENCODE_MAX_RETRIES = 5;
+/** Delay in ms between OpenCode retry attempts. */
+exports.OPENCODE_RETRY_DELAY_MS = 2000;
 exports.DEFAULT_IMAGE_CONFIG = {
     issue: {
         automatic: [
@@ -56315,6 +57465,8 @@ exports.INPUT_KEYS = {
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',
     AI_INCLUDE_REASONING: 'ai-include-reasoning',
+    BUGBOT_SEVERITY: 'bugbot-severity',
+    BUGBOT_COMMENT_LIMIT: 'bugbot-comment-limit',
     // Projects
     PROJECT_IDS: 'project-ids',
     PROJECT_COLUMN_ISSUE_CREATED: 'project-column-issue-created',
@@ -56459,9 +57611,15 @@ exports.ACTIONS = {
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
-    DETECT_ERRORS: 'detect_errors_action',
+    DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 };
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
+exports.BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+/** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
+exports.BUGBOT_MAX_COMMENTS = 20;
+/** Minimum severity to publish (findings below this are dropped). Order: high > medium > low > info. */
+exports.BUGBOT_MIN_SEVERITY = 'low';
 exports.PROMPTS = {};
 
 
@@ -56473,7 +57631,7 @@ exports.PROMPTS = {};
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.injectJsonAsMarkdownBlock = exports.extractReleaseType = exports.extractVersion = void 0;
+exports.injectJsonAsMarkdownBlock = exports.extractChangelogUpToAdditionalContext = exports.extractReleaseType = exports.extractVersion = void 0;
 const extractVersion = (pattern, text) => {
     const versionPattern = new RegExp(`###\\s*${pattern}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
     const match = text.match(versionPattern);
@@ -56486,6 +57644,22 @@ const extractReleaseType = (pattern, text) => {
     return match ? match[1] : undefined;
 };
 exports.extractReleaseType = extractReleaseType;
+/**
+ * Extracts changelog content from an issue body: from the given section heading (e.g. "Changelog" or "Hotfix Solution")
+ * up to but not including the "Additional Context" section. Used for release/hotfix deployment bodies.
+ */
+const extractChangelogUpToAdditionalContext = (body, sectionTitle) => {
+    if (body == null || body === '') {
+        return 'No changelog provided';
+    }
+    const escaped = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`(?:###|##)\\s*${escaped}\\s*\\n\\n([\\s\\S]*?)` +
+        `(?=\\n(?:###|##)\\s*Additional Context\\s*|$)`, 'i');
+    const match = body.match(pattern);
+    const content = match?.[1]?.trim();
+    return content ?? 'No changelog provided';
+};
+exports.extractChangelogUpToAdditionalContext = extractChangelogUpToAdditionalContext;
 const injectJsonAsMarkdownBlock = (title, json) => {
     const formattedJson = JSON.stringify(json, null, 4) // Pretty-print the JSON with 4 spaces.
         .split('\n') // Split into lines.

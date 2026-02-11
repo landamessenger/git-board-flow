@@ -91,10 +91,6 @@ This workflow ensures that critical fixes reach production quickly while maintai
           required: true
           default: '-1'
 
-  concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-    cancel-in-progress: true
-
   jobs:
     deploy:
       name: Git Board - Issue

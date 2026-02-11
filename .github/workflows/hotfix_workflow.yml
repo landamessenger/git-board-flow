@@ -1,0 +1,161 @@
+name: Task - Hotfix
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Hotfix version'
+        required: true
+        default: '1.0.0'
+      title:
+        description: 'Title'
+        required: true
+        default: 'New Version'
+      changelog:
+        description: 'Changelog'
+        required: true
+        default: '- Several improvements'
+      issue:
+        description: 'Launcher issue'
+        required: true
+        default: '-1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-version-files:
+    name: Prepare files for hotfix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate inputs
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          ISSUE: ${{ github.event.inputs.issue }}
+          TITLE: ${{ github.event.inputs.title }}
+          CHANGELOG: ${{ github.event.inputs.changelog }}
+        run: |
+          err=0
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must be in semver format (e.g. 1.0.0)."
+            err=1
+          fi
+          if ! [[ "$ISSUE" =~ ^-?[0-9]+$ ]]; then
+            echo "::error::Issue must be a number (e.g. 123 or -1)."
+            err=1
+          fi
+          if [[ ${#TITLE} -gt 1000 ]]; then
+            echo "::error::Title must be at most 1000 characters."
+            err=1
+          fi
+          if [[ ${#CHANGELOG} -gt 50000 ]]; then
+            echo "::error::Changelog must be at most 50000 characters."
+            err=1
+          fi
+          [[ $err -eq 0 ]] || exit 1
+
+      - name: Update version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));        
+            packageJson.version = '${{ github.event.inputs.version }}';
+            fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2));
+
+      - name: Commit updated package.json and dist directory
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: './build/ ./package.json'
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          default_author: user_info
+          message: 'gh-action: updated compiled files and bumped version to ${{ github.event.inputs.version }} (hotfix)'
+
+  prepare-compiled-files:
+    name: Update compiled files
+    runs-on: ubuntu-latest
+    needs: prepare-version-files
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull latest changes
+        run: |
+          git config --global user.email "efraespada@gmail.com"
+          git config --global user.name "Efra Espada"
+          git pull --no-ff --no-edit
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Files
+        run: npm run build
+
+      - name: Force add build directory
+        run: git add -f ./build/
+
+      - name: Commit updated dist directory
+        uses: EndBug/add-and-commit@v9
+        with:
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          default_author: user_info
+          message: 'gh-action: updated compiled files'
+
+  tag:
+    name: Publish version
+    runs-on: ubuntu-latest
+    needs: [ prepare-compiled-files ]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Git Board Flow - Create Tag
+        uses: ./
+        if: ${{ success() }}
+        with:
+          debug: ${{ vars.DEBUG }}
+          single-action: 'create_tag'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          single-action-version: '${{ github.event.inputs.version }}'
+          token: ${{ secrets.PAT }}
+  
+      - name: Git Board Flow - Create Release
+        uses: ./
+        if: ${{ success() }}
+        with:
+          debug: ${{ vars.DEBUG }}
+          single-action: 'create_release'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          single-action-version: '${{ github.event.inputs.version }}'
+          single-action-title: '${{ github.event.inputs.title }}'
+          single-action-changelog: '${{ github.event.inputs.changelog }}'
+          token: ${{ secrets.PAT }}
+
+      - name: Git Board Flow - Publish Github Action Version
+        uses: ./
+        if: ${{ success() }}
+        with:
+          debug: ${{ vars.DEBUG }}
+          single-action: 'publish_github_action'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          single-action-version: '${{ github.event.inputs.version }}'
+          token: ${{ secrets.PAT }}
+
+      - name: Git Board Flow - Deploy success notification
+        uses: ./
+        if: ${{ success() }}
+        with:
+          debug: ${{ vars.DEBUG }}
+          single-action: 'deployed_action'
+          single-action-issue: '${{ github.event.inputs.issue }}'
+          opencode-model: ${{ vars.OPENCODE_MODEL }}
+          token: ${{ secrets.PAT }}

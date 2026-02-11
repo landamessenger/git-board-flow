@@ -39,12 +39,12 @@ The following parameters can be configured in the workflow:
 - `feature-label`: Label to manage feature branches (default: "feature")
 
 #### Size Labels
-- `size-xxl-label`: Label to indicate a task of size XXL (default: "size xxl")
-- `size-xl-label`: Label to indicate a task of size XL (default: "size xl")
-- `size-l-label`: Label to indicate a task of size L (default: "size l")
-- `size-m-label`: Label to indicate a task of size M (default: "size m")
-- `size-s-label`: Label to indicate a task of size S (default: "size s")
-- `size-xs-label`: Label to indicate a task of size XS (default: "size xs")
+- `size-xxl-label`: Label to indicate a task of size XXL (default: "size: XXL")
+- `size-xl-label`: Label to indicate a task of size XL (default: "size: XL")
+- `size-l-label`: Label to indicate a task of size L (default: "size: L")
+- `size-m-label`: Label to indicate a task of size M (default: "size: M")
+- `size-s-label`: Label to indicate a task of size S (default: "size: S")
+- `size-xs-label`: Label to indicate a task of size XS (default: "size: XS")
 
 #### Size Thresholds
 ##### XXL Thresholds
@@ -126,11 +126,11 @@ The following parameters can be configured in the workflow:
 
 #### AI (OpenCode)
 - `opencode-server-url`: OpenCode server URL (default: "http://localhost:4096"). See [OpenCode (AI)](/opencode-integration).
-- `opencode-model`: Model in provider/model format (default: "opencode/kimi-k2.5")
+- `opencode-model`: Model in provider/model format (default: "opencode/kimi-k2.5-free")
 - `opencode-start-server`: If true, the action starts and stops OpenCode in the job (default: "false")
 - `ai-pull-request-description`: Enable AI-powered PR descriptions (default: "false")
 - `ai-ignore-files`: Comma-separated list of files to ignore for AI operations
-- `ai-members-only`: Restrict AI features to organization/project members (default: "true")
+- `ai-members-only`: Restrict AI features to organization/project members (default: "false")
 
 #### Workflow Configuration
 - `release-workflow`: Release workflow for running release deploys (default: "release_workflow.yml")

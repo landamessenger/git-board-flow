@@ -10,13 +10,17 @@ export declare class Ai {
     private aiMembersOnly;
     private aiIgnoreFiles;
     private aiIncludeReasoning;
-    constructor(opencodeServerUrl: string, opencodeModel: string, aiPullRequestDescription: boolean, aiMembersOnly: boolean, aiIgnoreFiles: string[], aiIncludeReasoning: boolean);
+    private bugbotMinSeverity;
+    private bugbotCommentLimit;
+    constructor(opencodeServerUrl: string, opencodeModel: string, aiPullRequestDescription: boolean, aiMembersOnly: boolean, aiIgnoreFiles: string[], aiIncludeReasoning: boolean, bugbotMinSeverity: string, bugbotCommentLimit: number);
     getOpencodeServerUrl(): string;
     getOpencodeModel(): string;
     getAiPullRequestDescription(): boolean;
     getAiMembersOnly(): boolean;
     getAiIgnoreFiles(): string[];
     getAiIncludeReasoning(): boolean;
+    getBugbotMinSeverity(): string;
+    getBugbotCommentLimit(): number;
     /**
      * Parse "provider/model-id" into { providerID, modelID } for OpenCode session.prompt.
      * Uses OPENCODE_DEFAULT_MODEL when no model is set (e.g. opencode/kimi-k2.5-free).

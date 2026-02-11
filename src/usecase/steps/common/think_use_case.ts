@@ -1,6 +1,6 @@
 import { Execution } from '../../../data/model/execution';
 import { Result } from '../../../data/model/result';
-import { AiRepository } from '../../../data/repository/ai_repository';
+import { AiRepository, OPENCODE_AGENT_PLAN, THINK_RESPONSE_SCHEMA } from '../../../data/repository/ai_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
 import { logError, logInfo } from '../../../utils/logger';
 import { ParamUseCase } from '../../base/param_usecase';
@@ -32,28 +32,33 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (!param.tokenUser?.trim()) {
-                logInfo('Bot username (tokenUser) not set; skipping Think response.');
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    })
-                );
-                return results;
-            }
+            const isHelpOrQuestionIssue =
+                param.labels.isQuestion || param.labels.isHelp;
 
-            if (!commentBody.includes(`@${param.tokenUser}`)) {
-                logInfo(`Comment does not mention @${param.tokenUser}; skipping.`);
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    })
-                );
-                return results;
+            if (!isHelpOrQuestionIssue) {
+                if (!param.tokenUser?.trim()) {
+                    logInfo('Bot username (tokenUser) not set; skipping Think response.');
+                    results.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        })
+                    );
+                    return results;
+                }
+
+                if (!commentBody.includes(`@${param.tokenUser}`)) {
+                    logInfo(`Comment does not mention @${param.tokenUser}; skipping.`);
+                    results.push(
+                        new Result({
+                            id: this.taskId,
+                            success: true,
+                            executed: false,
+                        })
+                    );
+                    return results;
+                }
             }
 
             if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
@@ -68,7 +73,9 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            const question = isHelpOrQuestionIssue
+                ? commentBody.trim()
+                : commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
             if (!question) {
                 results.push(
                     new Result({
@@ -99,9 +106,19 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
             const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.${contextBlock}Question: ${question}`;
-            const answer = await this.aiRepository.ask(param.ai, prompt);
+            const response = await this.aiRepository.askAgent(param.ai, OPENCODE_AGENT_PLAN, prompt, {
+                expectJson: true,
+                schema: THINK_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
+                schemaName: 'think_response',
+            });
+            const answer =
+                response != null &&
+                typeof response === 'object' &&
+                typeof (response as Record<string, unknown>).answer === 'string'
+                    ? ((response as Record<string, unknown>).answer as string).trim()
+                    : '';
 
-            if (answer === undefined || !answer.trim()) {
+            if (!answer) {
                 logError('OpenCode returned no answer for Think.');
                 results.push(
                     new Result({

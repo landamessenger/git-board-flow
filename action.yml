@@ -83,6 +83,9 @@ inputs:
   priority-low-label:
     description: "Label to indicate a priority low."
     default: "priority: low"
+  priority-none-label:
+    description: "Label to indicate no priority."
+    default: "priority: none"
   size-xxl-label:
     description: "Label to indicate a task of size XXL."
     default: "size: XXL"
@@ -394,17 +397,26 @@ inputs:
     description: "OpenCode model in provider/model format (default opencode/kimi-k2.5-free; e.g. openai/gpt-4o-mini)."
     default: "opencode/kimi-k2.5-free"
   opencode-start-server:
-    description: "If true, the action starts an OpenCode server at the beginning and stops it when the job ends. No need to install or run OpenCode yourself. Requires OPENAI_API_KEY or ANTHROPIC_API_KEY (or other provider keys) as secrets."
+    description: "If true, the action starts an OpenCode server at the beginning and stops it when the job ends. No need to install or run OpenCode yourself. Requires provider API keys as secrets (e.g. OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY) passed via env."
     default: "true"
   ai-pull-request-description:
     description: "Enable AI-powered automatic updates for pull request descriptions."
-    default: "false"
+    default: "true"
   ai-ignore-files:
     description: "Comma-separated list of files to ignore for AI operations."
     default: ""
   ai-members-only:
     description: "Restrict AI features to only organization/project members."
     default: "false"
+  ai-include-reasoning:
+    description: "Include reasoning or chain-of-thought in AI responses when supported by the model."
+    default: "true"
+  bugbot-severity:
+    description: "Minimum severity for potential-problem detections to be published (info, low, medium, high). Findings below this are not posted as comments."
+    default: "low"
+  bugbot-comment-limit:
+    description: "Maximum number of potential-problem findings to publish as individual comments on the issue and PR. Extra findings are summarized in a single overflow comment."
+    default: "20"
 runs:
   using: "node20"
   main: "build/github_action/index.js"

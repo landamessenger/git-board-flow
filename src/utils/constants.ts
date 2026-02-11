@@ -5,8 +5,14 @@ export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export const OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free'
 
-/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow with many files. */
-export const OPENCODE_REQUEST_TIMEOUT_MS = 600_000
+/** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
+export const OPENCODE_REQUEST_TIMEOUT_MS = 900_000
+
+/** Max attempts for OpenCode requests (retries on failure). Applied transparently in AiRepository. */
+export const OPENCODE_MAX_RETRIES = 5
+
+/** Delay in ms between OpenCode retry attempts. */
+export const OPENCODE_RETRY_DELAY_MS = 2000
 
 export const DEFAULT_IMAGE_CONFIG = {
     issue: {
@@ -221,6 +227,8 @@ export const INPUT_KEYS = {
     AI_MEMBERS_ONLY: 'ai-members-only',
     AI_IGNORE_FILES: 'ai-ignore-files',
     AI_INCLUDE_REASONING: 'ai-include-reasoning',
+    BUGBOT_SEVERITY: 'bugbot-severity',
+    BUGBOT_COMMENT_LIMIT: 'bugbot-comment-limit',
 
     // Projects
     PROJECT_IDS: 'project-ids',
@@ -388,9 +396,18 @@ export const ACTIONS = {
     THINK: 'think_action',
     INITIAL_SETUP: 'initial_setup',
     CHECK_PROGRESS: 'check_progress_action',
-    DETECT_ERRORS: 'detect_errors_action',
+    DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
 } as const; 
+
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
+export const BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+
+/** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
+export const BUGBOT_MAX_COMMENTS = 20;
+
+/** Minimum severity to publish (findings below this are dropped). Order: high > medium > low > info. */
+export const BUGBOT_MIN_SEVERITY: 'info' | 'low' | 'medium' | 'high' = 'low';
 
 export const PROMPTS = {
 } as const; 

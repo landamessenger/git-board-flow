@@ -11,6 +11,7 @@
 All AI features use **OpenCode** (75+ LLM providers: OpenAI, Anthropic, Gemini, local models, etc.):
 
 - **Progress detection** — On every push, analyzes branch vs issue and updates the progress label on the issue and on any open PRs for that branch. You can also run it on demand via single action or CLI (`check-progress`).
+- **Bugbot (potential problems)** — On every push (or on demand via single action / CLI `detect-potential-problems`), OpenCode analyzes the branch vs base and reports findings as **comments on the issue** and **review comments on open PRs**; it updates or marks them as resolved when findings are fixed.
 - **Think / reasoning** — Deep code analysis and change proposals (`think_action`).
 - **AI PR description** — Generates or updates pull request descriptions by filling your `.github/pull_request_template.md` from the issue and branch diff.
 
@@ -27,6 +28,7 @@ See the [OpenCode (AI)](https://docs.page/landamessenger/git-board-flow/opencode
 - **Pull request linking** — Links PRs to issues, adds them to projects, assigns reviewers, and can generate PR descriptions with AI.
 - **GitHub Project integration** — Links issues and PRs to the configured projects (`project-ids`) and moves them to the right columns.
 - **Single actions** — Run on-demand actions: check progress, think, create release/tag, deployed marking, and more.
+- **Workflow concurrency** — The action waits for previous runs of the **same workflow name** to finish, so you can run workflows sequentially (no cancel). See [Features → Workflow concurrency](https://docs.page/landamessenger/git-board-flow/features#workflow-concurrency-and-sequential-execution).
 
 ---
 
@@ -40,11 +42,7 @@ name: Git Board Flow - Issue
 on:
   issues:
     types: [opened, edited, labeled, unlabeled]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.ref }}
-  cancel-in-progress: true
-
+    
 jobs:
   git-board-flow-issues:
     name: Git Board Flow - Issue
@@ -86,7 +84,7 @@ jobs:
 
 ### Commit (push) workflow
 
-This workflow runs on every push. It notifies the issue of new commits, updates **size** and **progress** labels on the issue and on any open PRs for that branch (progress requires OpenCode). No separate "check progress" workflow is needed.
+This workflow runs on every push. It notifies the issue of new commits, updates **size** and **progress** labels on the issue and on any open PRs for that branch (progress requires OpenCode), and can run **Bugbot** to report potential problems as issue and PR comments (OpenCode). No separate "check progress" workflow is needed.
 
 ```yaml
 name: Git Board Flow - Commit
@@ -149,14 +147,14 @@ giik <command> [options]
 |--------|-------------|--------|
 | `setup` | Initial setup: labels, issue types, verify access | `node build/cli/index.js setup -t <PAT>` |
 | `check-progress` | Run progress check on demand (progress is also updated automatically on every push) | `node build/cli/index.js check-progress -i 123 -t <PAT>` |
-| `detect-errors` | Detect potential errors in the branch vs base (OpenCode Plan) | `node build/cli/index.js detect-errors -i 123 -t <PAT>` |
+| `detect-potential-problems` | Bugbot: detect potential problems, report on issue and PR (OpenCode) | `node build/cli/index.js detect-potential-problems -i 123 -t <PAT>` |
 | `recommend-steps` | Recommend implementation steps for an issue (OpenCode Plan) | `node build/cli/index.js recommend-steps -i 123 -t <PAT>` |
 | `think` | Deep code analysis / reasoning (needs a question) | `node build/cli/index.js think -q "Where is auth validated?" -t <PAT>` |
 | `copilot` | AI development assistant (analyze/modify code) | `node build/cli/index.js copilot -p "Explain src/cli.ts" -t <PAT>` |
 
 Add `-d` or `--debug` for verbose logs. For OpenCode, use `--opencode-server-url` and `--opencode-model` if you don’t set env vars.
 
-For a step-by-step guide to testing the OpenCode Plan flows (check-progress, detect-errors, recommend-steps) locally, see [Testing OpenCode Plan Locally](https://docs.page/landamessenger/git-board-flow/testing-opencode-plan-locally).
+For a step-by-step guide to testing the OpenCode Plan flows (check-progress, detect-potential-problems, recommend-steps) locally, see [Testing OpenCode Plan Locally](https://docs.page/landamessenger/git-board-flow/testing-opencode-plan-locally).
 
 ### 4. Optional: `.env` in repo root
 

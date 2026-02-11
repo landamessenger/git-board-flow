@@ -19,8 +19,6 @@ const PROGRESS_RESPONSE_SCHEMA = {
     additionalProperties: false,
 } as const;
 
-const MAX_PROGRESS_ATTEMPTS = 3;
-
 interface ProgressAttemptResult {
     progress: number;
     summary: string;
@@ -155,30 +153,20 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
 
             const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
 
-            let progress = 0;
-            let summary = 'Unable to determine progress.';
-            let reasoning = '';
-            let remaining = '';
+            logInfo('🤖 Analyzing progress using OpenCode Plan agent...');
+            const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
+            const progress = attemptResult.progress;
+            const summary = attemptResult.summary;
+            const reasoning = attemptResult.reasoning;
+            const remaining = attemptResult.remaining;
 
-            for (let attempt = 1; attempt <= MAX_PROGRESS_ATTEMPTS; attempt++) {
-                logInfo(`🤖 Analyzing progress using OpenCode Plan agent... (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS})`);
-                const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
-                progress = attemptResult.progress;
-                summary = attemptResult.summary;
-                reasoning = attemptResult.reasoning;
-                remaining = attemptResult.remaining;
-                if (progress > 0) {
-                    logInfo(`✅ Progress detection completed: ${progress}%`);
-                    break;
-                }
-                if (attempt < MAX_PROGRESS_ATTEMPTS) {
-                    logInfo(`⚠️ Progress returned 0% (attempt ${attempt}/${MAX_PROGRESS_ATTEMPTS}), retrying...`);
-                }
+            if (progress > 0) {
+                logInfo(`✅ Progress detection completed: ${progress}%`);
             }
 
-            const progressFailedAfterRetries = progress === 0;
-            if (progressFailedAfterRetries) {
-                logError(`Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error.`);
+            const progressFailed = progress === 0;
+            if (progressFailed) {
+                logError('Progress detection returned 0%. This may be due to a model error or no changes detected.');
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -189,7 +177,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                             summary,
                         ],
                         errors: [
-                            `Progress detection failed: received 0% after ${MAX_PROGRESS_ATTEMPTS} attempts. This may be due to a model error. There are changes on the branch; consider re-running the check.`,
+                            'Progress detection returned 0%. This may be due to a model error or no changes detected. Consider re-running the check.',
                         ],
                         payload: {
                             progress: 0,
@@ -294,7 +282,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
 
     /**
      * Calls the OpenCode agent once and returns parsed progress, summary, and reasoning.
-     * Used inside the retry loop when progress is 0%.
+     * HTTP-level retries are handled by AiRepository (OPENCODE_MAX_RETRIES).
      */
     private async fetchProgressAttempt(ai: Ai, prompt: string): Promise<ProgressAttemptResult> {
         const agentResponse = await this.aiRepository.askAgent(

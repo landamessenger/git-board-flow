@@ -5,6 +5,7 @@ import { ParamUseCase } from "./base/param_usecase";
 import { CheckProgressUseCase } from "./actions/check_progress_use_case";
 import { NotifyNewCommitOnIssueUseCase } from "./steps/commit/notify_new_commit_on_issue_use_case";
 import { CheckChangesIssueSizeUseCase } from "./steps/commit/check_changes_issue_size_use_case";
+import { DetectPotentialProblemsUseCase } from "./steps/commit/detect_potential_problems_use_case";
 
 export class CommitUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CommitUseCase';
@@ -26,6 +27,7 @@ export class CommitUseCase implements ParamUseCase<Execution, Result[]> {
             results.push(...(await new NotifyNewCommitOnIssueUseCase().invoke(param)));
             results.push(...(await new CheckChangesIssueSizeUseCase().invoke(param)));
             results.push(...(await new CheckProgressUseCase().invoke(param)));
+            results.push(...(await new DetectPotentialProblemsUseCase().invoke(param)));
         } catch (error) {
             logError(error);
             results.push(

@@ -1,6 +1,7 @@
 /**
  * Managed OpenCode server lifecycle for GitHub Actions.
  * Starts "npx opencode-ai serve" and stops it when the action finishes.
+ * If no opencode.json exists in cwd, creates one with provider timeout 10 min and removes it on stop.
  */
 import { ChildProcess } from 'child_process';
 export interface ManagedOpencodeServer {

@@ -11,7 +11,7 @@ export class SingleAction {
         ACTIONS.THINK,
         ACTIONS.INITIAL_SETUP,
         ACTIONS.CHECK_PROGRESS,
-        ACTIONS.DETECT_ERRORS,
+        ACTIONS.DETECT_POTENTIAL_PROBLEMS,
         ACTIONS.RECOMMEND_STEPS,
     ];
     /**
@@ -72,8 +72,8 @@ export class SingleAction {
         return this.currentSingleAction === ACTIONS.CHECK_PROGRESS;
     }
 
-    get isDetectErrorsAction(): boolean {
-        return this.currentSingleAction === ACTIONS.DETECT_ERRORS;
+    get isDetectPotentialProblemsAction(): boolean {
+        return this.currentSingleAction === ACTIONS.DETECT_POTENTIAL_PROBLEMS;
     }
 
     get isRecommendStepsAction(): boolean {

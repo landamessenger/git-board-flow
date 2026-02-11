@@ -86,9 +86,7 @@ export class SyncSizeAndProgressLabelsFromIssueToPrUseCase implements ParamUseCa
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [
-                        `Size and progress labels copied from issue #${param.issueNumber} to this PR.`,
-                    ],
+                    steps: [],
                 }),
             );
         } catch (error) {

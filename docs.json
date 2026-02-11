@@ -46,14 +46,18 @@
       "group": "Pull Requests",
       "tab": "pull-requests",
       "pages": [
-        { "title": "Overview", "href": "/pull-requests", "icon": "book" }
+        { "title": "Overview", "href": "/pull-requests", "icon": "book" },
+        { "title": "Configuration", "href": "/pull-requests/configuration", "icon": "gear" },
+        { "title": "AI PR description", "href": "/pull-requests/ai-description", "icon": "file-text" }
       ]
     },
     {
       "group": "Single Actions",
       "tab": "single-action",
       "pages": [
-        { "title": "Overview", "href": "/single-actions", "icon": "play" }
+        { "title": "Overview", "href": "/single-actions", "icon": "play" },
+        { "title": "Configuration", "href": "/single-actions/configuration", "icon": "gear" },
+        { "title": "Workflow & CLI", "href": "/single-actions/workflow-and-cli", "icon": "terminal" }
       ]
     },
     {

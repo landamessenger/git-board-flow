@@ -337,6 +337,10 @@ export class Execution {
             this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch
         }
 
+        if (this.currentConfiguration.parentBranch === undefined && this.previousConfiguration?.parentBranch != null) {
+            this.currentConfiguration.parentBranch = this.previousConfiguration.parentBranch;
+        }
+
         if (this.isSingleAction) {
             /**
              * Nothing to do here (for now)
