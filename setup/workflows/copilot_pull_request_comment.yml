@@ -1,0 +1,22 @@
+name: Copilot - Pull Request Comment
+
+on:
+  pull_request_review_comment:
+    types: [created, edited]
+
+jobs:
+  copilot-pull-requests:
+    name: Copilot - Pull Request Comment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          ai-ignore-files: build/*
+          debug: ${{ vars.DEBUG }}
+          opencode-model: ${{ vars.OPENCODE_MODEL }}
+          project-ids: ${{ vars.PROJECT_IDS }}
+          token: ${{ secrets.PAT }}
+          

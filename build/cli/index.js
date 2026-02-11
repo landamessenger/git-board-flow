@@ -46970,9 +46970,12 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const child_process_1 = __nccwpck_require__(2081);
 const commander_1 = __nccwpck_require__(4379);
 const dotenv = __importStar(__nccwpck_require__(2437));
+const fs = __importStar(__nccwpck_require__(7147));
+const path = __importStar(__nccwpck_require__(1017));
 const local_action_1 = __nccwpck_require__(7002);
 const issue_repository_1 = __nccwpck_require__(57);
 const constants_1 = __nccwpck_require__(8593);
+const logger_1 = __nccwpck_require__(8836);
 const ai_1 = __nccwpck_require__(4470);
 const ai_repository_1 = __nccwpck_require__(8307);
 // Load environment variables from .env file
@@ -47342,6 +47345,54 @@ program
         process.exit(1);
     }
 });
+/** Paths (relative to repo root) that must exist for the GitHub Action setup. */
+const GITHUB_SETUP_FILES = [
+    '.github/workflows/copilot_commit.yml',
+    '.github/workflows/copilot_issue_comment.yml',
+    '.github/workflows/copilot_issue.yml',
+    '.github/workflows/copilot_pull_request_comment.yml',
+    '.github/workflows/copilot_pull_request.yml',
+    '.github/workflows/hotfix_workflow.yml',
+    '.github/workflows/release_workflow.yml',
+    '.github/pull_request_template.md',
+];
+/** Returns true if cwd is inside a git repository (work tree). */
+function isInsideGitRepo(cwd) {
+    try {
+        (0, child_process_1.execSync)('git rev-parse --is-inside-work-tree', { cwd, stdio: 'pipe' });
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Ensure .github and .github/workflows exist; create them if missing.
+ * @param cwd - Directory (repo root)
+ */
+function ensureGitHubDirs(cwd) {
+    const githubDir = path.join(cwd, '.github');
+    const workflowsDir = path.join(cwd, '.github', 'workflows');
+    if (!fs.existsSync(githubDir)) {
+        (0, logger_1.logInfo)('Creating .github/...');
+        fs.mkdirSync(githubDir, { recursive: true });
+    }
+    if (!fs.existsSync(workflowsDir)) {
+        (0, logger_1.logInfo)('Creating .github/workflows/...');
+        fs.mkdirSync(workflowsDir, { recursive: true });
+    }
+}
+/**
+ * Check if the directory contains the required .github/ setup files for the GitHub Action.
+ * @param cwd - Directory to check (e.g. process.cwd())
+ * @returns { ok: true } or { ok: false, missing: string[] }
+ */
+function checkGitHubSetupFiles(cwd) {
+    const missing = GITHUB_SETUP_FILES.filter((rel) => !fs.existsSync(path.join(cwd, rel)));
+    if (missing.length === 0)
+        return { ok: true };
+    return { ok: false, missing };
+}
 /**
  * Run the initial setup to configure labels, issue types, and verify access.
  */
@@ -47351,11 +47402,32 @@ program
     .option('-d, --debug', 'Debug mode', false)
     .option('-t, --token <token>', 'Personal access token', process.env.PERSONAL_ACCESS_TOKEN)
     .action(async (options) => {
+    const cwd = process.cwd();
+    (0, logger_1.logInfo)('Checking we are inside a git repository...');
+    if (!isInsideGitRepo(cwd)) {
+        (0, logger_1.logError)('Not a git repository. Run "copilot setup" from the root of a git repo.');
+        process.exit(1);
+    }
+    (0, logger_1.logInfo)('Git repository detected.');
+    (0, logger_1.logInfo)('Ensuring .github and .github/workflows exist...');
+    ensureGitHubDirs(cwd);
+    (0, logger_1.logInfo)('Checking GitHub Action setup files in .github/...');
+    const setupCheck = checkGitHubSetupFiles(cwd);
+    if (!setupCheck.ok) {
+        (0, logger_1.logError)('Setup requires the GitHub Action files in .github/. Missing:');
+        setupCheck.missing.forEach((f) => (0, logger_1.logError)(`   - ${f}`));
+        (0, logger_1.logError)('Copy the contents of the setup/ folder (workflows, pull_request_template.md) into .github/ and run setup again.');
+        process.exit(1);
+    }
+    (0, logger_1.logInfo)('All required setup files present.');
+    (0, logger_1.logInfo)('Resolving repository (owner/repo)...');
     const gitInfo = getGitInfo();
     if ('error' in gitInfo) {
-        console.log(gitInfo.error);
-        return;
+        (0, logger_1.logError)(gitInfo.error);
+        process.exit(1);
     }
+    (0, logger_1.logInfo)(`Repository: ${gitInfo.owner}/${gitInfo.repo}`);
+    (0, logger_1.logInfo)('Running initial setup (labels, issue types, access)...');
     const params = {
         [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.INITIAL_SETUP,
