@@ -1,4 +1,9 @@
-/** OpenCode response schema: agent computes diff, returns new findings and which previous ones are resolved. */
+/**
+ * JSON schemas for OpenCode responses. Used with askAgent(plan) so the agent returns
+ * structured JSON we can parse.
+ */
+
+/** Detection (on push): OpenCode computes diff itself and returns findings + resolved_finding_ids. */
 export const BUGBOT_RESPONSE_SCHEMA = {
     type: 'object',
     properties: {

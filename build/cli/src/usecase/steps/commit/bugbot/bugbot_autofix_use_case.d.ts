@@ -2,6 +2,11 @@ import type { Execution } from "../../../../data/model/execution";
 import { ParamUseCase } from "../../../base/param_usecase";
 import { Result } from "../../../../data/model/result";
 import type { BugbotContext } from "./types";
+/**
+ * Runs the OpenCode build agent to fix the selected bugbot findings. OpenCode edits files
+ * directly in the workspace (we do not pass or apply diffs). Caller must run verify commands
+ * and commit/push after success (see runBugbotAutofixCommitAndPush).
+ */
 export interface BugbotAutofixParam {
     execution: Execution;
     targetFindingIds: string[];
@@ -10,11 +15,6 @@ export interface BugbotAutofixParam {
     context?: BugbotContext;
     branchOverride?: string;
 }
-/**
- * Runs the OpenCode build agent to fix the selected bugbot findings.
- * OpenCode applies changes directly in the workspace. Caller is responsible for
- * running verify commands and commit/push after this returns success.
- */
 export declare class BugbotAutofixUseCase implements ParamUseCase<BugbotAutofixParam, Result[]> {
     taskId: string;
     private aiRepository;

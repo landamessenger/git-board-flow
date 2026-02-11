@@ -1,9 +1,17 @@
+/**
+ * Loads all bugbot context: existing findings from issue and PR comments (via marker parsing),
+ * open PR numbers for the head branch, the formatted "previous findings" block for OpenCode,
+ * and PR metadata (head sha, changed files, first diff line per file) used only when publishing
+ * findings to GitHub — not sent to OpenCode.
+ */
+
 import type { Execution } from "../../../../data/model/execution";
 import { IssueRepository } from "../../../../data/repository/issue_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";
 import type { BugbotContext, ExistingByFindingId } from "./types";
 import { parseMarker } from "./marker";
 
+/** Builds the text block sent to OpenCode for task 2 (decide which previous findings are now resolved). */
 function buildPreviousFindingsBlock(previousFindings: Array<{ id: string; fullBody: string }>): string {
     if (previousFindings.length === 0) return '';
     const items = previousFindings
@@ -47,6 +55,7 @@ export async function loadBugbotContext(
     const issueRepository = new IssueRepository();
     const pullRequestRepository = new PullRequestRepository();
 
+    // Parse issue comments for bugbot markers to know which findings we already posted and if resolved.
     const issueComments = await issueRepository.listIssueComments(owner, repo, issueNumber, token);
     const existingByFindingId: ExistingByFindingId = {};
     for (const c of issueComments) {
@@ -67,6 +76,7 @@ export async function loadBugbotContext(
         token
     );
 
+    // Also collect findings from PR review comments (same marker format).
     /** Full comment body per finding id (from PR when we don't have issue comment). */
     const prFindingIdToBody: Record<string, string> = {};
     for (const prNumber of openPrNumbers) {
@@ -106,6 +116,7 @@ export async function loadBugbotContext(
     const unresolvedFindingsWithBody: BugbotContext['unresolvedFindingsWithBody'] =
         previousFindingsForPrompt.map((p) => ({ id: p.id, fullBody: p.fullBody }));
 
+    // PR context is only for publishing: we need file list and diff lines so GitHub review comments attach to valid (path, line).
     let prContext: BugbotContext['prContext'] = null;
     if (openPrNumbers.length > 0) {
         const prHeadSha = await pullRequestRepository.getPullRequestHeadSha(

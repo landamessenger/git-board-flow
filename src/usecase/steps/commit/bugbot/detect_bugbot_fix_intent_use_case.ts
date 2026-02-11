@@ -19,10 +19,11 @@ export interface BugbotFixIntent {
 const TASK_ID = "DetectBugbotFixIntentUseCase";
 
 /**
- * Calls OpenCode (plan agent) to decide if the user comment is requesting to fix
- * one or more bugbot findings and which finding ids to target. Returns the intent
- * in the result payload; when isFixRequest is true and targetFindingIds is non-empty,
- * the caller can run the autofix flow.
+ * Asks OpenCode (plan agent) whether the user comment is a request to fix one or more
+ * bugbot findings, and which finding ids to target. Used from issue comments and PR
+ * review comments. When isFixRequest is true and targetFindingIds is non-empty, the
+ * caller (IssueCommentUseCase / PullRequestReviewCommentUseCase) runs the autofix flow.
+ * Requires unresolved findings (from loadBugbotContext); otherwise we skip and return empty.
  */
 export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = TASK_ID;
@@ -55,6 +56,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
             return results;
         }
 
+        // On issue_comment event we may not have commit.branch; resolve from an open PR that references the issue.
         let branchOverride: string | undefined;
         if (!param.commit.branch?.trim()) {
             const prRepo = new PullRequestRepository();
@@ -90,6 +92,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
             description: p.fullBody.slice(0, 400),
         }));
 
+        // When user replied in a PR thread, include parent comment so OpenCode knows which finding they mean.
         let parentCommentBody: string | undefined;
         if (param.pullRequest.isPullRequestReviewComment && param.pullRequest.commentInReplyToId) {
             const prRepo = new PullRequestRepository();

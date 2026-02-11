@@ -1,7 +1,15 @@
+/**
+ * Publishes bugbot findings to the issue (and optionally to the PR as review comments).
+ * For the issue: we always add or update a comment per finding (with marker).
+ * For the PR: we only create a review comment when finding.file is in the PR's changed files list
+ * (prContext.prFiles). We use pathToFirstDiffLine when finding has no line so the comment attaches
+ * to a valid line in the diff. GitHub API requires (path, line) to exist in the PR diff.
+ */
+
 import type { Execution } from "../../../../data/model/execution";
 import { IssueRepository } from "../../../../data/repository/issue_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";
-import { logDebugInfo } from "../../../../utils/logger";
+import { logDebugInfo, logInfo } from "../../../../utils/logger";
 import type { BugbotContext } from "./types";
 import type { BugbotFinding } from "./types";
 import { buildCommentBody } from "./marker";
@@ -16,10 +24,7 @@ export interface PublishFindingsParam {
     overflowTitles?: string[];
 }
 
-/**
- * Publishes current findings to issue and PR: creates or updates issue comments,
- * creates or updates PR review comments (or creates new ones).
- */
+/** Creates or updates issue comments for each finding; creates PR review comments only when finding.file is in prFiles. */
 export async function publishFindings(param: PublishFindingsParam): Promise<void> {
     const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
     const { existingByFindingId, openPrNumbers, prContext } = context;
@@ -54,6 +59,7 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
             logDebugInfo(`Added bugbot comment for finding ${finding.id} on issue.`);
         }
 
+        // PR review comment: only if this finding's file is in the PR changed files (so GitHub can attach the comment).
         if (prContext && openPrNumbers.length > 0) {
             const path = resolveFindingPathForPr(finding.file, prFiles);
             if (path) {
@@ -69,6 +75,10 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
                 } else {
                     prCommentsToCreate.push({ path, line, body: commentBody });
                 }
+            } else if (finding.file != null && String(finding.file).trim() !== "") {
+                logInfo(
+                    `Bugbot finding "${finding.id}" file "${finding.file}" not in PR changed files (${prFiles.length} files); skipping PR review comment.`
+                );
             }
         }
     }

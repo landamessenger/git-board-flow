@@ -86,7 +86,28 @@ Use this section to track progress. Tick when done.
 
 ---
 
-## 5. Key files (reference)
+## 5. Test coverage
+
+| Area | Test file | Notes |
+|------|-----------|--------|
+| Detection pipeline | `src/usecase/steps/commit/__tests__/detect_potential_problems_use_case.test.ts` | Full flow: OpenCode response, publish to issue/PR, resolve, limit, severity, path validation, marker. |
+| Issue comment flow | `src/usecase/__tests__/issue_comment_use_case.test.ts` | Language → intent → autofix or Think; payload helpers; commit/skip. |
+| PR comment flow | `src/usecase/__tests__/pull_request_review_comment_use_case.test.ts` | Same scenarios as issue (intent, autofix, Think when not fix request). |
+| Intent prompt | `src/usecase/steps/commit/bugbot/__tests__/build_bugbot_fix_intent_prompt.test.ts` | Prompt content, parent comment block. |
+| Fix prompt | `src/usecase/steps/commit/bugbot/__tests__/build_bugbot_fix_prompt.test.ts` | Repo context, findings block, verify commands. |
+| Path validation | `src/usecase/steps/commit/bugbot/__tests__/path_validation.test.ts` | isSafeFindingFilePath, isAllowedPathForPr, resolveFindingPathForPr. |
+| Severity, limit, dedupe, file ignore | `severity.test.ts`, `limit_comments.test.ts`, `deduplicate_findings.test.ts`, `file_ignore.test.ts` | Filtering and publishing limits. |
+| Marker | `src/usecase/steps/commit/bugbot/__tests__/marker.test.ts` | sanitizeFindingIdForMarker, buildMarker, parseMarker, markerRegexForFinding, replaceMarkerInBody, extractTitleFromBody, buildCommentBody. |
+| Load context | `src/usecase/steps/commit/bugbot/__tests__/load_bugbot_context_use_case.test.ts` | Empty context, issue comment parsing, previousFindingsBlock/unresolvedFindingsWithBody, branchOverride, prContext, PR review markers merge. |
+| Publish findings | `src/usecase/steps/commit/bugbot/__tests__/publish_findings_use_case.test.ts` | Issue comment add/update, PR review comment when file in prFiles, pathToFirstDiffLine, update existing PR comment, overflow comment. |
+| Detect fix intent | `src/usecase/steps/commit/bugbot/__tests__/detect_bugbot_fix_intent_use_case.test.ts` | Skips (no OpenCode, no issue, empty body, no branch), branchOverride, unresolved findings filter, askAgent + payload, parent comment for PR. |
+| Autofix use case | `src/usecase/steps/commit/bugbot/__tests__/bugbot_autofix_use_case.test.ts` | No targets/OpenCode skip, provided vs loaded context, valid unresolved ids filter, copilotMessage no text / success with payload. |
+| Commit/push | `src/usecase/steps/commit/bugbot/__tests__/bugbot_autofix_commit.test.ts` | No branch, branchOverride fetch/checkout, verify command failure, no changes, add/commit/push success, commit/push error. |
+| Mark resolved | `src/usecase/steps/commit/bugbot/__tests__/mark_findings_resolved_use_case.test.ts` | Skip when resolved or not in set, update issue comment, update PR comment + resolve thread, missing comment, normalizedResolvedIds, replaceMarkerInBody no match, updateComment error. |
+
+---
+
+## 6. Key files (reference)
 
 | Area | Path |
 |------|------|
@@ -102,7 +123,7 @@ Use this section to track progress. Tick when done.
 
 ---
 
-## 6. Notes
+## 7. Notes
 
 - **OpenCode applies changes in disk:** The server must run from the repo directory (e.g. `opencode-start-server: true`). We do not use `getSessionDiff` or any diff logic.
 - **Intent only via OpenCode:** No local "fix request" parsing; OpenCode returns `is_fix_request` and `target_finding_ids` from the user comment and the list of pending findings.

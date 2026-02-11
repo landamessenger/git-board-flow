@@ -51713,16 +51713,21 @@ class PullRequestRepository {
         };
         this.getChangedFiles = async (owner, repository, pullNumber, token) => {
             const octokit = github.getOctokit(token);
+            const all = [];
             try {
-                const { data } = await octokit.rest.pulls.listFiles({
+                for await (const response of octokit.paginate.iterator(octokit.rest.pulls.listFiles, {
                     owner,
                     repo: repository,
                     pull_number: pullNumber,
-                });
-                return data.map((file) => ({
-                    filename: file.filename,
-                    status: file.status
-                }));
+                    per_page: 100,
+                })) {
+                    const data = response.data ?? [];
+                    all.push(...data.map((file) => ({
+                        filename: file.filename,
+                        status: file.status,
+                    })));
+                }
+                return all;
             }
             catch (error) {
                 (0, logger_1.logError)(`Error getting changed files from pull request: ${error}.`);
@@ -53888,11 +53893,6 @@ const result_1 = __nccwpck_require__(7305);
 const build_bugbot_fix_prompt_1 = __nccwpck_require__(1822);
 const load_bugbot_context_use_case_1 = __nccwpck_require__(6319);
 const TASK_ID = "BugbotAutofixUseCase";
-/**
- * Runs the OpenCode build agent to fix the selected bugbot findings.
- * OpenCode applies changes directly in the workspace. Caller is responsible for
- * running verify commands and commit/push after this returns success.
- */
 class BugbotAutofixUseCase {
     constructor() {
         this.taskId = TASK_ID;
@@ -53955,16 +53955,25 @@ exports.BugbotAutofixUseCase = BugbotAutofixUseCase;
 
 "use strict";
 
+/**
+ * Helpers to read the bugbot fix intent from DetectBugbotFixIntentUseCase results.
+ * Used by IssueCommentUseCase and PullRequestReviewCommentUseCase to decide whether
+ * to run autofix (and pass context/branchOverride) or to run Think.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getBugbotFixIntentPayload = getBugbotFixIntentPayload;
 exports.canRunBugbotAutofix = canRunBugbotAutofix;
+/** Extracts the intent payload from the last result of DetectBugbotFixIntentUseCase (or undefined if empty). */
 function getBugbotFixIntentPayload(results) {
+    if (results.length === 0)
+        return undefined;
     const last = results[results.length - 1];
     const payload = last?.payload;
     if (!payload || typeof payload !== "object")
         return undefined;
     return payload;
 }
+/** Type guard: true when we have a valid fix request with targets and context so autofix can run. */
 function canRunBugbotAutofix(payload) {
     return (!!payload?.isFixRequest &&
         Array.isArray(payload.targetFindingIds) &&
@@ -54090,6 +54099,12 @@ Once the fixes are applied and the verify commands pass, reply briefly confirmin
 
 "use strict";
 
+/**
+ * Builds the prompt for OpenCode (plan agent) when detecting potential problems on push.
+ * We pass: repo context, head/base branch names (OpenCode computes the diff itself), issue number,
+ * optional ignore patterns, and the block of previously reported findings (task 2).
+ * We do not pass a pre-computed diff or file list.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotPrompt = buildBugbotPrompt;
 function buildBugbotPrompt(param, context) {
@@ -54169,10 +54184,11 @@ const load_bugbot_context_use_case_1 = __nccwpck_require__(6319);
 const schema_1 = __nccwpck_require__(8267);
 const TASK_ID = "DetectBugbotFixIntentUseCase";
 /**
- * Calls OpenCode (plan agent) to decide if the user comment is requesting to fix
- * one or more bugbot findings and which finding ids to target. Returns the intent
- * in the result payload; when isFixRequest is true and targetFindingIds is non-empty,
- * the caller can run the autofix flow.
+ * Asks OpenCode (plan agent) whether the user comment is a request to fix one or more
+ * bugbot findings, and which finding ids to target. Used from issue comments and PR
+ * review comments. When isFixRequest is true and targetFindingIds is non-empty, the
+ * caller (IssueCommentUseCase / PullRequestReviewCommentUseCase) runs the autofix flow.
+ * Requires unresolved findings (from loadBugbotContext); otherwise we skip and return empty.
  */
 class DetectBugbotFixIntentUseCase {
     constructor() {
@@ -54199,6 +54215,7 @@ class DetectBugbotFixIntentUseCase {
             (0, logger_1.logInfo)("No comment body; skipping bugbot fix intent detection.");
             return results;
         }
+        // On issue_comment event we may not have commit.branch; resolve from an open PR that references the issue.
         let branchOverride;
         if (!param.commit.branch?.trim()) {
             const prRepo = new pull_request_repository_1.PullRequestRepository();
@@ -54223,6 +54240,7 @@ class DetectBugbotFixIntentUseCase {
             title: (0, marker_1.extractTitleFromBody)(p.fullBody) || p.id,
             description: p.fullBody.slice(0, 400),
         }));
+        // When user replied in a PR thread, include parent comment so OpenCode knows which finding they mean.
         let parentCommentBody;
         if (param.pullRequest.isPullRequestReviewComment && param.pullRequest.commentInReplyToId) {
             const prRepo = new pull_request_repository_1.PullRequestRepository();
@@ -54344,11 +54362,18 @@ function applyCommentLimit(findings, maxComments = constants_1.BUGBOT_MAX_COMMEN
 
 "use strict";
 
+/**
+ * Loads all bugbot context: existing findings from issue and PR comments (via marker parsing),
+ * open PR numbers for the head branch, the formatted "previous findings" block for OpenCode,
+ * and PR metadata (head sha, changed files, first diff line per file) used only when publishing
+ * findings to GitHub — not sent to OpenCode.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.loadBugbotContext = loadBugbotContext;
 const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const marker_1 = __nccwpck_require__(2401);
+/** Builds the text block sent to OpenCode for task 2 (decide which previous findings are now resolved). */
 function buildPreviousFindingsBlock(previousFindings) {
     if (previousFindings.length === 0)
         return '';
@@ -54379,6 +54404,7 @@ async function loadBugbotContext(param, options) {
     const repo = param.repo;
     const issueRepository = new issue_repository_1.IssueRepository();
     const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    // Parse issue comments for bugbot markers to know which findings we already posted and if resolved.
     const issueComments = await issueRepository.listIssueComments(owner, repo, issueNumber, token);
     const existingByFindingId = {};
     for (const c of issueComments) {
@@ -54393,6 +54419,7 @@ async function loadBugbotContext(param, options) {
         }
     }
     const openPrNumbers = await pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(owner, repo, headBranch, token);
+    // Also collect findings from PR review comments (same marker format).
     /** Full comment body per finding id (from PR when we don't have issue comment). */
     const prFindingIdToBody = {};
     for (const prNumber of openPrNumbers) {
@@ -54423,6 +54450,7 @@ async function loadBugbotContext(param, options) {
     }
     const previousFindingsBlock = buildPreviousFindingsBlock(previousFindingsForPrompt);
     const unresolvedFindingsWithBody = previousFindingsForPrompt.map((p) => ({ id: p.id, fullBody: p.fullBody }));
+    // PR context is only for publishing: we need file list and diff lines so GitHub review comments attach to valid (path, line).
     let prContext = null;
     if (openPrNumbers.length > 0) {
         const prHeadSha = await pullRequestRepository.getPullRequestHeadSha(owner, repo, openPrNumbers[0], token);
@@ -54454,6 +54482,11 @@ async function loadBugbotContext(param, options) {
 
 "use strict";
 
+/**
+ * After autofix (or when OpenCode returns resolved_finding_ids in detection), we mark those
+ * findings as resolved: update the issue comment with a "Resolved" note and set resolved:true
+ * in the marker; update the PR review comment marker and resolve the review thread.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.markFindingsResolved = markFindingsResolved;
 const issue_repository_1 = __nccwpck_require__(57);
@@ -54534,6 +54567,12 @@ async function markFindingsResolved(param) {
 
 "use strict";
 
+/**
+ * Bugbot marker: we embed a hidden HTML comment in each finding comment (issue and PR)
+ * with finding_id and resolved flag. This lets us (1) find existing findings when loading
+ * context, (2) update the same comment when OpenCode re-reports or marks resolved, (3) match
+ * threads when the user replies "fix it" in a PR.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.sanitizeFindingIdForMarker = sanitizeFindingIdForMarker;
 exports.buildMarker = buildMarker;
@@ -54597,6 +54636,7 @@ function extractTitleFromBody(body) {
     const match = body.match(/^##\s+(.+)$/m);
     return (match?.[1] ?? '').trim();
 }
+/** Builds the visible comment body (title, severity, location, description, suggestion) plus the hidden marker for this finding. */
 function buildCommentBody(finding, resolved) {
     const severity = finding.severity ? `**Severity:** ${finding.severity}\n\n` : '';
     const fileLine = finding.file != null
@@ -54688,6 +54728,13 @@ function resolveFindingPathForPr(findingFile, prFiles) {
 
 "use strict";
 
+/**
+ * Publishes bugbot findings to the issue (and optionally to the PR as review comments).
+ * For the issue: we always add or update a comment per finding (with marker).
+ * For the PR: we only create a review comment when finding.file is in the PR's changed files list
+ * (prContext.prFiles). We use pathToFirstDiffLine when finding has no line so the comment attaches
+ * to a valid line in the diff. GitHub API requires (path, line) to exist in the PR diff.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.publishFindings = publishFindings;
 const issue_repository_1 = __nccwpck_require__(57);
@@ -54695,10 +54742,7 @@ const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
 const marker_1 = __nccwpck_require__(2401);
 const path_validation_1 = __nccwpck_require__(1999);
-/**
- * Publishes current findings to issue and PR: creates or updates issue comments,
- * creates or updates PR review comments (or creates new ones).
- */
+/** Creates or updates issue comments for each finding; creates PR review comments only when finding.file is in prFiles. */
 async function publishFindings(param) {
     const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
     const { existingByFindingId, openPrNumbers, prContext } = context;
@@ -54722,6 +54766,7 @@ async function publishFindings(param) {
             await issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
             (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
         }
+        // PR review comment: only if this finding's file is in the PR changed files (so GitHub can attach the comment).
         if (prContext && openPrNumbers.length > 0) {
             const path = (0, path_validation_1.resolveFindingPathForPr)(finding.file, prFiles);
             if (path) {
@@ -54732,6 +54777,9 @@ async function publishFindings(param) {
                 else {
                     prCommentsToCreate.push({ path, line, body: commentBody });
                 }
+            }
+            else if (finding.file != null && String(finding.file).trim() !== "") {
+                (0, logger_1.logInfo)(`Bugbot finding "${finding.id}" file "${finding.file}" not in PR changed files (${prFiles.length} files); skipping PR review comment.`);
             }
         }
     }
@@ -54758,9 +54806,13 @@ There are **${overflowCount}** more finding(s) that were not published as indivi
 
 "use strict";
 
+/**
+ * JSON schemas for OpenCode responses. Used with askAgent(plan) so the agent returns
+ * structured JSON we can parse.
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BUGBOT_FIX_INTENT_RESPONSE_SCHEMA = exports.BUGBOT_RESPONSE_SCHEMA = void 0;
-/** OpenCode response schema: agent computes diff, returns new findings and which previous ones are resolved. */
+/** Detection (on push): OpenCode computes diff itself and returns findings + resolved_finding_ids. */
 exports.BUGBOT_RESPONSE_SCHEMA = {
     type: 'object',
     properties: {

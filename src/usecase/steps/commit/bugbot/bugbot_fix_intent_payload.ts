@@ -1,3 +1,9 @@
+/**
+ * Helpers to read the bugbot fix intent from DetectBugbotFixIntentUseCase results.
+ * Used by IssueCommentUseCase and PullRequestReviewCommentUseCase to decide whether
+ * to run autofix (and pass context/branchOverride) or to run Think.
+ */
+
 import type { Result } from "../../../../data/model/result";
 import type { MarkFindingsResolvedParam } from "./mark_findings_resolved_use_case";
 
@@ -8,15 +14,18 @@ export type BugbotFixIntentPayload = {
     branchOverride?: string;
 };
 
+/** Extracts the intent payload from the last result of DetectBugbotFixIntentUseCase (or undefined if empty). */
 export function getBugbotFixIntentPayload(
     results: Result[]
 ): BugbotFixIntentPayload | undefined {
+    if (results.length === 0) return undefined;
     const last = results[results.length - 1];
     const payload = last?.payload;
     if (!payload || typeof payload !== "object") return undefined;
     return payload as BugbotFixIntentPayload;
 }
 
+/** Type guard: true when we have a valid fix request with targets and context so autofix can run. */
 export function canRunBugbotAutofix(
     payload: BugbotFixIntentPayload | undefined
 ): payload is BugbotFixIntentPayload & {

@@ -1,3 +1,9 @@
+/**
+ * Loads all bugbot context: existing findings from issue and PR comments (via marker parsing),
+ * open PR numbers for the head branch, the formatted "previous findings" block for OpenCode,
+ * and PR metadata (head sha, changed files, first diff line per file) used only when publishing
+ * findings to GitHub — not sent to OpenCode.
+ */
 import type { Execution } from "../../../../data/model/execution";
 import type { BugbotContext } from "./types";
 export interface LoadBugbotContextOptions {

@@ -1,3 +1,10 @@
+/**
+ * Bugbot marker: we embed a hidden HTML comment in each finding comment (issue and PR)
+ * with finding_id and resolved flag. This lets us (1) find existing findings when loading
+ * context, (2) update the same comment when OpenCode re-reports or marks resolved, (3) match
+ * threads when the user replies "fix it" in a PR.
+ */
+
 import { BUGBOT_MARKER_PREFIX } from "../../../../utils/constants";
 import { logError } from "../../../../utils/logger";
 import type { BugbotFinding } from "./types";
@@ -72,6 +79,7 @@ export function extractTitleFromBody(body: string | null): string {
     return (match?.[1] ?? '').trim();
 }
 
+/** Builds the visible comment body (title, severity, location, description, suggestion) plus the hidden marker for this finding. */
 export function buildCommentBody(finding: BugbotFinding, resolved: boolean): string {
     const severity = finding.severity ? `**Severity:** ${finding.severity}\n\n` : '';
     const fileLine =

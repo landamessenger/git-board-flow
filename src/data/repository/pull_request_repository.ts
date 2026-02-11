@@ -190,18 +190,26 @@ export class PullRequestRepository {
         token: string
     ): Promise<{filename: string, status: string}[]> => {
         const octokit = github.getOctokit(token);
-
+        const all: Array<{ filename: string; status: string }> = [];
         try {
-            const {data} = await octokit.rest.pulls.listFiles({
-                owner,
-                repo: repository,
-                pull_number: pullNumber,
-            });
-
-            return data.map((file) => ({
-                filename: file.filename,
-                status: file.status
-            }));
+            for await (const response of octokit.paginate.iterator(
+                octokit.rest.pulls.listFiles,
+                {
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                    per_page: 100,
+                }
+            )) {
+                const data = response.data ?? [];
+                all.push(
+                    ...data.map((file: { filename: string; status: string }) => ({
+                        filename: file.filename,
+                        status: file.status,
+                    }))
+                );
+            }
+            return all;
         } catch (error) {
             logError(`Error getting changed files from pull request: ${error}.`);
             return [];
