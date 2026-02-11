@@ -24,13 +24,14 @@ export function ensureGitHubDirs(cwd: string): void {
  * Skips files that already exist at destination (no overwrite).
  * Logs each file copied or skipped. No-op if setup/ does not exist.
  * @param cwd - Repo root
- * @returns Number of files copied
+ * @returns { copied, skipped }
  */
-export function copySetupFiles(cwd: string): number {
+export function copySetupFiles(cwd: string): { copied: number; skipped: number } {
   const setupDir = path.join(cwd, 'setup');
-  if (!fs.existsSync(setupDir)) return 0;
+  if (!fs.existsSync(setupDir)) return { copied: 0, skipped: 0 };
 
   let copied = 0;
+  let skipped = 0;
   const workflowsSrc = path.join(setupDir, 'workflows');
   const workflowsDst = path.join(cwd, '.github', 'workflows');
   if (fs.existsSync(workflowsSrc)) {
@@ -41,6 +42,7 @@ export function copySetupFiles(cwd: string): number {
       if (fs.statSync(src).isFile()) {
         if (fs.existsSync(dst)) {
           logInfo(`  ⏭️  .github/workflows/${f} already exists; skipping.`);
+          skipped += 1;
         } else {
           fs.copyFileSync(src, dst);
           logInfo(`  ✅ Copied setup/workflows/${f} → .github/workflows/${f}`);
@@ -54,6 +56,7 @@ export function copySetupFiles(cwd: string): number {
   if (fs.existsSync(prTemplateSrc)) {
     if (fs.existsSync(prTemplateDst)) {
       logInfo('  ⏭️  .github/pull_request_template.md already exists; skipping.');
+      skipped += 1;
     } else {
       fs.copyFileSync(prTemplateSrc, prTemplateDst);
       logInfo('  ✅ Copied setup/pull_request_template.md → .github/pull_request_template.md');
@@ -65,11 +68,12 @@ export function copySetupFiles(cwd: string): number {
   if (fs.existsSync(envSrc) && fs.statSync(envSrc).isFile()) {
     if (fs.existsSync(envDst)) {
       logInfo('  ⏭️  .env already exists; skipping.');
+      skipped += 1;
     } else {
       fs.copyFileSync(envSrc, envDst);
       logInfo('  ✅ Copied setup/.env → .env');
       copied += 1;
     }
   }
-  return copied;
+  return { copied, skipped };
 }

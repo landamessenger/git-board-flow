@@ -8,6 +8,9 @@ export declare function ensureGitHubDirs(cwd: string): void;
  * Skips files that already exist at destination (no overwrite).
  * Logs each file copied or skipped. No-op if setup/ does not exist.
  * @param cwd - Repo root
- * @returns Number of files copied
+ * @returns { copied, skipped }
  */
-export declare function copySetupFiles(cwd: string): number;
+export declare function copySetupFiles(cwd: string): {
+    copied: number;
+    skipped: number;
+};

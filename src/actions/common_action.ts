@@ -8,11 +8,10 @@ import { PullRequestReviewCommentUseCase } from '../usecase/pull_request_review_
 import { PullRequestUseCase } from '../usecase/pull_request_use_case';
 import { SingleActionUseCase } from '../usecase/single_action_use_case';
 import { logError, logInfo } from '../utils/logger';
-import { ACTIONS, TITLE } from '../utils/constants';
+import { TITLE } from '../utils/constants';
 import chalk from 'chalk';
 import boxen from 'boxen';
 import { waitForPreviousRuns } from '../utils/queue_utils';
-import { copySetupFiles, ensureGitHubDirs } from '../utils/setup_files';
 
 export async function mainRun(execution: Execution): Promise<Result[]> {
     const results: Result[] = []
@@ -64,18 +63,6 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
                 }
             )
         );
-        if (execution.isSingleAction && execution.singleAction.currentSingleAction === ACTIONS.INITIAL_SETUP) {
-            const cwd = process.cwd();
-            logInfo('📁 Ensuring .github and .github/workflows exist...');
-            ensureGitHubDirs(cwd);
-            logInfo('📋 Copying setup files from setup/ to .github/ (skipping existing)...');
-            const copied = copySetupFiles(cwd);
-            if (copied > 0) {
-                logInfo(`✅ Copied ${copied} file(s).`);
-            } else {
-                logInfo('ℹ️  No setup/ folder found or all files already exist; nothing to copy.');
-            }
-        }
     }
 
     try {
