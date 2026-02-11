@@ -53573,11 +53573,11 @@ function copySetupFiles(cwd) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getTaskEmoji = getTaskEmoji;
 /**
- * Emoji representativo por tarea para los logs "Executing {taskId}".
- * Facilita identificar visualmente el tipo de paso en la salida del action.
+ * Representative emoji per task for "Executing {taskId}" logs.
+ * Makes it easier to visually identify the step type in the action output.
  */
 const TASK_EMOJI = {
-    // Use cases principales
+    // Main use cases
     CommitUseCase: '📤',
     IssueUseCase: '📋',
     PullRequestUseCase: '🔀',

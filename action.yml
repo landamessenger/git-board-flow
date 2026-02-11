@@ -1,6 +1,6 @@
 name: "Copilot"
 description: "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology."
-author: "Landa Messenger"
+author: "Efra Espada"
 inputs:
   debug:
     description: "Enable debug mode."

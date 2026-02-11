@@ -15,7 +15,7 @@
     "lint:fix": "eslint src --fix"
   },
   "keywords": [],
-  "author": "Landa Messenger",
+  "author": "Efra Espada",
   "license": "ISC",
   "dependencies": {
     "@actions/cache": "^4.0.3",
