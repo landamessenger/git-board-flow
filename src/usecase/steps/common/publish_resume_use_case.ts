@@ -3,6 +3,7 @@ import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { getRandomElement } from "../../../utils/list_utils";
 import { logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 /**
@@ -13,7 +14,7 @@ export class PublishResultUseCase implements ParamUseCase<Execution, void> {
     private issueRepository = new IssueRepository();
 
     async invoke(param: Execution): Promise<void> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         try {
             /**

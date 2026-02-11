@@ -4,13 +4,14 @@ import { ProjectRepository } from "../../data/repository/project_repository";
 import { Result } from "../../data/model/result";
 import { ParamUseCase } from "../base/param_usecase";
 import { logError, logInfo } from "../../utils/logger";
+import { getTaskEmoji } from "../../utils/task_emoji";
 import { copySetupFiles, ensureGitHubDirs } from "../../utils/setup_files";
 
 export class InitialSetupUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'InitialSetupUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const results: Result[] = [];
         const steps: string[] = [];

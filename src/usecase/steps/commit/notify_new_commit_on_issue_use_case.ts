@@ -3,6 +3,7 @@ import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { getRandomElement } from "../../../utils/list_utils";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 import { CommitPrefixBuilderUseCase } from "../common/execute_script_use_case";
 
@@ -15,7 +16,7 @@ export class NotifyNewCommitOnIssueUseCase implements ParamUseCase<Execution, Re
     private separator = '------------------------------------------------------'
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {

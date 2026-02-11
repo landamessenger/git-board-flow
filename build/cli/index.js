@@ -52270,6 +52270,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CheckProgressUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
 const pull_request_repository_1 = __nccwpck_require__(634);
@@ -52293,7 +52294,7 @@ class CheckProgressUseCase {
         this.aiRepository = new ai_repository_1.AiRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         try {
             // Check if AI configuration is available
@@ -52547,13 +52548,14 @@ const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CreateReleaseUseCase {
     constructor() {
         this.taskId = 'CreateReleaseUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         if (param.singleAction.version.length === 0) {
             (0, logger_1.logError)(`Version is not set.`);
@@ -52641,13 +52643,14 @@ const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CreateTagUseCase {
     constructor() {
         this.taskId = 'CreateTagUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         if (param.singleAction.version.length === 0) {
             (0, logger_1.logError)(`Version is not set.`);
@@ -52725,6 +52728,7 @@ const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class DeployedActionUseCase {
     constructor() {
         this.taskId = 'DeployedActionUseCase';
@@ -52732,7 +52736,7 @@ class DeployedActionUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             if (!param.labels.isDeploy) {
@@ -52859,13 +52863,14 @@ const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const setup_files_1 = __nccwpck_require__(1666);
 class InitialSetupUseCase {
     constructor() {
         this.taskId = 'InitialSetupUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         const steps = [];
         const errors = [];
@@ -53012,13 +53017,14 @@ const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class PublishGithubActionUseCase {
     constructor() {
         this.taskId = 'PublishGithubActionUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         if (param.singleAction.version.length === 0) {
             (0, logger_1.logError)(`Version is not set.`);
@@ -53086,6 +53092,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.RecommendStepsUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const issue_repository_1 = __nccwpck_require__(57);
 const ai_repository_1 = __nccwpck_require__(8307);
 class RecommendStepsUseCase {
@@ -53095,7 +53102,7 @@ class RecommendStepsUseCase {
         this.aiRepository = new ai_repository_1.AiRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         try {
             if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
@@ -53172,6 +53179,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommitUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const check_progress_use_case_1 = __nccwpck_require__(7744);
 const notify_new_commit_on_issue_use_case_1 = __nccwpck_require__(8020);
 const check_changes_issue_size_use_case_1 = __nccwpck_require__(5863);
@@ -53181,7 +53189,7 @@ class CommitUseCase {
         this.taskId = 'CommitUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         try {
             if (param.commit.commits.length === 0) {
@@ -53224,6 +53232,7 @@ exports.CommitUseCase = CommitUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueCommentUseCase = void 0;
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const think_use_case_1 = __nccwpck_require__(3841);
 const check_issue_comment_language_use_case_1 = __nccwpck_require__(465);
 class IssueCommentUseCase {
@@ -53231,7 +53240,7 @@ class IssueCommentUseCase {
         this.taskId = 'IssueCommentUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         results.push(...await new check_issue_comment_language_use_case_1.CheckIssueCommentLanguageUseCase().invoke(param));
         results.push(...await new think_use_case_1.ThinkUseCase().invoke(param));
@@ -53251,6 +53260,7 @@ exports.IssueCommentUseCase = IssueCommentUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueUseCase = void 0;
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const check_permissions_use_case_1 = __nccwpck_require__(8749);
 const update_title_use_case_1 = __nccwpck_require__(5107);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3115);
@@ -53268,7 +53278,7 @@ class IssueUseCase {
         this.taskId = 'IssueUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         const permissionResult = await new check_permissions_use_case_1.CheckPermissionsUseCase().invoke(param);
         const lastAction = permissionResult[permissionResult.length - 1];
@@ -53337,13 +53347,14 @@ exports.IssueUseCase = IssueUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestReviewCommentUseCase = void 0;
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const check_pull_request_comment_language_use_case_1 = __nccwpck_require__(7112);
 class PullRequestReviewCommentUseCase {
     constructor() {
         this.taskId = 'PullRequestReviewCommentUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         results.push(...await new check_pull_request_comment_language_use_case_1.CheckPullRequestCommentLanguageUseCase().invoke(param));
         return results;
@@ -53363,6 +53374,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PullRequestUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const update_title_use_case_1 = __nccwpck_require__(5107);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3115);
 const assign_reviewers_to_issue_use_case_1 = __nccwpck_require__(6275);
@@ -53377,7 +53389,7 @@ class PullRequestUseCase {
         this.taskId = 'PullRequestUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         try {
             (0, logger_1.logDebugInfo)(`PR action ${param.pullRequest.action}`);
@@ -53467,6 +53479,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SingleActionUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const deployed_action_use_case_1 = __nccwpck_require__(8293);
 const publish_github_action_use_case_1 = __nccwpck_require__(9029);
 const create_release_use_case_1 = __nccwpck_require__(2430);
@@ -53481,7 +53494,7 @@ class SingleActionUseCase {
         this.taskId = 'SingleActionUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         try {
             if (!param.singleAction.validSingleAction) {
@@ -54168,6 +54181,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CheckChangesIssueSizeUseCase {
     constructor() {
         this.taskId = 'CheckChangesIssueSizeUseCase';
@@ -54177,7 +54191,7 @@ class CheckChangesIssueSizeUseCase {
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const baseBranch = param.currentConfiguration.parentBranch ??
@@ -54263,6 +54277,7 @@ const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const build_bugbot_prompt_1 = __nccwpck_require__(6339);
 const deduplicate_findings_1 = __nccwpck_require__(7384);
 const file_ignore_1 = __nccwpck_require__(3770);
@@ -54280,7 +54295,7 @@ class DetectPotentialProblemsUseCase {
         this.aiRepository = new ai_repository_1.AiRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         try {
             if (!param.ai?.getOpencodeModel() || !param.ai?.getOpencodeServerUrl()) {
@@ -54381,6 +54396,7 @@ const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const list_utils_1 = __nccwpck_require__(4990);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const execute_script_use_case_1 = __nccwpck_require__(155);
 class NotifyNewCommitOnIssueUseCase {
     constructor() {
@@ -54391,7 +54407,7 @@ class NotifyNewCommitOnIssueUseCase {
         this.separator = '------------------------------------------------------';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const branchName = param.commit.branch;
@@ -54517,13 +54533,14 @@ exports.CheckPermissionsUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CheckPermissionsUseCase {
     constructor() {
         this.taskId = 'CheckPermissionsUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         /**
          * If a release/hotfix issue was opened, check if author is a member of the project.
@@ -54605,12 +54622,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CommitPrefixBuilderUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CommitPrefixBuilderUseCase {
     constructor() {
         this.taskId = 'CommitPrefixBuilderUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const branchName = param.commitPrefixBuilderParams.branchName;
@@ -54721,13 +54739,14 @@ const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const content_utils_1 = __nccwpck_require__(7873);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class GetHotfixVersionUseCase {
     constructor() {
         this.taskId = 'GetHotfixVersionUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             let number = -1;
@@ -54818,13 +54837,14 @@ const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const content_utils_1 = __nccwpck_require__(7873);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class GetReleaseTypeUseCase {
     constructor() {
         this.taskId = 'GetReleaseTypeUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             let number = -1;
@@ -54904,13 +54924,14 @@ const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const content_utils_1 = __nccwpck_require__(7873);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class GetReleaseVersionUseCase {
     constructor() {
         this.taskId = 'GetReleaseVersionUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             let number = -1;
@@ -55132,13 +55153,14 @@ exports.UpdateTitleUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class UpdateTitleUseCase {
     constructor() {
         this.taskId = 'UpdateTitleUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             if (param.isIssue) {
@@ -55250,6 +55272,7 @@ const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class AssignMemberToIssueUseCase {
     constructor() {
         this.taskId = 'AssignMemberToIssueUseCase';
@@ -55257,7 +55280,7 @@ class AssignMemberToIssueUseCase {
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const desiredAssigneesCount = param.isIssue ?
             param.issue.desiredAssigneesCount : param.pullRequest.desiredAssigneesCount;
         const number = param.isIssue ? param.issue.number : param.pullRequest.number;
@@ -55371,6 +55394,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class AssignReviewersToIssueUseCase {
     constructor() {
         this.taskId = 'AssignReviewersToIssueUseCase';
@@ -55379,7 +55403,7 @@ class AssignReviewersToIssueUseCase {
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const desiredReviewersCount = param.pullRequest.desiredReviewersCount;
         const number = param.pullRequest.number;
         const result = [];
@@ -55460,13 +55484,14 @@ exports.CheckPriorityIssueSizeUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CheckPriorityIssueSizeUseCase {
     constructor() {
         this.taskId = 'CheckPriorityIssueSizeUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const priority = param.labels.priorityLabelOnIssue;
@@ -55544,13 +55569,14 @@ exports.CloseIssueAfterMergingUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CloseIssueAfterMergingUseCase {
     constructor() {
         this.taskId = 'CloseIssueAfterMergingUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
@@ -55602,13 +55628,14 @@ exports.CloseNotAllowedIssueUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CloseNotAllowedIssueUseCase {
     constructor() {
         this.taskId = 'CloseNotAllowedIssueUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
@@ -55661,6 +55688,7 @@ const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const content_utils_1 = __nccwpck_require__(7873);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const move_issue_to_in_progress_1 = __nccwpck_require__(8203);
 class DeployAddedUseCase {
     constructor() {
@@ -55668,7 +55696,7 @@ class DeployAddedUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deploy) {
@@ -55777,12 +55805,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DeployedAddedUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class DeployedAddedUseCase {
     constructor() {
         this.taskId = 'DeployedAddedUseCase';
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             if (param.issue.labeled && param.issue.labelAdded === param.labels.deployed) {
@@ -55851,6 +55880,7 @@ const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class LinkIssueProjectUseCase {
     constructor() {
         this.taskId = 'LinkIssueProjectUseCase';
@@ -55858,7 +55888,7 @@ class LinkIssueProjectUseCase {
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         const columnName = param.project.getProjectColumnIssueCreated();
         try {
@@ -55923,13 +55953,14 @@ exports.MoveIssueToInProgressUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class MoveIssueToInProgressUseCase {
     constructor() {
         this.taskId = 'MoveIssueToInProgressUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         const columnName = param.project.getProjectColumnIssueInProgress();
         try {
@@ -56013,6 +56044,7 @@ const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 const execute_script_use_case_1 = __nccwpck_require__(155);
 const move_issue_to_in_progress_1 = __nccwpck_require__(8203);
 class PrepareBranchesUseCase {
@@ -56021,7 +56053,7 @@ class PrepareBranchesUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const issueTitle = param.issue.title;
@@ -56281,6 +56313,7 @@ exports.RemoveIssueBranchesUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 /**
  * Remove any branch created for this issue
  */
@@ -56290,7 +56323,7 @@ class RemoveIssueBranchesUseCase {
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         try {
             const branchTypes = [param.branches.featureTree, param.branches.bugfixTree];
@@ -56391,13 +56424,14 @@ const core = __importStar(__nccwpck_require__(2186));
 const result_1 = __nccwpck_require__(7305);
 const branch_repository_1 = __nccwpck_require__(7701);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class RemoveNotNeededBranchesUseCase {
     constructor() {
         this.taskId = 'RemoveNotNeededBranchesUseCase';
         this.branchRepository = new branch_repository_1.BranchRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const issueTitle = param.issue.title;
@@ -56508,13 +56542,14 @@ exports.UpdateIssueTypeUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class UpdateIssueTypeUseCase {
     constructor() {
         this.taskId = 'UpdateIssueTypeUseCase';
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             await this.issueRepository.setIssueType(param.owner, param.repo, param.issueNumber, param.labels, param.issueTypes, param.tokens.token);
@@ -56550,6 +56585,7 @@ const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CheckIssueCommentLanguageUseCase {
     constructor() {
         this.taskId = 'CheckIssueCommentLanguageUseCase';
@@ -56560,7 +56596,7 @@ If you'd like this comment to be translated again, please delete the entire comm
 -->`;
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         const commentBody = param.issue.commentBody;
         if (commentBody.length === 0 || commentBody.includes(this.translatedKey)) {
@@ -56659,13 +56695,14 @@ exports.CheckPriorityPullRequestSizeUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CheckPriorityPullRequestSizeUseCase {
     constructor() {
         this.taskId = 'CheckPriorityPullRequestSizeUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const priority = param.labels.priorityLabelOnIssue;
@@ -56777,13 +56814,14 @@ const github = __importStar(__nccwpck_require__(5438));
 const result_1 = __nccwpck_require__(7305);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class LinkPullRequestIssueUseCase {
     constructor() {
         this.taskId = 'LinkPullRequestIssueUseCase';
         this.pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const isLinked = await this.pullRequestRepository.isLinked(github.context.payload.pull_request?.html_url ?? '');
@@ -56877,13 +56915,14 @@ exports.LinkPullRequestProjectUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class LinkPullRequestProjectUseCase {
     constructor() {
         this.taskId = 'LinkPullRequestProjectUseCase';
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         const columnName = param.project.getProjectColumnPullRequestCreated();
         try {
@@ -56949,6 +56988,7 @@ exports.SyncSizeAndProgressLabelsFromIssueToPrUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 /**
  * Copies size and progress labels from the linked issue to the PR.
  * Used when a PR is opened so it gets the same size/progress as the issue (corner case:
@@ -56960,7 +57000,7 @@ class SyncSizeAndProgressLabelsFromIssueToPrUseCase {
         this.issueRepository = new issue_repository_1.IssueRepository();
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             if (param.issueNumber === -1) {
@@ -57034,6 +57074,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class UpdatePullRequestDescriptionUseCase {
     constructor() {
         this.taskId = 'UpdatePullRequestDescriptionUseCase';
@@ -57043,7 +57084,7 @@ class UpdatePullRequestDescriptionUseCase {
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logDebugInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logDebugInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         try {
             const prNumber = param.pullRequest.number;
@@ -57170,6 +57211,7 @@ const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
 class CheckPullRequestCommentLanguageUseCase {
     constructor() {
         this.taskId = 'CheckPullRequestCommentLanguageUseCase';
@@ -57180,7 +57222,7 @@ If you'd like this comment to be translated again, please delete the entire comm
 -->`;
     }
     async invoke(param) {
-        (0, logger_1.logInfo)(`Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const results = [];
         const commentBody = param.pullRequest.commentBody;
         if (commentBody.length === 0 || commentBody.includes(this.translatedKey)) {
@@ -58041,6 +58083,78 @@ function copySetupFiles(cwd) {
         }
     }
     return { copied, skipped };
+}
+
+
+/***/ }),
+
+/***/ 9785:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getTaskEmoji = getTaskEmoji;
+/**
+ * Emoji representativo por tarea para los logs "Executing {taskId}".
+ * Facilita identificar visualmente el tipo de paso en la salida del action.
+ */
+const TASK_EMOJI = {
+    // Use cases principales
+    CommitUseCase: '📤',
+    IssueUseCase: '📋',
+    PullRequestUseCase: '🔀',
+    IssueCommentUseCase: '💬',
+    PullRequestReviewCommentUseCase: '💬',
+    SingleActionUseCase: '⚡',
+    // Issue steps
+    PrepareBranchesUseCase: '🌿',
+    CheckPermissionsUseCase: '🔐',
+    UpdateTitleUseCase: '✏️',
+    AssignMemberToIssueUseCase: '👤',
+    AssignReviewersToIssueUseCase: '👀',
+    LinkIssueProjectUseCase: '🔗',
+    LinkPullRequestProjectUseCase: '🔗',
+    LinkPullRequestIssueUseCase: '🔗',
+    CheckPriorityIssueSizeUseCase: '📏',
+    CheckPriorityPullRequestSizeUseCase: '📏',
+    CloseNotAllowedIssueUseCase: '🚫',
+    CloseIssueAfterMergingUseCase: '✅',
+    RemoveIssueBranchesUseCase: '🧹',
+    RemoveNotNeededBranchesUseCase: '🧹',
+    DeployAddedUseCase: '🏷️',
+    DeployedAddedUseCase: '🏷️',
+    MoveIssueToInProgressUseCase: '📥',
+    UpdateIssueTypeUseCase: '🏷️',
+    // Commit steps
+    NotifyNewCommitOnIssueUseCase: '📢',
+    CheckChangesIssueSizeUseCase: '📐',
+    DetectPotentialProblemsUseCase: '🔍',
+    // PR steps
+    SyncSizeAndProgressLabelsFromIssueToPrUseCase: '🔄',
+    UpdatePullRequestDescriptionUseCase: '✏️',
+    CheckIssueCommentLanguageUseCase: '🌐',
+    CheckPullRequestCommentLanguageUseCase: '🌐',
+    // Common steps
+    PublishResultUseCase: '📄',
+    StoreConfigurationUseCase: '⚙️',
+    GetReleaseVersionUseCase: '🏷️',
+    GetReleaseTypeUseCase: '🏷️',
+    GetHotfixVersionUseCase: '🏷️',
+    CommitPrefixBuilderUseCase: '📜',
+    ThinkUseCase: '💭',
+    // Actions
+    CheckProgressUseCase: '📊',
+    RecommendStepsUseCase: '💡',
+    CreateReleaseUseCase: '🎉',
+    CreateTagUseCase: '🏷️',
+    PublishGithubActionUseCase: '📦',
+    DeployedActionUseCase: '🚀',
+    InitialSetupUseCase: '🛠️',
+};
+const DEFAULT_EMOJI = '▶️';
+function getTaskEmoji(taskId) {
+    return TASK_EMOJI[taskId] ?? DEFAULT_EMOJI;
 }
 
 

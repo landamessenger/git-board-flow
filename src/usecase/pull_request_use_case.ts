@@ -1,6 +1,7 @@
 import { Execution } from "../data/model/execution";
 import { Result } from "../data/model/result";
 import { logDebugInfo, logError, logInfo } from "../utils/logger";
+import { getTaskEmoji } from "../utils/task_emoji";
 import { ParamUseCase } from "./base/param_usecase";
 import { UpdateTitleUseCase } from "./steps/common/update_title_use_case";
 import { AssignMemberToIssueUseCase } from "./steps/issue/assign_members_to_issue_use_case";
@@ -16,7 +17,7 @@ export class PullRequestUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'PullRequestUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const results: Result[] = []
         try {

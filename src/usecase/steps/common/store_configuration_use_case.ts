@@ -1,6 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { ConfigurationHandler } from "../../../manager/description/configuration_handler";
 import { logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 
@@ -12,7 +13,7 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
     private handler = new ConfigurationHandler();
 
     async invoke(param: Execution): Promise<void> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
         try {
             await this.handler.update(
                 param
