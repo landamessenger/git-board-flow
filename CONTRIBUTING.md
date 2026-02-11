@@ -63,7 +63,7 @@ npm run build
 - Update the relevant docs in `docs/` when changing behavior or adding features.
 - For user-facing changes, update `README.md` and the docs at [docs.page/vypdev/copilot](https://docs.page/vypdev/copilot).
 - The project uses [docs.page](https://docs.page/) (invertase) for publishing; see `docs.json` for sidebar structure.
-- Use only **docs.page components** so the site builds without errors: **Card**, **CardGroup** (for multiple cards in a row; use `cols={2}` or `cols={3}`), **Callouts** (e.g. Info, Warning, Tip), **Tabs**, **Accordion**, **Steps**, **Code Group**, etc. Do **not** use Mintlify-only components such as **Columns** (use **CardGroup** instead). See [docs.page Components](https://use.docs.page/components).
+- Use only **docs.page components** so the site builds without errors: **Card**, **CardGroup** (for multiple cards in a row; use `cols={2}` or `cols={3}`), **Callouts** (**Info**, **Warning**, **Error**, **Success** only — do not use Note or Tip), **Tabs**, **Accordion**, **Steps**, **Code Group**, etc. Do **not** use Mintlify-only components such as **Columns** (use **CardGroup** instead). See [docs.page Components](https://use.docs.page/components).
 
 ## Submitting Changes
 

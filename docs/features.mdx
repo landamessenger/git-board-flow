@@ -109,9 +109,9 @@ Configuration: `opencode-server-url`, `opencode-model`, and optionally `opencode
 
 ## Workflow concurrency and sequential execution
 
-<Tip>
+<Info>
   **Sequential runs:** When a new run starts, the action **waits** for any previous run of the **same workflow name** to finish. Runs of the same workflow (e.g. "Copilot - Issue") execute one after another instead of in parallel or being cancelled — something GitHub does not offer natively.
-</Tip>
+</Info>
 
 GitHub's native [concurrency](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency) lets you cancel in-progress runs when a new one starts (`cancel-in-progress: true`). Copilot adds **sequential execution** for the same workflow: when a new run starts, the action waits for any previous run of the same workflow name to finish before doing its work.
 
