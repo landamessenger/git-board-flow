@@ -5,7 +5,7 @@ description: Quick setup with copilot setup, then customize labels, templates, a
 
 ## Quick installation (CLI)
 
-To install the Copilot CLI globally from source:
+You can install the Copilot CLI **from any directory**. For example, from your home or projects folder:
 
 ```bash
 git clone https://github.com/vypdev/copilot.git
@@ -15,7 +15,7 @@ npm install . -g
 
 If the repo does not include the compiled `build/` folder (e.g. it is gitignored), run `npm install` and `npm run build` before `npm install . -g`.
 
-You can then run `copilot setup`, `copilot check-progress -i 123`, and other [CLI commands](/single-actions/workflow-and-cli) from any directory.
+Once installed, the `copilot` command is available globally. **All Copilot CLI commands** (including `copilot setup`, `copilot check-progress -i 123`, etc.) must be run **from inside the repository** where you want Copilot to run. That repository must have a **`.env`** file in its root with **`PERSONAL_ACCESS_TOKEN`** set so the CLI can access the repo. See [CLI commands](/single-actions/workflow-and-cli).
 
 ---
 
@@ -27,19 +27,29 @@ You can then run `copilot setup`, `copilot check-progress -i 123`, and other [CL
     Follow the [Authentication](/authentication) guide to create a **fine-grained PAT** with the right permissions (Actions, Administration, Contents, Issues, Metadata, Pull requests, etc.) and store it as a secret (e.g. `PAT`) in your repository or organization.
   </Step>
 
-  <Step title="2. Clone your repo and run copilot setup">
-    From your **repository root** (the repo where you want Copilot to run):
+  <Step title="2. Run copilot setup in your repository root">
+    Go to the **root of the repository** where you want Copilot (clone it if needed), then run:
 
     ```bash
-    git clone https://github.com/YOUR_ORG/YOUR_REPO.git
-    cd YOUR_REPO
+    cd /path/to/your/repo
     copilot setup
     ```
+
+    **About the token the first time:**  
+    The first time you run `copilot setup`, there will usually be **no `.env` file** in that repo with the PAT. The command will copy setup files (workflows, templates, etc.) but may fail or skip the step that needs GitHub access (labels, issue types). In that case:
+
+    - Create a **`.env`** file in the **repository root** with your token:
+      ```bash
+      PERSONAL_ACCESS_TOKEN=your_fine_grained_token_here
+      ```
+    - Run **`copilot setup` again**. This time it will have access to the repository and will create labels and issue types.
+
+    Alternatively, you can create the `.env` file with `PERSONAL_ACCESS_TOKEN` and its value **before** the first run and execute `copilot setup` once; it will then complete all steps (copy files + create labels and issue types) in a single pass.
 
     `copilot setup` will:
     - Create `.github/`, `.github/workflows/`, and `.github/ISSUE_TEMPLATE/` if they do not exist.
     - Copy all files from the Copilot `setup/` folder into your repo (workflows, issue templates, pull request template). Existing files are **not** overwritten.
-    - Verify GitHub access with your token (you will be prompted or use `PAT` from env).
+    - Verify GitHub access using `PERSONAL_ACCESS_TOKEN` from `.env` (or the token you pass when prompted).
     - Create all required **labels** in the repository (type, action, priority, size, progress 0%–100%).
     - Create all required **issue types** in the organization (Task, Bug, Feature, Release, Hotfix, etc.), if your plan supports it.
 
