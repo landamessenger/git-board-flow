@@ -69,11 +69,7 @@ npm run build
 
 Commit messages should start with the **current branch name** as prefix (with `/` replaced by `-`), e.g. `feature-292-github-action-rename: add concurrency to CI`.
 
-To apply this automatically (strip any existing prefix and add the correct one), install the hook:
-
-```bash
-cp scripts/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
-```
+The git hook that applies this automatically is **installed when you run `npm install`** (postinstall script). If you need to reinstall it: `sh scripts/install-git-hooks.sh`.
 
 ## Submitting Changes
 
