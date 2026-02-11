@@ -18,6 +18,6 @@ jobs:
       - uses: ./
         with:
           debug: ${{ vars.DEBUG }}
-          project-ids: 2
+          project-ids: ${{ vars.PROJECT_IDS }}
           opencode-model: ${{ vars.OPENCODE_MODEL }}
           token: ${{ secrets.PAT }}

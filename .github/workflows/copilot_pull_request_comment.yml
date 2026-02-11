@@ -17,6 +17,6 @@ jobs:
           ai-ignore-files: build/*
           debug: ${{ vars.DEBUG }}
           opencode-model: ${{ vars.OPENCODE_MODEL }}
-          project-ids: 2
+          project-ids: ${{ vars.PROJECT_IDS }}
           token: ${{ secrets.PAT }}
           
