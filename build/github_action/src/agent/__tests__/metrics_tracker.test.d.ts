@@ -1,4 +1,0 @@
-/**
- * Tests for MetricsTracker
- */
-export {};

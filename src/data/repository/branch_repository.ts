@@ -525,7 +525,7 @@ This PR merges **${head}** into **${base}**.
                 repo: repository,
                 pull_number: pullRequest.number,
                 body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
-                    '\n\nThis PR was automatically created by [`git-board-flow`](https://github.com/landamessenger/git-board-flow).'
+                    '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).'
             });
 
             const iteration = 10;

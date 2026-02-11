@@ -1,13 +1,14 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class DeployedAddedUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'DeployedAddedUseCase';
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const result: Result[] = []
         try {

@@ -1,0 +1,98 @@
+import { UpdatePullRequestDescriptionUseCase } from '../update_pull_request_description_use_case';
+import { Ai } from '../../../../data/model/ai';
+
+jest.mock('../../../../utils/logger', () => ({
+  logDebugInfo: jest.fn(),
+  logError: jest.fn(),
+}));
+
+const mockGetIssueDescription = jest.fn();
+jest.mock('../../../../data/repository/issue_repository', () => ({
+  IssueRepository: jest.fn().mockImplementation(() => ({
+    getIssueDescription: mockGetIssueDescription,
+  })),
+}));
+
+const mockGetAllMembers = jest.fn();
+jest.mock('../../../../data/repository/project_repository', () => ({
+  ProjectRepository: jest.fn().mockImplementation(() => ({
+    getAllMembers: mockGetAllMembers,
+  })),
+}));
+
+const mockAskAgent = jest.fn();
+jest.mock('../../../../data/repository/ai_repository', () => ({
+  AiRepository: jest.fn().mockImplementation(() => ({
+    askAgent: mockAskAgent,
+  })),
+  OPENCODE_AGENT_PLAN: 'plan',
+}));
+
+const mockUpdateDescription = jest.fn();
+jest.mock('../../../../data/repository/pull_request_repository', () => ({
+  PullRequestRepository: jest.fn().mockImplementation(() => ({
+    updateDescription: mockUpdateDescription,
+  })),
+}));
+
+function baseParam(overrides: Record<string, unknown> = {}) {
+  return {
+    owner: 'o',
+    repo: 'r',
+    issueNumber: 42,
+    tokens: { token: 't' },
+    pullRequest: { number: 10, head: 'feature/42-x', base: 'develop', creator: 'alice' },
+    ai: new Ai('http://localhost:4096', 'model', false, false, [], false, 'low', 20),
+    ...overrides,
+  } as unknown as Parameters<UpdatePullRequestDescriptionUseCase['invoke']>[0];
+}
+
+describe('UpdatePullRequestDescriptionUseCase', () => {
+  let useCase: UpdatePullRequestDescriptionUseCase;
+
+  beforeEach(() => {
+    useCase = new UpdatePullRequestDescriptionUseCase();
+    mockGetIssueDescription.mockResolvedValue('Issue description');
+    mockGetAllMembers.mockResolvedValue(['alice', 'bob']);
+    mockAskAgent.mockResolvedValue('## Summary\nPR does X.');
+    mockUpdateDescription.mockResolvedValue(undefined);
+  });
+
+  it('returns failure when head or base branch is missing', async () => {
+    const param = baseParam({ pullRequest: { number: 10, head: '', base: 'develop', creator: 'alice' } });
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps?.some((s) => s.includes('Could not determine PR branches'))).toBe(true);
+  });
+
+  it('returns failure when no issue description', async () => {
+    mockGetIssueDescription.mockResolvedValue('');
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps?.some((s) => s.includes('No issue description'))).toBe(true);
+  });
+
+  it('updates PR description when AI returns body and creator is team member', async () => {
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(mockAskAgent).toHaveBeenCalled();
+    expect(mockUpdateDescription).toHaveBeenCalledWith('o', 'r', 10, '## Summary\nPR does X.', 't');
+    expect(results.some((r) => r.success === true)).toBe(true);
+  });
+
+  it('returns failure when AI returns empty description', async () => {
+    mockAskAgent.mockResolvedValue('');
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps?.some((s) => s.includes('did not return a PR description'))).toBe(true);
+  });
+
+  it('returns failure on error', async () => {
+    mockGetIssueDescription.mockRejectedValue(new Error('API error'));
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+  });
+});

@@ -1,6 +1,5 @@
-export const COMMAND = 'giik'
-export const TITLE = 'Giik'
-export const REPO_URL = 'https://github.com/landamessenger/git-board-flow'
+export const TITLE = 'Copilot'
+export const REPO_URL = 'https://github.com/vypdev/copilot'
 
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export const OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free'
@@ -400,8 +399,8 @@ export const ACTIONS = {
     RECOMMEND_STEPS: 'recommend_steps_action',
 } as const; 
 
-/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
-export const BUGBOT_MARKER_PREFIX = 'gbf-bugbot';
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- copilot-bugbot finding_id:"id" resolved:true|false --> */
+export const BUGBOT_MARKER_PREFIX = 'copilot-bugbot';
 
 /** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
 export const BUGBOT_MAX_COMMENTS = 20;

@@ -1,6 +1,7 @@
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
 import { logError, logInfo } from '../../utils/logger';
+import { getTaskEmoji } from '../../utils/task_emoji';
 import { ParamUseCase } from '../base/param_usecase';
 import { IssueRepository } from '../../data/repository/issue_repository';
 import { AiRepository, OPENCODE_AGENT_PLAN } from '../../data/repository/ai_repository';
@@ -11,7 +12,7 @@ export class RecommendStepsUseCase implements ParamUseCase<Execution, Result[]> 
     private aiRepository: AiRepository = new AiRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const results: Result[] = [];
 

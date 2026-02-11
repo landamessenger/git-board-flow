@@ -207,7 +207,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     expect(mockAddComment).toHaveBeenCalledTimes(1);
     expect(mockAddComment).toHaveBeenCalledWith('owner', 'repo', 42, expect.any(String), 'token');
     expect(mockAddComment.mock.calls[0][3]).toContain('Possible null dereference');
-    expect(mockAddComment.mock.calls[0][3]).toContain('gbf-bugbot');
+    expect(mockAddComment.mock.calls[0][3]).toContain('copilot-bugbot');
     expect(mockAddComment.mock.calls[0][3]).toContain('finding_id:"src/foo.ts:10:possible-null"');
     expect(mockUpdateComment).not.toHaveBeenCalled();
   });
@@ -254,7 +254,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListIssueComments.mockResolvedValue([
       {
         id: 999,
-        body: `## Existing problem\n\nDetails.\n\n<!-- gbf-bugbot finding_id:"existing-finding-id" resolved:false -->`,
+        body: `## Existing problem\n\nDetails.\n\n<!-- copilot-bugbot finding_id:"existing-finding-id" resolved:false -->`,
         user: { login: 'bot' },
       },
     ]);
@@ -270,7 +270,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListIssueComments.mockResolvedValue([
       {
         id: 888,
-        body: `## Old bug\n\nDescription.\n\n<!-- gbf-bugbot finding_id:"old-bug-id" resolved:false -->`,
+        body: `## Old bug\n\nDescription.\n\n<!-- copilot-bugbot finding_id:"old-bug-id" resolved:false -->`,
         user: { login: 'bot' },
       },
     ]);
@@ -303,7 +303,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListPullRequestReviewComments.mockResolvedValue([
       {
         id: 777,
-        body: `## PR finding\n\n<!-- gbf-bugbot finding_id:"pr-finding" resolved:false -->`,
+        body: `## PR finding\n\n<!-- copilot-bugbot finding_id:"pr-finding" resolved:false -->`,
         path: 'src/a.ts',
         line: 1,
         node_id: 'PRRC_node_777',
@@ -336,7 +336,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListIssueComments.mockResolvedValue([
       {
         id: 666,
-        body: `## Unfixed\n\n<!-- gbf-bugbot finding_id:"unfixed-id" resolved:false -->`,
+        body: `## Unfixed\n\n<!-- copilot-bugbot finding_id:"unfixed-id" resolved:false -->`,
         user: {},
       },
     ]);
@@ -370,7 +370,7 @@ describe('DetectPotentialProblemsUseCase', () => {
       resolved_finding_ids: ['old-1'],
     });
     mockListIssueComments.mockResolvedValue([
-      { id: 1, body: '<!-- gbf-bugbot finding_id:"old-1" resolved:false -->', user: {} },
+      { id: 1, body: '<!-- copilot-bugbot finding_id:"old-1" resolved:false -->', user: {} },
     ]);
 
     const results = await useCase.invoke(baseParam());
@@ -420,7 +420,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListPullRequestReviewComments.mockResolvedValue([
       {
         id: 555,
-        body: `## Same\n\n<!-- gbf-bugbot finding_id:"same-pr-finding" resolved:false -->`,
+        body: `## Same\n\n<!-- copilot-bugbot finding_id:"same-pr-finding" resolved:false -->`,
         path: 'x.ts',
         line: 1,
       },
@@ -458,7 +458,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListIssueComments.mockResolvedValue([
       {
         id: 111,
-        body: `## Extracted Title Here\n\nSome body.\n\n<!-- gbf-bugbot finding_id:"ex-id" resolved:false -->`,
+        body: `## Extracted Title Here\n\nSome body.\n\n<!-- copilot-bugbot finding_id:"ex-id" resolved:false -->`,
         user: {},
       },
     ]);
@@ -486,7 +486,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     mockListIssueComments.mockResolvedValue([
       {
         id: 222,
-        body: `## Already resolved\n\n<!-- gbf-bugbot finding_id:"done-id" resolved:true -->`,
+        body: `## Already resolved\n\n<!-- copilot-bugbot finding_id:"done-id" resolved:true -->`,
         user: {},
       },
     ]);
@@ -505,7 +505,7 @@ describe('DetectPotentialProblemsUseCase', () => {
       mockListIssueComments.mockResolvedValue([
         {
           id: 333,
-          body: `## Whitespace variant\n\n<!--  gbf-bugbot   finding_id: "spacey-id"   resolved:false -->`,
+          body: `## Whitespace variant\n\n<!--  copilot-bugbot   finding_id: "spacey-id"   resolved:false -->`,
           user: { login: 'bot' },
         },
       ]);
@@ -528,7 +528,7 @@ describe('DetectPotentialProblemsUseCase', () => {
       const updatedBody = mockUpdateComment.mock.calls[0][4];
       expect(updatedBody).toContain('resolved:true');
       expect(updatedBody).toContain('**Resolved** (OpenCode confirmed fixed in latest analysis)');
-      expect(updatedBody).toContain('gbf-bugbot');
+      expect(updatedBody).toContain('copilot-bugbot');
     });
 
     it('replaces marker in PR review comment when marker has extra whitespace', async () => {
@@ -538,7 +538,7 @@ describe('DetectPotentialProblemsUseCase', () => {
         .mockResolvedValueOnce([
           {
             id: 444,
-            body: `## PR spacey\n\n<!--  gbf-bugbot   finding_id: "pr-spacey-id"   resolved:false   -->`,
+            body: `## PR spacey\n\n<!--  copilot-bugbot   finding_id: "pr-spacey-id"   resolved:false   -->`,
             path: 'src/b.ts',
             line: 1,
           },
@@ -546,7 +546,7 @@ describe('DetectPotentialProblemsUseCase', () => {
         .mockResolvedValueOnce([
           {
             id: 444,
-            body: `## PR spacey\n\n<!--  gbf-bugbot   finding_id: "pr-spacey-id"   resolved:false   -->`,
+            body: `## PR spacey\n\n<!--  copilot-bugbot   finding_id: "pr-spacey-id"   resolved:false   -->`,
             path: 'src/b.ts',
             line: 1,
           },
@@ -568,7 +568,7 @@ describe('DetectPotentialProblemsUseCase', () => {
       mockListIssueComments.mockResolvedValue([
         {
           id: 555,
-          body: `## Regex id\n\n<!-- gbf-bugbot finding_id:"${findingId}" resolved:false -->`,
+          body: `## Regex id\n\n<!-- copilot-bugbot finding_id:"${findingId}" resolved:false -->`,
           user: {},
         },
       ]);
@@ -601,8 +601,8 @@ describe('DetectPotentialProblemsUseCase', () => {
 
       expect(mockAddComment).toHaveBeenCalledTimes(1);
       const body = mockAddComment.mock.calls[0][3];
-      expect(body).toContain('gbf-bugbot');
-      const markerMatch = body.match(/<!--\s*gbf-bugbot\s+finding_id:\s*"([^"]+)"\s+resolved:/);
+      expect(body).toContain('copilot-bugbot');
+      const markerMatch = body.match(/<!--\s*copilot-bugbot\s+finding_id:\s*"([^"]+)"\s+resolved:/);
       expect(markerMatch).toBeTruthy();
       const storedId = markerMatch![1];
       expect(storedId).not.toContain('-->');
@@ -611,7 +611,7 @@ describe('DetectPotentialProblemsUseCase', () => {
       expect(storedId).not.toContain('>');
       expect(storedId).not.toContain('\n');
       expect(storedId).toBe('file.ts:1:badidwithnewlinehere');
-      expect(body).toMatch(/<!--\s*gbf-bugbot\s+finding_id:\s*"file\.ts:1:badidwithnewlinehere"\s+resolved:false\s*-->/);
+      expect(body).toMatch(/<!--\s*copilot-bugbot\s+finding_id:\s*"file\.ts:1:badidwithnewlinehere"\s+resolved:false\s*-->/);
     });
   });
 
@@ -701,7 +701,7 @@ describe('DetectPotentialProblemsUseCase', () => {
       );
       expect(overflowComment).toBeDefined();
       expect(overflowComment).toContain('more finding(s)');
-      const findingComments = bodies.filter((b) => b.includes('gbf-bugbot') && b.includes('finding_id'));
+      const findingComments = bodies.filter((b) => b.includes('copilot-bugbot') && b.includes('finding_id'));
       expect(findingComments.length).toBe(20);
     });
 

@@ -1,6 +1,6 @@
-# Contributing to Git Board Flow
+# Contributing to Copilot
 
-Thank you for your interest in contributing to Git Board Flow. This document provides guidelines for setting up the project and submitting changes.
+Thank you for your interest in contributing to Copilot. This document provides guidelines for setting up the project and submitting changes.
 
 ## Development Setup
 
@@ -61,9 +61,16 @@ npm run build
 ## Documentation
 
 - Update the relevant docs in `docs/` when changing behavior or adding features.
-- For user-facing changes, update `README.md` and the docs at [docs.page/landamessenger/git-board-flow](https://docs.page/landamessenger/git-board-flow).
-- The project uses [Mintlify](https://mintlify.com/) (docs.page) for docs; see `docs.json` for sidebar structure.
-- Use Mintlify components for a consistent, readable UI: **Card**, **Card** inside **Columns**, **Tabs**, **Accordion** / **AccordionGroup**, **Steps**, **Info** / **Warning** / **Tip** / **Note**. See [Mintlify Components](https://mintlify.com/docs/components).
+- For user-facing changes, update `README.md` and the docs at [docs.page/vypdev/copilot](https://docs.page/vypdev/copilot).
+- The project uses [docs.page](https://docs.page/) (invertase) for publishing; see `docs.json` for sidebar structure.
+- Use only **docs.page components** so the site builds without errors: **Card**, **CardGroup** (for multiple cards in a row; use `cols={2}` or `cols={3}`), **Callouts** (**Info**, **Warning**, **Error**, **Success** only — do not use Note or Tip), **Tabs**, **Accordion**, **Steps**, **Code Group**, etc. Do **not** use Mintlify-only components such as **Columns** (use **CardGroup** instead). See [docs.page Components](https://use.docs.page/components).
+
+## Git hooks
+
+Hooks are **installed when you run `npm install`** (postinstall). To reinstall: `node scripts/install-git-hooks.cjs`. Works on Windows, macOS, and Linux. On **Windows**, use [Git for Windows](https://git-scm.com/download/win) so hooks run with Bash (the pre-commit launcher is a shell script).
+
+- **prepare-commit-msg** — Adds the current branch name as prefix to the commit message (with `/` replaced by `-`), e.g. `feature-292-github-action-rename: add concurrency to CI`.
+- **pre-commit** — Before each commit, runs `npm run build`, `npm test`, and `npm run lint`. The commit is aborted if any of these fail.
 
 ## Submitting Changes
 
@@ -71,8 +78,8 @@ npm run build
 2. Make your changes, following the conventions above.
 3. Ensure tests pass and lint is clean.
 4. Submit a pull request with a clear description of the changes.
-5. Link the PR to an issue if applicable (Git Board Flow will help with that!).
+5. Link the PR to an issue if applicable (Copilot will help with that!).
 
 ## Questions?
 
-Open an issue on [GitHub](https://github.com/landamessenger/git-board-flow) or check the [Support](https://docs.page/landamessenger/git-board-flow/support) page in the documentation.
+Open an issue on [GitHub](https://github.com/vypdev/copilot) or check the [Support](https://docs.page/vypdev/copilot/support) page in the documentation.

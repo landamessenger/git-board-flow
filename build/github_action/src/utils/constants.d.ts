@@ -1,6 +1,5 @@
-export declare const COMMAND = "giik";
-export declare const TITLE = "Giik";
-export declare const REPO_URL = "https://github.com/landamessenger/git-board-flow";
+export declare const TITLE = "Copilot";
+export declare const REPO_URL = "https://github.com/vypdev/copilot";
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export declare const OPENCODE_DEFAULT_MODEL = "opencode/kimi-k2.5-free";
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
@@ -202,8 +201,8 @@ export declare const ACTIONS: {
     readonly DETECT_POTENTIAL_PROBLEMS: "detect_potential_problems_action";
     readonly RECOMMEND_STEPS: "recommend_steps_action";
 };
-/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- gbf-bugbot finding_id:"id" resolved:true|false --> */
-export declare const BUGBOT_MARKER_PREFIX = "gbf-bugbot";
+/** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- copilot-bugbot finding_id:"id" resolved:true|false --> */
+export declare const BUGBOT_MARKER_PREFIX = "copilot-bugbot";
 /** Max number of individual bugbot comments to create per issue/PR. Excess findings get one summary comment suggesting to review locally. */
 export declare const BUGBOT_MAX_COMMENTS = 20;
 /** Minimum severity to publish (findings below this are dropped). Order: high > medium > low > info. */

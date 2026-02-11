@@ -50,7 +50,7 @@ This workflow ensures that critical fixes reach production quickly while maintai
       name: Git Board - Issue
       runs-on: ubuntu-latest
       steps:
-        - uses: landamessenger/git-board-flow@v1
+        - uses: vypdev/copilot@v1
           with:
             deploy-label: deploy // [!code highlight]
             hotfix-workflow: hotfix_workflow.yml // [!code highlight]
@@ -104,7 +104,7 @@ This workflow ensures that critical fixes reach production quickly while maintai
         // deploy logic here
 
         - name: Git Board - Deploy success notification
-          uses: landamessenger/git-board-flow@v1
+          uses: vypdev/copilot@v1
           if: ${{ success() }}
           with:
             single-action: 'deployed_action'
@@ -134,7 +134,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           hotfix-label: hotfix // [!code highlight]
 ```
@@ -149,7 +149,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           hotfix-tree: hotfix // [!code highlight]
 ```
@@ -175,14 +175,14 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           main-branch: master // [!code highlight]
 ```
 
 ## Images
 
-You can configure custom images to be displayed in the comments of hotfix issues. These images will be randomly selected and displayed when Git Board Flow performs actions on the issue.
+You can configure custom images to be displayed in the comments of hotfix issues. These images will be randomly selected and displayed when Copilot performs actions on the issue.
 
 To configure the images, provide a comma-separated list of image URLs in the `images-issue-hotfix` input:
 
@@ -192,7 +192,7 @@ jobs:
     name: Git Board - Issue
     runs-on: ubuntu-latest
     steps:
-      - uses: landamessenger/git-board-flow@v1
+      - uses: vypdev/copilot@v1
         with:
           images-issue-hotfix: url1, url2, url3 // [!code highlight]
 ```
@@ -213,7 +213,7 @@ You can find this template in `.github/ISSUE_TEMPLATE/hotfix.yml`. Below is an e
 ```yml
 name: 🔥 Hotfix Issue
 
-description: Request a new hotfix for git-board-flow (only team members)
+description: Request a new hotfix for copilot (only team members)
 title: "<YOUR TITLE HERE>"
 labels: [ "hotfix", "branched" ]
 body:
@@ -221,7 +221,7 @@ body:
     attributes:
       value: |
         ### ⚠️ Disclaimer
-        > **Only members of the git-board-flow team can create hotfix issues.**
+        > **Only members of the copilot team can create hotfix issues.**
         > Any hotfix issue created by someone outside the team will be closed automatically.
 
         ---

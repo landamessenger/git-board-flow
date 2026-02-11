@@ -8,6 +8,7 @@ import {
 } from "../../../data/repository/ai_repository";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class CheckPullRequestCommentLanguageUseCase implements ParamUseCase<Execution, Result[]> {
@@ -20,7 +21,7 @@ If you'd like this comment to be translated again, please delete the entire comm
 -->`;
     
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const results: Result[] = []
 

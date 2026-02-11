@@ -1,11 +1,13 @@
 ---
-title: Git-Board-Flow
+title: Copilot
 description: Streamline your GitHub workflow with automated branch management, issue tracking, and project integration. Enhance team collaboration and optimize your development process.
 ---
 
+export const Columns = ({ children }) => <div>{children}</div>
+
 > This is Github with super powers 🚀
 
-**Git Board Flow** is designed with task management in mind, closely mirroring the approach used by Atlassian with Bitbucket and Jira. It leverages GitHub's project boards and issues as the foundation for task management at every stage of development.
+**Copilot** is designed with task management in mind, closely mirroring the approach used by Atlassian with Bitbucket and Jira. It leverages GitHub's project boards and issues as the foundation for task management at every stage of development.
 
 The goal is to replicate the seamless integration of boards, tasks, and branches that Atlassian offers, enhancing your workflow and project management capabilities.
 
@@ -13,7 +15,7 @@ This repository itself utilizes this GitHub Action for task management. You can 
 
 Experience seamless project management, automated branch handling, and enhanced team collaboration. Start optimizing your development process today and take your Git workflow to the next level! ✨
 
-<Columns cols={3}>
+<CardGroup cols={3}>
   <Card title="How to use" icon="list-check" href="/how-to-use">
     Step-by-step setup for issues, pull requests, and push workflows.
   </Card>
@@ -32,7 +34,7 @@ Experience seamless project management, automated branch handling, and enhanced 
   <Card title="Troubleshooting" icon="wrench" href="/troubleshooting">
     Common issues and solutions.
   </Card>
-</Columns>
+</CardGroup>
 
 ## Motivation
 

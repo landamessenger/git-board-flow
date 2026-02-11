@@ -3,6 +3,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
 import { logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
 export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Result[]> {
@@ -11,7 +12,7 @@ export class LinkPullRequestIssueUseCase implements ParamUseCase<Execution, Resu
     private pullRequestRepository = new PullRequestRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`)
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`)
 
         const result: Result[] = []
 

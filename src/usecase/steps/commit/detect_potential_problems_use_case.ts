@@ -3,6 +3,7 @@ import { Result } from "../../../data/model/result";
 import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../data/repository/ai_repository";
 import { BUGBOT_MAX_COMMENTS } from "../../../utils/constants";
 import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 import { buildBugbotPrompt } from "./bugbot/build_bugbot_prompt";
 import { deduplicateFindings } from "./bugbot/deduplicate_findings";
@@ -25,7 +26,7 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
     private aiRepository = new AiRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logInfo(`Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
 
         const results: Result[] = [];
         try {
