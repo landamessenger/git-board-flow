@@ -3,6 +3,22 @@ title: How To Use
 description: Steps for setting up Copilot in your repository
 ---
 
+## Quick installation (CLI)
+
+To install the Copilot CLI globally from source:
+
+```bash
+git clone https://github.com/vypdev/copilot.git
+cd copilot
+npm install . -g
+```
+
+If the repo does not include the compiled `build/` folder (e.g. it is gitignored), run `npm install` and `npm run build` before `npm install . -g`.
+
+Then you can run `copilot setup`, `copilot check-progress -i 123`, and other [CLI commands](/single-actions/workflow-and-cli) from any directory.
+
+---
+
 Follow these steps to set up Copilot in your repository:
 
 <Steps>

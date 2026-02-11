@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - uses: ./
+      - uses: vypdev/copilot@v1
         with:
           ai-ignore-files: build/*
           debug: ${{ vars.DEBUG }}
