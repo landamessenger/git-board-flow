@@ -47954,7 +47954,7 @@ class InitialSetupUseCase {
         const steps = [];
         const errors = [];
         try {
-            // 0. Setup files (.github/workflows, pull_request_template.md, .env)
+            // 0. Setup files (.github/workflows, .github/ISSUE_TEMPLATE, pull_request_template.md, .env)
             (0, logger_1.logInfo)('📋 Ensuring .github and copying setup files...');
             (0, setup_files_1.ensureGitHubDirs)(process.cwd());
             const filesResult = (0, setup_files_1.copySetupFiles)(process.cwd());
@@ -53485,12 +53485,13 @@ const fs = __importStar(__nccwpck_require__(7147));
 const path = __importStar(__nccwpck_require__(1017));
 const logger_1 = __nccwpck_require__(8836);
 /**
- * Ensure .github and .github/workflows exist; create them if missing.
+ * Ensure .github, .github/workflows and .github/ISSUE_TEMPLATE exist; create them if missing.
  * @param cwd - Directory (repo root)
  */
 function ensureGitHubDirs(cwd) {
     const githubDir = path.join(cwd, '.github');
     const workflowsDir = path.join(cwd, '.github', 'workflows');
+    const issueTemplateDir = path.join(cwd, '.github', 'ISSUE_TEMPLATE');
     if (!fs.existsSync(githubDir)) {
         (0, logger_1.logInfo)('📁 Creating .github/...');
         fs.mkdirSync(githubDir, { recursive: true });
@@ -53499,9 +53500,13 @@ function ensureGitHubDirs(cwd) {
         (0, logger_1.logInfo)('📁 Creating .github/workflows/...');
         fs.mkdirSync(workflowsDir, { recursive: true });
     }
+    if (!fs.existsSync(issueTemplateDir)) {
+        (0, logger_1.logInfo)('📁 Creating .github/ISSUE_TEMPLATE/...');
+        fs.mkdirSync(issueTemplateDir, { recursive: true });
+    }
 }
 /**
- * Copy setup files from setup/ to repo (.github/ workflows, pull_request_template.md, .env at root).
+ * Copy setup files from setup/ to repo (.github/ workflows, ISSUE_TEMPLATE, pull_request_template.md, .env at root).
  * Skips files that already exist at destination (no overwrite).
  * Logs each file copied or skipped. No-op if setup/ does not exist.
  * @param cwd - Repo root
@@ -53530,6 +53535,24 @@ function copySetupFiles(cwd) {
                     (0, logger_1.logInfo)(`  ✅ Copied setup/workflows/${f} → .github/workflows/${f}`);
                     copied += 1;
                 }
+            }
+        }
+    }
+    const issueTemplateSrc = path.join(setupDir, 'ISSUE_TEMPLATE');
+    const issueTemplateDst = path.join(cwd, '.github', 'ISSUE_TEMPLATE');
+    if (fs.existsSync(issueTemplateSrc)) {
+        const files = fs.readdirSync(issueTemplateSrc).filter((f) => fs.statSync(path.join(issueTemplateSrc, f)).isFile());
+        for (const f of files) {
+            const src = path.join(issueTemplateSrc, f);
+            const dst = path.join(issueTemplateDst, f);
+            if (fs.existsSync(dst)) {
+                (0, logger_1.logInfo)(`  ⏭️  .github/ISSUE_TEMPLATE/${f} already exists; skipping.`);
+                skipped += 1;
+            }
+            else {
+                fs.copyFileSync(src, dst);
+                (0, logger_1.logInfo)(`  ✅ Copied setup/ISSUE_TEMPLATE/${f} → .github/ISSUE_TEMPLATE/${f}`);
+                copied += 1;
             }
         }
     }
