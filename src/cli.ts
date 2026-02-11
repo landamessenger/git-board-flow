@@ -8,7 +8,7 @@ import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
 import { logError, logInfo } from './utils/logger';
 import { Ai } from './data/model/ai';
-import { AiRepository, getSessionDiff, OpenCodeFileDiff } from './data/repository/ai_repository';
+import { AiRepository } from './data/repository/ai_repository';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -203,8 +203,7 @@ program
       const { text, sessionId } = result;
 
       if (outputFormat === 'json') {
-        const diff = await getSessionDiff(serverUrl, sessionId);
-        console.log(JSON.stringify({ response: text, sessionId, diff }, null, 2));
+        console.log(JSON.stringify({ response: text, sessionId }, null, 2));
         return;
       }
 
@@ -212,18 +211,7 @@ program
       console.log('🤖 RESPONSE (OpenCode build agent)');
       console.log('='.repeat(80));
       console.log(`\n${text || '(No text response)'}\n`);
-
-      const diff = await getSessionDiff(serverUrl, sessionId);
-      if (diff && diff.length > 0) {
-        console.log('='.repeat(80));
-        console.log('📝 FILES CHANGED (by OpenCode in this session)');
-        console.log('='.repeat(80));
-        diff.forEach((d: OpenCodeFileDiff, index: number) => {
-          const path = d.path ?? d.file ?? JSON.stringify(d);
-          console.log(`  ${index + 1}. ${path}`);
-        });
-        console.log('');
-      }
+      console.log('Changes are applied directly in the workspace when OpenCode runs from the repo (e.g. opencode serve).');
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error('❌ Error executing do:', err.message || error);
