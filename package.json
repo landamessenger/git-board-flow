@@ -13,7 +13,7 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "postinstall": "sh scripts/install-git-hooks.sh"
+    "postinstall": "node scripts/install-git-hooks.cjs"
   },
   "keywords": [],
   "author": "Efra Espada",

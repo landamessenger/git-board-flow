@@ -2,7 +2,7 @@
 # Ensures the commit message starts with the current branch name (with / replaced by -).
 # Strips any existing prefix so the correct one is always applied.
 #
-# Install: cp scripts/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
+# Install: npm install (postinstall) or node scripts/install-git-hooks.cjs
 
 MSG_FILE="$1"
 SOURCE="$2"
