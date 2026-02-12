@@ -15,4 +15,5 @@ export interface BugbotAutofixCommitResult {
  */
 export declare function runBugbotAutofixCommitAndPush(execution: Execution, options?: {
     branchOverride?: string;
+    targetFindingIds?: string[];
 }): Promise<BugbotAutofixCommitResult>;

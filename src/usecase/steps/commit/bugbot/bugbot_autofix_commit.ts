@@ -74,9 +74,10 @@ async function hasChanges(): Promise<boolean> {
  */
 export async function runBugbotAutofixCommitAndPush(
     execution: Execution,
-    options?: { branchOverride?: string }
+    options?: { branchOverride?: string; targetFindingIds?: string[] }
 ): Promise<BugbotAutofixCommitResult> {
     const branchOverride = options?.branchOverride;
+    const targetFindingIds = options?.targetFindingIds ?? [];
     const branch = branchOverride ?? execution.commit.branch;
 
     if (!branch?.trim()) {
@@ -121,7 +122,11 @@ export async function runBugbotAutofixCommitAndPush(
         logDebugInfo(`Git author set to ${name} <${email}>.`);
 
         await exec.exec("git", ["add", "-A"]);
-        const commitMessage = "fix: bugbot autofix - resolve reported findings";
+        const issueNumber = execution.issueNumber > 0 ? execution.issueNumber : undefined;
+        const findingIdsPart = targetFindingIds.length > 0 ? targetFindingIds.join(", ") : "reported findings";
+        const commitMessage = issueNumber
+            ? `fix(#${issueNumber}): bugbot autofix - resolve ${findingIdsPart}`
+            : `fix: bugbot autofix - resolve ${findingIdsPart}`;
         await exec.exec("git", ["commit", "-m", commitMessage]);
         await exec.exec("git", ["push", "origin", branch]);
         logInfo(`Pushed commit to origin/${branch}.`);

@@ -48442,6 +48442,7 @@ class IssueCommentUseCase {
                 (0, logger_1.logInfo)("Bugbot autofix succeeded; running commit and push.");
                 const commitResult = await (0, bugbot_autofix_commit_1.runBugbotAutofixCommitAndPush)(param, {
                     branchOverride: payload.branchOverride,
+                    targetFindingIds: payload.targetFindingIds,
                 });
                 if (commitResult.committed && payload.context) {
                     const ids = payload.targetFindingIds;
@@ -48617,6 +48618,7 @@ class PullRequestReviewCommentUseCase {
                 (0, logger_1.logInfo)("Bugbot autofix succeeded; running commit and push.");
                 const commitResult = await (0, bugbot_autofix_commit_1.runBugbotAutofixCommitAndPush)(param, {
                     branchOverride: payload.branchOverride,
+                    targetFindingIds: payload.targetFindingIds,
                 });
                 if (commitResult.committed && payload.context) {
                     const ids = payload.targetFindingIds;
@@ -48942,6 +48944,7 @@ async function hasChanges() {
  */
 async function runBugbotAutofixCommitAndPush(execution, options) {
     const branchOverride = options?.branchOverride;
+    const targetFindingIds = options?.targetFindingIds ?? [];
     const branch = branchOverride ?? execution.commit.branch;
     if (!branch?.trim()) {
         return { success: false, committed: false, error: "No branch to commit to." };
@@ -48980,7 +48983,11 @@ async function runBugbotAutofixCommitAndPush(execution, options) {
         await exec.exec("git", ["config", "user.email", email]);
         (0, logger_1.logDebugInfo)(`Git author set to ${name} <${email}>.`);
         await exec.exec("git", ["add", "-A"]);
-        const commitMessage = "fix: bugbot autofix - resolve reported findings";
+        const issueNumber = execution.issueNumber > 0 ? execution.issueNumber : undefined;
+        const findingIdsPart = targetFindingIds.length > 0 ? targetFindingIds.join(", ") : "reported findings";
+        const commitMessage = issueNumber
+            ? `fix(#${issueNumber}): bugbot autofix - resolve ${findingIdsPart}`
+            : `fix: bugbot autofix - resolve ${findingIdsPart}`;
         await exec.exec("git", ["commit", "-m", commitMessage]);
         await exec.exec("git", ["push", "origin", branch]);
         (0, logger_1.logInfo)(`Pushed commit to origin/${branch}.`);
