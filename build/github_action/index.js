@@ -48952,7 +48952,11 @@ async function runBugbotAutofixCommitAndPush(execution, options) {
             return { success: false, committed: false, error: `Failed to checkout branch ${branch}.` };
         }
     }
-    const verifyCommands = execution.ai?.getBugbotFixVerifyCommands?.() ?? [];
+    let verifyCommands = execution.ai?.getBugbotFixVerifyCommands?.() ?? [];
+    if (!Array.isArray(verifyCommands)) {
+        verifyCommands = [];
+    }
+    verifyCommands = verifyCommands.filter((cmd) => typeof cmd === "string");
     if (verifyCommands.length > 0) {
         (0, logger_1.logInfo)(`Running ${verifyCommands.length} verify command(s)...`);
         const verify = await runVerifyCommands(verifyCommands);

@@ -90,7 +90,11 @@ export async function runBugbotAutofixCommitAndPush(
         }
     }
 
-    const verifyCommands = execution.ai?.getBugbotFixVerifyCommands?.() ?? [];
+    let verifyCommands = execution.ai?.getBugbotFixVerifyCommands?.() ?? [];
+    if (!Array.isArray(verifyCommands)) {
+        verifyCommands = [];
+    }
+    verifyCommands = verifyCommands.filter((cmd): cmd is string => typeof cmd === "string");
     if (verifyCommands.length > 0) {
         logInfo(`Running ${verifyCommands.length} verify command(s)...`);
         const verify = await runVerifyCommands(verifyCommands);
