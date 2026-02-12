@@ -92,10 +92,7 @@ describe('ThinkUseCase', () => {
     expect(mockAddComment).not.toHaveBeenCalled();
   });
 
-  it('responds without mention when issue has question label', async () => {
-    mockGetDescription.mockResolvedValue(undefined);
-    mockAskAgent.mockResolvedValue({ answer: 'Here is the answer.' });
-    mockAddComment.mockResolvedValue(undefined);
+  it('does not respond without @mention even when issue has question label', async () => {
     const param = baseParam({
       labels: { isQuestion: true, isHelp: false },
       issue: { ...baseParam().issue, commentBody: 'how do I configure the webhook?' },
@@ -103,17 +100,13 @@ describe('ThinkUseCase', () => {
 
     const results = await useCase.invoke(param);
 
-    expect(mockAskAgent).toHaveBeenCalledTimes(1);
-    expect(mockAskAgent.mock.calls[0][2]).toContain('how do I configure the webhook?');
-    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'Here is the answer.', 't');
+    expect(mockAskAgent).not.toHaveBeenCalled();
+    expect(mockAddComment).not.toHaveBeenCalled();
     expect(results[0].success).toBe(true);
-    expect(results[0].executed).toBe(true);
+    expect(results[0].executed).toBe(false);
   });
 
-  it('responds without mention when issue has help label', async () => {
-    mockGetDescription.mockResolvedValue(undefined);
-    mockAskAgent.mockResolvedValue({ answer: 'I can help with that.' });
-    mockAddComment.mockResolvedValue(undefined);
+  it('does not respond without @mention even when issue has help label', async () => {
     const param = baseParam({
       labels: { isQuestion: false, isHelp: true },
       issue: { ...baseParam().issue, commentBody: 'I need help with deployment' },
@@ -121,9 +114,26 @@ describe('ThinkUseCase', () => {
 
     const results = await useCase.invoke(param);
 
+    expect(mockAskAgent).not.toHaveBeenCalled();
+    expect(mockAddComment).not.toHaveBeenCalled();
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(false);
+  });
+
+  it('responds when issue has question label and comment mentions bot', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAskAgent.mockResolvedValue({ answer: 'Here is the answer.' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      labels: { isQuestion: true, isHelp: false },
+      issue: { ...baseParam().issue, commentBody: '@bot how do I configure the webhook?' },
+    });
+
+    const results = await useCase.invoke(param);
+
     expect(mockAskAgent).toHaveBeenCalledTimes(1);
-    expect(mockAskAgent.mock.calls[0][2]).toContain('I need help with deployment');
-    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'I can help with that.', 't');
+    expect(mockAskAgent.mock.calls[0][2]).toContain('how do I configure the webhook?');
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'Here is the answer.', 't');
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
   });

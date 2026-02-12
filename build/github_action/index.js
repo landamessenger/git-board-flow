@@ -47732,6 +47732,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const ai_repository_1 = __nccwpck_require__(8307);
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const PROGRESS_RESPONSE_SCHEMA = {
     type: 'object',
     properties: {
@@ -47959,6 +47960,8 @@ class CheckProgressUseCase {
      */
     buildProgressPrompt(issueNumber, issueDescription, currentBranch, baseBranch) {
         return `You are in the repository workspace. Assess the progress of issue #${issueNumber} using the full diff between the base (parent) branch and the current branch.
+
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **Branches:**
 - **Base (parent) branch:** \`${baseBranch}\`
@@ -48552,6 +48555,7 @@ const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
 const issue_repository_1 = __nccwpck_require__(57);
 const ai_repository_1 = __nccwpck_require__(8307);
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 class RecommendStepsUseCase {
     constructor() {
         this.taskId = 'RecommendStepsUseCase';
@@ -48593,10 +48597,12 @@ class RecommendStepsUseCase {
             }
             const prompt = `Based on the following issue description, recommend concrete steps to implement or address this issue. Order the steps logically (e.g. setup, implementation, tests, docs). Keep each step clear and actionable.
 
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
+
 **Issue #${issueNumber} description:**
 ${issueDescription}
 
-Provide a numbered list of recommended steps. You can add brief sub-bullets per step if needed.`;
+Provide a numbered list of recommended steps in **markdown** (use headings, lists, code blocks for commands or snippets) so it is easy to read. You can add brief sub-bullets per step if needed.`;
             (0, logger_1.logInfo)(`🤖 Recommending steps using OpenCode Plan agent...`);
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
             const steps = typeof response === 'string'
@@ -48779,8 +48785,10 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueUseCase = void 0;
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
+const recommend_steps_use_case_1 = __nccwpck_require__(3538);
 const check_permissions_use_case_1 = __nccwpck_require__(8749);
 const update_title_use_case_1 = __nccwpck_require__(5107);
+const answer_issue_help_use_case_1 = __nccwpck_require__(3577);
 const assign_members_to_issue_use_case_1 = __nccwpck_require__(3115);
 const check_priority_issue_size_use_case_1 = __nccwpck_require__(151);
 const close_not_allowed_issue_use_case_1 = __nccwpck_require__(7826);
@@ -48849,6 +48857,19 @@ class IssueUseCase {
          * Check if deployed label was added
          */
         results.push(...await new label_deployed_added_use_case_1.DeployedAddedUseCase().invoke(param));
+        /**
+         * On newly opened issues: recommend steps (non release/question/help) or post initial help (question/help).
+         */
+        if (param.issue.opened) {
+            const isRelease = param.labels.isRelease;
+            const isQuestionOrHelp = param.labels.isQuestion || param.labels.isHelp;
+            if (!isRelease && !isQuestionOrHelp) {
+                results.push(...(await new recommend_steps_use_case_1.RecommendStepsUseCase().invoke(param)));
+            }
+            else if (isQuestionOrHelp) {
+                results.push(...(await new answer_issue_help_use_case_1.AnswerIssueHelpUseCase().invoke(param)));
+            }
+        }
         return results;
     }
 }
@@ -49467,6 +49488,7 @@ function canRunBugbotAutofix(payload) {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotFixIntentPrompt = buildBugbotFixIntentPrompt;
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 function buildBugbotFixIntentPrompt(userComment, unresolvedFindings, parentCommentBody) {
     const findingsBlock = unresolvedFindings.length === 0
@@ -49481,6 +49503,8 @@ function buildBugbotFixIntentPrompt(userComment, unresolvedFindings, parentComme
         ? `\n**Parent comment (the comment the user replied to):**\n${parentCommentBody.trim().slice(0, 1500)}${parentCommentBody.length > 1500 ? '...' : ''}\n`
         : '';
     return `You are analyzing a user comment on an issue or pull request to decide whether they are asking to fix one or more reported code findings (bugs, vulnerabilities, or quality issues).
+
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **List of unresolved findings (id, title, and optional file/line/description):**
 ${findingsBlock}
@@ -49507,6 +49531,7 @@ Respond with a JSON object: \`is_fix_request\` (boolean) and \`target_finding_id
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotFixPrompt = buildBugbotFixPrompt;
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 /**
  * Builds the prompt for the OpenCode build agent to fix the selected bugbot findings.
@@ -49539,6 +49564,8 @@ function buildBugbotFixPrompt(param, context, targetFindingIds, userComment, ver
         : "\n**Verify:** Run any standard project checks (e.g. build, test, lint) that exist in this repo and confirm they pass.\n";
     return `You are in the repository workspace. Your task is to fix the reported code findings (bugs, vulnerabilities, or quality issues) listed below, and only those. The user has explicitly requested these fixes.
 
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
+
 **Repository context:**
 - Owner: ${owner}
 - Repository: ${repo}
@@ -49569,7 +49596,7 @@ Once the fixes are applied and the verify commands pass, reply briefly confirmin
 /***/ }),
 
 /***/ 6339:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -49581,6 +49608,7 @@ Once the fixes are applied and the verify commands pass, reply briefly confirmin
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotPrompt = buildBugbotPrompt;
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 function buildBugbotPrompt(param, context) {
     const headBranch = param.commit.branch;
     const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
@@ -49590,6 +49618,8 @@ function buildBugbotPrompt(param, context) {
         ? `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${ignorePatterns.join(', ')}.`
         : '';
     return `You are analyzing the latest code changes for potential bugs and issues.
+
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **Repository context:**
 - Owner: ${param.owner}
@@ -51498,6 +51528,7 @@ const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 class ThinkUseCase {
     constructor() {
         this.taskId = 'ThinkUseCase';
@@ -51520,26 +51551,23 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            const isHelpOrQuestionIssue = param.labels.isQuestion || param.labels.isHelp;
-            if (!isHelpOrQuestionIssue) {
-                if (!param.tokenUser?.trim()) {
-                    (0, logger_1.logInfo)('Bot username (tokenUser) not set; skipping Think response.');
-                    results.push(new result_1.Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    }));
-                    return results;
-                }
-                if (!commentBody.includes(`@${param.tokenUser}`)) {
-                    (0, logger_1.logInfo)(`Comment does not mention @${param.tokenUser}; skipping.`);
-                    results.push(new result_1.Result({
-                        id: this.taskId,
-                        success: true,
-                        executed: false,
-                    }));
-                    return results;
-                }
+            if (!param.tokenUser?.trim()) {
+                (0, logger_1.logInfo)('Bot username (tokenUser) not set; skipping Think response.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
+            }
+            if (!commentBody.includes(`@${param.tokenUser}`)) {
+                (0, logger_1.logInfo)(`Comment does not mention @${param.tokenUser}; skipping.`);
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
             }
             if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
                 results.push(new result_1.Result({
@@ -51550,9 +51578,7 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            const question = isHelpOrQuestionIssue
-                ? commentBody.trim()
-                : commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
             if (!question) {
                 results.push(new result_1.Result({
                     id: this.taskId,
@@ -51572,7 +51598,10 @@ class ThinkUseCase {
             const contextBlock = issueDescription
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
-            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.${contextBlock}Question: ${question}`;
+            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Format your answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.
+
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
+${contextBlock}Question: ${question}`;
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
@@ -51745,6 +51774,133 @@ class UpdateTitleUseCase {
     }
 }
 exports.UpdateTitleUseCase = UpdateTitleUseCase;
+
+
+/***/ }),
+
+/***/ 3577:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * When a question or help issue is newly opened, posts an initial helpful reply
+ * based on the issue description (OpenCode Plan agent). The user can still
+ * @mention the bot later for follow-up answers (ThinkUseCase).
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AnswerIssueHelpUseCase = void 0;
+const result_1 = __nccwpck_require__(7305);
+const ai_repository_1 = __nccwpck_require__(8307);
+const issue_repository_1 = __nccwpck_require__(57);
+const logger_1 = __nccwpck_require__(8836);
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
+const task_emoji_1 = __nccwpck_require__(9785);
+class AnswerIssueHelpUseCase {
+    constructor() {
+        this.taskId = 'AnswerIssueHelpUseCase';
+        this.aiRepository = new ai_repository_1.AiRepository();
+        this.issueRepository = new issue_repository_1.IssueRepository();
+    }
+    async invoke(param) {
+        const results = [];
+        try {
+            if (!param.issue.opened) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
+            }
+            if (!param.labels.isQuestion && !param.labels.isHelp) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
+            }
+            if (!param.ai?.getOpencodeModel()?.trim() || !param.ai?.getOpencodeServerUrl()?.trim()) {
+                (0, logger_1.logInfo)('OpenCode not configured; skipping initial help reply.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
+            }
+            const issueNumber = param.issue.number;
+            if (issueNumber <= 0) {
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
+            }
+            const description = (param.issue.body ?? '').trim();
+            if (!description) {
+                (0, logger_1.logInfo)('Issue has no body; skipping initial help reply.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: true,
+                    executed: false,
+                }));
+                return results;
+            }
+            (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Posting initial help reply for question/help issue #${issueNumber}.`);
+            const prompt = `The user has just opened a question/help issue. Provide a helpful initial response to their question or request below. Be concise and actionable. Use the project context when relevant.
+
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
+
+**Issue description (user's question or request):**
+"""
+${description}
+"""
+
+Respond with a single JSON object containing an "answer" field with your reply. Format the answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.`;
+            const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
+                expectJson: true,
+                schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
+                schemaName: 'think_response',
+            });
+            const answer = response != null &&
+                typeof response === 'object' &&
+                typeof response.answer === 'string'
+                ? response.answer.trim()
+                : '';
+            if (!answer) {
+                (0, logger_1.logError)('OpenCode returned no answer for initial help.');
+                results.push(new result_1.Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: ['OpenCode returned no answer for initial help.'],
+                }));
+                return results;
+            }
+            await this.issueRepository.addComment(param.owner, param.repo, issueNumber, answer, param.tokens.token);
+            (0, logger_1.logInfo)(`Initial help reply posted to issue #${issueNumber}.`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: true,
+                executed: true,
+            }));
+        }
+        catch (error) {
+            (0, logger_1.logError)(`Error in ${this.taskId}: ${error}`);
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [`Error in ${this.taskId}: ${error}`],
+            }));
+        }
+        return results;
+    }
+}
+exports.AnswerIssueHelpUseCase = AnswerIssueHelpUseCase;
 
 
 /***/ }),
@@ -53562,6 +53718,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const logger_1 = __nccwpck_require__(8836);
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const task_emoji_1 = __nccwpck_require__(9785);
 class UpdatePullRequestDescriptionUseCase {
     constructor() {
@@ -53657,6 +53814,8 @@ class UpdatePullRequestDescriptionUseCase {
      */
     buildPrDescriptionPrompt(issueNumber, issueDescription, headBranch, baseBranch) {
         return `You are in the repository workspace. Your task is to produce a pull request description by filling the project's PR template with information from the branch diff and the issue.
+
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **Branches:**
 - **Base (target) branch:** \`${baseBranch}\`
@@ -54418,6 +54577,23 @@ function logSingleLine(message) {
     readline_1.default.cursorTo(process.stdout, 0);
     process.stdout.write(message);
 }
+
+
+/***/ }),
+
+/***/ 7381:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Shared instruction for every prompt we send to OpenCode about the project.
+ * Tells the agent to read not only the code (respecting ignore patterns) but also
+ * the repository documentation and defined rules, for a full picture and better decisions.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.OPENCODE_PROJECT_CONTEXT_INSTRUCTION = void 0;
+exports.OPENCODE_PROJECT_CONTEXT_INSTRUCTION = `**Important – use full project context:** In addition to reading the relevant code (respecting any file ignore patterns specified), read the repository documentation (e.g. README, docs/) and any defined rules or conventions (e.g. .cursor/rules, CONTRIBUTING, project guidelines). This gives you a complete picture of the project and leads to better decisions in both quality of reasoning and efficiency.`;
 
 
 /***/ }),

@@ -1,13 +1,20 @@
+/**
+ * When a question or help issue is newly opened, posts an initial helpful reply
+ * based on the issue description (OpenCode Plan agent). The user can still
+ * @mention the bot later for follow-up answers (ThinkUseCase).
+ */
+
 import { Execution } from '../../../data/model/execution';
 import { Result } from '../../../data/model/result';
 import { AiRepository, OPENCODE_AGENT_PLAN, THINK_RESPONSE_SCHEMA } from '../../../data/repository/ai_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
 import { logError, logInfo } from '../../../utils/logger';
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../../utils/opencode_project_context_instruction';
+import { getTaskEmoji } from '../../../utils/task_emoji';
 import { ParamUseCase } from '../../base/param_usecase';
 
-export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
-    taskId: string = 'ThinkUseCase';
+export class AnswerIssueHelpUseCase implements ParamUseCase<Execution, Result[]> {
+    taskId: string = 'AnswerIssueHelpUseCase';
     private aiRepository: AiRepository = new AiRepository();
     private issueRepository: IssueRepository = new IssueRepository();
 
@@ -15,14 +22,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
         const results: Result[] = [];
 
         try {
-            const commentBody =
-                param.issue.isIssueComment
-                    ? (param.issue.commentBody ?? '')
-                    : param.pullRequest.isPullRequestReviewComment
-                      ? (param.pullRequest.commentBody ?? '')
-                      : '';
-
-            if (!commentBody.trim()) {
+            if (!param.issue.opened) {
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -33,8 +33,7 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (!param.tokenUser?.trim()) {
-                logInfo('Bot username (tokenUser) not set; skipping Think response.');
+            if (!param.labels.isQuestion && !param.labels.isHelp) {
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -45,8 +44,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (!commentBody.includes(`@${param.tokenUser}`)) {
-                logInfo(`Comment does not mention @${param.tokenUser}; skipping.`);
+            if (!param.ai?.getOpencodeModel()?.trim() || !param.ai?.getOpencodeServerUrl()?.trim()) {
+                logInfo('OpenCode not configured; skipping initial help reply.');
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -57,20 +56,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            if (!param.ai.getOpencodeModel()?.trim() || !param.ai.getOpencodeServerUrl()?.trim()) {
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: false,
-                        errors: ['OpenCode server URL or model not found.'],
-                    })
-                );
-                return results;
-            }
-
-            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
-            if (!question) {
+            const issueNumber = param.issue.number;
+            if (issueNumber <= 0) {
                 results.push(
                     new Result({
                         id: this.taskId,
@@ -81,33 +68,38 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            const issueNumberForContext =
-                param.issue.isIssueComment ? param.issue.number : param.issueNumber;
-            let issueDescription = '';
-            if (issueNumberForContext > 0) {
-                const desc = await this.issueRepository.getDescription(
-                    param.owner,
-                    param.repo,
-                    issueNumberForContext,
-                    param.tokens.token,
+            const description = (param.issue.body ?? '').trim();
+            if (!description) {
+                logInfo('Issue has no body; skipping initial help reply.');
+                results.push(
+                    new Result({
+                        id: this.taskId,
+                        success: true,
+                        executed: false,
+                    })
                 );
-                if (desc?.trim()) {
-                    issueDescription = desc.trim();
-                }
+                return results;
             }
 
-            const contextBlock = issueDescription
-                ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
-                : '\n\n';
-            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Format your answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.
+            logInfo(`${getTaskEmoji(this.taskId)} Posting initial help reply for question/help issue #${issueNumber}.`);
+
+            const prompt = `The user has just opened a question/help issue. Provide a helpful initial response to their question or request below. Be concise and actionable. Use the project context when relevant.
 
 ${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-${contextBlock}Question: ${question}`;
+
+**Issue description (user's question or request):**
+"""
+${description}
+"""
+
+Respond with a single JSON object containing an "answer" field with your reply. Format the answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.`;
+
             const response = await this.aiRepository.askAgent(param.ai, OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: THINK_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
                 schemaName: 'think_response',
             });
+
             const answer =
                 response != null &&
                 typeof response === 'object' &&
@@ -116,29 +108,13 @@ ${contextBlock}Question: ${question}`;
                     : '';
 
             if (!answer) {
-                logError('OpenCode returned no answer for Think.');
+                logError('OpenCode returned no answer for initial help.');
                 results.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
-                        errors: ['OpenCode returned no answer.'],
-                    })
-                );
-                return results;
-            }
-
-            const issueOrPrNumber = param.issue.isIssueComment
-                ? param.issue.number
-                : param.pullRequest.number;
-            if (issueOrPrNumber <= 0) {
-                logError('Issue or PR number not available for adding comment.');
-                results.push(
-                    new Result({
-                        id: this.taskId,
-                        success: false,
-                        executed: true,
-                        errors: ['Issue or PR number not available.'],
+                        errors: ['OpenCode returned no answer for initial help.'],
                     })
                 );
                 return results;
@@ -147,11 +123,11 @@ ${contextBlock}Question: ${question}`;
             await this.issueRepository.addComment(
                 param.owner,
                 param.repo,
-                issueOrPrNumber,
-                answer.trim(),
-                param.tokens.token,
+                issueNumber,
+                answer,
+                param.tokens.token
             );
-            logInfo(`Think response posted to ${param.issue.isIssueComment ? 'issue' : 'PR'} #${issueOrPrNumber}.`);
+            logInfo(`Initial help reply posted to issue #${issueNumber}.`);
 
             results.push(
                 new Result({
@@ -161,16 +137,17 @@ ${contextBlock}Question: ${question}`;
                 })
             );
         } catch (error) {
-            logError(`Error in ThinkUseCase: ${error}`);
+            logError(`Error in ${this.taskId}: ${error}`);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
-                    executed: false,
-                    errors: [`Error in ThinkUseCase: ${error}`],
+                    executed: true,
+                    errors: [`Error in ${this.taskId}: ${error}`],
                 })
             );
         }
+
         return results;
     }
 }

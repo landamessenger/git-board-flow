@@ -69,7 +69,7 @@ ${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 **Issue #${issueNumber} description:**
 ${issueDescription}
 
-Provide a numbered list of recommended steps. You can add brief sub-bullets per step if needed.`;
+Provide a numbered list of recommended steps in **markdown** (use headings, lists, code blocks for commands or snippets) so it is easy to read. You can add brief sub-bullets per step if needed.`;
 
             logInfo(`🤖 Recommending steps using OpenCode Plan agent...`);
             const response = await this.aiRepository.askAgent(
