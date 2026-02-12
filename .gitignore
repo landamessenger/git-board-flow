@@ -131,6 +131,9 @@ web_modules/
 
 *.lock
 
+# OpenCode runtime (created/removed by action or CLI)
+opencode.json
+
 .idea
 
 .env

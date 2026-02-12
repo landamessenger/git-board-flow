@@ -1,3 +1,9 @@
+/**
+ * After autofix (or when OpenCode returns resolved_finding_ids in detection), we mark those
+ * findings as resolved: update the issue comment with a "Resolved" note and set resolved:true
+ * in the marker; update the PR review comment marker and resolve the review thread.
+ */
+
 import type { Execution } from "../../../../data/model/execution";
 import { IssueRepository } from "../../../../data/repository/issue_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";

@@ -1,0 +1,48 @@
+---
+title: Notifications and auto-close
+description: Commit notifications on the issue, reopen on push, and auto-close when branches are merged.
+---
+
+# Notifications and auto-close
+
+Copilot keeps the issue in sync with the branch: it **notifies** you of new commits and can **reopen** a closed issue when pushes happen. When the branch is **merged**, it can **automatically close** the issue. This page describes these behaviors and the inputs that control them.
+
+## Commit notifications (real-time code tracking)
+
+When the **push (commit)** workflow runs (on push to a branch linked to an issue), the action can **post a comment on the issue** with the new commit messages and links. That way, everyone following the issue sees progress in real time.
+
+- **What is posted:** Commit summary (messages, authors, links to commits). Optionally **images** per branch type (feature, bugfix, etc.) if **`images-on-commit`** and the corresponding `images-commit-*` inputs are set. See [Configuration](/issues/configuration).
+- **Where:** The comment is posted on the **issue** associated with the branch (the issue number is derived from the branch name, e.g. `feature/123-title` → issue `123`).
+
+Commit notifications are part of the **Commit** workflow, not the Issue workflow. Ensure you have a workflow that runs on **push** (e.g. `copilot_commit.yml`) and that the Copilot step has `token` and any optional inputs (e.g. `project-ids`, `opencode-model` for progress/Bugbot). See [How to use](/how-to-use) and [Bugbot](/bugbot) for push-related features.
+
+## Reopen issue on push
+
+If an issue was **closed** but someone pushes again to its branch, you may want the issue to **reopen** so it’s not forgotten.
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| **`reopen-issue-on-push`** | `true` | When the push workflow runs and the branch is linked to an issue that is **closed**, the action **reopens** that issue. Set to `false` to leave closed issues closed. |
+
+This applies only when the **Commit** workflow runs (on push); the Issue workflow does not reopen issues by itself.
+
+## Auto-close when branch is merged
+
+When the **branch** created for the issue (e.g. `feature/123-title`) is **merged** (e.g. into `develop` or `main`), Copilot can **automatically close the issue**. You don’t have to remember to close it manually.
+
+- **How it works:** The action listens for the merge (via the push/PR pipeline and branch state). When the branch no longer exists (merged and deleted) or the merge is detected, it closes the linked issue.
+- **No extra input** is required for this behavior; it is part of the normal flow when the Commit and/or PR workflows run and the branch is merged.
+
+## Summary
+
+| Behavior | Controlled by | Where it runs |
+|----------|---------------|---------------|
+| Commit notifications on issue | Commit workflow + optional images config | Push (Commit) workflow |
+| Reopen closed issue on push | `reopen-issue-on-push` (default: true) | Push (Commit) workflow |
+| Auto-close issue when branch merged | Built-in | Push / PR workflow when merge is detected |
+
+## Next steps
+
+- **[Workflow setup](/issues/workflow-setup)** — Issue workflow events.
+- **[Configuration](/issues/configuration)** — `reopen-issue-on-push`, images on commit.
+- [How to use](/how-to-use) — Full setup including Commit workflow.

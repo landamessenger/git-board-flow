@@ -288,10 +288,11 @@ export class BranchRepository {
         try {
             logDebugInfo(`Creating linked branch ${newBranchName} from ${oid ?? baseBranchName}`)
 
-            let ref = `heads/${baseBranchName}`
+            let ref = `heads/${baseBranchName}`;
             if (baseBranchName.indexOf('tags/') > -1) {
-                ref = baseBranchName
+                ref = baseBranchName;
             }
+            const refForGraphQL = ref.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
             const octokit = github.getOctokit(token);
             const {repository} = await octokit.graphql<RepositoryResponse>(`
@@ -301,7 +302,7 @@ export class BranchRepository {
                   issue(number: $issueNumber) {
                     id
                   }
-                  ref(qualifiedName: "refs/${ref}") {
+                  ref(qualifiedName: "refs/${refForGraphQL}") {
                     target {
                       ... on Commit {
                         oid

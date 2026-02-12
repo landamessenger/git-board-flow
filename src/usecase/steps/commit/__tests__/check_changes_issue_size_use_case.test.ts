@@ -141,4 +141,53 @@ describe('CheckChangesIssueSizeUseCase', () => {
       'Tried to check the size of the changes, but there was a problem.'
     );
   });
+
+  it('returns empty when baseBranch cannot be determined (parentBranch and development empty)', async () => {
+    const param = baseParam({
+      currentConfiguration: { parentBranch: '' },
+      branches: { development: '' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toEqual([]);
+    expect(mockGetSizeCategoryAndReason).not.toHaveBeenCalled();
+  });
+
+  it('updates labels on open PRs when size differs and getOpenPullRequestNumbersByHeadBranch returns PRs', async () => {
+    mockGetSizeCategoryAndReason.mockResolvedValue({
+      size: 'size: L',
+      githubSize: 'L',
+      reason: 'Many lines',
+    });
+    mockSetLabels.mockResolvedValue(undefined);
+    mockSetTaskSize.mockResolvedValue(undefined);
+    mockGetLabels.mockResolvedValue(['feature']);
+    mockGetOpenPullRequestNumbersByHeadBranch.mockResolvedValue([99]);
+    const mockGetProjects = jest.fn().mockReturnValue([{ id: 'proj1' }]);
+    const param = baseParam({
+      project: { getProjects: mockGetProjects },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('1 open PR(s)'))).toBe(true);
+    expect(mockGetLabels).toHaveBeenCalledWith('o', 'r', 99, 't');
+    expect(mockSetLabels).toHaveBeenCalledWith(
+      'o',
+      'r',
+      99,
+      expect.arrayContaining(['feature', 'size: L']),
+      't'
+    );
+    expect(mockSetTaskSize).toHaveBeenCalledWith(
+      { id: 'proj1' },
+      'o',
+      'r',
+      99,
+      'L',
+      't'
+    );
+  });
 });

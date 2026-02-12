@@ -14,6 +14,7 @@ export class Ai {
     private aiIncludeReasoning: boolean;
     private bugbotMinSeverity: string;
     private bugbotCommentLimit: number;
+    private bugbotFixVerifyCommands: string[];
 
     constructor(
         opencodeServerUrl: string,
@@ -23,7 +24,8 @@ export class Ai {
         aiIgnoreFiles: string[],
         aiIncludeReasoning: boolean,
         bugbotMinSeverity: string,
-        bugbotCommentLimit: number
+        bugbotCommentLimit: number,
+        bugbotFixVerifyCommands: string[] = []
     ) {
         this.opencodeServerUrl = opencodeServerUrl;
         this.opencodeModel = opencodeModel;
@@ -33,6 +35,7 @@ export class Ai {
         this.aiIncludeReasoning = aiIncludeReasoning;
         this.bugbotMinSeverity = bugbotMinSeverity;
         this.bugbotCommentLimit = bugbotCommentLimit;
+        this.bugbotFixVerifyCommands = bugbotFixVerifyCommands;
     }
 
     getOpencodeServerUrl(): string {
@@ -65,6 +68,10 @@ export class Ai {
 
     getBugbotCommentLimit(): number {
         return this.bugbotCommentLimit;
+    }
+
+    getBugbotFixVerifyCommands(): string[] {
+        return this.bugbotFixVerifyCommands;
     }
 
     /**

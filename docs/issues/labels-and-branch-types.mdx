@@ -1,0 +1,42 @@
+---
+title: Labels and branch types
+description: Which labels create which branches and how deploy flow works.
+---
+
+# Labels and branch types
+
+Copilot uses **labels** to decide what kind of branch to create and which workflow to run. You can configure every label name; see [Issues Configuration](/issues/configuration). This page summarizes the **flow labels** and **branch types**.
+
+## Flow and branch summary
+
+| Flow | Required / optional labels | Branch created from | Notes |
+|------|----------------------------|---------------------|--------|
+| **Feature** | `feature`; optionally `branched` (or set `branch-management-always: true`) | `development-branch` (default: develop) | New functionality. |
+| **Bugfix** | `bugfix`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Bug fixes on develop. |
+| **Docs** | `docs` or `documentation`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Documentation tasks. |
+| **Chore** | `chore` or `maintenance`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Maintenance, refactors, dependencies. |
+| **Hotfix** | `hotfix` (branch is created without needing `branched`; templates often include `branched` too) | `main-branch` (from latest tag) | Urgent production fix. Add `deploy` to trigger deploy workflow. Only org/repo members can create hotfix issues (others are closed). |
+| **Release** | `release` (branch is created without needing `branched`; templates often include `branched` too) | `development-branch` | New version release. Add `deploy` to trigger release workflow. Only org/repo members can create release issues (others are closed). |
+| **Deploy** | `deploy` on the issue | — | Triggers the workflow defined by `release-workflow` or `hotfix-workflow`. |
+| **Deployed** | `deployed` (added by action after deploy success) | — | Marks the issue as deployed; used for auto-close and state updates. |
+
+## Other labels
+
+- **Issue type:** `bug`, `enhancement` (no branch by themselves; often used with bugfix/feature).
+- **No branch:** `question`, `help` — Copilot does not create branches; used for Q&A or help requests.
+- **Priority:** `priority: high`, `priority: medium`, `priority: low` (and similar from configuration).
+- **Size:** `size: XS` … `size: XXL` — Applied by the action from branch diff (push/PR); see [Configuration](/configuration) for thresholds.
+
+## Branch naming
+
+Branch names follow the pattern **`<tree>/<issue-number>-<slug>`** (e.g. `feature/123-add-login`). The **tree** is configured per type: `feature-tree`, `bugfix-tree`, `docs-tree`, `chore-tree`, `hotfix-tree`, `release-tree`. See [Branch management](/issues/branch-management) for naming conventions and [Issue Types](/issues/type/feature) for per-type details.
+
+## Hotfix and release restrictions
+
+For **hotfix** and **release**, the action only creates branches (and allows the issue to stay open) when the **issue creator** is a **member of the organization** (or the repo owner for user repos). If a non-member opens a hotfix or release issue, the action **closes** it. This avoids accidental production/release flows from external contributors.
+
+## Next steps
+
+- **[Workflow setup](/issues/workflow-setup)** — Enable the action for issue events.
+- **[Branch management](/issues/branch-management)** — Launcher label, naming, and when branches are created.
+- **[Issue types](/issues/type/feature)** — Feature, Bugfix, Docs, Chore, Hotfix, Release (step-by-step flows).

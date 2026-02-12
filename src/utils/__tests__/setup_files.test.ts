@@ -98,5 +98,27 @@ describe('setup_files', () => {
       expect(result.skipped).toBe(1);
       expect(fs.readFileSync(path.join(tmpDir, '.env'), 'utf8')).toBe('existing');
     });
+
+    it('skips existing ISSUE_TEMPLATE file and copies non-existing one', () => {
+      fs.mkdirSync(path.join(tmpDir, 'setup', 'ISSUE_TEMPLATE'), { recursive: true });
+      fs.mkdirSync(path.join(tmpDir, '.github', 'ISSUE_TEMPLATE'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'setup', 'ISSUE_TEMPLATE', 'existing.yml'), 'existing');
+      fs.writeFileSync(path.join(tmpDir, '.github', 'ISSUE_TEMPLATE', 'existing.yml'), 'already-there');
+      fs.writeFileSync(path.join(tmpDir, 'setup', 'ISSUE_TEMPLATE', 'new.yml'), 'new');
+      const result = copySetupFiles(tmpDir);
+      expect(result.copied).toBe(1);
+      expect(result.skipped).toBe(1);
+      expect(fs.readFileSync(path.join(tmpDir, '.github', 'ISSUE_TEMPLATE', 'existing.yml'), 'utf8')).toBe('already-there');
+      expect(fs.readFileSync(path.join(tmpDir, '.github', 'ISSUE_TEMPLATE', 'new.yml'), 'utf8')).toBe('new');
+    });
+
+    it('skips workflow file that is a directory', () => {
+      fs.mkdirSync(path.join(tmpDir, 'setup', 'workflows'), { recursive: true });
+      fs.mkdirSync(path.join(tmpDir, '.github', 'workflows'), { recursive: true });
+      fs.mkdirSync(path.join(tmpDir, 'setup', 'workflows', 'ci.yml'), { recursive: true });
+      const result = copySetupFiles(tmpDir);
+      expect(result.copied).toBe(0);
+      expect(fs.statSync(path.join(tmpDir, 'setup', 'workflows', 'ci.yml')).isDirectory()).toBe(true);
+    });
   });
 });

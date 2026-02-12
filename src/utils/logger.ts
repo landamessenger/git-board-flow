@@ -1,5 +1,3 @@
-import readline from 'readline';
-
 let loggerDebug = false;
 let loggerRemote = false;
 let structuredLogging = false;
@@ -101,14 +99,4 @@ export function logDebugError(message: unknown) {
     if (loggerDebug) {
         logError(message);
     }
-}
-
-export function logSingleLine(message: string) {
-    if (loggerRemote) {
-        console.log(message);
-        return;
-    }
-    readline.clearLine(process.stdout, 0);
-    readline.cursorTo(process.stdout, 0);
-    process.stdout.write(message);
 }

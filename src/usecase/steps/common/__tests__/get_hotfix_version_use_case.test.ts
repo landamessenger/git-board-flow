@@ -115,4 +115,58 @@ describe('GetHotfixVersionUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].steps?.some((s) => s.includes('hotfix version'))).toBe(true);
   });
+
+  it('uses issue.number when isIssue true', async () => {
+    mockGetDescription.mockResolvedValue('### Base Version 1.0.0\n### Hotfix Version 1.0.1');
+    const param = {
+      isSingleAction: false,
+      isIssue: true,
+      isPullRequest: false,
+      issue: { number: 100 },
+      pullRequest: { number: 0 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetHotfixVersionUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 100, 't');
+  });
+
+  it('uses pullRequest.number when isPullRequest true', async () => {
+    mockGetDescription.mockResolvedValue('### Base Version 2.0.0\n### Hotfix Version 2.0.1');
+    const param = {
+      isSingleAction: false,
+      isIssue: false,
+      isPullRequest: true,
+      issue: { number: 0 },
+      pullRequest: { number: 50 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetHotfixVersionUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 50, 't');
+  });
+
+  it('returns failure on catch when getDescription throws', async () => {
+    mockGetDescription.mockRejectedValue(new Error('Network error'));
+    const param = {
+      isSingleAction: true,
+      singleAction: { issue: 1 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetHotfixVersionUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps).toContain('Tried to check action permissions.');
+  });
 });

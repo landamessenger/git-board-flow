@@ -1,0 +1,83 @@
+---
+title: Do user request
+description: Ask the bot to apply general code changes (tests, refactors, features) from an issue or PR comment.
+---
+
+# Do user request
+
+Besides fixing **specific Bugbot findings**, you can ask the bot to perform **general code changes** in the repository: add tests, refactor a function, implement a small feature, update docs, etc. This is called **do user request**. The same permission and workflow setup as [Autofix](/bugbot/autofix) apply: only org members or the repo owner can trigger it, and the workflow must grant **`contents: write`**.
+
+This page explains how to use it and how it differs from autofix.
+
+---
+
+## How it works
+
+When you comment on an **issue** or **pull request**, the action first runs **intent detection** (OpenCode Plan): it decides whether your comment is:
+
+- A **fix request** — “fix it”, “fix all”, etc. → [Autofix](/bugbot/autofix) runs (fix specific findings).
+- A **do request** — “add a test for X”, “refactor this”, “implement feature Y”, etc. → **Do user request** runs (general code change).
+- **Neither** — e.g. a question → **Think** runs (answer only, no file changes).
+
+So you don’t choose a “mode”; you just write what you want. If the agent classifies it as a do request and you have permission, the action runs the **Build** agent with your request, then runs the same **verify commands** as for autofix and commits and pushes.
+
+---
+
+## How to ask
+
+Write a **comment** on the issue or on the PR (or, for PRs, you can reply in a review thread if the context makes sense). OpenCode receives your **sanitized** comment (trimmed, length-limited, escaped for the prompt) and the repo context.
+
+**Example phrases:**
+
+- “add a unit test for the login function”
+- “refactor this to use async/await”
+- “add a README section for installation”
+- “implement the missing validation in the form”
+- “add error handling for the API call”
+- “fix the typo in the docstring”
+
+You can be brief or detailed. The Build agent will apply the changes in the OpenCode workspace; the action then runs **verify commands** (from `bugbot-fix-verify-commands`) and, if they pass, commits and pushes.
+
+---
+
+## Permissions and workflow
+
+- **Who can trigger:** Same as [Autofix](/bugbot/autofix): **organization members** (for org repos) or the **repository owner** (for user repos). Others get a Think response only.
+- **Workflow:** The workflow that runs on `issue_comment` or `pull_request_review_comment` must grant **`contents: write`** so the action can push.
+- **Branch:** On **issue comment**, the action resolves the branch from an open PR that references the issue (same as autofix). On **PR comment** or **PR review comment**, it uses the PR’s head branch.
+
+---
+
+## Commit message
+
+After a successful do-user-request run, the action commits with a message like:
+
+- `chore(#123): apply user request` when the issue number is known, or  
+- `chore: apply user request` when there is no issue context.
+
+So you can distinguish these commits from autofix commits (`fix(#N): bugbot autofix - resolve ...`) in the history.
+
+---
+
+## Verify commands
+
+Do user request uses the **same** verify commands as autofix: **`bugbot-fix-verify-commands`**. If any command fails, the action does not commit. See [Configuration](/bugbot/configuration#bugbot-fix-verify-commands).
+
+---
+
+## When to use autofix vs do user request
+
+| Use case | What to do |
+|----------|------------|
+| Fix one or more **reported Bugbot findings** | Comment “fix it”, “fix all”, or refer to specific findings → **Autofix**. |
+| Ask for a **general change** (test, refactor, feature, docs) | Comment with the request in natural language → **Do user request**. |
+
+Intent is inferred by OpenCode from the comment text and the list of unresolved findings; you don’t need to tag or label the comment.
+
+---
+
+## Next steps
+
+- **[Autofix](/bugbot/autofix)** — Fix specific Bugbot findings from a comment.
+- **[Configuration](/bugbot/configuration)** — `bugbot-fix-verify-commands` and OpenCode inputs.
+- **[Examples](/bugbot/examples)** — Comment examples and workflows.

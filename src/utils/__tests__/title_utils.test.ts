@@ -1,7 +1,6 @@
 import {
   extractIssueNumberFromBranch,
   extractIssueNumberFromPush,
-  extractVersionFromBranch,
 } from '../title_utils';
 
 jest.mock('../logger', () => ({
@@ -38,22 +37,4 @@ describe('title_utils', () => {
       expect(extractIssueNumberFromPush('release/1.0.0')).toBe(-1);
     });
   });
-
-  describe('extractVersionFromBranch', () => {
-    it('extracts version from branch name ending with x.y.z', () => {
-      expect(extractVersionFromBranch('release/1.2.3')).toBe('1.2.3');
-      expect(extractVersionFromBranch('hotfix/2.0.0')).toBe('2.0.0');
-    });
-
-    it('returns undefined when no version in branch', () => {
-      expect(extractVersionFromBranch('release/next')).toBeUndefined();
-      expect(extractVersionFromBranch('main')).toBeUndefined();
-    });
-
-    it('handles undefined or empty branch', () => {
-      expect(extractVersionFromBranch('')).toBeUndefined();
-      expect(extractVersionFromBranch(undefined as unknown as string)).toBeUndefined();
-    });
-  });
-
 });

@@ -1,0 +1,74 @@
+---
+title: Assignees and projects
+description: Member assignment and linking issues to GitHub Project boards.
+---
+
+# Assignees and projects
+
+Copilot can **assign members** to issues and **link issues to GitHub Project** boards so that new issues are tracked in the right place and have owners.
+
+## Member assignment
+
+When the action runs on an issue (e.g. opened or labeled), it can assign **up to N members** of the organization or repository. This is controlled by **`desired-assignees-count`** (default: `1`, max: `10`).
+
+### How assignees are chosen
+
+- The **issue creator** is assigned first **if** they belong to the organization (or are the repo owner for user repos).
+- If you need more than one assignee, the action assigns **additional** members up to `desired-assignees-count`. The exact selection logic (e.g. round-robin, random) depends on the implementation; the goal is to spread work across the team.
+
+### Example
+
+Set the number of assignees in the workflow:
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    project-ids: ${{ vars.PROJECT_IDS }}
+    desired-assignees-count: 1
+```
+
+Use a higher value to assign more people (e.g. `2` or `3`), up to the configured maximum.
+
+## Project (board) linking
+
+Linking issues to **GitHub Project** boards requires a **Personal Access Token (PAT)** with access to the repository and to the project(s). The action uses **`project-ids`** to know which boards to link to.
+
+### project-ids
+
+- **Format:** Comma-separated list of **project IDs** (numeric). You find the project ID in the project URL or via the API; it is **not** the project name.
+- **Effect:** When the action runs (e.g. on issue opened or edited), it **links the issue** to each of these projects and can **move the issue** to a column (e.g. "Todo", "In Progress") based on **`project-column-issue-created`** and **`project-column-issue-in-progress`** (see [Configuration](/configuration)).
+
+### How many boards?
+
+You can link each issue to **multiple** boards by listing several IDs:
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    project-ids: '1,2,3'
+```
+
+Use variables or secrets if the IDs differ per environment:
+
+```yaml
+project-ids: ${{ vars.PROJECT_IDS }}
+```
+
+<Warning>
+Linking the issue to a board requires a PAT with **project** (and repository) permissions. See [Authentication](/authentication) for the required scopes.
+</Warning>
+
+## Summary
+
+| Input | Purpose | Default |
+|-------|---------|---------|
+| `desired-assignees-count` | Number of assignees (creator + additional up to this count) | 1 (max 10) |
+| `project-ids` | Comma-separated project IDs to link the issue to | — |
+
+## Next steps
+
+- **[Workflow setup](/issues/workflow-setup)** — Enable the action for issue events.
+- **[Configuration](/issues/configuration)** — Project columns and all optional parameters.
+- **[Examples](/issues/examples)** — Full workflow with assignees and project-ids.

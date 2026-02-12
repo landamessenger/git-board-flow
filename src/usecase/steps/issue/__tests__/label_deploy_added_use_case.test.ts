@@ -74,6 +74,26 @@ describe('DeployAddedUseCase (label_deploy_added)', () => {
     expect(results.some((r) => r.success && r.steps?.some((s) => s.includes('release')))).toBe(true);
   });
 
+  it('executes hotfix workflow when hotfix active and branch set', async () => {
+    mockExecuteWorkflow.mockClear();
+    const param = baseParam({
+      release: { active: false },
+      hotfix: { active: true, branch: 'hotfix/1.0.1', version: '1.0.1' },
+      workflows: { release: 'release.yml', hotfix: 'hotfix.yml' },
+      issue: { ...baseParam().issue, number: 42, body: '## Hotfix Solution\n- Fix' },
+    });
+    const results = await useCase.invoke(param);
+    expect(mockExecuteWorkflow).toHaveBeenLastCalledWith(
+      'o',
+      'r',
+      'hotfix/1.0.1',
+      'hotfix.yml',
+      expect.objectContaining({ version: '1.0.1', issue: 42 }),
+      't'
+    );
+    expect(results.some((r) => r.steps?.some((s) => s.includes('hotfix')))).toBe(true);
+  });
+
   it('returns failure when executeWorkflow throws', async () => {
     mockExecuteWorkflow.mockRejectedValue(new Error('Workflow error'));
     const param = baseParam();

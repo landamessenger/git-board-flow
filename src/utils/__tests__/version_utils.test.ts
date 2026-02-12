@@ -52,5 +52,10 @@ describe('version_utils', () => {
       expect(getLatestVersion(['0.0.1', '0.1.0', '1.0.0'])).toBe('1.0.0');
       expect(getLatestVersion(['1.10.0', '1.9.0', '1.2.0'])).toBe('1.10.0');
     });
+
+    it('returns highest when multiple equal versions exist (sort return 0 path)', () => {
+      expect(getLatestVersion(['1.0.0', '1.0.0', '2.0.0'])).toBe('2.0.0');
+      expect(getLatestVersion(['1.0.0', '1.0.0'])).toBe('1.0.0');
+    });
   });
 });

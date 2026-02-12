@@ -1,0 +1,113 @@
+---
+title: Examples
+description: Full workflow YAML and label examples for the Issues section.
+---
+
+# Examples
+
+This page provides **concrete examples**: a full issue workflow, optional inputs for assignees and projects, and example labels and branch names.
+
+## Full issue workflow
+
+Example `.github/workflows/copilot_issue.yml` with common inputs:
+
+```yaml
+name: Copilot - Issue
+
+on:
+  issues:
+    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
+
+jobs:
+  copilot-issues:
+    name: Copilot - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: vypdev/copilot@v1
+        with:
+          token: ${{ secrets.PAT }}
+          project-ids: ${{ vars.PROJECT_IDS }}
+          desired-assignees-count: 1
+          branch-management-launcher-label: branched
+          main-branch: main
+          development-branch: develop
+          feature-tree: feature
+          bugfix-tree: bugfix
+          hotfix-tree: hotfix
+          release-tree: release
+          opencode-model: ${{ vars.OPENCODE_MODEL }}
+          ai-ignore-files: build/*
+          debug: ${{ vars.DEBUG }}
+```
+
+- **`token`** is required. Use a fine-grained PAT with repo and project permissions (see [Authentication](/authentication)).
+- **`project-ids`**: Comma-separated project IDs so issues (and later PRs) are linked to boards.
+- **`desired-assignees-count`**: Number of assignees (e.g. 1).
+- **`branch-management-launcher-label`**: Add this label (e.g. `branched`) to trigger branch creation for feature/bugfix/docs/chore.
+- **`main-branch`** / **`development-branch`**: Match your repo (e.g. `main` and `develop`).
+- **`*-tree`**: Branch prefixes (e.g. `feature/123-title`). Omit if you keep defaults.
+
+## Example: branch-management-always
+
+Create branches as soon as the issue has a type label (no launcher label):
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    project-ids: ${{ vars.PROJECT_IDS }}
+    branch-management-always: true
+```
+
+Then opening an issue with label `feature` creates the branch immediately.
+
+## Example labels on an issue
+
+| Goal | Labels to add |
+|------|----------------|
+| New feature | `feature` then `branched` (or use `branch-management-always: true` and only `feature`) |
+| Bug fix | `bugfix` then `branched` |
+| Documentation | `docs` or `documentation` then `branched` |
+| Chore / maintenance | `chore` or `maintenance` then `branched` |
+| Hotfix (production) | `hotfix` (branch created from main; add `deploy` to trigger hotfix workflow) |
+| Release | `release` (branch from develop; add `deploy` to trigger release workflow) |
+| Question (no branch) | `question` |
+| Help request (no branch) | `help` |
+
+## Example branch names
+
+Assuming defaults (`feature-tree: feature`, `development-branch: develop`):
+
+| Issue | Label(s) | Branch created |
+|-------|----------|-----------------|
+| #42 "Add login page" | `feature`, `branched` | `feature/42-add-login-page` from `develop` |
+| #99 "Fix null in API" | `bugfix`, `branched` | `bugfix/99-fix-null-in-api` from `develop` |
+| #100 "Critical payment bug" | `hotfix` | `hotfix/100-critical-payment-bug` from `main` (at latest tag) |
+| #101 "Release 1.2.0" | `release` | `release/101-release-1-2-0` from `develop` |
+
+## Deploy workflow filenames
+
+If you use **release** or **hotfix** and the **`deploy`** label, the action **dispatches** a workflow by **filename**. Defaults:
+
+- **`release-workflow`**: `release_workflow.yml`
+- **`hotfix-workflow`**: `hotfix_workflow.yml`
+
+Your `.github/workflows/` must contain files with these exact names (or pass the correct names in the action inputs). Example:
+
+```yaml
+# In copilot_issue.yml (or wherever you call Copilot for issues)
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    release-workflow: release_workflow.yml
+    hotfix-workflow: hotfix_workflow.yml
+```
+
+## Next steps
+
+- **[Workflow setup](/issues/workflow-setup)** — Events and what runs when.
+- **[Branch management](/issues/branch-management)** — Launcher and naming in detail.
+- **[Configuration](/issues/configuration)** — All issue-related inputs.

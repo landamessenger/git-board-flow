@@ -57,4 +57,19 @@ describe('MoveIssueToInProgressUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].errors?.length).toBeGreaterThan(0);
   });
+
+  it('returns no success result when moveIssueToColumn returns false', async () => {
+    mockMoveIssueToColumn.mockResolvedValue(false);
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results).toHaveLength(0);
+  });
+
+  it('returns failure with step message when moveIssueToColumn throws', async () => {
+    mockMoveIssueToColumn.mockRejectedValue(new Error('Column API error'));
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps?.some((s) => s.includes('problem'))).toBe(true);
+  });
 });

@@ -81,4 +81,75 @@ describe('GetReleaseVersionUseCase', () => {
     expect(results[0].steps?.some((s) => s.includes('identifying the issue'))).toBe(true);
     expect(mockGetDescription).not.toHaveBeenCalled();
   });
+
+  it('uses issue.number when isIssue true', async () => {
+    mockGetDescription.mockResolvedValue('### Release Version 3.1.0\n');
+    const param = {
+      isSingleAction: false,
+      isIssue: true,
+      isPullRequest: false,
+      issue: { number: 10 },
+      pullRequest: { number: 0 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetReleaseVersionUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 10, 't');
+  });
+
+  it('uses pullRequest.number when isPullRequest true', async () => {
+    mockGetDescription.mockResolvedValue('### Release Version 4.0.0\n');
+    const param = {
+      isSingleAction: false,
+      isIssue: false,
+      isPullRequest: true,
+      issue: { number: 0 },
+      pullRequest: { number: 77 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetReleaseVersionUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 77, 't');
+  });
+
+  it('returns failure when Release Version not in description', async () => {
+    mockGetDescription.mockResolvedValue('No version here');
+    const param = {
+      isSingleAction: true,
+      singleAction: { issue: 1 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetReleaseVersionUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(false);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps ?? []).toHaveLength(0);
+  });
+
+  it('returns failure on catch when getDescription throws', async () => {
+    mockGetDescription.mockRejectedValue(new Error('API error'));
+    const param = {
+      isSingleAction: true,
+      singleAction: { issue: 1 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetReleaseVersionUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps).toContain('Tried to check action permissions.');
+  });
 });

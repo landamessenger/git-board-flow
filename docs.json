@@ -21,6 +21,11 @@
       "id": "single-action",
       "title": "Single Actions",
       "href": "/single-actions"
+    },
+    {
+      "id": "bugbot",
+      "title": "Bugbot",
+      "href": "/bugbot"
     }
   ],
   "sidebar": [
@@ -75,14 +80,44 @@
       "tab": "issues",
       "pages": [
         {
-          "title": "General",
+          "title": "Overview",
           "href": "/issues",
           "icon": "book"
+        },
+        {
+          "title": "Labels and branch types",
+          "href": "/issues/labels-and-branch-types",
+          "icon": "tag"
+        },
+        {
+          "title": "Workflow setup",
+          "href": "/issues/workflow-setup",
+          "icon": "play"
+        },
+        {
+          "title": "Assignees and projects",
+          "href": "/issues/assignees-and-projects",
+          "icon": "people"
+        },
+        {
+          "title": "Branch management",
+          "href": "/issues/branch-management",
+          "icon": "git-branch"
+        },
+        {
+          "title": "Notifications and auto-close",
+          "href": "/issues/notifications-and-auto-close",
+          "icon": "bell"
         },
         {
           "title": "Configuration",
           "href": "/issues/configuration",
           "icon": "gear"
+        },
+        {
+          "title": "Examples",
+          "href": "/issues/examples",
+          "icon": "file-code"
         }
       ]
     },
@@ -132,14 +167,29 @@
           "icon": "book"
         },
         {
-          "title": "Configuration",
-          "href": "/pull-requests/configuration",
-          "icon": "gear"
+          "title": "Workflow setup",
+          "href": "/pull-requests/workflow-setup",
+          "icon": "play"
+        },
+        {
+          "title": "Capabilities",
+          "href": "/pull-requests/capabilities",
+          "icon": "list"
         },
         {
           "title": "AI PR description",
           "href": "/pull-requests/ai-description",
           "icon": "file-text"
+        },
+        {
+          "title": "Configuration",
+          "href": "/pull-requests/configuration",
+          "icon": "gear"
+        },
+        {
+          "title": "Examples",
+          "href": "/pull-requests/examples",
+          "icon": "file-code"
         }
       ]
     },
@@ -153,6 +203,11 @@
           "icon": "play"
         },
         {
+          "title": "Available actions",
+          "href": "/single-actions/available-actions",
+          "icon": "list"
+        },
+        {
           "title": "Configuration",
           "href": "/single-actions/configuration",
           "icon": "gear"
@@ -161,6 +216,52 @@
           "title": "Workflow & CLI",
           "href": "/single-actions/workflow-and-cli",
           "icon": "terminal"
+        },
+        {
+          "title": "Examples",
+          "href": "/single-actions/examples",
+          "icon": "file-code"
+        }
+      ]
+    },
+    {
+      "group": "Bugbot",
+      "tab": "bugbot",
+      "pages": [
+        {
+          "title": "Overview",
+          "href": "/bugbot",
+          "icon": "bug"
+        },
+        {
+          "title": "Detection",
+          "href": "/bugbot/detection",
+          "icon": "search"
+        },
+        {
+          "title": "Autofix",
+          "href": "/bugbot/autofix",
+          "icon": "wrench"
+        },
+        {
+          "title": "Do user request",
+          "href": "/bugbot/do-user-request",
+          "icon": "edit"
+        },
+        {
+          "title": "Configuration",
+          "href": "/bugbot/configuration",
+          "icon": "gear"
+        },
+        {
+          "title": "How it works",
+          "href": "/bugbot/how-it-works",
+          "icon": "cpu"
+        },
+        {
+          "title": "Examples",
+          "href": "/bugbot/examples",
+          "icon": "file-code"
         }
       ]
     },

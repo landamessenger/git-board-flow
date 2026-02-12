@@ -78,6 +78,19 @@ describe('LinkIssueProjectUseCase', () => {
     expect(results.length).toBeGreaterThanOrEqual(0);
   });
 
+  it('returns success executed false when linkContentId succeeds but moveIssueToColumn returns false', async () => {
+    jest.useFakeTimers();
+    mockLinkContentId.mockResolvedValue(true);
+    mockMoveIssueToColumn.mockResolvedValue(false);
+    const param = baseParam();
+    const promise = useCase.invoke(param);
+    await jest.advanceTimersByTimeAsync(10000);
+    const results = await promise;
+    expect(mockMoveIssueToColumn).toHaveBeenCalled();
+    expect(results.some((r) => r.success === true && r.executed === false && (r.steps?.length ?? 0) === 0)).toBe(true);
+    jest.useRealTimers();
+  });
+
   it('returns failure on error', async () => {
     mockGetId.mockRejectedValue(new Error('API error'));
     const param = baseParam();

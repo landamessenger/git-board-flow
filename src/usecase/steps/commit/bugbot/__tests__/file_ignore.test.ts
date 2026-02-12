@@ -59,4 +59,56 @@ describe('fileMatchesIgnorePatterns', () => {
         expect(fileMatchesIgnorePatterns('src/file (1).ts', ['src/file (1).ts'])).toBe(true);
         expect(fileMatchesIgnorePatterns('src/file (2).ts', ['src/file (1).ts'])).toBe(false);
     });
+
+    it('ReDoS mitigation: long patterns are skipped (no match)', () => {
+        const longPattern = 'a'.repeat(600);
+        expect(fileMatchesIgnorePatterns('a', [longPattern])).toBe(false);
+    });
+
+    it('ReDoS mitigation: many consecutive * collapse to one (same as single *)', () => {
+        expect(fileMatchesIgnorePatterns('src/foo.test.ts', ['*.test.ts'])).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/foo.test.ts', ['*********.test.ts'])).toBe(true);
+    });
+
+    it('limits number of patterns (only first 200 are used)', () => {
+        const noMatch = Array.from({ length: 200 }, () => 'build/*');
+        const matchingPattern = 'src/bar.ts';
+        const manyPatterns = [...noMatch, matchingPattern];
+        expect(fileMatchesIgnorePatterns('src/bar.ts', manyPatterns)).toBe(false);
+        expect(fileMatchesIgnorePatterns('src/bar.ts', [matchingPattern])).toBe(true);
+    });
+
+    it('caches compiled regexes (same patterns used multiple times)', () => {
+        const patterns = ['*.test.ts', 'build/*'];
+        expect(fileMatchesIgnorePatterns('src/foo.test.ts', patterns)).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/other.test.ts', patterns)).toBe(true);
+        expect(fileMatchesIgnorePatterns('build/out.js', patterns)).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/foo.ts', patterns)).toBe(false);
+    });
+
+    it('skips empty and whitespace-only patterns', () => {
+        const patterns = ['', '   ', '\t', '*.test.ts'];
+        expect(fileMatchesIgnorePatterns('src/foo.test.ts', patterns)).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/foo.ts', patterns)).toBe(false);
+    });
+
+    it('matches when valid pattern is in list with long (skipped) patterns', () => {
+        const longPattern = 'a'.repeat(600);
+        const patterns = [longPattern, '*.test.ts', longPattern];
+        expect(fileMatchesIgnorePatterns('src/foo.test.ts', patterns)).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/foo.ts', patterns)).toBe(false);
+    });
+
+    it('matches when the 200th pattern (last in limit) matches', () => {
+        const noMatch = Array.from({ length: 199 }, () => 'build/*');
+        const matchingPattern = 'src/last.ts';
+        const patterns = [...noMatch, matchingPattern];
+        expect(fileMatchesIgnorePatterns('src/last.ts', patterns)).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/other.ts', patterns)).toBe(false);
+    });
+
+    it('matches path when pattern has directory suffix /*', () => {
+        expect(fileMatchesIgnorePatterns('src/utils', ['src/utils/*'])).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/utils/', ['src/utils/*'])).toBe(true);
+    });
 });

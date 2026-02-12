@@ -138,4 +138,16 @@ describe('AssignReviewersToIssueUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].steps).toContain('Tried to assign members to issue.');
   });
+
+  it('adds step only for reviewers that are in the requested members list', async () => {
+    mockGetCurrentReviewers.mockResolvedValue([]);
+    mockGetRandomMembers.mockResolvedValue(['requested']);
+    mockAddReviewersToPullRequest.mockResolvedValue(['requested', 'other']);
+    const param = baseParam({ pullRequest: { number: 42, desiredReviewersCount: 1, creator: 'author' } });
+
+    const results = await useCase.invoke(param);
+
+    expect(results.filter((r) => r.steps?.some((s) => s.includes('was requested to review')))).toHaveLength(1);
+    expect(results[0].steps).toContain('@requested was requested to review the pull request.');
+  });
 });

@@ -106,4 +106,42 @@ describe('CheckPriorityIssueSizeUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].steps?.some((s) => s.includes('priority'))).toBe(true);
   });
+
+  it('sets P1 when priority is priorityMedium', async () => {
+    mockSetTaskPriority.mockResolvedValue(true);
+    const param = baseParam({
+      labels: {
+        priorityLabelOnIssue: 'P1',
+        priorityLabelOnIssueProcessable: true,
+        priorityHigh: 'P0',
+        priorityMedium: 'P1',
+        priorityLow: 'P2',
+      },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(mockSetTaskPriority).toHaveBeenCalled();
+  });
+
+  it('sets P2 when priority is priorityLow', async () => {
+    mockSetTaskPriority.mockResolvedValue(true);
+    const param = baseParam({
+      labels: {
+        priorityLabelOnIssue: 'P2',
+        priorityLabelOnIssueProcessable: true,
+        priorityHigh: 'P0',
+        priorityMedium: 'P1',
+        priorityLow: 'P2',
+      },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(mockSetTaskPriority).toHaveBeenCalled();
+  });
 });

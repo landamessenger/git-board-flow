@@ -199,6 +199,8 @@ For the `copilot` command:
 - **Comment translation** – Automatically translates issue and PR review comments to the configured locale (e.g. English, Spanish) when they are written in another language. Uses `issues-locale` and `pull-requests-locale` inputs.
 - **Check progress** – Progress detection from branch vs issue description (OpenCode Plan agent).
 - **Bugbot (potential problems)** – Analyzes branch vs base and posts findings as **comments on the issue** and **review comments on the PR**; updates issue comments and marks PR review threads as resolved when the model reports fixes. Runs on push or via single action / CLI. Configure with `bugbot-severity` (minimum severity: `info`, `low`, `medium`, `high`) and `ai-ignore-files` (paths to exclude).
+- **Bugbot autofix** – When you comment on an issue or PR asking to fix one or more reported findings (e.g. "fix it", "fix all"), OpenCode decides which findings to fix, applies changes in the workspace, runs the verify commands you set in `bugbot-fix-verify-commands` (e.g. build, test, lint), and the action commits and pushes if all pass. **Only organization members or the repo owner** can trigger it. Requires OpenCode running from the repo (e.g. `opencode-start-server: true`). See [Features → Bugbot autofix](/features#ai-features-opencode) and [Troubleshooting → Bugbot autofix](/troubleshooting#bugbot-autofix).
+- **Do user request** – When you comment asking to perform any change in the repo (e.g. "add a test", "refactor this"), OpenCode applies the changes, runs the same verify commands, and the action commits and pushes. Same permission as Bugbot autofix (org member or repo owner).
 - **Copilot** – Code analysis and manipulation agent (OpenCode Build agent).
 - **Recommend steps** – Suggests implementation steps from the issue description (OpenCode Plan agent).
 
@@ -240,6 +242,8 @@ Bugbot runs when the **push (commit) workflow** runs, or on demand via **single 
 3. **Issue** – New findings are posted as **comments on the issue**; when a finding is resolved, the corresponding comment is updated (e.g. "Resolved").
 4. **Pull request** – For each finding, the action posts a **review comment** on the PR at the right file/line. When OpenCode reports a finding as resolved, the action **marks that review thread as resolved**.
 5. **Config** – Use `bugbot-severity` (e.g. `medium`) so only findings at or above that severity are posted; use `ai-ignore-files` to exclude paths from analysis and reporting.
+
+**Bugbot autofix:** From an **issue comment** or **PR review comment**, you can ask the bot to fix one or more findings (e.g. "fix it", "arregla las vulnerabilidades", "fix all"). OpenCode interprets your comment, applies fixes in the workspace, and the action runs `bugbot-fix-verify-commands` (e.g. build, test, lint); if all pass and there are changes, it commits and pushes and marks those findings as resolved. On issue comments, the action resolves the branch from an open PR that references the issue. Workflows that run on `issue_comment` or `pull_request_review_comment` need `contents: write` so the action can push. See [Troubleshooting → Bugbot autofix](/troubleshooting#bugbot-autofix).
 
 See [Issues → Bugbot](/issues#bugbot-potential-problems) and [Pull Requests → Bugbot](/pull-requests#bugbot-potential-problems) for more.
 

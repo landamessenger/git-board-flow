@@ -144,4 +144,15 @@ describe('SyncSizeAndProgressLabelsFromIssueToPrUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].steps).toContain('Failed to sync size/progress labels from issue to PR.');
   });
+
+  it('returns failure when getLabels throws', async () => {
+    mockGetLabels.mockRejectedValue(new Error('Network error'));
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps).toContain('Failed to sync size/progress labels from issue to PR.');
+  });
 });

@@ -79,6 +79,12 @@ export async function runLocalAction(
         Number.isNaN(bugbotCommentLimitNum) || bugbotCommentLimitNum < 1
             ? BUGBOT_MAX_COMMENTS
             : Math.min(bugbotCommentLimitNum, 200);
+    const bugbotFixVerifyCommandsInput =
+        additionalParams[INPUT_KEYS.BUGBOT_FIX_VERIFY_COMMANDS] ?? actionInputs[INPUT_KEYS.BUGBOT_FIX_VERIFY_COMMANDS] ?? '';
+    const bugbotFixVerifyCommands = String(bugbotFixVerifyCommandsInput)
+        .split(',')
+        .map((c: string) => c.trim())
+        .filter((c: string) => c.length > 0);
 
     /**
      * Projects Details
@@ -523,6 +529,7 @@ export async function runLocalAction(
             aiIncludeReasoning,
             bugbotSeverity,
             bugbotCommentLimit,
+            bugbotFixVerifyCommands,
         ),
         new Labels(
             branchManagementLauncherLabel,

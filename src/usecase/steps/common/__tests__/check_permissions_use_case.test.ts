@@ -107,4 +107,37 @@ describe('CheckPermissionsUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].steps).toContain('Tried to check action permissions.');
   });
+
+  it('uses pullRequest.creator when isPullRequest and checks membership', async () => {
+    mockGetAllMembers.mockResolvedValue(['bob']);
+    const param = baseParam({
+      isIssue: false,
+      isPullRequest: true,
+      issue: { opened: false, creator: '' },
+      pullRequest: { opened: true, creator: 'bob' },
+      labels: { isMandatoryBranchedLabel: true, currentIssueLabels: ['hotfix'] },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(mockGetAllMembers).toHaveBeenCalledWith('o', 't');
+  });
+
+  it('returns failure when isPullRequest, mandatory label, and creator not in team', async () => {
+    mockGetAllMembers.mockResolvedValue(['alice']);
+    const param = baseParam({
+      isIssue: false,
+      isPullRequest: true,
+      issue: { opened: false, creator: 'bob' },
+      pullRequest: { opened: true, creator: 'bob' },
+      labels: { isMandatoryBranchedLabel: true, currentIssueLabels: ['release'] },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(false);
+    expect(results[0].steps?.some((s) => s.includes('bob') && s.includes('not authorized'))).toBe(true);
+  });
 });
