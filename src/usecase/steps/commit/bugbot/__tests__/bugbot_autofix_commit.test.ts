@@ -3,7 +3,10 @@
  */
 
 import * as exec from "@actions/exec";
-import { runBugbotAutofixCommitAndPush } from "../bugbot_autofix_commit";
+import {
+    runBugbotAutofixCommitAndPush,
+    runUserRequestCommitAndPush,
+} from "../bugbot_autofix_commit";
 import type { Execution } from "../../../../../data/model/execution";
 import { logInfo } from "../../../../../utils/logger";
 
@@ -267,5 +270,78 @@ describe("runBugbotAutofixCommitAndPush", () => {
             "-m",
             "fix(#42): bugbot autofix - resolve finding-1, finding-2",
         ]);
+    });
+});
+
+describe("runUserRequestCommitAndPush", () => {
+    beforeEach(() => {
+        mockExec.mockReset();
+        mockGetTokenUserDetails.mockResolvedValue({
+            name: "Test User",
+            email: "test@users.noreply.github.com",
+        });
+    });
+
+    it("returns success false when branch is empty", async () => {
+        const result = await runUserRequestCommitAndPush(
+            baseExecution({ commit: { branch: "" } } as Partial<Execution>)
+        );
+        expect(result).toEqual({ success: false, committed: false, error: "No branch to commit to." });
+        expect(mockExec).not.toHaveBeenCalled();
+    });
+
+    it("returns success and committed false when no changes", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runUserRequestCommitAndPush(baseExecution());
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(false);
+    });
+
+    it("runs git add, commit with generic message, and push when there are changes", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runUserRequestCommitAndPush(baseExecution());
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(true);
+        expect(mockGetTokenUserDetails).toHaveBeenCalledWith("t");
+        expect(mockExec).toHaveBeenCalledWith("git", ["add", "-A"]);
+        expect(mockExec).toHaveBeenCalledWith("git", [
+            "commit",
+            "-m",
+            "chore(#42): apply user request",
+        ]);
+        expect(mockExec).toHaveBeenCalledWith("git", ["push", "origin", "feature/42-foo"]);
+    });
+
+    it("uses chore message without issue number when issueNumber is 0 or negative", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M x"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runUserRequestCommitAndPush(
+            baseExecution({ issueNumber: 0 } as Partial<Execution>)
+        );
+
+        expect(result.committed).toBe(true);
+        expect(mockExec).toHaveBeenCalledWith("git", ["commit", "-m", "chore: apply user request"]);
     });
 });

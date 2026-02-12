@@ -21,6 +21,11 @@
       "id": "single-action",
       "title": "Single Actions",
       "href": "/single-actions"
+    },
+    {
+      "id": "bugbot",
+      "title": "Bugbot",
+      "href": "/bugbot"
     }
   ],
   "sidebar": [
@@ -161,6 +166,17 @@
           "title": "Workflow & CLI",
           "href": "/single-actions/workflow-and-cli",
           "icon": "terminal"
+        }
+      ]
+    },
+    {
+      "group": "Bugbot",
+      "tab": "bugbot",
+      "pages": [
+        {
+          "title": "Overview",
+          "href": "/bugbot",
+          "icon": "bug"
         }
       ]
     },
