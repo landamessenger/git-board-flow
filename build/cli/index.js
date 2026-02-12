@@ -59045,9 +59045,8 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.REPO_URL = exports.TITLE = void 0;
+exports.PROMPTS = exports.BUGBOT_MIN_SEVERITY = exports.BUGBOT_MAX_COMMENTS = exports.BUGBOT_MARKER_PREFIX = exports.ACTIONS = exports.ERRORS = exports.INPUT_KEYS = exports.WORKFLOW_ACTIVE_STATUSES = exports.WORKFLOW_STATUS = exports.DEFAULT_IMAGE_CONFIG = exports.OPENCODE_RETRY_DELAY_MS = exports.OPENCODE_MAX_RETRIES = exports.OPENCODE_REQUEST_TIMEOUT_MS = exports.OPENCODE_DEFAULT_MODEL = exports.TITLE = void 0;
 exports.TITLE = 'Copilot';
-exports.REPO_URL = 'https://github.com/vypdev/copilot';
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 exports.OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free';
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
@@ -59549,13 +59548,10 @@ exports.getRandomElement = getRandomElement;
 /***/ }),
 
 /***/ 8836:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
 exports.setStructuredLogging = setStructuredLogging;
@@ -59566,8 +59562,6 @@ exports.logError = logError;
 exports.logDebugInfo = logDebugInfo;
 exports.logDebugWarning = logDebugWarning;
 exports.logDebugError = logDebugError;
-exports.logSingleLine = logSingleLine;
-const readline_1 = __importDefault(__nccwpck_require__(4521));
 let loggerDebug = false;
 let loggerRemote = false;
 let structuredLogging = false;
@@ -59654,15 +59648,6 @@ function logDebugError(message) {
     if (loggerDebug) {
         logError(message);
     }
-}
-function logSingleLine(message) {
-    if (loggerRemote) {
-        console.log(message);
-        return;
-    }
-    readline_1.default.clearLine(process.stdout, 0);
-    readline_1.default.cursorTo(process.stdout, 0);
-    process.stdout.write(message);
 }
 
 
@@ -59940,7 +59925,7 @@ function getTaskEmoji(taskId) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.extractVersionFromBranch = exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
+exports.extractIssueNumberFromPush = exports.extractIssueNumberFromBranch = void 0;
 const logger_1 = __nccwpck_require__(8836);
 const extractIssueNumberFromBranch = (branchName) => {
     const match = branchName?.match(/[a-zA-Z]+\/([0-9]+)-.*/);
@@ -59964,17 +59949,6 @@ const extractIssueNumberFromPush = (branchName) => {
     return issueNumber;
 };
 exports.extractIssueNumberFromPush = extractIssueNumberFromPush;
-const extractVersionFromBranch = (branchName) => {
-    const match = branchName?.match(/^[^/]+\/(\d+\.\d+\.\d+)$/);
-    if (match) {
-        return match[1];
-    }
-    else {
-        (0, logger_1.logDebugInfo)('No version found in the branch name.');
-        return undefined;
-    }
-};
-exports.extractVersionFromBranch = extractVersionFromBranch;
 
 
 /***/ }),
@@ -60292,14 +60266,6 @@ module.exports = require("perf_hooks");
 
 "use strict";
 module.exports = require("querystring");
-
-/***/ }),
-
-/***/ 4521:
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("readline");
 
 /***/ }),
 
