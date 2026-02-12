@@ -51654,6 +51654,39 @@ class ProjectRepository {
             const { data: user } = await octokit.rest.users.getAuthenticated();
             return user.login;
         };
+        /**
+         * Returns true if the actor (user who triggered the event) is allowed to run use cases
+         * that ask OpenCode to modify files (e.g. bugbot autofix, generic user request).
+         * - When the repo owner is an Organization: actor must be a member of that organization.
+         * - When the repo owner is a User: actor must be the owner (same login).
+         */
+        this.isActorAllowedToModifyFiles = async (owner, actor, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                const { data: ownerUser } = await octokit.rest.users.getByUsername({ username: owner });
+                if (ownerUser.type === "Organization") {
+                    try {
+                        await octokit.rest.orgs.checkMembershipForUser({
+                            org: owner,
+                            username: actor,
+                        });
+                        return true;
+                    }
+                    catch (membershipErr) {
+                        const status = membershipErr?.status;
+                        if (status === 404)
+                            return false;
+                        (0, logger_1.logDebugInfo)(`checkMembershipForUser(${owner}, ${actor}): ${membershipErr instanceof Error ? membershipErr.message : String(membershipErr)}`);
+                        return false;
+                    }
+                }
+                return actor === owner;
+            }
+            catch (err) {
+                (0, logger_1.logDebugInfo)(`isActorAllowedToModifyFiles(${owner}, ${actor}): ${err instanceof Error ? err.message : String(err)}`);
+                return false;
+            }
+        };
         /** Name and email of the token user, for git commit author (e.g. bugbot autofix). */
         this.getTokenUserDetails = async (token) => {
             const octokit = github.getOctokit(token);
@@ -53615,6 +53648,8 @@ const bugbot_autofix_commit_1 = __nccwpck_require__(6263);
 const mark_findings_resolved_use_case_1 = __nccwpck_require__(61);
 const marker_1 = __nccwpck_require__(2401);
 const bugbot_fix_intent_payload_1 = __nccwpck_require__(2528);
+const user_request_use_case_1 = __nccwpck_require__(1776);
+const project_repository_1 = __nccwpck_require__(7917);
 class IssueCommentUseCase {
     constructor() {
         this.taskId = "IssueCommentUseCase";
@@ -53629,12 +53664,17 @@ class IssueCommentUseCase {
         const intentPayload = (0, bugbot_fix_intent_payload_1.getBugbotFixIntentPayload)(intentResults);
         const runAutofix = (0, bugbot_fix_intent_payload_1.canRunBugbotAutofix)(intentPayload);
         if (intentPayload) {
-            (0, logger_1.logInfo)(`Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`);
+            (0, logger_1.logInfo)(`Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, isDoRequest=${intentPayload.isDoRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`);
         }
         else {
             (0, logger_1.logInfo)("Bugbot fix intent: no payload from intent detection.");
         }
-        if (runAutofix && intentPayload) {
+        const projectRepository = new project_repository_1.ProjectRepository();
+        const allowedToModifyFiles = await projectRepository.isActorAllowedToModifyFiles(param.owner, param.actor, param.tokens.token);
+        if (!allowedToModifyFiles && (runAutofix || (0, bugbot_fix_intent_payload_1.canRunDoUserRequest)(intentPayload))) {
+            (0, logger_1.logInfo)("Skipping file-modifying use cases: user is not an org member or repo owner.");
+        }
+        if (runAutofix && intentPayload && allowedToModifyFiles) {
             const payload = intentPayload;
             (0, logger_1.logInfo)("Running bugbot autofix.");
             const userComment = param.issue.commentBody ?? "";
@@ -53672,11 +53712,34 @@ class IssueCommentUseCase {
                 (0, logger_1.logInfo)("Bugbot autofix did not succeed; skipping commit.");
             }
         }
-        else {
+        else if (!runAutofix && (0, bugbot_fix_intent_payload_1.canRunDoUserRequest)(intentPayload) && allowedToModifyFiles) {
+            const payload = intentPayload;
+            (0, logger_1.logInfo)("Running do user request.");
+            const userComment = param.issue.commentBody ?? "";
+            const doResults = await new user_request_use_case_1.DoUserRequestUseCase().invoke({
+                execution: param,
+                userComment,
+                branchOverride: payload.branchOverride,
+            });
+            results.push(...doResults);
+            const lastDo = doResults[doResults.length - 1];
+            if (lastDo?.success) {
+                (0, logger_1.logInfo)("Do user request succeeded; running commit and push.");
+                await (0, bugbot_autofix_commit_1.runUserRequestCommitAndPush)(param, {
+                    branchOverride: payload.branchOverride,
+                });
+            }
+            else {
+                (0, logger_1.logInfo)("Do user request did not succeed; skipping commit.");
+            }
+        }
+        else if (!runAutofix) {
             (0, logger_1.logInfo)("Skipping bugbot autofix (no fix request, no targets, or no context).");
         }
-        if (!runAutofix) {
-            (0, logger_1.logInfo)("Running ThinkUseCase (comment was not a bugbot fix request).");
+        const ranAutofix = runAutofix && allowedToModifyFiles && intentPayload;
+        const ranDoRequest = (0, bugbot_fix_intent_payload_1.canRunDoUserRequest)(intentPayload) && allowedToModifyFiles;
+        if (!ranAutofix && !ranDoRequest) {
+            (0, logger_1.logInfo)("Running ThinkUseCase (no file-modifying action ran).");
             results.push(...(await new think_use_case_1.ThinkUseCase().invoke(param)));
         }
         return results;
@@ -53806,6 +53869,8 @@ const bugbot_autofix_commit_1 = __nccwpck_require__(6263);
 const mark_findings_resolved_use_case_1 = __nccwpck_require__(61);
 const marker_1 = __nccwpck_require__(2401);
 const bugbot_fix_intent_payload_1 = __nccwpck_require__(2528);
+const user_request_use_case_1 = __nccwpck_require__(1776);
+const project_repository_1 = __nccwpck_require__(7917);
 class PullRequestReviewCommentUseCase {
     constructor() {
         this.taskId = "PullRequestReviewCommentUseCase";
@@ -53820,12 +53885,17 @@ class PullRequestReviewCommentUseCase {
         const intentPayload = (0, bugbot_fix_intent_payload_1.getBugbotFixIntentPayload)(intentResults);
         const runAutofix = (0, bugbot_fix_intent_payload_1.canRunBugbotAutofix)(intentPayload);
         if (intentPayload) {
-            (0, logger_1.logInfo)(`Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`);
+            (0, logger_1.logInfo)(`Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, isDoRequest=${intentPayload.isDoRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`);
         }
         else {
             (0, logger_1.logInfo)("Bugbot fix intent: no payload from intent detection.");
         }
-        if (runAutofix && intentPayload) {
+        const projectRepository = new project_repository_1.ProjectRepository();
+        const allowedToModifyFiles = await projectRepository.isActorAllowedToModifyFiles(param.owner, param.actor, param.tokens.token);
+        if (!allowedToModifyFiles && (runAutofix || (0, bugbot_fix_intent_payload_1.canRunDoUserRequest)(intentPayload))) {
+            (0, logger_1.logInfo)("Skipping file-modifying use cases: user is not an org member or repo owner.");
+        }
+        if (runAutofix && intentPayload && allowedToModifyFiles) {
             const payload = intentPayload;
             (0, logger_1.logInfo)("Running bugbot autofix.");
             const userComment = param.pullRequest.commentBody ?? "";
@@ -53863,11 +53933,34 @@ class PullRequestReviewCommentUseCase {
                 (0, logger_1.logInfo)("Bugbot autofix did not succeed; skipping commit.");
             }
         }
-        else {
+        else if (!runAutofix && (0, bugbot_fix_intent_payload_1.canRunDoUserRequest)(intentPayload) && allowedToModifyFiles) {
+            const payload = intentPayload;
+            (0, logger_1.logInfo)("Running do user request.");
+            const userComment = param.pullRequest.commentBody ?? "";
+            const doResults = await new user_request_use_case_1.DoUserRequestUseCase().invoke({
+                execution: param,
+                userComment,
+                branchOverride: payload.branchOverride,
+            });
+            results.push(...doResults);
+            const lastDo = doResults[doResults.length - 1];
+            if (lastDo?.success) {
+                (0, logger_1.logInfo)("Do user request succeeded; running commit and push.");
+                await (0, bugbot_autofix_commit_1.runUserRequestCommitAndPush)(param, {
+                    branchOverride: payload.branchOverride,
+                });
+            }
+            else {
+                (0, logger_1.logInfo)("Do user request did not succeed; skipping commit.");
+            }
+        }
+        else if (!runAutofix) {
             (0, logger_1.logInfo)("Skipping bugbot autofix (no fix request, no targets, or no context).");
         }
-        if (!runAutofix) {
-            (0, logger_1.logInfo)("Running ThinkUseCase (comment was not a bugbot fix request).");
+        const ranAutofix = runAutofix && allowedToModifyFiles && intentPayload;
+        const ranDoRequest = (0, bugbot_fix_intent_payload_1.canRunDoUserRequest)(intentPayload) && allowedToModifyFiles;
+        if (!ranAutofix && !ranDoRequest) {
+            (0, logger_1.logInfo)("Running ThinkUseCase (no file-modifying action ran).");
             results.push(...(await new think_use_case_1.ThinkUseCase().invoke(param)));
         }
         return results;
@@ -54107,6 +54200,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.runBugbotAutofixCommitAndPush = runBugbotAutofixCommitAndPush;
+exports.runUserRequestCommitAndPush = runUserRequestCommitAndPush;
 const exec = __importStar(__nccwpck_require__(1514));
 const shellQuote = __importStar(__nccwpck_require__(7029));
 const project_repository_1 = __nccwpck_require__(7917);
@@ -54285,6 +54379,70 @@ async function runBugbotAutofixCommitAndPush(execution, options) {
         return { success: false, committed: false, error: msg };
     }
 }
+/**
+ * Runs verify commands (if configured), then git add, commit, and push for a generic user request.
+ * Same flow as runBugbotAutofixCommitAndPush but with a generic commit message.
+ * When branchOverride is set, checks out that branch first.
+ */
+async function runUserRequestCommitAndPush(execution, options) {
+    const branchOverride = options?.branchOverride;
+    const branch = branchOverride ?? execution.commit.branch;
+    if (!branch?.trim()) {
+        return { success: false, committed: false, error: "No branch to commit to." };
+    }
+    if (branchOverride) {
+        const ok = await checkoutBranchIfNeeded(branch);
+        if (!ok) {
+            return { success: false, committed: false, error: `Failed to checkout branch ${branch}.` };
+        }
+    }
+    let verifyCommands = execution.ai?.getBugbotFixVerifyCommands?.() ?? [];
+    if (!Array.isArray(verifyCommands)) {
+        verifyCommands = [];
+    }
+    verifyCommands = verifyCommands.filter((cmd) => typeof cmd === "string");
+    if (verifyCommands.length > MAX_VERIFY_COMMANDS) {
+        (0, logger_1.logInfo)(`Limiting verify commands to ${MAX_VERIFY_COMMANDS} (configured: ${verifyCommands.length}).`);
+        verifyCommands = verifyCommands.slice(0, MAX_VERIFY_COMMANDS);
+    }
+    if (verifyCommands.length > 0) {
+        (0, logger_1.logInfo)(`Running ${verifyCommands.length} verify command(s)...`);
+        const verify = await runVerifyCommands(verifyCommands);
+        if (!verify.success) {
+            return {
+                success: false,
+                committed: false,
+                error: verify.error ?? `Verify command failed: ${verify.failedCommand ?? "unknown"}.`,
+            };
+        }
+    }
+    const changed = await hasChanges();
+    if (!changed) {
+        (0, logger_1.logDebugInfo)("No changes to commit after user request.");
+        return { success: true, committed: false };
+    }
+    try {
+        const projectRepository = new project_repository_1.ProjectRepository();
+        const { name, email } = await projectRepository.getTokenUserDetails(execution.tokens.token);
+        await exec.exec("git", ["config", "user.name", name]);
+        await exec.exec("git", ["config", "user.email", email]);
+        (0, logger_1.logDebugInfo)(`Git author set to ${name} <${email}>.`);
+        await exec.exec("git", ["add", "-A"]);
+        const issueNumber = execution.issueNumber > 0 ? execution.issueNumber : undefined;
+        const commitMessage = issueNumber
+            ? `chore(#${issueNumber}): apply user request`
+            : "chore: apply user request";
+        await exec.exec("git", ["commit", "-m", commitMessage]);
+        await exec.exec("git", ["push", "origin", branch]);
+        (0, logger_1.logInfo)(`Pushed commit to origin/${branch}.`);
+        return { success: true, committed: true };
+    }
+    catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        (0, logger_1.logError)(`Commit or push failed: ${msg}`);
+        return { success: false, committed: false, error: msg };
+    }
+}
 
 
 /***/ }),
@@ -54373,6 +54531,7 @@ exports.BugbotAutofixUseCase = BugbotAutofixUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getBugbotFixIntentPayload = getBugbotFixIntentPayload;
 exports.canRunBugbotAutofix = canRunBugbotAutofix;
+exports.canRunDoUserRequest = canRunDoUserRequest;
 /** Extracts the intent payload from the last result of DetectBugbotFixIntentUseCase (or undefined if empty). */
 function getBugbotFixIntentPayload(results) {
     if (results.length === 0)
@@ -54389,6 +54548,10 @@ function canRunBugbotAutofix(payload) {
         Array.isArray(payload.targetFindingIds) &&
         payload.targetFindingIds.length > 0 &&
         !!payload.context);
+}
+/** True when the user asked to perform a generic change/task in the repo (do user request). */
+function canRunDoUserRequest(payload) {
+    return !!payload?.isDoRequest;
 }
 
 
@@ -54440,8 +54603,9 @@ ${(0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComme
 **Your task:** Decide:
 1. Is this comment clearly a request to fix one or more of the findings above? (e.g. "fix it", "arreglalo", "fix this", "fix all", "fix vulnerability X", "corrige", "fix the bug in src/foo.ts"). If the user is asking a question, discussing something else, or the intent is ambiguous, set \`is_fix_request\` to false.
 2. If it is a fix request, which finding ids should be fixed? Return their exact ids in \`target_finding_ids\`. If the user says "fix all" or equivalent, include every id from the list above. If they refer to a specific finding (e.g. by replying to a comment that contains one finding), return only that finding's id. Use only ids that appear in the list above.
+3. Is the user asking to perform some other change or task in the repo? (e.g. "add a test for X", "refactor this", "implement feature Y", "haz que Z"). If yes, set \`is_do_request\` to true. Set false for pure questions or when the only intent is to fix the listed findings.
 
-Respond with a JSON object: \`is_fix_request\` (boolean) and \`target_finding_ids\` (array of strings; empty when \`is_fix_request\` is false).`;
+Respond with a JSON object: \`is_fix_request\` (boolean), \`target_finding_ids\` (array of strings; empty when \`is_fix_request\` is false), and \`is_do_request\` (boolean).`;
 }
 
 
@@ -54702,12 +54866,13 @@ class DetectBugbotFixIntentUseCase {
                 success: true,
                 executed: true,
                 steps: ["Bugbot fix intent: no response; skipping autofix."],
-                payload: { isFixRequest: false, targetFindingIds: [] },
+                payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: [] },
             }));
             return results;
         }
         const payload = response;
         const isFixRequest = payload.is_fix_request === true;
+        const isDoRequest = payload.is_do_request === true;
         const targetFindingIds = Array.isArray(payload.target_finding_ids)
             ? payload.target_finding_ids.filter((id) => typeof id === "string")
             : [];
@@ -54717,11 +54882,10 @@ class DetectBugbotFixIntentUseCase {
             id: this.taskId,
             success: true,
             executed: true,
-            steps: [
-            // `Bugbot fix intent: isFixRequest=${isFixRequest}, targetFindingIds=${filteredIds.length} (${filteredIds.join(", ") || "none"}).`,
-            ],
+            steps: [],
             payload: {
                 isFixRequest,
+                isDoRequest,
                 targetFindingIds: filteredIds,
                 context,
                 branchOverride,
@@ -55369,8 +55533,12 @@ exports.BUGBOT_FIX_INTENT_RESPONSE_SCHEMA = {
             items: { type: 'string' },
             description: 'When is_fix_request is true: the exact finding ids from the list we provided that the user wants fixed. Use the exact id strings. For "fix all" or "fix everything" include all listed ids. When is_fix_request is false, return an empty array.',
         },
+        is_do_request: {
+            type: 'boolean',
+            description: 'True if the user is asking to perform some change or task in the repository (e.g. "add a test for X", "refactor this", "implement feature Y"). False for pure questions or when the only intent is to fix the reported findings (use is_fix_request for that).',
+        },
     },
-    required: ['is_fix_request', 'target_finding_ids'],
+    required: ['is_fix_request', 'target_finding_ids', 'is_do_request'],
     additionalProperties: false,
 };
 
@@ -55765,6 +55933,98 @@ ${this.separator}
     }
 }
 exports.NotifyNewCommitOnIssueUseCase = NotifyNewCommitOnIssueUseCase;
+
+
+/***/ }),
+
+/***/ 1776:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Use case that performs whatever changes the user asked for (generic request).
+ * Uses the OpenCode build agent to edit files and run commands in the workspace.
+ * Caller is responsible for permission check and for running commit/push after success.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DoUserRequestUseCase = void 0;
+const ai_repository_1 = __nccwpck_require__(8307);
+const logger_1 = __nccwpck_require__(8836);
+const task_emoji_1 = __nccwpck_require__(9785);
+const result_1 = __nccwpck_require__(7305);
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
+const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
+const TASK_ID = "DoUserRequestUseCase";
+function buildUserRequestPrompt(execution, userComment) {
+    const headBranch = execution.commit.branch;
+    const baseBranch = execution.currentConfiguration.parentBranch ?? execution.branches.development ?? "develop";
+    const issueNumber = execution.issueNumber;
+    const owner = execution.owner;
+    const repo = execution.repo;
+    return `You are in the repository workspace. The user has asked you to do something. Perform their request by editing files and running commands directly in the workspace. Do not output diffs for someone else to apply.
+
+${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
+
+**Repository context:**
+- Owner: ${owner}
+- Repository: ${repo}
+- Branch (head): ${headBranch}
+- Base branch: ${baseBranch}
+- Issue number: ${issueNumber}
+
+**User request:**
+"""
+${(0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment)}
+"""
+
+**Rules:**
+1. Apply all changes directly in the workspace (edit files, run commands).
+2. If the project has standard checks (build, test, lint), run them and ensure they pass when relevant.
+3. Reply briefly confirming what you did.`;
+}
+class DoUserRequestUseCase {
+    constructor() {
+        this.taskId = TASK_ID;
+        this.aiRepository = new ai_repository_1.AiRepository();
+    }
+    async invoke(param) {
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
+        const results = [];
+        const { execution, userComment } = param;
+        if (!execution.ai?.getOpencodeServerUrl() || !execution.ai?.getOpencodeModel()) {
+            (0, logger_1.logInfo)("OpenCode not configured; skipping user request.");
+            return results;
+        }
+        const commentTrimmed = userComment?.trim() ?? "";
+        if (!commentTrimmed) {
+            (0, logger_1.logInfo)("No user comment; skipping user request.");
+            return results;
+        }
+        const prompt = buildUserRequestPrompt(execution, userComment);
+        (0, logger_1.logInfo)("Running OpenCode build agent to perform user request (changes applied in workspace).");
+        const response = await this.aiRepository.copilotMessage(execution.ai, prompt);
+        if (!response?.text) {
+            (0, logger_1.logError)("DoUserRequest: no response from OpenCode build agent.");
+            results.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: ["OpenCode build agent returned no response."],
+            }));
+            return results;
+        }
+        results.push(new result_1.Result({
+            id: this.taskId,
+            success: true,
+            executed: true,
+            steps: [],
+            payload: { branchOverride: param.branchOverride },
+        }));
+        return results;
+    }
+}
+exports.DoUserRequestUseCase = DoUserRequestUseCase;
 
 
 /***/ }),

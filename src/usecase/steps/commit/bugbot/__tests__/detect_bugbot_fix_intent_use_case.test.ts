@@ -119,7 +119,7 @@ describe("DetectBugbotFixIntentUseCase", () => {
     it("uses branchOverride when commit.branch empty and getHeadBranchForIssue returns branch", async () => {
         mockGetHeadBranchForIssue.mockResolvedValue("feature/42-pr");
         mockLoadBugbotContext.mockResolvedValue(mockContextWithUnresolved(1));
-        mockAskAgent.mockResolvedValue({ is_fix_request: false, target_finding_ids: [] });
+        mockAskAgent.mockResolvedValue({ is_fix_request: false, target_finding_ids: [], is_do_request: false });
 
         await useCase.invoke(baseExecution({ commit: { branch: "" } } as Partial<Execution>));
 
@@ -144,14 +144,16 @@ describe("DetectBugbotFixIntentUseCase", () => {
         mockAskAgent.mockResolvedValue({
             is_fix_request: true,
             target_finding_ids: ["finding-0", "finding-1", "invalid-id"],
+            is_do_request: false,
         });
 
         const results = await useCase.invoke(baseExecution());
 
         expect(mockAskAgent).toHaveBeenCalledTimes(1);
         expect(results).toHaveLength(1);
-        const payload = results[0].payload as { isFixRequest: boolean; targetFindingIds: string[] };
+        const payload = results[0].payload as { isFixRequest: boolean; isDoRequest: boolean; targetFindingIds: string[] };
         expect(payload.isFixRequest).toBe(true);
+        expect(payload.isDoRequest).toBe(false);
         expect(payload.targetFindingIds).toEqual(["finding-0", "finding-1"]);
     });
 
@@ -162,13 +164,14 @@ describe("DetectBugbotFixIntentUseCase", () => {
         const results = await useCase.invoke(baseExecution());
 
         expect(results).toHaveLength(1);
-        expect((results[0].payload as { isFixRequest: boolean }).isFixRequest).toBe(false);
+        expect((results[0].payload as { isFixRequest: boolean; isDoRequest: boolean }).isFixRequest).toBe(false);
+        expect((results[0].payload as { isDoRequest: boolean }).isDoRequest).toBe(false);
     });
 
     it("fetches parent comment body when PR review comment has commentInReplyToId", async () => {
         mockLoadBugbotContext.mockResolvedValue(mockContextWithUnresolved(1));
         mockGetPullRequestReviewCommentBody.mockResolvedValue("Parent body");
-        mockAskAgent.mockResolvedValue({ is_fix_request: false, target_finding_ids: [] });
+        mockAskAgent.mockResolvedValue({ is_fix_request: false, target_finding_ids: [], is_do_request: false });
 
         await useCase.invoke(
             baseExecution({

@@ -74,7 +74,11 @@ export declare const BUGBOT_FIX_INTENT_RESPONSE_SCHEMA: {
             };
             readonly description: "When is_fix_request is true: the exact finding ids from the list we provided that the user wants fixed. Use the exact id strings. For \"fix all\" or \"fix everything\" include all listed ids. When is_fix_request is false, return an empty array.";
         };
+        readonly is_do_request: {
+            readonly type: "boolean";
+            readonly description: "True if the user is asking to perform some change or task in the repository (e.g. \"add a test for X\", \"refactor this\", \"implement feature Y\"). False for pure questions or when the only intent is to fix the reported findings (use is_fix_request for that).";
+        };
     };
-    readonly required: readonly ["is_fix_request", "target_finding_ids"];
+    readonly required: readonly ["is_fix_request", "target_finding_ids", "is_do_request"];
     readonly additionalProperties: false;
 };

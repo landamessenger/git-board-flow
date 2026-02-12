@@ -9,6 +9,7 @@ import type { MarkFindingsResolvedParam } from "./mark_findings_resolved_use_cas
 
 export type BugbotFixIntentPayload = {
     isFixRequest: boolean;
+    isDoRequest: boolean;
     targetFindingIds: string[];
     context?: MarkFindingsResolvedParam["context"];
     branchOverride?: string;
@@ -37,4 +38,9 @@ export function canRunBugbotAutofix(
         payload.targetFindingIds.length > 0 &&
         !!payload.context
     );
+}
+
+/** True when the user asked to perform a generic change/task in the repo (do user request). */
+export function canRunDoUserRequest(payload: BugbotFixIntentPayload | undefined): boolean {
+    return !!payload?.isDoRequest;
 }

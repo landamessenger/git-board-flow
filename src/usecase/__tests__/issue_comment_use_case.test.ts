@@ -32,9 +32,26 @@ jest.mock("../steps/commit/bugbot/bugbot_autofix_use_case", () => ({
     })),
 }));
 
+const mockIsActorAllowedToModifyFiles = jest.fn();
+
+jest.mock("../../data/repository/project_repository", () => ({
+    ProjectRepository: jest.fn().mockImplementation(() => ({
+        isActorAllowedToModifyFiles: mockIsActorAllowedToModifyFiles,
+    })),
+}));
+
 jest.mock("../steps/commit/bugbot/bugbot_autofix_commit", () => ({
     runBugbotAutofixCommitAndPush: (...args: unknown[]) =>
         mockRunBugbotAutofixCommitAndPush(...args),
+    runUserRequestCommitAndPush: jest.fn().mockResolvedValue({ committed: true }),
+}));
+
+const mockDoUserRequestInvoke = jest.fn();
+
+jest.mock("../steps/commit/user_request_use_case", () => ({
+    DoUserRequestUseCase: jest.fn().mockImplementation(() => ({
+        invoke: mockDoUserRequestInvoke,
+    })),
 }));
 
 jest.mock("../steps/commit/bugbot/mark_findings_resolved_use_case", () => ({
@@ -104,6 +121,7 @@ describe("IssueCommentUseCase", () => {
 
     beforeEach(() => {
         useCase = new IssueCommentUseCase();
+        mockIsActorAllowedToModifyFiles.mockReset().mockResolvedValue(true);
         mockCheckLanguageInvoke.mockReset().mockResolvedValue([
             new Result({
                 id: "CheckIssueCommentLanguageUseCase",
@@ -119,6 +137,7 @@ describe("IssueCommentUseCase", () => {
         ]);
         mockRunBugbotAutofixCommitAndPush.mockReset().mockResolvedValue({ committed: true });
         mockMarkFindingsResolved.mockReset().mockResolvedValue(undefined);
+        mockDoUserRequestInvoke.mockReset();
     });
 
     it("runs CheckIssueCommentLanguage and DetectBugbotFixIntent in order", async () => {
@@ -128,7 +147,7 @@ describe("IssueCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: false, targetFindingIds: [] },
+                payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: [] },
             }),
         ]);
 
@@ -158,7 +177,7 @@ describe("IssueCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: false, targetFindingIds: ["f1"] },
+                payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: ["f1"] },
             }),
         ]);
 
@@ -175,7 +194,7 @@ describe("IssueCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: true, targetFindingIds: [] },
+                payload: { isFixRequest: true, isDoRequest: false, targetFindingIds: [] },
             }),
         ]);
 
@@ -195,6 +214,7 @@ describe("IssueCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["finding-1"],
                     context,
                     branchOverride: "feature/296-bugbot-autofix",
@@ -237,6 +257,7 @@ describe("IssueCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["f1"],
                     context,
                 },
@@ -263,6 +284,7 @@ describe("IssueCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["f1"],
                     context,
                 },
@@ -288,6 +310,7 @@ describe("IssueCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["f1"],
                     context: undefined,
                 },
@@ -307,7 +330,7 @@ describe("IssueCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: false, targetFindingIds: [] },
+                payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: [] },
             }),
         ]);
 
@@ -317,5 +340,32 @@ describe("IssueCommentUseCase", () => {
         expect(results[0].id).toBe("CheckIssueCommentLanguageUseCase");
         expect(results.some((r) => r.id === "DetectBugbotFixIntentUseCase")).toBe(true);
         expect(results.some((r) => r.id === "ThinkUseCase")).toBe(true);
+    });
+
+    it("when actor is not allowed to modify files, skips autofix and does not run DoUserRequest", async () => {
+        mockIsActorAllowedToModifyFiles.mockResolvedValue(false);
+        const context = mockContext();
+        mockDetectIntentInvoke.mockResolvedValue([
+            new Result({
+                id: "DetectBugbotFixIntentUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+                payload: {
+                    isFixRequest: true,
+                    isDoRequest: false,
+                    targetFindingIds: ["f1"],
+                    context,
+                },
+            }),
+        ]);
+
+        await useCase.invoke(baseExecution());
+
+        expect(mockIsActorAllowedToModifyFiles).toHaveBeenCalledTimes(1);
+        expect(mockIsActorAllowedToModifyFiles).toHaveBeenCalledWith("o", undefined, "t");
+        expect(mockAutofixInvoke).not.toHaveBeenCalled();
+        expect(mockDoUserRequestInvoke).not.toHaveBeenCalled();
+        expect(mockThinkInvoke).toHaveBeenCalledTimes(1);
     });
 });

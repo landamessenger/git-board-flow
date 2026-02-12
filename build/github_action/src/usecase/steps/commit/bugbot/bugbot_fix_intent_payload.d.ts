@@ -7,6 +7,7 @@ import type { Result } from "../../../../data/model/result";
 import type { MarkFindingsResolvedParam } from "./mark_findings_resolved_use_case";
 export type BugbotFixIntentPayload = {
     isFixRequest: boolean;
+    isDoRequest: boolean;
     targetFindingIds: string[];
     context?: MarkFindingsResolvedParam["context"];
     branchOverride?: string;
@@ -17,3 +18,5 @@ export declare function getBugbotFixIntentPayload(results: Result[]): BugbotFixI
 export declare function canRunBugbotAutofix(payload: BugbotFixIntentPayload | undefined): payload is BugbotFixIntentPayload & {
     context: NonNullable<BugbotFixIntentPayload["context"]>;
 };
+/** True when the user asked to perform a generic change/task in the repo (do user request). */
+export declare function canRunDoUserRequest(payload: BugbotFixIntentPayload | undefined): boolean;

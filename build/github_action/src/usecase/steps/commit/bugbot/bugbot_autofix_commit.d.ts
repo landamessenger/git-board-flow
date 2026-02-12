@@ -17,3 +17,11 @@ export declare function runBugbotAutofixCommitAndPush(execution: Execution, opti
     branchOverride?: string;
     targetFindingIds?: string[];
 }): Promise<BugbotAutofixCommitResult>;
+/**
+ * Runs verify commands (if configured), then git add, commit, and push for a generic user request.
+ * Same flow as runBugbotAutofixCommitAndPush but with a generic commit message.
+ * When branchOverride is set, checks out that branch first.
+ */
+export declare function runUserRequestCommitAndPush(execution: Execution, options?: {
+    branchOverride?: string;
+}): Promise<BugbotAutofixCommitResult>;

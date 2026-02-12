@@ -7,13 +7,16 @@ import { ParamUseCase } from "./base/param_usecase";
 import { CheckIssueCommentLanguageUseCase } from "./steps/issue_comment/check_issue_comment_language_use_case";
 import { DetectBugbotFixIntentUseCase } from "./steps/commit/bugbot/detect_bugbot_fix_intent_use_case";
 import { BugbotAutofixUseCase } from "./steps/commit/bugbot/bugbot_autofix_use_case";
-import { runBugbotAutofixCommitAndPush } from "./steps/commit/bugbot/bugbot_autofix_commit";
+import { runBugbotAutofixCommitAndPush, runUserRequestCommitAndPush } from "./steps/commit/bugbot/bugbot_autofix_commit";
 import { markFindingsResolved } from "./steps/commit/bugbot/mark_findings_resolved_use_case";
 import { sanitizeFindingIdForMarker } from "./steps/commit/bugbot/marker";
 import {
     getBugbotFixIntentPayload,
     canRunBugbotAutofix,
+    canRunDoUserRequest,
 } from "./steps/commit/bugbot/bugbot_fix_intent_payload";
+import { DoUserRequestUseCase } from "./steps/commit/user_request_use_case";
+import { ProjectRepository } from "../data/repository/project_repository";
 
 export class IssueCommentUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = "IssueCommentUseCase";
@@ -34,13 +37,25 @@ export class IssueCommentUseCase implements ParamUseCase<Execution, Result[]> {
 
         if (intentPayload) {
             logInfo(
-                `Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`
+                `Bugbot fix intent: isFixRequest=${intentPayload.isFixRequest}, isDoRequest=${intentPayload.isDoRequest}, targetFindingIds=${intentPayload.targetFindingIds?.length ?? 0}.`
             );
         } else {
             logInfo("Bugbot fix intent: no payload from intent detection.");
         }
 
-        if (runAutofix && intentPayload) {
+        const projectRepository = new ProjectRepository();
+        const allowedToModifyFiles = await projectRepository.isActorAllowedToModifyFiles(
+            param.owner,
+            param.actor,
+            param.tokens.token
+        );
+        if (!allowedToModifyFiles && (runAutofix || canRunDoUserRequest(intentPayload))) {
+            logInfo(
+                "Skipping file-modifying use cases: user is not an org member or repo owner."
+            );
+        }
+
+        if (runAutofix && intentPayload && allowedToModifyFiles) {
             const payload = intentPayload;
             logInfo("Running bugbot autofix.");
             const userComment = param.issue.commentBody ?? "";
@@ -76,12 +91,34 @@ export class IssueCommentUseCase implements ParamUseCase<Execution, Result[]> {
             } else {
                 logInfo("Bugbot autofix did not succeed; skipping commit.");
             }
-        } else {
+        } else if (!runAutofix && canRunDoUserRequest(intentPayload) && allowedToModifyFiles) {
+            const payload = intentPayload!;
+            logInfo("Running do user request.");
+            const userComment = param.issue.commentBody ?? "";
+            const doResults = await new DoUserRequestUseCase().invoke({
+                execution: param,
+                userComment,
+                branchOverride: payload.branchOverride,
+            });
+            results.push(...doResults);
+
+            const lastDo = doResults[doResults.length - 1];
+            if (lastDo?.success) {
+                logInfo("Do user request succeeded; running commit and push.");
+                await runUserRequestCommitAndPush(param, {
+                    branchOverride: payload.branchOverride,
+                });
+            } else {
+                logInfo("Do user request did not succeed; skipping commit.");
+            }
+        } else if (!runAutofix) {
             logInfo("Skipping bugbot autofix (no fix request, no targets, or no context).");
         }
 
-        if (!runAutofix) {
-            logInfo("Running ThinkUseCase (comment was not a bugbot fix request).");
+        const ranAutofix = runAutofix && allowedToModifyFiles && intentPayload;
+        const ranDoRequest = canRunDoUserRequest(intentPayload) && allowedToModifyFiles;
+        if (!ranAutofix && !ranDoRequest) {
+            logInfo("Running ThinkUseCase (no file-modifying action ran).");
             results.push(...(await new ThinkUseCase().invoke(param)));
         }
 

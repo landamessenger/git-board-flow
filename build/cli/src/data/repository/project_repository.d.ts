@@ -21,6 +21,13 @@ export declare class ProjectRepository {
     getRandomMembers: (organization: string, membersToAdd: number, currentMembers: string[], token: string) => Promise<string[]>;
     getAllMembers: (organization: string, token: string) => Promise<string[]>;
     getUserFromToken: (token: string) => Promise<string>;
+    /**
+     * Returns true if the actor (user who triggered the event) is allowed to run use cases
+     * that ask OpenCode to modify files (e.g. bugbot autofix, generic user request).
+     * - When the repo owner is an Organization: actor must be a member of that organization.
+     * - When the repo owner is a User: actor must be the owner (same login).
+     */
+    isActorAllowedToModifyFiles: (owner: string, actor: string, token: string) => Promise<boolean>;
     /** Name and email of the token user, for git commit author (e.g. bugbot autofix). */
     getTokenUserDetails: (token: string) => Promise<{
         name: string;

@@ -3,6 +3,7 @@ import { ParamUseCase } from "../../../base/param_usecase";
 import { Result } from "../../../../data/model/result";
 export interface BugbotFixIntent {
     isFixRequest: boolean;
+    isDoRequest: boolean;
     targetFindingIds: string[];
 }
 /**

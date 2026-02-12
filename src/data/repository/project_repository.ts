@@ -560,6 +560,41 @@ export class ProjectRepository {
         return user.login;
     };
 
+    /**
+     * Returns true if the actor (user who triggered the event) is allowed to run use cases
+     * that ask OpenCode to modify files (e.g. bugbot autofix, generic user request).
+     * - When the repo owner is an Organization: actor must be a member of that organization.
+     * - When the repo owner is a User: actor must be the owner (same login).
+     */
+    isActorAllowedToModifyFiles = async (
+        owner: string,
+        actor: string,
+        token: string
+    ): Promise<boolean> => {
+        try {
+            const octokit = github.getOctokit(token);
+            const { data: ownerUser } = await octokit.rest.users.getByUsername({ username: owner });
+            if (ownerUser.type === "Organization") {
+                try {
+                    await octokit.rest.orgs.checkMembershipForUser({
+                        org: owner,
+                        username: actor,
+                    });
+                    return true;
+                } catch (membershipErr: unknown) {
+                    const status = (membershipErr as { status?: number })?.status;
+                    if (status === 404) return false;
+                    logDebugInfo(`checkMembershipForUser(${owner}, ${actor}): ${membershipErr instanceof Error ? membershipErr.message : String(membershipErr)}`);
+                    return false;
+                }
+            }
+            return actor === owner;
+        } catch (err) {
+            logDebugInfo(`isActorAllowedToModifyFiles(${owner}, ${actor}): ${err instanceof Error ? err.message : String(err)}`);
+            return false;
+        }
+    };
+
     /** Name and email of the token user, for git commit author (e.g. bugbot autofix). */
     getTokenUserDetails = async (token: string): Promise<{ name: string; email: string }> => {
         const octokit = github.getOctokit(token);

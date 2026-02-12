@@ -203,3 +203,78 @@ export async function runBugbotAutofixCommitAndPush(
         return { success: false, committed: false, error: msg };
     }
 }
+
+/**
+ * Runs verify commands (if configured), then git add, commit, and push for a generic user request.
+ * Same flow as runBugbotAutofixCommitAndPush but with a generic commit message.
+ * When branchOverride is set, checks out that branch first.
+ */
+export async function runUserRequestCommitAndPush(
+    execution: Execution,
+    options?: { branchOverride?: string }
+): Promise<BugbotAutofixCommitResult> {
+    const branchOverride = options?.branchOverride;
+    const branch = branchOverride ?? execution.commit.branch;
+
+    if (!branch?.trim()) {
+        return { success: false, committed: false, error: "No branch to commit to." };
+    }
+
+    if (branchOverride) {
+        const ok = await checkoutBranchIfNeeded(branch);
+        if (!ok) {
+            return { success: false, committed: false, error: `Failed to checkout branch ${branch}.` };
+        }
+    }
+
+    let verifyCommands = execution.ai?.getBugbotFixVerifyCommands?.() ?? [];
+    if (!Array.isArray(verifyCommands)) {
+        verifyCommands = [];
+    }
+    verifyCommands = verifyCommands.filter((cmd): cmd is string => typeof cmd === "string");
+    if (verifyCommands.length > MAX_VERIFY_COMMANDS) {
+        logInfo(
+            `Limiting verify commands to ${MAX_VERIFY_COMMANDS} (configured: ${verifyCommands.length}).`
+        );
+        verifyCommands = verifyCommands.slice(0, MAX_VERIFY_COMMANDS);
+    }
+    if (verifyCommands.length > 0) {
+        logInfo(`Running ${verifyCommands.length} verify command(s)...`);
+        const verify = await runVerifyCommands(verifyCommands);
+        if (!verify.success) {
+            return {
+                success: false,
+                committed: false,
+                error: verify.error ?? `Verify command failed: ${verify.failedCommand ?? "unknown"}.`,
+            };
+        }
+    }
+
+    const changed = await hasChanges();
+    if (!changed) {
+        logDebugInfo("No changes to commit after user request.");
+        return { success: true, committed: false };
+    }
+
+    try {
+        const projectRepository = new ProjectRepository();
+        const { name, email } = await projectRepository.getTokenUserDetails(execution.tokens.token);
+        await exec.exec("git", ["config", "user.name", name]);
+        await exec.exec("git", ["config", "user.email", email]);
+        logDebugInfo(`Git author set to ${name} <${email}>.`);
+
+        await exec.exec("git", ["add", "-A"]);
+        const issueNumber = execution.issueNumber > 0 ? execution.issueNumber : undefined;
+        const commitMessage = issueNumber
+            ? `chore(#${issueNumber}): apply user request`
+            : "chore: apply user request";
+        await exec.exec("git", ["commit", "-m", commitMessage]);
+        await exec.exec("git", ["push", "origin", branch]);
+        logInfo(`Pushed commit to origin/${branch}.`);
+        return { success: true, committed: true };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logError(`Commit or push failed: ${msg}`);
+        return { success: false, committed: false, error: msg };
+    }
+}

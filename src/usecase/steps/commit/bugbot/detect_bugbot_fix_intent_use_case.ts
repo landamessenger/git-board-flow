@@ -13,6 +13,7 @@ import { BUGBOT_FIX_INTENT_RESPONSE_SCHEMA } from "./schema";
 
 export interface BugbotFixIntent {
     isFixRequest: boolean;
+    isDoRequest: boolean;
     targetFindingIds: string[];
 }
 
@@ -123,14 +124,19 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
                     success: true,
                     executed: true,
                     steps: ["Bugbot fix intent: no response; skipping autofix."],
-                    payload: { isFixRequest: false, targetFindingIds: [] as string[] },
+                    payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: [] as string[] },
                 })
             );
             return results;
         }
 
-        const payload = response as { is_fix_request?: boolean; target_finding_ids?: string[] };
+        const payload = response as {
+            is_fix_request?: boolean;
+            target_finding_ids?: string[];
+            is_do_request?: boolean;
+        };
         const isFixRequest = payload.is_fix_request === true;
+        const isDoRequest = payload.is_do_request === true;
         const targetFindingIds = Array.isArray(payload.target_finding_ids)
             ? payload.target_finding_ids.filter((id): id is string => typeof id === "string")
             : [];
@@ -143,11 +149,10 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
                 id: this.taskId,
                 success: true,
                 executed: true,
-                steps: [
-                    // `Bugbot fix intent: isFixRequest=${isFixRequest}, targetFindingIds=${filteredIds.length} (${filteredIds.join(", ") || "none"}).`,
-                ],
+                steps: [],
                 payload: {
                     isFixRequest,
+                    isDoRequest,
                     targetFindingIds: filteredIds,
                     context,
                     branchOverride,

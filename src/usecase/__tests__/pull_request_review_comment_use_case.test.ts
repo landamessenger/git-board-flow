@@ -35,9 +35,26 @@ jest.mock("../steps/commit/bugbot/bugbot_autofix_use_case", () => ({
     })),
 }));
 
+const mockIsActorAllowedToModifyFiles = jest.fn();
+
+jest.mock("../../data/repository/project_repository", () => ({
+    ProjectRepository: jest.fn().mockImplementation(() => ({
+        isActorAllowedToModifyFiles: mockIsActorAllowedToModifyFiles,
+    })),
+}));
+
 jest.mock("../steps/commit/bugbot/bugbot_autofix_commit", () => ({
     runBugbotAutofixCommitAndPush: (...args: unknown[]) =>
         mockRunBugbotAutofixCommitAndPush(...args),
+    runUserRequestCommitAndPush: jest.fn().mockResolvedValue({ committed: true }),
+}));
+
+const mockDoUserRequestInvoke = jest.fn();
+
+jest.mock("../steps/commit/user_request_use_case", () => ({
+    DoUserRequestUseCase: jest.fn().mockImplementation(() => ({
+        invoke: mockDoUserRequestInvoke,
+    })),
 }));
 
 jest.mock("../steps/commit/bugbot/mark_findings_resolved_use_case", () => ({
@@ -111,6 +128,7 @@ describe("PullRequestReviewCommentUseCase", () => {
 
     beforeEach(() => {
         useCase = new PullRequestReviewCommentUseCase();
+        mockIsActorAllowedToModifyFiles.mockReset().mockResolvedValue(true);
         mockCheckLanguageInvoke.mockReset().mockResolvedValue([
             new Result({
                 id: "CheckPullRequestCommentLanguageUseCase",
@@ -126,6 +144,7 @@ describe("PullRequestReviewCommentUseCase", () => {
         ]);
         mockRunBugbotAutofixCommitAndPush.mockReset().mockResolvedValue({ committed: true });
         mockMarkFindingsResolved.mockReset().mockResolvedValue(undefined);
+        mockDoUserRequestInvoke.mockReset();
     });
 
     it("runs CheckPullRequestCommentLanguage and DetectBugbotFixIntent in order", async () => {
@@ -135,7 +154,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: false, targetFindingIds: [] },
+                payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: [] },
             }),
         ]);
 
@@ -165,7 +184,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: false, targetFindingIds: ["f1"] },
+                payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: ["f1"] },
             }),
         ]);
 
@@ -182,7 +201,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: true, targetFindingIds: [] },
+                payload: { isFixRequest: true, isDoRequest: false, targetFindingIds: [] },
             }),
         ]);
 
@@ -202,6 +221,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["finding-1"],
                     context,
                     branchOverride: "feature/296-bugbot-autofix",
@@ -244,6 +264,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["f1"],
                     context,
                 },
@@ -270,6 +291,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["f1"],
                     context,
                 },
@@ -295,6 +317,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 steps: [],
                 payload: {
                     isFixRequest: true,
+                    isDoRequest: false,
                     targetFindingIds: ["f1"],
                     context: undefined,
                 },
@@ -314,7 +337,7 @@ describe("PullRequestReviewCommentUseCase", () => {
                 success: true,
                 executed: true,
                 steps: [],
-                payload: { isFixRequest: false, targetFindingIds: [] },
+                payload: { isFixRequest: false, isDoRequest: false, targetFindingIds: [] },
             }),
         ]);
 
