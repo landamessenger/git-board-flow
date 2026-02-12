@@ -65,4 +65,26 @@ describe("buildBugbotPrompt", () => {
         );
         expect(prompt).not.toContain("Files to ignore");
     });
+
+    it("uses branches.development as base branch when parentBranch is undefined", () => {
+        const prompt = buildBugbotPrompt(
+            mockExecution({
+                currentConfiguration: {},
+                branches: { development: "main" },
+            } as unknown as Partial<Execution>),
+            mockContext()
+        );
+        expect(prompt).toContain("- Base branch: main");
+    });
+
+    it("uses develop when parentBranch and branches.development are missing", () => {
+        const prompt = buildBugbotPrompt(
+            mockExecution({
+                currentConfiguration: {},
+                branches: {},
+            } as unknown as Partial<Execution>),
+            mockContext()
+        );
+        expect(prompt).toContain("- Base branch: develop");
+    });
 });

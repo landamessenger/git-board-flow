@@ -102,4 +102,36 @@ describe("DoUserRequestUseCase", () => {
         expect(prompt).toContain("Owner: o");
         expect(prompt).toContain("Repository: r");
     });
+
+    it("uses branches.development as base branch when parentBranch is undefined", async () => {
+        mockCopilotMessage.mockResolvedValue({ text: "Done." });
+        const exec = baseExecution({
+            currentConfiguration: { parentBranch: undefined },
+            branches: { development: "main" },
+        });
+
+        await useCase.invoke({
+            execution: exec,
+            userComment: "add a readme",
+        });
+
+        const prompt = mockCopilotMessage.mock.calls[0][1];
+        expect(prompt).toContain("Base branch: main");
+    });
+
+    it("uses develop as base branch when parentBranch and branches.development are missing", async () => {
+        mockCopilotMessage.mockResolvedValue({ text: "Done." });
+        const exec = baseExecution({
+            currentConfiguration: {},
+            branches: {},
+        });
+
+        await useCase.invoke({
+            execution: exec,
+            userComment: "add a readme",
+        });
+
+        const prompt = mockCopilotMessage.mock.calls[0][1];
+        expect(prompt).toContain("Base branch: develop");
+    });
 });

@@ -127,10 +127,14 @@ describe("marker", () => {
         });
 
         it("returns replaced false when marker not found", () => {
+            const { logError } = require("../../../../../utils/logger");
             const body = "No marker here.";
             const { updated, replaced } = replaceMarkerInBody(body, "f1", true);
             expect(replaced).toBe(false);
             expect(updated).toBe(body);
+            expect(logError).toHaveBeenCalledWith(
+                expect.stringContaining("No se pudo marcar como resuelto")
+            );
         });
     });
 

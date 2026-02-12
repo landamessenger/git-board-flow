@@ -395,6 +395,41 @@ describe("IssueCommentUseCase", () => {
         expect(mockThinkInvoke).not.toHaveBeenCalled();
     });
 
+    it("when do user request succeeds, calls runUserRequestCommitAndPush", async () => {
+        mockDetectIntentInvoke.mockResolvedValue([
+            new Result({
+                id: "DetectBugbotFixIntentUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+                payload: {
+                    isFixRequest: false,
+                    isDoRequest: true,
+                    targetFindingIds: [],
+                    branchOverride: "feature/296-from-issue",
+                },
+            }),
+        ]);
+        mockDoUserRequestInvoke.mockResolvedValue([
+            new Result({
+                id: "DoUserRequestUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+            }),
+        ]);
+
+        await useCase.invoke(baseExecution());
+
+        expect(mockDoUserRequestInvoke).toHaveBeenCalledTimes(1);
+        expect(mockRunUserRequestCommitAndPush).toHaveBeenCalledTimes(1);
+        expect(mockRunUserRequestCommitAndPush).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ branchOverride: "feature/296-from-issue" })
+        );
+        expect(mockThinkInvoke).not.toHaveBeenCalled();
+    });
+
     it("when actor is not allowed to modify files, skips autofix and does not run DoUserRequest", async () => {
         mockIsActorAllowedToModifyFiles.mockResolvedValue(false);
         const context = mockContext();

@@ -3,8 +3,9 @@ import type { Execution } from "../../data/model/execution";
 import { Result } from "../../data/model/result";
 import type { BugbotContext } from "../steps/commit/bugbot/types";
 
+const mockLogInfo = jest.fn();
 jest.mock("../../utils/logger", () => ({
-    logInfo: jest.fn(),
+    logInfo: (...args: unknown[]) => mockLogInfo(...args),
 }));
 
 const mockCheckLanguageInvoke = jest.fn();
@@ -130,6 +131,7 @@ describe("PullRequestReviewCommentUseCase", () => {
 
     beforeEach(() => {
         useCase = new PullRequestReviewCommentUseCase();
+        mockLogInfo.mockClear();
         mockIsActorAllowedToModifyFiles.mockReset().mockResolvedValue(true);
         mockCheckLanguageInvoke.mockReset().mockResolvedValue([
             new Result({
@@ -381,6 +383,67 @@ describe("PullRequestReviewCommentUseCase", () => {
         expect(mockDoUserRequestInvoke).toHaveBeenCalledTimes(1);
         expect(mockRunUserRequestCommitAndPush).not.toHaveBeenCalled();
         expect(mockThinkInvoke).not.toHaveBeenCalled();
+    });
+
+    it("when do user request succeeds, calls runUserRequestCommitAndPush", async () => {
+        mockDetectIntentInvoke.mockResolvedValue([
+            new Result({
+                id: "DetectBugbotFixIntentUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+                payload: {
+                    isFixRequest: false,
+                    isDoRequest: true,
+                    targetFindingIds: [],
+                    branchOverride: "feature/296-from-pr",
+                },
+            }),
+        ]);
+        mockDoUserRequestInvoke.mockResolvedValue([
+            new Result({
+                id: "DoUserRequestUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+            }),
+        ]);
+
+        await useCase.invoke(baseExecution());
+
+        expect(mockDoUserRequestInvoke).toHaveBeenCalledTimes(1);
+        expect(mockRunUserRequestCommitAndPush).toHaveBeenCalledTimes(1);
+        expect(mockRunUserRequestCommitAndPush).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ branchOverride: "feature/296-from-pr" })
+        );
+        expect(mockThinkInvoke).not.toHaveBeenCalled();
+    });
+
+    it("when actor is not allowed to modify files, logs skip and runs Think", async () => {
+        mockIsActorAllowedToModifyFiles.mockResolvedValue(false);
+        mockDetectIntentInvoke.mockResolvedValue([
+            new Result({
+                id: "DetectBugbotFixIntentUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+                payload: {
+                    isFixRequest: false,
+                    isDoRequest: true,
+                    targetFindingIds: [],
+                },
+            }),
+        ]);
+
+        await useCase.invoke(baseExecution());
+
+        expect(mockLogInfo).toHaveBeenCalledWith(
+            "Skipping file-modifying use cases: user is not an org member or repo owner."
+        );
+        expect(mockDoUserRequestInvoke).not.toHaveBeenCalled();
+        expect(mockRunUserRequestCommitAndPush).not.toHaveBeenCalled();
+        expect(mockThinkInvoke).toHaveBeenCalledTimes(1);
     });
 
     it("aggregates results from language check, intent, and either autofix or Think", async () => {
