@@ -23,7 +23,11 @@ export function sanitizeUserCommentForPrompt(raw: string): string {
     if (s.length > MAX_USER_COMMENT_LENGTH) {
         s = s.slice(0, MAX_USER_COMMENT_LENGTH);
         // Do not leave an odd number of trailing backslashes (would break escape sequence or escape the suffix).
-        while (s.endsWith("\\") && (s.match(/\\+$/)?.[0].length ?? 0) % 2 === 1) {
+        let trailingBackslashCount = 0;
+        while (trailingBackslashCount < s.length && s[s.length - 1 - trailingBackslashCount] === "\\") {
+            trailingBackslashCount++;
+        }
+        if (trailingBackslashCount % 2 === 1) {
             s = s.slice(0, -1);
         }
         s = s + TRUNCATION_SUFFIX;
