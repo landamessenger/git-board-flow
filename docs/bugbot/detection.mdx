@@ -1,0 +1,111 @@
+---
+title: Detection
+description: When Bugbot runs, where findings appear, severity, comment limit, and resolved findings.
+---
+
+# Detection
+
+This page describes **when** Bugbot runs, **where** findings are published, and how **severity**, **comment limit**, and **resolved findings** work.
+
+## When Bugbot runs
+
+Bugbot detection runs in two ways:
+
+### 1. On every push (commit workflow)
+
+When you push to a branch that is **linked to an issue** (e.g. a feature or bugfix branch created by Copilot), the **Commit** workflow runs. If OpenCode is configured, the action runs **DetectPotentialProblemsUseCase**: it loads existing finding context, asks OpenCode to analyze the branch vs the base, and then publishes new findings and updates or marks as resolved any previous findings that no longer apply.
+
+**Requirements:**
+
+- The push must be to a branch that has an associated issue (the action resolves the issue number from the branch name or from project/linking).
+- OpenCode must be configured (`opencode-server-url`, `opencode-model`).
+- The Commit workflow must include the Copilot step (see [Examples → Push workflow](/bugbot/examples#push-workflow-with-bugbot)).
+
+If the branch is not linked to an issue (e.g. `issueNumber === -1`), detection is skipped.
+
+### 2. On demand (single action or CLI)
+
+You can run Bugbot detection **without pushing**:
+
+- **Single action:** In a workflow, set `single-action: detect_potential_problems_action` and `single-action-issue: <issue number>`. The workflow must run in a context where the **branch** to analyze is the current checkout (e.g. trigger on `workflow_dispatch` after checking out the branch you want to analyze).
+- **CLI:** From the repository root, run `copilot detect-potential-problems -i <issue>` (optionally `-b <branch>`). Requires a `.env` with `PERSONAL_ACCESS_TOKEN` and, for OpenCode, the appropriate server URL and model. See [Examples → CLI](/bugbot/examples#cli) and [Testing OpenCode Plan Locally](/testing-opencode-plan-locally).
+
+In both cases, the action uses the same detection flow: load context for that issue/branch, call OpenCode Plan, filter and apply comment limit, then publish to the issue and to any open PR for that branch.
+
+---
+
+## Where findings appear
+
+### On the issue
+
+Each finding is posted as a **separate comment** on the issue. The comment includes:
+
+- A **title** (e.g. “Possible null reference in login handler”).
+- **Severity** (info, low, medium, high).
+- Optional **file and line** (when the finding is tied to a specific location).
+- A **description** (and optionally a suggestion).
+
+The action embeds a **hidden marker** in each comment so it can later **update** the same comment (e.g. when the finding is fixed and OpenCode reports it as resolved) or match it when you ask to “fix it” from a PR review thread.
+
+### On the pull request
+
+The **same findings** are also posted as **review comments** on any **open PR** that targets the same branch (or that is linked to the same issue and branch). Each review comment is attached to the **file and line** from the finding when that file is in the PR’s changed files; otherwise the finding is only on the issue.
+
+When OpenCode later reports a finding as **resolved** (e.g. after you or the bot fixed the code), the action:
+
+- **Updates** the corresponding issue comment so the marker shows `resolved: true`.
+- **Marks the PR review thread as resolved** so the PR review reflects the current status.
+
+So you get a single source of truth on the issue, and a line-by-line view on the PR.
+
+---
+
+## Severity and filtering
+
+Findings have a **severity**: `info`, `low`, `medium`, or `high`. You control which severities are **published** with the **`bugbot-severity`** input (default: `low`).
+
+| `bugbot-severity` value | Effect |
+|-------------------------|--------|
+| `info` | All findings are posted (info, low, medium, high). |
+| `low` | Low, medium, and high are posted; info is skipped. |
+| `medium` | Only medium and high are posted. |
+| `high` | Only high is posted. |
+
+Findings in files or paths matching **`ai-ignore-files`** are excluded from both the prompt and the published list. See [Configuration](/bugbot/configuration).
+
+---
+
+## Comment limit and overflow
+
+To avoid flooding the issue and PR with too many comments, the action applies a **comment limit** via **`bugbot-comment-limit`** (default: `20`). Only the first N findings (after filtering) are published as **individual** comments; the rest are **not** posted one-by-one.
+
+When there are more findings than the limit:
+
+- The action publishes the first N findings as usual (one comment per finding on the issue and, when applicable, on the PR).
+- It adds **one extra comment** on the issue that summarizes the overflow: it states how many additional findings were not posted individually and may list their titles, and suggests reviewing the branch locally or re-running with a higher limit.
+
+So you always see at most N+1 new comments from a single detection run when there is overflow.
+
+---
+
+## Resolved findings
+
+OpenCode is given the list of **previously reported findings** (from the existing issue/PR comments) and is asked to return:
+
+1. **New/current findings** (task 1).
+2. **Resolved finding ids** (task 2): which of the previous findings are now fixed or no longer apply.
+
+For each id in “resolved”:
+
+- The action **updates** the existing issue comment (and PR review comment, if any) so the hidden marker shows `resolved: true`. The comment body may be updated to reflect the resolved state.
+- On the PR, it **resolves the review thread** when applicable.
+
+So the issue and PR stay in sync with the current code: fixed findings are marked resolved, and new ones are added up to the comment limit.
+
+---
+
+## Next steps
+
+- **[Autofix](/bugbot/autofix)** — How to ask the bot to fix one or more findings from a comment.
+- **[Configuration](/bugbot/configuration)** — `bugbot-severity`, `bugbot-comment-limit`, `ai-ignore-files`.
+- **[Examples](/bugbot/examples)** — Push workflow, single action, and CLI examples.

@@ -1,0 +1,114 @@
+---
+title: Autofix
+description: How to ask the bot to fix one or more Bugbot findings from an issue or PR comment.
+---
+
+# Autofix
+
+**Bugbot autofix** lets you ask the bot to **fix** one or more of the findings it previously reported. You write a **comment** on the issue or on the pull request (or reply in a review thread); OpenCode figures out **which** findings you mean and applies the fixes. The action then runs your **verify commands** (e.g. build, test, lint) and, if they pass, **commits and pushes** and marks those findings as resolved.
+
+This page explains how to trigger autofix, who can do it, and what the action does under the hood.
+
+---
+
+## How to ask for a fix
+
+### From the issue
+
+Add a **comment** on the issue that references the findings you want fixed. OpenCode receives your comment plus the list of **unresolved findings** (id, title, short description) and returns whether it’s a fix request and which finding ids to fix.
+
+**Example phrases (English):**
+
+- “fix it”
+- “fix this”
+- “fix all”
+- “fix the first one”
+- “fix finding abc-123”
+- “please fix the null reference and the off-by-one”
+
+**Example phrases (Spanish):**
+
+- “arregla”
+- “arregla este”
+- “arregla todos”
+- “fix it” (also understood)
+
+You don’t have to use exact wording; the Plan agent interprets intent. Be clear when you want only **some** findings (e.g. “fix the first two” or “fix the one about the login handler”).
+
+**Important:** On **issue comments**, the action needs an **open pull request** that references the issue so it can determine which **branch** to checkout and push to. If there is no such PR, autofix is skipped (the action cannot push without a branch). See [Troubleshooting → Bugbot autofix](/troubleshooting#bugbot-autofix).
+
+### From the pull request
+
+You can trigger autofix from the PR in two ways:
+
+1. **Reply in a review thread** — Reply to the **review comment** that contains the finding. The action sends your reply plus the **parent comment** (the finding text) to OpenCode so it can match the finding and run the fix.
+2. **Comment on the PR** — Add a **general comment** on the PR (e.g. “fix all” or “fix the one about X”). Same as on the issue: OpenCode gets the list of unresolved findings and your comment and returns target finding ids.
+
+In both cases, the action runs on the PR’s **head branch** (it already has the branch from the event), so no extra “resolve branch from issue” step is needed.
+
+---
+
+## Permissions
+
+Only **certain users** can trigger file-modifying actions (autofix and [do user request](/bugbot/do-user-request)):
+
+- **Organization repositories:** The comment author must be a **member of the organization** (checked via GitHub’s `orgs.checkMembershipForUser`). If the author is not a member, the action does **not** run autofix; it can still run **Think** and reply with an answer.
+- **User (personal) repositories:** Only the **repository owner** can trigger autofix. Other users get a Think response only.
+
+This avoids random contributors or external users pushing commits via comments. There is no separate “Bugbot role”; the same rule applies to both autofix and do-user-request.
+
+---
+
+## Workflow permissions
+
+The action must be able to **commit and push** to the branch. Your workflow that runs on **`issue_comment`** or **`pull_request_review_comment`** must grant:
+
+```yaml
+permissions:
+  contents: write
+```
+
+Without `contents: write`, the action cannot push. Detection (and posting findings) does not require this; only **autofix** and **do-user-request** do.
+
+Example: see [Examples → Issue comment workflow](/bugbot/examples#issue-comment-workflow-for-autofix).
+
+---
+
+## Verify commands
+
+After OpenCode applies the fixes in its workspace, the action runs **verify commands** in the runner (e.g. build, test, lint). These are configured with **`bugbot-fix-verify-commands`** (comma-separated). For example:
+
+```yaml
+bugbot-fix-verify-commands: "npm run build, npm test, npm run lint"
+```
+
+- If **all** commands succeed, the action runs `git add`, **commit**, and **push** with a message like `fix(#123): bugbot autofix - resolve finding-1, finding-2`.
+- If **any** command fails, the action **does not commit**. No push happens, and the findings are not marked as resolved.
+
+So verify commands act as a gate: only passing runs produce a commit. If you leave `bugbot-fix-verify-commands` empty, only OpenCode’s own run is used (the action may still commit if there are file changes). See [Configuration](/bugbot/configuration#bugbot-fix-verify-commands).
+
+---
+
+## What happens after a successful fix
+
+1. OpenCode **Build** agent applies the code changes in its workspace.
+2. The action runs the **verify commands** in the runner; if any fails, it stops.
+3. The action runs **git add**, **commit** (message: `fix(#N): bugbot autofix - resolve <finding ids>`), and **push** to the branch.
+4. The action **marks** the fixed findings as **resolved**: it updates the corresponding issue and PR comments (hidden marker set to `resolved: true`) and, on the PR, **resolves the review threads** for those comments.
+
+So the next time detection runs (e.g. on the next push), OpenCode will see those findings as resolved and not suggest them again.
+
+---
+
+## Troubleshooting
+
+- **Bot didn’t run autofix:** Check that OpenCode is configured, the comment is interpreted as a fix request (e.g. “fix it”, “fix all”), and there is at least one **unresolved** finding. On **issue comments**, ensure there is an **open PR** that references the issue so the action can resolve the branch. See [Troubleshooting → Bugbot autofix](/troubleshooting#bugbot-autofix).
+- **Commit not made:** Verify commands run after the fix; if any fails, no commit is made. If OpenCode didn’t change any files, there’s nothing to commit. If push failed (e.g. conflict or missing `contents: write`), check workflow permissions and token scope.
+
+---
+
+## Next steps
+
+- **[Do user request](/bugbot/do-user-request)** — Ask for general code changes (not tied to a specific finding).
+- **[Configuration](/bugbot/configuration)** — `bugbot-fix-verify-commands` and related inputs.
+- **[Examples](/bugbot/examples)** — Comment examples and workflow snippets.

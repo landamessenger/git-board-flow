@@ -1,0 +1,149 @@
+---
+title: Configuration
+description: All Bugbot-related action inputs: severity, comment limit, verify commands, and ignore files.
+---
+
+# Configuration
+
+This page lists every **Bugbot-related** input: what it does, default value, and example usage. For the full list of Copilot inputs (branches, labels, projects, etc.), see [Configuration](/configuration).
+
+---
+
+## OpenCode (required for Bugbot)
+
+Bugbot depends on OpenCode for both **detection** (Plan agent) and **autofix / do-user-request** (Build agent). These inputs are shared with other AI features (progress, Think, AI PR description).
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| **`opencode-server-url`** | `http://localhost:4096` | URL of the OpenCode server. The runner must be able to reach it (e.g. same job if you use `opencode-start-server: true`). |
+| **`opencode-model`** | `opencode/kimi-k2.5-free` | Model in `provider/model` format (e.g. `anthropic/claude-3-5-sonnet`, `openai/gpt-4o-mini`). |
+| **`opencode-start-server`** | `true` | If `true`, the action starts an OpenCode server at job start and stops it at job end. Requires provider API keys (e.g. `OPENAI_API_KEY`) passed as env. If you run OpenCode yourself, set to `false` and pass `opencode-server-url`. |
+
+Without a valid `opencode-server-url` and `opencode-model`, Bugbot **detection** is skipped (no findings posted). **Autofix** and **do-user-request** also require OpenCode and a running server (or `opencode-start-server: true`) so the Build agent can apply changes in the workspace.
+
+---
+
+## bugbot-severity
+
+**Default:** `low`
+
+**Description:** Minimum severity for findings to be **published** as comments on the issue and PR. Findings with severity **below** this threshold are filtered out before publishing.
+
+| Value | Findings published |
+|-------|---------------------|
+| `info` | info, low, medium, high |
+| `low` | low, medium, high |
+| `medium` | medium, high |
+| `high` | high only |
+
+**Example:**
+
+```yaml
+# Only report medium and high (skip low and info)
+bugbot-severity: "medium"
+```
+
+```yaml
+# Report everything including info
+bugbot-severity: "info"
+```
+
+---
+
+## bugbot-comment-limit
+
+**Default:** `20`
+
+**Description:** Maximum number of findings to publish as **individual** comments on the issue and PR. If OpenCode returns more findings (after severity and ignore filters), only the first N are posted one per comment; the rest are summarized in a **single overflow comment** on the issue (e.g. “X additional findings were not posted; consider reviewing the branch locally”).
+
+The value is clamped between **1** and **200** (or your docs’ stated range). Use a higher limit if you want more findings visible at the cost of more comments.
+
+**Example:**
+
+```yaml
+# Default: up to 20 individual comments + 1 overflow if needed
+bugbot-comment-limit: "20"
+
+# Stricter: only 10 individual comments
+bugbot-comment-limit: "10"
+
+# Allow up to 50 individual comments
+bugbot-comment-limit: "50"
+```
+
+---
+
+## bugbot-fix-verify-commands
+
+**Default:** `""` (empty)
+
+**Description:** Comma-separated list of **commands** to run **after** OpenCode applies changes (autofix or do-user-request) and **before** the action commits and pushes. Typically: build, test, lint. If **any** command fails, the action **does not commit**; no push happens and findings are not marked as resolved.
+
+- Commands are parsed (e.g. with shell-quote) and run in the runner; there is a **maximum of 20** commands.
+- If left **empty**, only OpenCode’s own execution is used; the action may still commit if there are file changes.
+
+**Example:**
+
+```yaml
+# Run build, test, and lint before committing
+bugbot-fix-verify-commands: "npm run build, npm test, npm run lint"
+```
+
+```yaml
+# Single command
+bugbot-fix-verify-commands: "npm test"
+```
+
+```yaml
+# From a repo/organization variable (recommended for secrets or env-specific commands)
+bugbot-fix-verify-commands: ${{ vars.BUGBOT_AUTOFIX_VERIFY_COMMANDS }}
+```
+
+Use this in workflows that run on **`issue_comment`** or **`pull_request_review_comment`** so autofix and do-user-request only commit when your checks pass.
+
+---
+
+## ai-ignore-files
+
+**Default:** `""` (empty)
+
+**Description:** Comma-separated list of **paths or patterns** to **exclude** from AI operations that analyze file content or paths. For Bugbot:
+
+- **Detection:** These paths are passed to OpenCode in the prompt (“do not report findings in files matching …”) and findings in matching files are **filtered out** before publishing.
+- **Autofix / do-user-request:** The ignore list is not used to restrict which files the Build agent can edit; it mainly affects **detection** and reporting.
+
+Common use: exclude generated code, vendored deps, or noisy directories.
+
+**Example:**
+
+```yaml
+# Ignore build output and lockfiles
+ai-ignore-files: "build/*, dist/*, package-lock.json"
+```
+
+```yaml
+# Ignore specific dirs and patterns
+ai-ignore-files: "**/node_modules/**, **/vendor/**, *.min.js"
+```
+
+---
+
+## Summary table
+
+| Input | Default | Used by |
+|-------|---------|---------|
+| `opencode-server-url` | `http://localhost:4096` | Detection, autofix, do-user-request |
+| `opencode-model` | `opencode/kimi-k2.5-free` | Detection, autofix, do-user-request |
+| `opencode-start-server` | `true` | All AI features |
+| `bugbot-severity` | `low` | Detection (filter before publish) |
+| `bugbot-comment-limit` | `20` | Detection (max individual comments) |
+| `bugbot-fix-verify-commands` | `""` | Autofix, do-user-request (before commit) |
+| `ai-ignore-files` | `""` | Detection (exclude paths from findings) |
+
+---
+
+## Next steps
+
+- **[Detection](/bugbot/detection)** — How severity and comment limit affect published findings.
+- **[Autofix](/bugbot/autofix)** — How verify commands gate commits.
+- **[Configuration](/configuration)** — Full Copilot configuration reference.

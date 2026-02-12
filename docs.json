@@ -177,6 +177,36 @@
           "title": "Overview",
           "href": "/bugbot",
           "icon": "bug"
+        },
+        {
+          "title": "Detection",
+          "href": "/bugbot/detection",
+          "icon": "search"
+        },
+        {
+          "title": "Autofix",
+          "href": "/bugbot/autofix",
+          "icon": "wrench"
+        },
+        {
+          "title": "Do user request",
+          "href": "/bugbot/do-user-request",
+          "icon": "edit"
+        },
+        {
+          "title": "Configuration",
+          "href": "/bugbot/configuration",
+          "icon": "gear"
+        },
+        {
+          "title": "How it works",
+          "href": "/bugbot/how-it-works",
+          "icon": "cpu"
+        },
+        {
+          "title": "Examples",
+          "href": "/bugbot/examples",
+          "icon": "file-code"
         }
       ]
     },
