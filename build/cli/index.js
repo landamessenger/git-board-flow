@@ -54880,7 +54880,7 @@ class DetectBugbotFixIntentUseCase {
         const unresolvedFindings = unresolvedWithBody.map((p) => ({
             id: p.id,
             title: (0, marker_1.extractTitleFromBody)(p.fullBody) || p.id,
-            description: p.fullBody.slice(0, 4000),
+            description: p.fullBody?.slice(0, 4000) ?? "",
         }));
         // When user replied in a PR thread, include parent comment so OpenCode knows which finding they mean.
         let parentCommentBody;

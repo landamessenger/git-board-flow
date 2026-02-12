@@ -90,7 +90,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
         const unresolvedFindings: UnresolvedFindingSummary[] = unresolvedWithBody.map((p) => ({
             id: p.id,
             title: extractTitleFromBody(p.fullBody) || p.id,
-            description: p.fullBody.slice(0, 4000),
+            description: p.fullBody?.slice(0, 4000) ?? "",
         }));
 
         // When user replied in a PR thread, include parent comment so OpenCode knows which finding they mean.

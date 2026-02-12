@@ -193,4 +193,29 @@ describe("DetectBugbotFixIntentUseCase", () => {
             expect.anything()
         );
     });
+
+    it("handles unresolved findings with undefined fullBody without throwing", async () => {
+        const contextWithUndefinedFullBody = {
+            ...mockContextWithUnresolved(0),
+            unresolvedFindingsWithBody: [
+                { id: "finding-no-body" },
+                { id: "finding-with-body", fullBody: "## Title\n\nContent." },
+            ] as Array<{ id: string; fullBody?: string }>,
+        };
+        mockLoadBugbotContext.mockResolvedValue(contextWithUndefinedFullBody);
+        mockAskAgent.mockResolvedValue({
+            is_fix_request: false,
+            target_finding_ids: [],
+            is_do_request: false,
+        });
+
+        const results = await useCase.invoke(baseExecution());
+
+        expect(mockAskAgent).toHaveBeenCalledTimes(1);
+        const prompt = mockAskAgent.mock.calls[0]?.[2];
+        expect(typeof prompt).toBe("string");
+        expect(prompt).toContain("finding-no-body");
+        expect(prompt).toContain("finding-with-body");
+        expect(results).toHaveLength(1);
+    });
 });
