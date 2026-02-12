@@ -74,9 +74,29 @@ describe("runBugbotAutofixCommitAndPush", () => {
 
         expect(mockExec).toHaveBeenCalledWith("git", ["fetch", "origin", "feature/42-from-pr"]);
         expect(mockExec).toHaveBeenCalledWith("git", ["checkout", "feature/42-from-pr"]);
-        expect(mockExec).toHaveBeenCalledWith("git", ["status", "--short"], expect.any(Object));
+        expect(mockExec).toHaveBeenCalledWith("git", ["status", "--porcelain"], expect.any(Object));
         expect(result.success).toBe(true);
         expect(result.committed).toBe(false);
+    });
+
+    it("stashes uncommitted changes before checkout and pops after when branchOverride is set", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (cmd === "git" && a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(baseExecution(), {
+            branchOverride: "feature/42-from-pr",
+        });
+
+        expect(mockExec).toHaveBeenCalledWith("git", ["stash", "push", "-u", "-m", "bugbot-autofix-before-checkout"]);
+        expect(mockExec).toHaveBeenCalledWith("git", ["fetch", "origin", "feature/42-from-pr"]);
+        expect(mockExec).toHaveBeenCalledWith("git", ["checkout", "feature/42-from-pr"]);
+        expect(mockExec).toHaveBeenCalledWith("git", ["stash", "pop"]);
+        expect(result.success).toBe(true);
     });
 
     it("returns failure when checkout fails", async () => {

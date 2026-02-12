@@ -69,10 +69,28 @@ export class PullRequestRepository {
         }
     };
 
-    isLinked = async (pullRequestUrl: string) => {
-        const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
-        return !htmlContent.includes('has_github_issues=false');
-    }
+    /** Default timeout (ms) for isLinked fetch. */
+    private static readonly IS_LINKED_FETCH_TIMEOUT_MS = 10000;
+
+    isLinked = async (pullRequestUrl: string): Promise<boolean> => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), PullRequestRepository.IS_LINKED_FETCH_TIMEOUT_MS);
+        try {
+            const res = await fetch(pullRequestUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+                logDebugInfo(`isLinked: non-2xx response ${res.status} for ${pullRequestUrl}`);
+                return false;
+            }
+            const htmlContent = await res.text();
+            return !htmlContent.includes('has_github_issues=false');
+        } catch (err) {
+            clearTimeout(timeoutId);
+            const msg = err instanceof Error ? err.message : String(err);
+            logError(`isLinked: fetch failed for ${pullRequestUrl}: ${msg}`);
+            return false;
+        }
+    };
 
     updateBaseBranch = async (
         owner: string,

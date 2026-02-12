@@ -51921,8 +51921,24 @@ class PullRequestRepository {
             }
         };
         this.isLinked = async (pullRequestUrl) => {
-            const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
-            return !htmlContent.includes('has_github_issues=false');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), PullRequestRepository.IS_LINKED_FETCH_TIMEOUT_MS);
+            try {
+                const res = await fetch(pullRequestUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (!res.ok) {
+                    (0, logger_1.logDebugInfo)(`isLinked: non-2xx response ${res.status} for ${pullRequestUrl}`);
+                    return false;
+                }
+                const htmlContent = await res.text();
+                return !htmlContent.includes('has_github_issues=false');
+            }
+            catch (err) {
+                clearTimeout(timeoutId);
+                const msg = err instanceof Error ? err.message : String(err);
+                (0, logger_1.logError)(`isLinked: fetch failed for ${pullRequestUrl}: ${msg}`);
+                return false;
+            }
         };
         this.updateBaseBranch = async (owner, repository, pullRequestNumber, branch, token) => {
             const octokit = github.getOctokit(token);
@@ -52267,6 +52283,8 @@ class PullRequestRepository {
     }
 }
 exports.PullRequestRepository = PullRequestRepository;
+/** Default timeout (ms) for isLinked fetch. */
+PullRequestRepository.IS_LINKED_FETCH_TIMEOUT_MS = 10000;
 
 
 /***/ }),
@@ -54071,18 +54089,47 @@ const shellQuote = __importStar(__nccwpck_require__(7029));
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
 /**
+ * Returns true if there are uncommitted changes (working tree or index).
+ */
+async function hasUncommittedChanges() {
+    let output = "";
+    await exec.exec("git", ["status", "--porcelain"], {
+        listeners: {
+            stdout: (data) => {
+                output += data.toString();
+            },
+        },
+    });
+    return output.trim().length > 0;
+}
+/**
  * Optionally check out the branch (when event is issue_comment and we resolved the branch from an open PR).
+ * If there are uncommitted changes, stashes them before checkout and pops after so they are not lost.
  */
 async function checkoutBranchIfNeeded(branch) {
+    const stashMessage = "bugbot-autofix-before-checkout";
+    let didStash = false;
     try {
+        if (await hasUncommittedChanges()) {
+            (0, logger_1.logDebugInfo)("Uncommitted changes present; stashing before checkout.");
+            await exec.exec("git", ["stash", "push", "-u", "-m", stashMessage]);
+            didStash = true;
+        }
         await exec.exec("git", ["fetch", "origin", branch]);
         await exec.exec("git", ["checkout", branch]);
         (0, logger_1.logInfo)(`Checked out branch ${branch}.`);
+        if (didStash) {
+            await exec.exec("git", ["stash", "pop"]);
+            (0, logger_1.logDebugInfo)("Restored stashed changes after checkout.");
+        }
         return true;
     }
     catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         (0, logger_1.logError)(`Failed to checkout branch ${branch}: ${msg}`);
+        if (didStash) {
+            (0, logger_1.logError)("Changes were stashed; run 'git stash pop' manually to restore them.");
+        }
         return false;
     }
 }
@@ -54138,15 +54185,7 @@ async function runVerifyCommands(commands) {
  * Returns true if there are uncommitted changes (working tree or index).
  */
 async function hasChanges() {
-    let output = "";
-    await exec.exec("git", ["status", "--short"], {
-        listeners: {
-            stdout: (data) => {
-                output += data.toString();
-            },
-        },
-    });
-    return output.trim().length > 0;
+    return hasUncommittedChanges();
 }
 /**
  * Runs verify commands (if configured), then git add, commit, and push.

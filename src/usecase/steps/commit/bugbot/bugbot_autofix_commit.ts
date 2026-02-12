@@ -17,17 +17,47 @@ export interface BugbotAutofixCommitResult {
 }
 
 /**
+ * Returns true if there are uncommitted changes (working tree or index).
+ */
+async function hasUncommittedChanges(): Promise<boolean> {
+    let output = "";
+    await exec.exec("git", ["status", "--porcelain"], {
+        listeners: {
+            stdout: (data: Buffer) => {
+                output += data.toString();
+            },
+        },
+    });
+    return output.trim().length > 0;
+}
+
+/**
  * Optionally check out the branch (when event is issue_comment and we resolved the branch from an open PR).
+ * If there are uncommitted changes, stashes them before checkout and pops after so they are not lost.
  */
 async function checkoutBranchIfNeeded(branch: string): Promise<boolean> {
+    const stashMessage = "bugbot-autofix-before-checkout";
+    let didStash = false;
     try {
+        if (await hasUncommittedChanges()) {
+            logDebugInfo("Uncommitted changes present; stashing before checkout.");
+            await exec.exec("git", ["stash", "push", "-u", "-m", stashMessage]);
+            didStash = true;
+        }
         await exec.exec("git", ["fetch", "origin", branch]);
         await exec.exec("git", ["checkout", branch]);
         logInfo(`Checked out branch ${branch}.`);
+        if (didStash) {
+            await exec.exec("git", ["stash", "pop"]);
+            logDebugInfo("Restored stashed changes after checkout.");
+        }
         return true;
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logError(`Failed to checkout branch ${branch}: ${msg}`);
+        if (didStash) {
+            logError("Changes were stashed; run 'git stash pop' manually to restore them.");
+        }
         return false;
     }
 }
@@ -85,15 +115,7 @@ async function runVerifyCommands(
  * Returns true if there are uncommitted changes (working tree or index).
  */
 async function hasChanges(): Promise<boolean> {
-    let output = "";
-    await exec.exec("git", ["status", "--short"], {
-        listeners: {
-            stdout: (data: Buffer) => {
-                output += data.toString();
-            },
-        },
-    });
-    return output.trim().length > 0;
+    return hasUncommittedChanges();
 }
 
 /**

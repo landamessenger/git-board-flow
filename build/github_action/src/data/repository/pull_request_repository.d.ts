@@ -11,6 +11,8 @@ export declare class PullRequestRepository {
      * Uses bounded matching so #12 does not match #123 and branch "feature/1234-fix" does not match issue 123.
      */
     getHeadBranchForIssue: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string | undefined>;
+    /** Default timeout (ms) for isLinked fetch. */
+    private static readonly IS_LINKED_FETCH_TIMEOUT_MS;
     isLinked: (pullRequestUrl: string) => Promise<boolean>;
     updateBaseBranch: (owner: string, repository: string, pullRequestNumber: number, branch: string, token: string) => Promise<void>;
     updateDescription: (owner: string, repository: string, pullRequestNumber: number, description: string, token: string) => Promise<void>;
