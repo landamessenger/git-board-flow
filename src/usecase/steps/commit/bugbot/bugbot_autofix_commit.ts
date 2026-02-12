@@ -10,6 +10,9 @@ import { ProjectRepository } from "../../../../data/repository/project_repositor
 import { logDebugInfo, logError, logInfo } from "../../../../utils/logger";
 import type { Execution } from "../../../../data/model/execution";
 
+/** Maximum number of verify commands to run to avoid excessive build times. */
+const MAX_VERIFY_COMMANDS = 20;
+
 export interface BugbotAutofixCommitResult {
     success: boolean;
     committed: boolean;
@@ -153,6 +156,12 @@ export async function runBugbotAutofixCommitAndPush(
         verifyCommands = [];
     }
     verifyCommands = verifyCommands.filter((cmd): cmd is string => typeof cmd === "string");
+    if (verifyCommands.length > MAX_VERIFY_COMMANDS) {
+        logInfo(
+            `Limiting verify commands to ${MAX_VERIFY_COMMANDS} (configured: ${verifyCommands.length}).`
+        );
+        verifyCommands = verifyCommands.slice(0, MAX_VERIFY_COMMANDS);
+    }
     if (verifyCommands.length > 0) {
         logInfo(`Running ${verifyCommands.length} verify command(s)...`);
         const verify = await runVerifyCommands(verifyCommands);

@@ -5,6 +5,7 @@
 import * as exec from "@actions/exec";
 import { runBugbotAutofixCommitAndPush } from "../bugbot_autofix_commit";
 import type { Execution } from "../../../../../data/model/execution";
+import { logInfo } from "../../../../../utils/logger";
 
 jest.mock("../../../../../utils/logger", () => ({
     logInfo: jest.fn(),
@@ -158,6 +159,32 @@ describe("runBugbotAutofixCommitAndPush", () => {
         expect(result.success).toBe(true);
         expect(result.committed).toBe(false);
         expect(mockExec).toHaveBeenCalledWith("npm", ["run", "test with spaces"]);
+    });
+
+    it("limits verify commands to 20 and logs when configured count exceeds limit", async () => {
+        const manyCommands = Array.from({ length: 25 }, () => "npm test");
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => manyCommands },
+        } as Partial<Execution>);
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(exec);
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(false);
+        expect(logInfo).toHaveBeenCalledWith(
+            "Limiting verify commands to 20 (configured: 25)."
+        );
+        const npmTestCalls = (mockExec as jest.Mock).mock.calls.filter(
+            (call: [string, string[]]) => call[0] === "npm" && call[1]?.[0] === "test"
+        );
+        expect(npmTestCalls).toHaveLength(20);
     });
 
     it("returns success and committed false when hasChanges returns false", async () => {
