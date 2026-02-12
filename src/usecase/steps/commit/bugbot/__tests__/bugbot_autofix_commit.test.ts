@@ -109,6 +109,37 @@ describe("runBugbotAutofixCommitAndPush", () => {
         });
     });
 
+    it("rejects verify command with shell operator (command injection)", async () => {
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => ["npm test; rm -rf /"] },
+        } as Partial<Execution>);
+
+        const result = await runBugbotAutofixCommitAndPush(exec);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("Invalid verify command");
+        expect(mockExec).not.toHaveBeenCalledWith("npm", expect.any(Array));
+    });
+
+    it("parses verify command with quoted args and runs it", async () => {
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => ['npm run "test with spaces"'] },
+        } as Partial<Execution>);
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(exec);
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(false);
+        expect(mockExec).toHaveBeenCalledWith("npm", ["run", "test with spaces"]);
+    });
+
     it("returns success and committed false when hasChanges returns false", async () => {
         (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
             const a = args ?? [];

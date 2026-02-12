@@ -5,6 +5,7 @@
  */
 
 import * as exec from "@actions/exec";
+import * as shellQuote from "shell-quote";
 import { ProjectRepository } from "../../../../data/repository/project_repository";
 import { logDebugInfo, logError, logInfo } from "../../../../utils/logger";
 import type { Execution } from "../../../../data/model/execution";
@@ -32,13 +33,40 @@ async function checkoutBranchIfNeeded(branch: string): Promise<boolean> {
 }
 
 /**
- * Runs verify commands in order. Returns true if all pass.
+ * Parses a single verify command string into [program, ...args] with proper handling of quotes.
+ * Rejects commands that contain shell operators (;, |, &&, etc.) to prevent injection.
+ * Uses shell-quote so e.g. npm run "test with spaces" is parsed correctly.
  */
-async function runVerifyCommands(commands: string[]): Promise<{ success: boolean; failedCommand?: string }> {
+function parseVerifyCommand(cmd: string): { program: string; args: string[] } | null {
+    const trimmed = cmd.trim();
+    if (!trimmed) return null;
+    try {
+        const parsed = shellQuote.parse(trimmed, {});
+        const argv = parsed.filter((entry): entry is string => typeof entry === "string");
+        if (argv.length !== parsed.length || argv.length === 0) {
+            return null;
+        }
+        return { program: argv[0], args: argv.slice(1) };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Runs verify commands in order. Returns true if all pass.
+ * Commands are parsed with shell-quote (quotes supported); shell operators are not allowed.
+ */
+async function runVerifyCommands(
+    commands: string[]
+): Promise<{ success: boolean; failedCommand?: string; error?: string }> {
     for (const cmd of commands) {
-        const parts = cmd.trim().split(/\s+/);
-        const program = parts[0];
-        const args = parts.slice(1);
+        const parsed = parseVerifyCommand(cmd);
+        if (!parsed) {
+            const msg = `Invalid verify command (use no shell operators; quotes allowed): ${cmd}`;
+            logError(msg);
+            return { success: false, failedCommand: cmd, error: msg };
+        }
+        const { program, args } = parsed;
         try {
             const code = await exec.exec(program, args);
             if (code !== 0) {
@@ -102,7 +130,7 @@ export async function runBugbotAutofixCommitAndPush(
             return {
                 success: false,
                 committed: false,
-                error: `Verify command failed: ${verify.failedCommand ?? "unknown"}.`,
+                error: verify.error ?? `Verify command failed: ${verify.failedCommand ?? "unknown"}.`,
             };
         }
     }
