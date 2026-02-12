@@ -70,7 +70,7 @@ Use this section to track progress. Tick when done.
 - [x] **4.1** Add `getHeadBranchForIssue(owner, repo, issueNumber, token): Promise<string | undefined>` in `PullRequestRepository`: list open PRs, return head ref of the first PR that references the issue (body contains `#issueNumber` or head ref contains issue number).
 - [x] **4.2** In autofix flow, when `param.commit.branch` is empty (e.g. issue_comment), resolve branch via `getHeadBranchForIssue`; pass branch override to `loadBugbotContext` (optional `LoadBugbotContextOptions.branchOverride`) so context uses the correct branch.
 - [x] **4.3** Create `runBugbotAutofixCommitAndPush(execution, options?)` in `bugbot/bugbot_autofix_commit.ts`: (1) optionally checkout branch when `branchOverride` set; (2) run verify commands in order; if any fails, return failure. (3) `git status --short`; if no changes, return success without commit. (4) `git add -A`, `git commit`, `git push`. Uses `@actions/exec`.
-- [ ] **4.4** Ensure workflows that run on issue_comment / pull_request_review_comment have `contents: write` and document that for issue_comment the action checks out the resolved branch when needed.
+- [x] **4.4** Ensure workflows that run on issue_comment / pull_request_review_comment have `contents: write` and document that for issue_comment the action checks out the resolved branch when needed. Documented in [How to use](/how-to-use) (Bugbot autofix note) and [OpenCode → How Bugbot works](/opencode-integration#how-bugbot-works-potential-problems).
 
 ### Phase 5: Integration
 

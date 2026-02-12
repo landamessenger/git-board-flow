@@ -59,4 +59,14 @@ describe('fileMatchesIgnorePatterns', () => {
         expect(fileMatchesIgnorePatterns('src/file (1).ts', ['src/file (1).ts'])).toBe(true);
         expect(fileMatchesIgnorePatterns('src/file (2).ts', ['src/file (1).ts'])).toBe(false);
     });
+
+    it('ReDoS mitigation: long patterns are skipped (no match)', () => {
+        const longPattern = 'a'.repeat(600);
+        expect(fileMatchesIgnorePatterns('a', [longPattern])).toBe(false);
+    });
+
+    it('ReDoS mitigation: many consecutive * collapse to one (same as single *)', () => {
+        expect(fileMatchesIgnorePatterns('src/foo.test.ts', ['*.test.ts'])).toBe(true);
+        expect(fileMatchesIgnorePatterns('src/foo.test.ts', ['*********.test.ts'])).toBe(true);
+    });
 });

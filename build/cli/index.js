@@ -54684,9 +54684,24 @@ exports.DetectBugbotFixIntentUseCase = DetectBugbotFixIntentUseCase;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.fileMatchesIgnorePatterns = fileMatchesIgnorePatterns;
+/** Max length for a single ignore pattern to avoid ReDoS from long/complex regex. */
+const MAX_PATTERN_LENGTH = 500;
+/**
+ * Converts a glob-like pattern to a safe regex string (bounded length, collapsed stars to avoid ReDoS).
+ */
+function patternToRegexString(p) {
+    if (p.length > MAX_PATTERN_LENGTH)
+        return null;
+    const collapsed = p.replace(/\*+/g, '*');
+    return collapsed
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*')
+        .replace(/\//g, '\\/');
+}
 /**
  * Returns true if the file path matches any of the ignore patterns (glob-style).
  * Used to exclude findings in test files, build output, etc.
+ * Pattern length is capped and consecutive * are collapsed to avoid ReDoS.
  */
 function fileMatchesIgnorePatterns(filePath, ignorePatterns) {
     if (!filePath || ignorePatterns.length === 0)
@@ -54698,10 +54713,9 @@ function fileMatchesIgnorePatterns(filePath, ignorePatterns) {
         const p = pattern.trim();
         if (!p)
             return false;
-        const regexPattern = p
-            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-            .replace(/\*/g, '.*')
-            .replace(/\//g, '\\/');
+        const regexPattern = patternToRegexString(p);
+        if (regexPattern == null)
+            return false;
         const regex = p.endsWith('/*')
             ? new RegExp(`^${regexPattern.replace(/\\\/\.\*$/, '(\\/.*)?')}$`)
             : new RegExp(`^${regexPattern}$`);

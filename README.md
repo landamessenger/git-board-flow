@@ -37,9 +37,9 @@ Full documentation: **[docs.page/vypdev/copilot](https://docs.page/vypdev/copilo
 
 ## What it does
 
-- **Issues** — Branch creation from labels (feature, bugfix, hotfix, release, docs, chore), project linking, assignees, size/progress labels; optional Bugbot (AI) on the issue.
-- **Pull requests** — Link PRs to issues, update project columns, assign reviewers; optional AI-generated PR description.
-- **Push (commits)** — Notify the issue, update size/progress; optional Bugbot and prefix checks.
+- **Issues** — Branch creation from labels (feature, bugfix, hotfix, release, docs, chore), project linking, assignees, size/progress labels; optional Bugbot (AI) on the issue; from a comment you can ask to fix reported findings (Bugbot autofix).
+- **Pull requests** — Link PRs to issues, update project columns, assign reviewers; optional AI-generated PR description; from a PR review comment you can ask to fix reported findings (Bugbot autofix).
+- **Push (commits)** — Notify the issue, update size/progress; optional Bugbot (detection) and prefix checks.
 - **Projects** — Link issues and PRs to boards and move them to the right columns.
 - **Single actions** — On-demand: check progress, think, create release/tag, mark deployed, etc.
 - **Concurrency** — Waits for previous runs of the same workflow so runs can be sequential. See [Features → Workflow concurrency](https://docs.page/vypdev/copilot/features#workflow-concurrency-and-sequential-execution).
