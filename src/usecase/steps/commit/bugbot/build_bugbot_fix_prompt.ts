@@ -4,14 +4,15 @@ import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../../utils/opencode
 import { sanitizeUserCommentForPrompt } from "./sanitize_user_comment_for_prompt";
 
 /** Maximum characters for a single finding's full comment body to avoid prompt bloat and token limits. */
-const MAX_FINDING_BODY_LENGTH = 12000;
+export const MAX_FINDING_BODY_LENGTH = 12000;
 
 const TRUNCATION_SUFFIX = "\n\n[... truncated for length ...]";
 
 /**
  * Truncates body to max length and appends indicator when truncated.
+ * Exported for use when loading bugbot context so fullBody is bounded at load time.
  */
-function truncateFindingBody(body: string, maxLength: number): string {
+export function truncateFindingBody(body: string, maxLength: number): string {
     if (body.length <= maxLength) return body;
     return body.slice(0, maxLength - TRUNCATION_SUFFIX.length) + TRUNCATION_SUFFIX;
 }

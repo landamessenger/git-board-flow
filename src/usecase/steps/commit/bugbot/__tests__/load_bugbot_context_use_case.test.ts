@@ -176,4 +176,22 @@ describe("loadBugbotContext", () => {
             resolved: false,
         });
     });
+
+    it("truncates fullBody to 12000 chars when loading from issue comments and appends truncation indicator", async () => {
+        const longBody =
+            "## Finding\n\n" + "x".repeat(15000) + "\n\n<!-- copilot-bugbot finding_id:\"long-1\" resolved:false -->";
+        mockListIssueComments.mockResolvedValue([
+            {
+                id: 100,
+                body: longBody,
+            },
+        ]);
+
+        const ctx = await loadBugbotContext(baseParam());
+
+        expect(ctx.unresolvedFindingsWithBody).toHaveLength(1);
+        expect(ctx.unresolvedFindingsWithBody[0].id).toBe("long-1");
+        expect(ctx.unresolvedFindingsWithBody[0].fullBody).toContain("[... truncated for length ...]");
+        expect(ctx.unresolvedFindingsWithBody[0].fullBody.length).toBeLessThanOrEqual(12000);
+    });
 });

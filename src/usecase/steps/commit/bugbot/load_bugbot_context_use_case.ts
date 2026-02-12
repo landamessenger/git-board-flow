@@ -9,6 +9,7 @@ import type { Execution } from "../../../../data/model/execution";
 import { IssueRepository } from "../../../../data/repository/issue_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";
 import type { BugbotContext, ExistingByFindingId } from "./types";
+import { MAX_FINDING_BODY_LENGTH, truncateFindingBody } from "./build_bugbot_fix_prompt";
 import { parseMarker } from "./marker";
 
 /** Builds the text block sent to OpenCode for task 2 (decide which previous findings are now resolved). */
@@ -98,7 +99,8 @@ export async function loadBugbotContext(
             token
         );
         for (const c of prComments) {
-            const body = c.body ?? '';
+            const body = c.body ?? "";
+            const bodyBounded = truncateFindingBody(body, MAX_FINDING_BODY_LENGTH);
             for (const { findingId, resolved } of parseMarker(body)) {
                 if (!existingByFindingId[findingId]) {
                     existingByFindingId[findingId] = { resolved };
@@ -106,7 +108,7 @@ export async function loadBugbotContext(
                 existingByFindingId[findingId].prCommentId = c.id;
                 existingByFindingId[findingId].prNumber = prNumber;
                 existingByFindingId[findingId].resolved = resolved;
-                prFindingIdToBody[findingId] = body;
+                prFindingIdToBody[findingId] = bodyBounded;
             }
         }
     }
@@ -116,8 +118,9 @@ export async function loadBugbotContext(
     for (const [findingId, data] of Object.entries(existingByFindingId)) {
         if (data.resolved) continue;
         const issueBody = issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
-        const fullBody = (issueBody ?? prFindingIdToBody[findingId] ?? '').trim();
-        if (fullBody) {
+        const rawBody = (issueBody ?? prFindingIdToBody[findingId] ?? "").trim();
+        if (rawBody) {
+            const fullBody = truncateFindingBody(rawBody, MAX_FINDING_BODY_LENGTH);
             previousFindingsForPrompt.push({ id: findingId, fullBody });
         }
     }
