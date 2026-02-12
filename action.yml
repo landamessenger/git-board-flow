@@ -424,5 +424,5 @@ runs:
   using: "node20"
   main: "build/github_action/index.js"
 branding:
-  icon: "copilot"
+  icon: "cpu"
   color: "blue"
