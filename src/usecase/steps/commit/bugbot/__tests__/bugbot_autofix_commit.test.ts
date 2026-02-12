@@ -175,7 +175,7 @@ describe("runBugbotAutofixCommitAndPush", () => {
         expect(mockExec).toHaveBeenCalledWith("git", [
             "commit",
             "-m",
-            "fix: bugbot autofix - resolve reported findings",
+            "fix(#42): bugbot autofix - resolve reported findings",
         ]);
         expect(mockExec).toHaveBeenCalledWith("git", ["push", "origin", "feature/42-foo"]);
     });
@@ -198,5 +198,27 @@ describe("runBugbotAutofixCommitAndPush", () => {
             committed: false,
             error: "commit failed",
         });
+    });
+
+    it("includes targetFindingIds in commit message when provided", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(baseExecution(), {
+            targetFindingIds: ["finding-1", "finding-2"],
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(true);
+        expect(mockExec).toHaveBeenCalledWith("git", [
+            "commit",
+            "-m",
+            "fix(#42): bugbot autofix - resolve finding-1, finding-2",
+        ]);
     });
 });

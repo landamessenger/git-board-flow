@@ -58,6 +58,7 @@ export class PullRequestReviewCommentUseCase implements ParamUseCase<Execution, 
                 logInfo("Bugbot autofix succeeded; running commit and push.");
                 const commitResult = await runBugbotAutofixCommitAndPush(param, {
                     branchOverride: payload.branchOverride,
+                    targetFindingIds: payload.targetFindingIds,
                 });
                 if (commitResult.committed && payload.context) {
                     const ids = payload.targetFindingIds;
