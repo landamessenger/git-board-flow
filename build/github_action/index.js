@@ -42766,13 +42766,16 @@ function setFirstErrorIfExists(results) {
         }
     }
 }
-runGitHubAction()
-    .then(() => process.exit(0))
-    .catch((err) => {
-    (0, logger_1.logError)(err);
-    core.setFailed(err instanceof Error ? err.message : String(err));
-    process.exit(1);
-});
+// Only auto-run when executed as the action entry (not when imported by tests)
+if (typeof process.env.JEST_WORKER_ID === 'undefined') {
+    runGitHubAction()
+        .then(() => process.exit(0))
+        .catch((err) => {
+        (0, logger_1.logError)(err);
+        core.setFailed(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+    });
+}
 
 
 /***/ }),

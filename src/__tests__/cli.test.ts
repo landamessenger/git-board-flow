@@ -35,11 +35,18 @@ jest.mock('../data/repository/ai_repository', () => ({
 }));
 
 describe('CLI', () => {
+  let exitSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as () => never);
     (execSync as jest.Mock).mockReturnValue(Buffer.from('https://github.com/test-owner/test-repo.git'));
     (runLocalAction as jest.Mock).mockResolvedValue(undefined);
     mockIsIssue.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    exitSpy?.mockRestore();
   });
 
   describe('think', () => {
@@ -58,14 +65,12 @@ describe('CLI', () => {
       (execSync as jest.Mock).mockImplementation(() => {
         throw new Error('git not found');
       });
-      const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as () => never);
       const { logError } = require('../utils/logger');
 
       await program.parseAsync(['node', 'cli', 'think', '-q', 'hello']);
 
       expect(logError).toHaveBeenCalled();
       expect(exitSpy).toHaveBeenCalledWith(1);
-      exitSpy.mockRestore();
     });
 
   });
@@ -84,5 +89,64 @@ describe('CLI', () => {
       logSpy.mockRestore();
     });
 
+    it('calls process.exit(1) when do fails', async () => {
+      const { AiRepository } = require('../data/repository/ai_repository');
+      AiRepository.mockImplementation(() => ({
+        copilotMessage: jest.fn().mockRejectedValue(new Error('OpenCode down')),
+      }));
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      await program.parseAsync(['node', 'cli', 'do', '-p', 'hello']);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleSpy).toHaveBeenCalled();
+      const errMsg = consoleSpy.mock.calls.flat().join(' ');
+      expect(errMsg).toMatch(/error|Error/i);
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('check-progress', () => {
+    it('calls runLocalAction with CHECK_PROGRESS and issue number', async () => {
+      await program.parseAsync(['node', 'cli', 'check-progress', '-i', '99']);
+
+      expect(runLocalAction).toHaveBeenCalledTimes(1);
+      const params = (runLocalAction as jest.Mock).mock.calls[0][0];
+      expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.CHECK_PROGRESS);
+      expect(params[INPUT_KEYS.SINGLE_ACTION_ISSUE]).toBe(99);
+      expect(params.issue?.number).toBe(99);
+      expect(params[INPUT_KEYS.WELCOME_TITLE]).toContain('Progress');
+    });
+
+    it('shows message when issue number is invalid', async () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await program.parseAsync(['node', 'cli', 'check-progress', '-i', '0']);
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid issue number'));
+      logSpy.mockRestore();
+    });
+  });
+
+  describe('recommend-steps', () => {
+    it('calls runLocalAction with RECOMMEND_STEPS', async () => {
+      await program.parseAsync(['node', 'cli', 'recommend-steps', '-i', '5']);
+
+      expect(runLocalAction).toHaveBeenCalledTimes(1);
+      const params = (runLocalAction as jest.Mock).mock.calls[0][0];
+      expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.RECOMMEND_STEPS);
+      expect(params.issue?.number).toBe(5);
+    });
+  });
+
+  describe('setup', () => {
+    it('calls runLocalAction with INITIAL_SETUP', async () => {
+      await program.parseAsync(['node', 'cli', 'setup']);
+
+      expect(runLocalAction).toHaveBeenCalledTimes(1);
+      const params = (runLocalAction as jest.Mock).mock.calls[0][0];
+      expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.INITIAL_SETUP);
+      expect(params[INPUT_KEYS.WELCOME_TITLE]).toContain('Initial Setup');
+    });
   });
 });

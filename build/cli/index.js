@@ -47245,6 +47245,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.program = void 0;
 const child_process_1 = __nccwpck_require__(2081);
 const commander_1 = __nccwpck_require__(4379);
 const dotenv = __importStar(__nccwpck_require__(2437));
@@ -47258,6 +47259,7 @@ const ai_repository_1 = __nccwpck_require__(8307);
 // Load environment variables from .env file
 dotenv.config();
 const program = new commander_1.Command();
+exports.program = program;
 // Function to get git repository info
 function getGitInfo() {
     try {
@@ -47665,7 +47667,9 @@ program
     ];
     await (0, local_action_1.runLocalAction)(params);
 });
-program.parse(process.argv);
+if (typeof process.env.JEST_WORKER_ID === 'undefined') {
+    program.parse(process.argv);
+}
 
 
 /***/ }),

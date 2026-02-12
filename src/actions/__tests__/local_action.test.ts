@@ -107,4 +107,43 @@ describe('runLocalAction', () => {
     expect(boxen.mock.calls[0][0]).toContain('Step 1');
     expect(boxen.mock.calls[0][0]).toContain('Reminder 1');
   });
+
+  it('calls getProjectDetail for each project id when PROJECT_IDS is set', async () => {
+    mockGetProjectDetail
+      .mockResolvedValueOnce({ id: 'proj-1', title: 'P1', url: 'https://x.com/1' })
+      .mockResolvedValueOnce({ id: 'proj-2', title: 'P2', url: 'https://x.com/2' });
+    const params: Record<string, unknown> = {
+      [INPUT_KEYS.TOKEN]: 't',
+      [INPUT_KEYS.PROJECT_IDS]: 'proj-1, proj-2',
+      repo: { owner: 'o', repo: 'r' },
+      eventName: 'push',
+      commits: { ref: 'refs/heads/main' },
+    };
+
+    await runLocalAction(params);
+
+    expect(mockGetProjectDetail).toHaveBeenCalledTimes(2);
+    expect(mockGetProjectDetail).toHaveBeenCalledWith('proj-1', 't');
+    expect(mockGetProjectDetail).toHaveBeenCalledWith('proj-2', 't');
+  });
+
+  it('includes errors and reminders in boxen content when results have errors and reminders', async () => {
+    const boxen = require('boxen');
+    mockMainRun.mockResolvedValue([
+      { executed: false, steps: [], errors: ['Error one'], reminders: [] },
+      { executed: true, steps: [], errors: [], reminders: ['Reminder text'] },
+    ]);
+    const params: Record<string, unknown> = {
+      [INPUT_KEYS.TOKEN]: 't',
+      repo: { owner: 'o', repo: 'r' },
+      eventName: 'push',
+      commits: { ref: 'refs/heads/main' },
+    };
+
+    await runLocalAction(params);
+
+    const content = boxen.mock.calls[0][0];
+    expect(content).toContain('Error one');
+    expect(content).toContain('Reminder text');
+  });
 });

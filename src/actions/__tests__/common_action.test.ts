@@ -126,6 +126,24 @@ describe('mainRun', () => {
     expect(mockCommitInvoke).toHaveBeenCalled();
   });
 
+  it('logs welcome boxen and runs SingleActionUseCase when welcome and isSingleAction', async () => {
+    const logInfo = require('../../utils/logger').logInfo;
+    const execution = mockExecution({
+      welcome: { title: 'Welcome', messages: ['Step 1', 'Step 2'] },
+      issueNumber: 42,
+      runnedByToken: false,
+      isSingleAction: true,
+      singleAction: { validSingleAction: true, isSingleActionWithoutIssue: false, enabledSingleAction: true },
+    });
+    mockSingleActionInvoke.mockResolvedValue([new Result({ id: 's', success: true })]);
+
+    const results = await mainRun(execution);
+
+    expect(logInfo).toHaveBeenCalledWith(expect.any(String));
+    expect(mockSingleActionInvoke).toHaveBeenCalledWith(execution);
+    expect(results.length).toBeGreaterThan(0);
+  });
+
   it('runs SingleActionUseCase when runnedByToken and valid single action', async () => {
     const execution = mockExecution({
       runnedByToken: true,
