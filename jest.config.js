@@ -9,6 +9,8 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/**/__tests__/**'
   ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'text-summary', 'lcov'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   transform: {
     '^.+\\.ts$': 'ts-jest'
