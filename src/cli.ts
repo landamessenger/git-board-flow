@@ -464,4 +464,7 @@ program
     await runLocalAction(params);
   });
 
-program.parse(process.argv); 
+if (typeof process.env.JEST_WORKER_ID === 'undefined') {
+  program.parse(process.argv);
+}
+export { program }; 
