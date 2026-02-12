@@ -301,6 +301,33 @@ describe("IssueCommentUseCase", () => {
         expect(mockThinkInvoke).not.toHaveBeenCalled();
     });
 
+    it("when autofix returns empty results array, does not commit or mark resolved", async () => {
+        const context = mockContext();
+        mockDetectIntentInvoke.mockResolvedValue([
+            new Result({
+                id: "DetectBugbotFixIntentUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+                payload: {
+                    isFixRequest: true,
+                    isDoRequest: false,
+                    targetFindingIds: ["f1"],
+                    context,
+                },
+            }),
+        ]);
+        mockAutofixInvoke.mockResolvedValue([]);
+
+        const results = await useCase.invoke(baseExecution());
+
+        expect(mockAutofixInvoke).toHaveBeenCalledTimes(1);
+        expect(mockRunBugbotAutofixCommitAndPush).not.toHaveBeenCalled();
+        expect(mockMarkFindingsResolved).not.toHaveBeenCalled();
+        expect(mockThinkInvoke).not.toHaveBeenCalled();
+        expect(results.filter((r) => r.id === "BugbotAutofixUseCase")).toHaveLength(0);
+    });
+
     it("when intent has fix request but no context, runs Think and skips autofix", async () => {
         mockDetectIntentInvoke.mockResolvedValue([
             new Result({

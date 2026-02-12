@@ -53686,7 +53686,7 @@ class IssueCommentUseCase {
                 branchOverride: payload.branchOverride,
             });
             results.push(...autofixResults);
-            const lastAutofix = autofixResults[autofixResults.length - 1];
+            const lastAutofix = autofixResults.length > 0 ? autofixResults[autofixResults.length - 1] : undefined;
             if (lastAutofix?.success) {
                 (0, logger_1.logInfo)("Bugbot autofix succeeded; running commit and push.");
                 const commitResult = await (0, bugbot_autofix_commit_1.runBugbotAutofixCommitAndPush)(param, {
@@ -53907,7 +53907,7 @@ class PullRequestReviewCommentUseCase {
                 branchOverride: payload.branchOverride,
             });
             results.push(...autofixResults);
-            const lastAutofix = autofixResults[autofixResults.length - 1];
+            const lastAutofix = autofixResults.length > 0 ? autofixResults[autofixResults.length - 1] : undefined;
             if (lastAutofix?.success) {
                 (0, logger_1.logInfo)("Bugbot autofix succeeded; running commit and push.");
                 const commitResult = await (0, bugbot_autofix_commit_1.runBugbotAutofixCommitAndPush)(param, {
@@ -55046,6 +55046,12 @@ async function loadBugbotContext(param, options) {
                 existingByFindingId[findingId].issueCommentId = c.id;
                 existingByFindingId[findingId].resolved = resolved;
             }
+        }
+    }
+    // Truncate issue comment bodies so we don't hold huge strings in memory (used later for previousFindingsForPrompt).
+    for (const c of issueComments) {
+        if (c.body != null && c.body.length > build_bugbot_fix_prompt_1.MAX_FINDING_BODY_LENGTH) {
+            c.body = (0, build_bugbot_fix_prompt_1.truncateFindingBody)(c.body, build_bugbot_fix_prompt_1.MAX_FINDING_BODY_LENGTH);
         }
     }
     const openPrNumbers = await pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(owner, repo, headBranch, token);

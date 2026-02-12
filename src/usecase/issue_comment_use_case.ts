@@ -68,7 +68,8 @@ export class IssueCommentUseCase implements ParamUseCase<Execution, Result[]> {
             });
             results.push(...autofixResults);
 
-            const lastAutofix = autofixResults[autofixResults.length - 1];
+            const lastAutofix =
+                autofixResults.length > 0 ? autofixResults[autofixResults.length - 1] : undefined;
             if (lastAutofix?.success) {
                 logInfo("Bugbot autofix succeeded; running commit and push.");
                 const commitResult = await runBugbotAutofixCommitAndPush(param, {
