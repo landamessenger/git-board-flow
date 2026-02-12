@@ -1,5 +1,4 @@
 export const TITLE = 'Copilot'
-export const REPO_URL = 'https://github.com/vypdev/copilot'
 
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export const OPENCODE_DEFAULT_MODEL = 'opencode/kimi-k2.5-free'

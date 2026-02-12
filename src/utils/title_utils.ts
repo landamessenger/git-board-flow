@@ -22,15 +22,3 @@ export const extractIssueNumberFromPush = (branchName: string): number => {
     logDebugInfo(`Linked Issue: #${issueNumber}`);
     return issueNumber;
 }
-
-export const extractVersionFromBranch = (branchName: string): string | undefined => {
-    const match = branchName?.match(/^[^/]+\/(\d+\.\d+\.\d+)$/);
-
-    if (match) {
-        return match[1];
-    } else {
-        logDebugInfo('No version found in the branch name.');
-        return undefined;
-    }
-};
-
