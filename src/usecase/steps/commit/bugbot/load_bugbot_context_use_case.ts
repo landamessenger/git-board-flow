@@ -47,10 +47,21 @@ export async function loadBugbotContext(
     options?: LoadBugbotContextOptions
 ): Promise<BugbotContext> {
     const issueNumber = param.issueNumber;
-    const headBranch = options?.branchOverride ?? param.commit.branch;
+    const headBranch = (options?.branchOverride ?? param.commit.branch)?.trim();
     const token = param.tokens.token;
     const owner = param.owner;
     const repo = param.repo;
+
+    if (!headBranch) {
+        return {
+            existingByFindingId: {},
+            issueComments: [],
+            openPrNumbers: [],
+            previousFindingsBlock: "",
+            prContext: null,
+            unresolvedFindingsWithBody: [],
+        };
+    }
 
     const issueRepository = new IssueRepository();
     const pullRequestRepository = new PullRequestRepository();

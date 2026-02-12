@@ -63,6 +63,21 @@ describe("loadBugbotContext", () => {
         expect(ctx.unresolvedFindingsWithBody).toEqual([]);
     });
 
+    it("returns empty context and does not call APIs when head branch is empty (no branchOverride, empty commit.branch)", async () => {
+        const ctx = await loadBugbotContext(
+            baseParam({ commit: { branch: "" } } as unknown as Partial<Execution>)
+        );
+
+        expect(ctx.existingByFindingId).toEqual({});
+        expect(ctx.issueComments).toEqual([]);
+        expect(ctx.openPrNumbers).toEqual([]);
+        expect(ctx.previousFindingsBlock).toBe("");
+        expect(ctx.prContext).toBeNull();
+        expect(ctx.unresolvedFindingsWithBody).toEqual([]);
+        expect(mockGetOpenPullRequestNumbersByHeadBranch).not.toHaveBeenCalled();
+        expect(mockListIssueComments).not.toHaveBeenCalled();
+    });
+
     it("parses issue comments with markers and populates existingByFindingId", async () => {
         mockListIssueComments.mockResolvedValue([
             {
