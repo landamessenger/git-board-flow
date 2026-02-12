@@ -48,8 +48,15 @@ async function checkoutBranchIfNeeded(branch: string): Promise<boolean> {
         await exec.exec("git", ["checkout", branch]);
         logInfo(`Checked out branch ${branch}.`);
         if (didStash) {
-            await exec.exec("git", ["stash", "pop"]);
-            logDebugInfo("Restored stashed changes after checkout.");
+            try {
+                await exec.exec("git", ["stash", "pop"]);
+                logDebugInfo("Restored stashed changes after checkout.");
+            } catch (popErr) {
+                const popMsg = popErr instanceof Error ? popErr.message : String(popErr);
+                logError(`Failed to restore stashed changes after checkout: ${popMsg}`);
+                logError("Changes remain stashed; run 'git stash pop' manually to restore them.");
+                return false;
+            }
         }
         return true;
     } catch (err) {
