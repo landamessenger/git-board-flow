@@ -69,7 +69,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 return results;
             }
 
-            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            const escapedUsername = param.tokenUser.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const question = commentBody.replace(new RegExp(`@${escapedUsername}`, 'gi'), '').trim();
             if (!question) {
                 results.push(
                     new Result({

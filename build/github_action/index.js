@@ -44947,6 +44947,7 @@ class BranchRepository {
                 if (baseBranchName.indexOf('tags/') > -1) {
                     ref = baseBranchName;
                 }
+                const refForGraphQL = ref.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
                 const octokit = github.getOctokit(token);
                 const { repository } = await octokit.graphql(`
               query($repo: String!, $owner: String!, $issueNumber: Int!) {
@@ -44955,7 +44956,7 @@ class BranchRepository {
                   issue(number: $issueNumber) {
                     id
                   }
-                  ref(qualifiedName: "refs/${ref}") {
+                  ref(qualifiedName: "refs/${refForGraphQL}") {
                     target {
                       ... on Commit {
                         oid
@@ -51966,7 +51967,8 @@ class ThinkUseCase {
                 }));
                 return results;
             }
-            const question = commentBody.replace(new RegExp(`@${param.tokenUser}`, 'gi'), '').trim();
+            const escapedUsername = param.tokenUser.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const question = commentBody.replace(new RegExp(`@${escapedUsername}`, 'gi'), '').trim();
             if (!question) {
                 results.push(new result_1.Result({
                     id: this.taskId,
@@ -54736,14 +54738,19 @@ exports.PROMPTS = {};
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.injectJsonAsMarkdownBlock = exports.extractChangelogUpToAdditionalContext = exports.extractReleaseType = exports.extractVersion = void 0;
+function escapeRegexLiteral(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 const extractVersion = (pattern, text) => {
-    const versionPattern = new RegExp(`###\\s*${pattern}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
+    const escaped = escapeRegexLiteral(pattern);
+    const versionPattern = new RegExp(`###\\s*${escaped}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
     const match = text.match(versionPattern);
     return match ? match[1] : undefined;
 };
 exports.extractVersion = extractVersion;
 const extractReleaseType = (pattern, text) => {
-    const releaseTypePattern = new RegExp(`###\\s*${pattern}\\s+(Patch|Minor|Major)`, 'i');
+    const escaped = escapeRegexLiteral(pattern);
+    const releaseTypePattern = new RegExp(`###\\s*${escaped}\\s+(Patch|Minor|Major)`, 'i');
     const match = text.match(releaseTypePattern);
     return match ? match[1] : undefined;
 };
@@ -54756,7 +54763,7 @@ const extractChangelogUpToAdditionalContext = (body, sectionTitle) => {
     if (body == null || body === '') {
         return 'No changelog provided';
     }
-    const escaped = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = escapeRegexLiteral(sectionTitle);
     const pattern = new RegExp(`(?:###|##)\\s*${escaped}\\s*\\n\\n([\\s\\S]*?)` +
         `(?=\\n(?:###|##)\\s*Additional Context\\s*|$)`, 'i');
     const match = body.match(pattern);

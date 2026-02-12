@@ -1,11 +1,17 @@
+function escapeRegexLiteral(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export const extractVersion = (pattern: string, text: string): string | undefined => {
-    const versionPattern = new RegExp(`###\\s*${pattern}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
+    const escaped = escapeRegexLiteral(pattern);
+    const versionPattern = new RegExp(`###\\s*${escaped}\\s+(\\d+\\.\\d+\\.\\d+)`, 'i');
     const match = text.match(versionPattern);
     return match ? match[1] : undefined;
 };
 
 export const extractReleaseType = (pattern: string, text: string): string | undefined => {
-    const releaseTypePattern = new RegExp(`###\\s*${pattern}\\s+(Patch|Minor|Major)`, 'i');
+    const escaped = escapeRegexLiteral(pattern);
+    const releaseTypePattern = new RegExp(`###\\s*${escaped}\\s+(Patch|Minor|Major)`, 'i');
     const match = text.match(releaseTypePattern);
     return match ? match[1] : undefined;
 };
@@ -21,7 +27,7 @@ export const extractChangelogUpToAdditionalContext = (
     if (body == null || body === '') {
         return 'No changelog provided';
     }
-    const escaped = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = escapeRegexLiteral(sectionTitle);
     const pattern = new RegExp(
         `(?:###|##)\\s*${escaped}\\s*\\n\\n([\\s\\S]*?)` +
             `(?=\\n(?:###|##)\\s*Additional Context\\s*|$)`,

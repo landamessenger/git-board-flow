@@ -194,6 +194,24 @@ describe('ThinkUseCase', () => {
     expect(results[0].executed).toBe(true);
   });
 
+  it('strips mention correctly when tokenUser contains regex-special chars', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAskAgent.mockResolvedValue({ answer: 'OK' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      tokenUser: 'bot.',
+      issue: { ...baseParam().issue, commentBody: '@bot. what is 2+2?' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    const prompt = mockAskAgent.mock.calls[0][2];
+    expect(prompt).toContain('Question: what is 2+2?');
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+  });
+
   it('includes issue description in prompt when getDescription returns content', async () => {
     mockGetDescription.mockResolvedValue('Implement login feature for the app.');
     mockAskAgent.mockResolvedValue({ answer: 'Sure, here is how...' });
