@@ -80,6 +80,12 @@ export async function loadBugbotContext(
             }
         }
     }
+    // Truncate issue comment bodies so we don't hold huge strings in memory (used later for previousFindingsForPrompt).
+    for (const c of issueComments) {
+        if (c.body != null && c.body.length > MAX_FINDING_BODY_LENGTH) {
+            c.body = truncateFindingBody(c.body, MAX_FINDING_BODY_LENGTH);
+        }
+    }
 
     const openPrNumbers = await pullRequestRepository.getOpenPullRequestNumbersByHeadBranch(
         owner,

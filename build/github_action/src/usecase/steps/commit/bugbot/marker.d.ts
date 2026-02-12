@@ -12,7 +12,10 @@ export declare function parseMarker(body: string | null): Array<{
     findingId: string;
     resolved: boolean;
 }>;
-/** Regex to match the marker for a specific finding (same flexible format as parseMarker). */
+/**
+ * Regex to match the marker for a specific finding (same flexible format as parseMarker).
+ * Finding IDs from external data (comments, API) are length-limited and validated to mitigate ReDoS.
+ */
 export declare function markerRegexForFinding(findingId: string): RegExp;
 /**
  * Find the marker for this finding in body (using same pattern as parseMarker) and replace it.
