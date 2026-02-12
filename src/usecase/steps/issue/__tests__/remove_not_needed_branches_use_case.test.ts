@@ -66,4 +66,34 @@ describe('RemoveNotNeededBranchesUseCase', () => {
     const results = await useCase.invoke(param);
     expect(results.some((r) => r.success === false)).toBe(true);
   });
+
+  it('continues when type does not match managementBranch and no matching branch exists', async () => {
+    mockGetListOfBranches.mockReset();
+    mockGetListOfBranches.mockResolvedValue(['develop', 'main']);
+    mockRemoveBranch.mockClear();
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(mockRemoveBranch).not.toHaveBeenCalled();
+    expect(results).toHaveLength(0);
+  });
+
+  it('pushes failure result when removeBranch returns false', async () => {
+    mockGetListOfBranches.mockResolvedValue(['feature/42-add-login', 'bugfix/42-other']);
+    mockRemoveBranch.mockResolvedValue(false);
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results.some((r) => !r.success && r.steps?.some((s) => s.includes('problem')))).toBe(true);
+  });
+
+  it('removes non-final branches when type equals managementBranch', async () => {
+    mockFormatBranchName.mockReturnValue('add-login');
+    mockGetListOfBranches.mockResolvedValue(['feature/42-add-login', 'feature/42-old-name']);
+    mockRemoveBranch.mockResolvedValue(true);
+    const param = baseParam({ managementBranch: 'feature' });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockRemoveBranch).toHaveBeenCalledWith('o', 'r', 'feature/42-old-name', 't');
+    expect(results.some((r) => r.steps?.some((s) => s.includes('feature/42-old-name')))).toBe(true);
+  });
 });

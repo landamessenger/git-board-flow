@@ -26,6 +26,13 @@ describe('content_utils', () => {
       expect(extractVersion('Release Version', '### Release Version 1.2')).toBeUndefined();
       expect(extractVersion('Release Version', '### Release Version abc')).toBeUndefined();
     });
+
+    it('escapes regex-special chars in pattern (no ReDoS or over-matching)', () => {
+      expect(extractVersion('Release (Version)', '### Release (Version) 1.2.3')).toBe('1.2.3');
+      expect(extractVersion('.*', '### .* 1.2.3')).toBe('1.2.3');
+      expect(extractVersion('.*', '### x 1.2.3')).toBeUndefined();
+      expect(extractVersion('x.y', '### x.y 9.8.7')).toBe('9.8.7');
+    });
   });
 
   describe('extractReleaseType', () => {
@@ -43,6 +50,11 @@ describe('content_utils', () => {
     it('returns undefined when pattern not found', () => {
       expect(extractReleaseType('Release Type', 'No type here')).toBeUndefined();
       expect(extractReleaseType('Other', '### Release Type Patch')).toBeUndefined();
+    });
+
+    it('escapes regex-special chars in pattern', () => {
+      expect(extractReleaseType('Release (Type)', '### Release (Type) Minor')).toBe('Minor');
+      expect(extractReleaseType('Patch|Minor', '### Patch|Minor Major')).toBe('Major');
     });
   });
 

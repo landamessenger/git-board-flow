@@ -1,0 +1,97 @@
+---
+title: How it works
+description: Internal flow of Bugbot: detection, intent, autofix, do-user-request, and Plan vs Build agents.
+---
+
+# How it works
+
+This page describes the **internal flow** of Bugbot: how detection runs, how the action decides between autofix and do-user-request, and how OpenCode’s **Plan** and **Build** agents are used. For usage and configuration, see [Detection](/bugbot/detection), [Autofix](/bugbot/autofix), [Do user request](/bugbot/do-user-request), and [Configuration](/bugbot/configuration).
+
+---
+
+## High-level flow
+
+| What you do | What runs inside the action | Result |
+|-------------|-----------------------------|--------|
+| **Push** to branch (or run `detect_potential_problems_action`) | Detection: load context → OpenCode Plan (findings + resolved ids) → filter → mark resolved → publish | New/updated comments on issue and PR; resolved threads on PR. |
+| **Comment** “fix it” / “fix all” (with permission) | Intent (Plan) → Autofix (Build) → verify commands → commit & push → mark findings resolved | Code change on branch; those findings marked resolved. |
+| **Comment** “add a test for X” (with permission) | Intent (Plan) → Do user request (Build) → verify commands → commit & push | Code change on branch. |
+| **Comment** without permission or not a fix/do request | Think (Plan) | Answer in comment; no file changes. |
+
+---
+
+## Detection flow (push or single action)
+
+1. **Guards:** OpenCode must be configured; the branch must be linked to an issue (`issueNumber !== -1`). Otherwise detection is skipped.
+
+2. **Load context:** The action fetches **issue comments** and **PR review comments** for the issue and any open PRs. It parses each comment for a **hidden marker** (`<!-- copilot-bugbot finding_id:"..." resolved:true|false -->`) and builds:
+   - A map of **existing findings** (id → issue comment id, PR comment id, resolved).
+   - A **previous findings block** (id, title, description) to send to OpenCode so it can report which are now **resolved**.
+   - For the first open PR: **changed files** and **path → first diff line** (so review comments can be attached to a valid line).
+
+3. **Build prompt:** The action builds a prompt for OpenCode **Plan** with: repo context, head and base branch, issue number, optional ignore patterns (`ai-ignore-files`), and the list of **previously reported findings**. OpenCode is asked to:
+   - **Task 1:** Compute the diff (or use the repo context to determine changes) and return **new/current findings** (id, title, description, optional file, line, severity, suggestion).
+   - **Task 2:** Return **resolved_finding_ids**: which of the previous findings are now fixed or no longer apply.
+
+4. **Filter and limit:** The response is filtered: path safety (no `..`, no absolute paths), exclude paths in `ai-ignore-files`, apply **minimum severity** (`bugbot-severity`), deduplicate. Then **comment limit** (`bugbot-comment-limit`) is applied: only the first N findings are kept for individual comments; the rest contribute to an **overflow** count and titles for one summary comment.
+
+5. **Mark resolved:** For each existing finding whose id is in `resolved_finding_ids`, the action **updates** the issue comment (and PR review comment if any) so the marker shows `resolved: true`, and **resolves the PR review thread** when applicable.
+
+6. **Publish:** For each **new** finding in the limited list: **add or update** the issue comment (with marker); **create or update** the PR review comment **only if** the finding’s file is in the PR’s changed files (using the first diff line for that path when the finding has no line). If there was overflow, **one extra comment** on the issue summarizes the additional findings.
+
+---
+
+## Fix intent and file-modifying actions (comment on issue or PR)
+
+When you post a comment on an **issue** or **pull request** (or reply in a PR review thread), the action runs **intent detection** before doing anything that modifies files.
+
+1. **Intent (OpenCode Plan):** The action sends:
+   - Your **comment body** (and, for PR review replies, the **parent comment** body, truncated).
+   - The list of **unresolved findings** (id, title, short description).
+   The Plan agent returns:
+   - **is_fix_request:** whether you are asking to fix one or more findings.
+   - **target_finding_ids:** which finding ids to fix (if any).
+   - **is_do_request:** whether you are asking for a general code change (not tied to findings).
+
+2. **Permission check:** The action checks if the **comment author** is allowed to modify files: **organization member** (for org repos) or **repository owner** (for user repos). If not, it does **not** run autofix or do-user-request; it can still run **Think** to answer.
+
+3. **Branch resolution (issue comment only):** On **issue_comment**, the action needs a **branch** to checkout and push to. It looks up an **open PR** that references the issue and uses that PR’s **head branch**. If there is no such PR, autofix and do-user-request are skipped.
+
+4. **Autofix (when it’s a fix request and permission is granted):**
+   - Build a **prompt** with repo context, the **full text** of the target findings (truncated per finding if needed), your comment, and the verify commands.
+   - Call OpenCode **Build** agent (`copilotMessage`); it applies the fixes in its workspace.
+   - Run **verify commands** (from `bugbot-fix-verify-commands`) in the runner; if any fails, stop and do not commit.
+   - If all pass: **git add**, **commit** (`fix(#N): bugbot autofix - resolve ...`), **push**.
+   - **Mark** those findings as **resolved** (update issue/PR comment markers and resolve PR threads).
+
+5. **Do user request (when it’s a do-request and not a fix request, and permission is granted):**
+   - Build a **prompt** with repo context and your **sanitized** comment.
+   - Call OpenCode **Build** agent; it applies the changes.
+   - Same **verify** and **commit/push** flow, with message `chore(#N): apply user request` or `chore: apply user request`.
+
+6. **Think (when no file-modifying action ran):** If the comment was not a fix/do request or the user was not allowed, the action runs **Think** (Plan agent) and posts an **answer** as a comment (e.g. explanation or suggestion), without editing files.
+
+---
+
+## OpenCode agents
+
+| Agent | Used for | Edits files? |
+|-------|----------|---------------|
+| **Plan** | **Detection** (findings + resolved ids); **intent** (is_fix_request, target_finding_ids, is_do_request); **Think** (answers). | No. |
+| **Build** | **Autofix** (apply fixes for target findings); **do-user-request** (apply general change). | Yes; the action then runs verify commands and commits/pushes from the runner. |
+
+The Plan agent reasons over the repo context and your comment; the Build agent performs the actual file edits in the OpenCode workspace. The **runner** (GitHub Actions) only runs verify commands and git add/commit/push; it does not run the model.
+
+---
+
+## Technical reference
+
+For code paths, marker format, payload types, and constants, see the Bugbot rule file in the repository (`.cursor/rules/bugbot.mdc`). It is intended for contributors and AI assistants working on the Copilot codebase.
+
+---
+
+## Next steps
+
+- **[Detection](/bugbot/detection)** — When detection runs and where findings appear.
+- **[Autofix](/bugbot/autofix)** — How to trigger and what happens after a fix.
+- **[Examples](/bugbot/examples)** — Workflow and comment examples.

@@ -1,5 +1,4 @@
 export declare const TITLE = "Copilot";
-export declare const REPO_URL = "https://github.com/vypdev/copilot";
 /** Default OpenCode model: provider/modelID (e.g. opencode/kimi-k2.5-free). Reuse for CLI, action and Ai fallbacks. */
 export declare const OPENCODE_DEFAULT_MODEL = "opencode/kimi-k2.5-free";
 /** Timeout in ms for OpenCode HTTP requests (session create, message, diff). Agent calls can be slow (e.g. plan analyzing repo). */
@@ -66,6 +65,7 @@ export declare const INPUT_KEYS: {
     readonly AI_INCLUDE_REASONING: "ai-include-reasoning";
     readonly BUGBOT_SEVERITY: "bugbot-severity";
     readonly BUGBOT_COMMENT_LIMIT: "bugbot-comment-limit";
+    readonly BUGBOT_FIX_VERIFY_COMMANDS: "bugbot-fix-verify-commands";
     readonly PROJECT_IDS: "project-ids";
     readonly PROJECT_COLUMN_ISSUE_CREATED: "project-column-issue-created";
     readonly PROJECT_COLUMN_PULL_REQUEST_CREATED: "project-column-pull-request-created";

@@ -5,6 +5,7 @@ import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
 import { logDebugInfo, logError } from "../../../utils/logger";
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../utils/opencode_project_context_instruction";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -161,6 +162,8 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
         baseBranch: string
     ): string {
         return `You are in the repository workspace. Your task is to produce a pull request description by filling the project's PR template with information from the branch diff and the issue.
+
+${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **Branches:**
 - **Base (target) branch:** \`${baseBranch}\`

@@ -122,4 +122,45 @@ describe('InitialSetupUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].errors).toContain('Progress error');
   });
+
+  it('continues and reports errors when ensureIssueTypes returns success false', async () => {
+    mockEnsureIssueTypes.mockResolvedValue({ success: false, created: 0, existing: 0, errors: ['Issue type error'] });
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors).toContain('Issue type error');
+  });
+
+  it('returns failure with errors when ensureLabels throws', async () => {
+    mockEnsureLabels.mockRejectedValue(new Error('ensureLabels failed'));
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors?.some((e) => String(e).includes('labels'))).toBe(true);
+  });
+
+  it('returns failure when ensureProgressLabels throws', async () => {
+    mockEnsureProgressLabels.mockRejectedValue(new Error('progress labels failed'));
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+  });
+
+  it('returns failure when ensureIssueTypes throws', async () => {
+    mockEnsureIssueTypes.mockRejectedValue(new Error('issue types failed'));
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+  });
+
+  it('returns failure in catch when an unexpected error is thrown', async () => {
+    mockEnsureGitHubDirs.mockImplementation(() => {
+      throw new Error('unexpected');
+    });
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors?.some((e) => String(e).includes('setup inicial'))).toBe(true);
+  });
 });

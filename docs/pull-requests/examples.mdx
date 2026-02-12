@@ -1,0 +1,110 @@
+---
+title: Examples
+description: Full workflow YAML and common configurations for Pull Requests.
+---
+
+# Examples
+
+This page provides **concrete examples**: a full pull request workflow, enabling AI description, and using project columns and reviewers.
+
+## Full pull request workflow
+
+Example `.github/workflows/copilot_pull_request.yml` with common inputs:
+
+```yaml
+name: Copilot - Pull Request
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, labeled, unlabeled, closed, assigned, unassigned, synchronize]
+
+jobs:
+  copilot-pull-requests:
+    name: Copilot - Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: vypdev/copilot@v1
+        with:
+          token: ${{ secrets.PAT }}
+          project-ids: ${{ vars.PROJECT_IDS }}
+          project-column-pull-request-created: "In Progress"
+          project-column-pull-request-in-progress: "In Progress"
+          desired-reviewers-count: 1
+          commit-prefix-transforms: replace-slash
+          ai-pull-request-description: true
+          opencode-model: ${{ vars.OPENCODE_MODEL }}
+          opencode-server-url: ${{ vars.OPENCODE_SERVER_URL }}
+          ai-ignore-files: build/*
+          debug: ${{ vars.DEBUG }}
+```
+
+- **`token`** is required. Use a fine-grained PAT with repo and project permissions.
+- **`project-ids`**: Comma-separated project IDs so PRs are linked and moved to the right column.
+- **`project-column-*`**: Column names in your GitHub Project (must match exactly).
+- **`desired-reviewers-count`**: Number of reviewers to assign (e.g. 1).
+- **`commit-prefix-transforms`**: Transforms for commit prefix derived from branch name (e.g. `replace-slash` for `feature/123` → `feature-123`).
+- **`ai-pull-request-description`**: Set to `true` to generate/update the PR description with OpenCode (requires `opencode-model` and `opencode-server-url`).
+
+## Example: AI PR description only
+
+Minimal workflow that only adds AI-generated PR description (no project linking):
+
+```yaml
+name: Copilot - Pull Request
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  copilot-pull-requests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: vypdev/copilot@v1
+        with:
+          token: ${{ secrets.PAT }}
+          ai-pull-request-description: true
+          opencode-server-url: ${{ secrets.OPENCODE_SERVER_URL }}
+          opencode-model: "anthropic/claude-3-5-sonnet"
+```
+
+The PR must have an **issue linked** (via branch name) and the issue must have a **non-empty description**. See [AI PR description](/pull-requests/ai-description).
+
+## Example: Project columns and reviewers
+
+Link PRs to a board and assign two reviewers:
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    project-ids: "2,3"
+    project-column-pull-request-created: "In Review"
+    desired-reviewers-count: 2
+```
+
+Ensure the project has a column named **"In Review"** (or use your actual column name).
+
+## Example: Images on PR comments
+
+Enable images in PR comments and set URLs for feature PRs:
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    images-on-pull-request: true
+    images-pull-request-feature: "https://example.com/images/feature-pr.png"
+```
+
+Other branch types: `images-pull-request-bugfix`, `images-pull-request-docs`, `images-pull-request-chore`, `images-pull-request-hotfix`, `images-pull-request-release`. See [Configuration](/configuration).
+
+## Next steps
+
+- **[Workflow setup](/pull-requests/workflow-setup)** — Events and what runs when.
+- **[Capabilities](/pull-requests/capabilities)** — Full list of PR capabilities.
+- **[Configuration](/pull-requests/configuration)** — All PR-specific inputs.

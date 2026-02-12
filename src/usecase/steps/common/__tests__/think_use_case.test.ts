@@ -92,10 +92,7 @@ describe('ThinkUseCase', () => {
     expect(mockAddComment).not.toHaveBeenCalled();
   });
 
-  it('responds without mention when issue has question label', async () => {
-    mockGetDescription.mockResolvedValue(undefined);
-    mockAskAgent.mockResolvedValue({ answer: 'Here is the answer.' });
-    mockAddComment.mockResolvedValue(undefined);
+  it('does not respond without @mention even when issue has question label', async () => {
     const param = baseParam({
       labels: { isQuestion: true, isHelp: false },
       issue: { ...baseParam().issue, commentBody: 'how do I configure the webhook?' },
@@ -103,17 +100,13 @@ describe('ThinkUseCase', () => {
 
     const results = await useCase.invoke(param);
 
-    expect(mockAskAgent).toHaveBeenCalledTimes(1);
-    expect(mockAskAgent.mock.calls[0][2]).toContain('how do I configure the webhook?');
-    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'Here is the answer.', 't');
+    expect(mockAskAgent).not.toHaveBeenCalled();
+    expect(mockAddComment).not.toHaveBeenCalled();
     expect(results[0].success).toBe(true);
-    expect(results[0].executed).toBe(true);
+    expect(results[0].executed).toBe(false);
   });
 
-  it('responds without mention when issue has help label', async () => {
-    mockGetDescription.mockResolvedValue(undefined);
-    mockAskAgent.mockResolvedValue({ answer: 'I can help with that.' });
-    mockAddComment.mockResolvedValue(undefined);
+  it('does not respond without @mention even when issue has help label', async () => {
     const param = baseParam({
       labels: { isQuestion: false, isHelp: true },
       issue: { ...baseParam().issue, commentBody: 'I need help with deployment' },
@@ -121,9 +114,26 @@ describe('ThinkUseCase', () => {
 
     const results = await useCase.invoke(param);
 
+    expect(mockAskAgent).not.toHaveBeenCalled();
+    expect(mockAddComment).not.toHaveBeenCalled();
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(false);
+  });
+
+  it('responds when issue has question label and comment mentions bot', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAskAgent.mockResolvedValue({ answer: 'Here is the answer.' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      labels: { isQuestion: true, isHelp: false },
+      issue: { ...baseParam().issue, commentBody: '@bot how do I configure the webhook?' },
+    });
+
+    const results = await useCase.invoke(param);
+
     expect(mockAskAgent).toHaveBeenCalledTimes(1);
-    expect(mockAskAgent.mock.calls[0][2]).toContain('I need help with deployment');
-    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'I can help with that.', 't');
+    expect(mockAskAgent.mock.calls[0][2]).toContain('how do I configure the webhook?');
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, 'Here is the answer.', 't');
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
   });
@@ -180,6 +190,24 @@ describe('ThinkUseCase', () => {
     expect(mockAskAgent).toHaveBeenCalledTimes(1);
     expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 1, '4', 't');
     expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+  });
+
+  it('strips mention correctly when tokenUser contains regex-special chars', async () => {
+    mockGetDescription.mockResolvedValue(undefined);
+    mockAskAgent.mockResolvedValue({ answer: 'OK' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      tokenUser: 'bot.',
+      issue: { ...baseParam().issue, commentBody: '@bot. what is 2+2?' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    const prompt = mockAskAgent.mock.calls[0][2];
+    expect(prompt).toContain('Question: what is 2+2?');
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
   });
@@ -283,5 +311,20 @@ describe('ThinkUseCase', () => {
     expect(results).toHaveLength(1);
     expect(results[0].success).toBe(false);
     expect(results[0].errors?.some((e) => String(e).includes('ThinkUseCase'))).toBe(true);
+  });
+
+  it('returns error when issue or PR number is 0 or negative', async () => {
+    mockAskAgent.mockResolvedValue({ answer: 'Reply' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      issue: { ...baseParam().issue, commentBody: '@bot hi', number: 0 },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors).toContain('Issue or PR number not available.');
+    expect(mockAddComment).not.toHaveBeenCalled();
   });
 });

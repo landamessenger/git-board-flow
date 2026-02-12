@@ -129,4 +129,77 @@ describe('UpdateTitleUseCase', () => {
 
     expect(results[0].success).toBe(false);
   });
+
+  it('uses hotfix version when hotfix.active and release not active', async () => {
+    mockGetTitle.mockResolvedValue('Old');
+    mockUpdateTitleIssueFormat.mockResolvedValue('v1.2.1 Old');
+    const param = baseParam({
+      isIssue: true,
+      emoji: { emojiLabeledTitle: true, branchManagementEmoji: '' },
+      release: { active: false, version: null },
+      hotfix: { active: true, version: '1.2.1' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(mockUpdateTitleIssueFormat).toHaveBeenCalledWith(
+      'o',
+      'r',
+      '1.2.1',
+      expect.any(String),
+      1,
+      false,
+      '',
+      {},
+      't'
+    );
+  });
+
+  it('returns success with new title when isPullRequest and updateTitlePullRequestFormat returns title', async () => {
+    mockGetTitle.mockResolvedValue('Issue Title');
+    mockUpdateTitlePullRequestFormat.mockResolvedValue('feat: PR title');
+    const param = baseParam({
+      isPullRequest: true,
+      emoji: { emojiLabeledTitle: true, branchManagementEmoji: '' },
+      pullRequest: { number: 5, title: 'Old PR title' },
+      issueNumber: 1,
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('Old PR title') && s.includes('feat: PR title'))).toBe(true);
+    expect(mockUpdateTitlePullRequestFormat).toHaveBeenCalledWith(
+      'o',
+      'r',
+      'Old PR title',
+      'Issue Title',
+      1,
+      5,
+      false,
+      '',
+      {},
+      't'
+    );
+  });
+
+  it('returns success executed false when isPullRequest and updateTitlePullRequestFormat returns null', async () => {
+    mockGetTitle.mockResolvedValue('Issue');
+    mockUpdateTitlePullRequestFormat.mockResolvedValue(null);
+    const param = baseParam({
+      isPullRequest: true,
+      emoji: { emojiLabeledTitle: true, branchManagementEmoji: '' },
+      pullRequest: { number: 3, title: 'PR' },
+      issueNumber: 1,
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(false);
+  });
 });

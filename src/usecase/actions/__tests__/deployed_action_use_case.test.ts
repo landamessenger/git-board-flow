@@ -297,4 +297,22 @@ describe('DeployedActionUseCase', () => {
     expect(mockMergeBranch).not.toHaveBeenCalled();
     expect(mockCloseIssue).not.toHaveBeenCalled();
   });
+
+  it('with releaseBranch and all merges succeed: when closeIssue returns false, does not push close result', async () => {
+    mockMergeBranch
+      .mockResolvedValueOnce(successResult('Merged into main'))
+      .mockResolvedValueOnce(successResult('Merged into develop'));
+    mockCloseIssue.mockResolvedValue(false);
+    const param = baseParam({
+      currentConfiguration: {
+        releaseBranch: 'release/1.0.0',
+        hotfixBranch: undefined,
+      },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockCloseIssue).toHaveBeenCalledWith('owner', 'repo', 42, 'token');
+    expect(results.some((r) => r.steps?.some((s) => s.includes('closed after merge')))).toBe(false);
+  });
 });

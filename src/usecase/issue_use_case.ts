@@ -3,8 +3,10 @@ import { Result } from "../data/model/result";
 import { logInfo } from "../utils/logger";
 import { getTaskEmoji } from "../utils/task_emoji";
 import { ParamUseCase } from "./base/param_usecase";
+import { RecommendStepsUseCase } from "./actions/recommend_steps_use_case";
 import { CheckPermissionsUseCase } from "./steps/common/check_permissions_use_case";
 import { UpdateTitleUseCase } from "./steps/common/update_title_use_case";
+import { AnswerIssueHelpUseCase } from "./steps/issue/answer_issue_help_use_case";
 import { AssignMemberToIssueUseCase } from "./steps/issue/assign_members_to_issue_use_case";
 import { CheckPriorityIssueSizeUseCase } from "./steps/issue/check_priority_issue_size_use_case";
 import { CloseNotAllowedIssueUseCase } from "./steps/issue/close_not_allowed_issue_use_case";
@@ -84,6 +86,19 @@ export class IssueUseCase implements ParamUseCase<Execution, Result[]> {
          * Check if deployed label was added
          */
         results.push(...await new DeployedAddedUseCase().invoke(param));
+
+        /**
+         * On newly opened issues: recommend steps (non release/question/help) or post initial help (question/help).
+         */
+        if (param.issue.opened) {
+            const isRelease = param.labels.isRelease;
+            const isQuestionOrHelp = param.labels.isQuestion || param.labels.isHelp;
+            if (!isRelease && !isQuestionOrHelp) {
+                results.push(...(await new RecommendStepsUseCase().invoke(param)));
+            } else if (isQuestionOrHelp) {
+                results.push(...(await new AnswerIssueHelpUseCase().invoke(param)));
+            }
+        }
 
         return results;
     }

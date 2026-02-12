@@ -1,0 +1,100 @@
+---
+title: Branch management
+description: Launcher label, naming conventions, and when branches are created (including hotfix and release).
+---
+
+# Branch management
+
+Copilot creates **branches** for issues when the right **labels** are present. For most issue types (feature, bugfix, docs, chore), a **launcher label** (e.g. `branched`) is required unless you set **`branch-management-always: true`**. For **hotfix** and **release**, the branch is created as soon as the type label is present (and the issue creator is a member). This page details the launcher, naming, and special rules.
+
+## Launcher label (when to create the branch)
+
+For **feature**, **bugfix**, **docs**, and **chore** issues, the action does **not** create a branch on issue open by default. A member must add a **launcher label** to trigger branch creation.
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| **`branch-management-launcher-label`** | `branched` | Label that triggers branch creation when added to an issue that already has a type label (feature, bugfix, docs, chore). |
+| **`branch-management-always`** | `false` | If `true`, the action **ignores** the launcher label: it creates the branch as soon as the issue has a type label (e.g. on open or when the type label is added). |
+
+### Example: use the default launcher
+
+Workflow:
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    branch-management-launcher-label: branched
+```
+
+Flow: Open issue with label `feature` → no branch yet. Add label `branched` → branch `feature/123-title` is created from `develop`.
+
+### Example: create branch without launcher
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    branch-management-always: true
+```
+
+Flow: Open issue with label `feature` → branch is created immediately (no need to add `branched`).
+
+## Naming conventions
+
+Branch names follow **`<tree>/<issue-number>-<slug>`**. The **tree** is the prefix for the issue type; the **slug** is derived from the issue title (sanitized). You can configure main branch, development branch, and each tree.
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `main-branch` | `master` | Main production branch (used as base for hotfix). |
+| `development-branch` | `develop` | Development branch (used as base for feature, bugfix, docs, chore, release). |
+| `feature-tree` | `feature` | Prefix for feature branches. |
+| `bugfix-tree` | `bugfix` | Prefix for bugfix branches. |
+| `docs-tree` | `docs` | Prefix for docs branches. |
+| `chore-tree` | `chore` | Prefix for chore branches. |
+| `hotfix-tree` | `hotfix` | Prefix for hotfix branches. |
+| `release-tree` | `release` | Prefix for release branches. |
+
+### Example branch names
+
+- `feature/123-add-user-login`
+- `bugfix/456-fix-null-check`
+- `hotfix/789-critical-payment-fix`
+- `release/10-v1-2-0`
+
+Use **`commit-prefix-transforms`** (e.g. `replace-slash`) so commit message prefixes match your conventions (e.g. `feature-123-add-user-login`). See [Configuration](/configuration).
+
+### Example: custom naming
+
+```yaml
+- uses: vypdev/copilot@v1
+  with:
+    token: ${{ secrets.PAT }}
+    main-branch: main
+    development-branch: dev
+    feature-tree: feat
+    bugfix-tree: fix
+```
+
+Branches would be e.g. `feat/123-add-login` and `fix/456-fix-bug`, created from `dev` (or `main` for hotfix).
+
+## Hotfix and release: no launcher needed
+
+For **hotfix** and **release**:
+
+- The branch is created **without** requiring the launcher label. As soon as the issue has the `hotfix` or `release` label (and the creator is a member), the action creates the branch.
+- **Hotfix** branches are created from **`main-branch`** (at the latest tag).
+- **Release** branches are created from **`development-branch`**.
+- If a **non-member** opens a hotfix or release issue, the action **closes** the issue to avoid accidental production/release flows.
+
+Adding the **`deploy`** label to a release or hotfix issue **triggers** the workflow named in `release-workflow` or `hotfix-workflow`. Ensure those workflow **filenames** match exactly (e.g. `release_workflow.yml`, `hotfix_workflow.yml`). See [Labels and branch types](/issues/labels-and-branch-types).
+
+## Emoji in issue title
+
+When **`emoji-labeled-title`** is `true` (default), the action can update the issue title to include an emoji based on labels (e.g. 🧑‍💻 when branched). The **`branch-management-emoji`** input (default: 🧑‍💻) is the emoji used for branched issues. See [Configuration](/issues/configuration).
+
+## Next steps
+
+- **[Labels and branch types](/issues/labels-and-branch-types)** — Which labels create which branches.
+- **[Workflow setup](/issues/workflow-setup)** — Enable the action for issue events.
+- **[Issue types](/issues/type/feature)** — Per-type details (source branch, naming, deploy).

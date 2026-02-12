@@ -1,2 +1,4 @@
 #!/usr/bin/env node
-export {};
+import { Command } from 'commander';
+declare const program: Command;
+export { program };

@@ -30,10 +30,67 @@ export class PullRequestRepository {
         }
     };
 
-    isLinked = async (pullRequestUrl: string) => {
-        const htmlContent = await fetch(pullRequestUrl).then(res => res.text());
-        return !htmlContent.includes('has_github_issues=false');
-    }
+    /**
+     * Returns the head branch of the first open PR that references the given issue number
+     * (e.g. body contains "#123" or head ref contains "123" as in feature/123-...).
+     * Used for issue_comment events where commit.branch is empty.
+     * Uses bounded matching so #12 does not match #123 and branch "feature/1234-fix" does not match issue 123.
+     */
+    getHeadBranchForIssue = async (
+        owner: string,
+        repository: string,
+        issueNumber: number,
+        token: string
+    ): Promise<string | undefined> => {
+        const octokit = github.getOctokit(token);
+        const escaped = String(issueNumber).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const bodyRefRegex = new RegExp(`(?:^|[^\\d])#${escaped}(?:$|[^\\d])`);
+        const headRefRegex = new RegExp(`\\b${escaped}\\b`);
+        try {
+            const { data } = await octokit.rest.pulls.list({
+                owner,
+                repo: repository,
+                state: 'open',
+                per_page: 100,
+            });
+            for (const pr of data || []) {
+                const body = pr.body ?? '';
+                const headRef = pr.head?.ref ?? '';
+                if (bodyRefRegex.test(body) || headRefRegex.test(headRef)) {
+                    logDebugInfo(`Found head branch "${headRef}" for issue #${issueNumber} (PR #${pr.number}).`);
+                    return headRef;
+                }
+            }
+            logDebugInfo(`No open PR referencing issue #${issueNumber} found.`);
+            return undefined;
+        } catch (error) {
+            logError(`Error getting head branch for issue #${issueNumber}: ${error}`);
+            return undefined;
+        }
+    };
+
+    /** Default timeout (ms) for isLinked fetch. */
+    private static readonly IS_LINKED_FETCH_TIMEOUT_MS = 10000;
+
+    isLinked = async (pullRequestUrl: string): Promise<boolean> => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), PullRequestRepository.IS_LINKED_FETCH_TIMEOUT_MS);
+        try {
+            const res = await fetch(pullRequestUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+                logDebugInfo(`isLinked: non-2xx response ${res.status} for ${pullRequestUrl}`);
+                return false;
+            }
+            const htmlContent = await res.text();
+            return !htmlContent.includes('has_github_issues=false');
+        } catch (err) {
+            clearTimeout(timeoutId);
+            const msg = err instanceof Error ? err.message : String(err);
+            logError(`isLinked: fetch failed for ${pullRequestUrl}: ${msg}`);
+            return false;
+        }
+    };
 
     updateBaseBranch = async (
         owner: string,
@@ -150,18 +207,26 @@ export class PullRequestRepository {
         token: string
     ): Promise<{filename: string, status: string}[]> => {
         const octokit = github.getOctokit(token);
-
+        const all: Array<{ filename: string; status: string }> = [];
         try {
-            const {data} = await octokit.rest.pulls.listFiles({
-                owner,
-                repo: repository,
-                pull_number: pullNumber,
-            });
-
-            return data.map((file) => ({
-                filename: file.filename,
-                status: file.status
-            }));
+            for await (const response of octokit.paginate.iterator(
+                octokit.rest.pulls.listFiles,
+                {
+                    owner,
+                    repo: repository,
+                    pull_number: pullNumber,
+                    per_page: 100,
+                }
+            )) {
+                const data = response.data ?? [];
+                all.push(
+                    ...data.map((file: { filename: string; status: string }) => ({
+                        filename: file.filename,
+                        status: file.status,
+                    }))
+                );
+            }
+            return all;
         } catch (error) {
             logError(`Error getting changed files from pull request: ${error}.`);
             return [];
@@ -298,6 +363,31 @@ export class PullRequestRepository {
         } catch (error) {
             logError(`Error listing PR review comments (owner=${owner}, repo=${repository}, pullNumber=${pullNumber}): ${error}.`);
             return [];
+        }
+    };
+
+    /**
+     * Fetches a single PR review comment by id (e.g. parent comment when user replied in thread).
+     * Returns the comment body or null if not found.
+     */
+    getPullRequestReviewCommentBody = async (
+        owner: string,
+        repository: string,
+        _pullNumber: number,
+        commentId: number,
+        token: string
+    ): Promise<string | null> => {
+        const octokit = github.getOctokit(token);
+        try {
+            const { data } = await octokit.rest.pulls.getReviewComment({
+                owner,
+                repo: repository,
+                comment_id: commentId,
+            });
+            return data.body ?? null;
+        } catch (error) {
+            logError(`Error getting PR review comment ${commentId}: ${error}`);
+            return null;
         }
     };
 

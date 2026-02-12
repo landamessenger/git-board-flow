@@ -65,6 +65,60 @@ describe('CheckPriorityPullRequestSizeUseCase', () => {
     expect(results[0].executed).toBe(false);
   });
 
+  it('calls setTaskPriority when priority is P0', async () => {
+    mockSetTaskPriority.mockResolvedValue(true);
+    const param = baseParam({
+      labels: {
+        priorityLabelOnIssue: 'P0',
+        priorityLabelOnIssueProcessable: true,
+        priorityHigh: 'P0',
+        priorityMedium: 'P1',
+        priorityLow: 'P2',
+      },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('P0'))).toBe(true);
+    expect(mockSetTaskPriority).toHaveBeenCalledWith(
+      expect.any(Object),
+      'o',
+      'r',
+      2,
+      'P0',
+      't'
+    );
+  });
+
+  it('calls setTaskPriority when priority is P2', async () => {
+    mockSetTaskPriority.mockResolvedValue(true);
+    const param = baseParam({
+      labels: {
+        priorityLabelOnIssue: 'P2',
+        priorityLabelOnIssueProcessable: true,
+        priorityHigh: 'P0',
+        priorityMedium: 'P1',
+        priorityLow: 'P2',
+      },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('P2'))).toBe(true);
+    expect(mockSetTaskPriority).toHaveBeenCalledWith(
+      expect.any(Object),
+      'o',
+      'r',
+      2,
+      'P2',
+      't'
+    );
+  });
+
   it('calls setTaskPriority when priority is P1', async () => {
     mockSetTaskPriority.mockResolvedValue(true);
     const param = baseParam();
@@ -74,5 +128,34 @@ describe('CheckPriorityPullRequestSizeUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
     expect(mockSetTaskPriority).toHaveBeenCalled();
+  });
+
+  it('returns failure when priorityLabelOnIssueProcessable is false', async () => {
+    const param = baseParam({
+      labels: {
+        priorityLabelOnIssue: 'P1',
+        priorityLabelOnIssueProcessable: false,
+        priorityHigh: 'P0',
+        priorityMedium: 'P1',
+        priorityLow: 'P2',
+      },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(false);
+    expect(mockSetTaskPriority).not.toHaveBeenCalled();
+  });
+
+  it('returns failure when setTaskPriority throws', async () => {
+    mockSetTaskPriority.mockRejectedValue(new Error('API error'));
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(false);
+    expect(results[0].executed).toBe(true);
+    expect(results[0].steps).toContain('Tried to check the priority of the issue, but there was a problem.');
   });
 });

@@ -68,6 +68,19 @@ describe('LinkPullRequestProjectUseCase', () => {
     expect(results.some((r) => r.success === false && r.steps?.some((s) => s.includes('error moving')))).toBe(true);
   });
 
+  it('pushes no result when linkContentId returns false', async () => {
+    mockLinkContentId.mockReset();
+    mockLinkContentId.mockResolvedValue(false);
+    mockMoveIssueToColumn.mockClear();
+    const param = baseParam();
+    const promise = useCase.invoke(param);
+    await jest.advanceTimersByTimeAsync(10000);
+    const results = await promise;
+    expect(mockLinkContentId).toHaveBeenCalled();
+    expect(mockMoveIssueToColumn).not.toHaveBeenCalled();
+    expect(results).toHaveLength(0);
+  });
+
   it('returns failure on error', async () => {
     mockLinkContentId.mockRejectedValue(new Error('API error'));
     const param = baseParam();

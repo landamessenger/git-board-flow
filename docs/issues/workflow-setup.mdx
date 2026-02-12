@@ -1,0 +1,77 @@
+---
+title: Workflow setup
+description: Enable the Copilot action for issue events and what runs when.
+---
+
+# Workflow setup
+
+To run Copilot on **issue** events, add a workflow that uses the `issues` trigger and passes the required inputs (at least `token`). This page describes the **events** to use and **what the action does** on each run.
+
+## Trigger events
+
+Use the `issues` trigger with the types you need. Common setup:
+
+```yaml
+on:
+  issues:
+    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
+```
+
+| Event type | When it runs | Typical use |
+|------------|--------------|-------------|
+| `opened` | A new issue is created | Link to projects, assign members, apply initial behavior (e.g. if branch-management-always, create branch). |
+| `reopened` | A closed issue is reopened | Re-apply linking/assignees; branch creation may run again depending on labels. |
+| `edited` | Issue title or body is edited | Update project/title/linking if needed. |
+| `labeled` | A label is added to the issue | **Branch creation** when the launcher label (e.g. `branched`) is added, or when type is hotfix/release; deploy trigger when `deploy` is added. |
+| `unlabeled` | A label is removed | Update state (e.g. branch already exists; deploy label removed). |
+| `assigned` / `unassigned` | Assignees change | Sync with project/assignees if your flow depends on it. |
+
+For **branch creation**, the most important event is usually **`labeled`**: when the user adds the **branch launcher label** (default: `branched`) or when the issue has a hotfix/release label and the creator is a member, the action creates the branch. See [Branch management](/issues/branch-management).
+
+## Minimal workflow
+
+Create a file under `.github/workflows/` (e.g. `copilot_issue.yml`):
+
+```yaml
+name: Copilot - Issue
+
+on:
+  issues:
+    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
+
+jobs:
+  copilot-issues:
+    name: Copilot - Issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: vypdev/copilot@v1
+        with:
+          token: ${{ secrets.PAT }}
+          project-ids: ${{ vars.PROJECT_IDS }}
+```
+
+- **`token`** is required (use a fine-grained PAT with repo and project permissions; see [Authentication](/authentication)).
+- **`project-ids`** is optional but needed if you want issues (and PRs) linked to GitHub Project boards.
+
+Add other inputs as needed: `branch-management-launcher-label`, `desired-assignees-count`, `main-branch`, `development-branch`, etc. See [Configuration](/issues/configuration) and [Examples](/issues/examples).
+
+## What runs when
+
+1. **On every trigger** (with valid `token`): The action loads the issue and repository context. If the **event actor** is the same as the **token owner**, the action may skip the normal pipeline (see [Troubleshooting → Action skips issue/PR/push pipelines](/troubleshooting#action-skips-issueprpush-pipelines)); use a **bot account** for the PAT if you want full behavior when you act as a user.
+
+2. **Project linking:** If `project-ids` is set and the token has access, the issue is linked to those projects and moved to the configured column (e.g. "Todo" or "In Progress").
+
+3. **Assignees:** If `desired-assignees-count` is set, the action assigns up to that many members (issue creator first if they belong to the org/repo, then additional members). See [Assignees and projects](/issues/assignees-and-projects).
+
+4. **Branch creation:** When the issue has a **branch type** label (feature, bugfix, docs, chore, hotfix, release) and either the **launcher label** (e.g. `branched`) is present or `branch-management-always: true`, the action creates the branch (with hotfix/release restrictions for non-members). See [Branch management](/issues/branch-management).
+
+5. **Deploy trigger:** When the `deploy` label is added to an issue that has a release or hotfix type, the action **dispatches** the workflow named in `release-workflow` or `hotfix-workflow` (e.g. `release_workflow.yml`, `hotfix_workflow.yml`). Filenames must match exactly.
+
+## Next steps
+
+- **[Assignees and projects](/issues/assignees-and-projects)** — Member assignment and project linking.
+- **[Branch management](/issues/branch-management)** — When and how branches are created.
+- **[Examples](/issues/examples)** — Full workflow YAML examples.

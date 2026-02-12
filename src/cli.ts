@@ -7,8 +7,9 @@ import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
 import { logError, logInfo } from './utils/logger';
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from './utils/opencode_project_context_instruction';
 import { Ai } from './data/model/ai';
-import { AiRepository, getSessionDiff, OpenCodeFileDiff } from './data/repository/ai_repository';
+import { AiRepository } from './data/repository/ai_repository';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -193,7 +194,8 @@ program
     try {
       const ai = new Ai(serverUrl, model, false, false, [], false, 'low', 20);
       const aiRepository = new AiRepository();
-      const result = await aiRepository.copilotMessage(ai, prompt);
+      const fullPrompt = `${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}\n\n${prompt}`;
+      const result = await aiRepository.copilotMessage(ai, fullPrompt);
 
       if (!result) {
         console.error('❌ Request failed (check OpenCode server and model).');
@@ -203,8 +205,7 @@ program
       const { text, sessionId } = result;
 
       if (outputFormat === 'json') {
-        const diff = await getSessionDiff(serverUrl, sessionId);
-        console.log(JSON.stringify({ response: text, sessionId, diff }, null, 2));
+        console.log(JSON.stringify({ response: text, sessionId }, null, 2));
         return;
       }
 
@@ -212,18 +213,7 @@ program
       console.log('🤖 RESPONSE (OpenCode build agent)');
       console.log('='.repeat(80));
       console.log(`\n${text || '(No text response)'}\n`);
-
-      const diff = await getSessionDiff(serverUrl, sessionId);
-      if (diff && diff.length > 0) {
-        console.log('='.repeat(80));
-        console.log('📝 FILES CHANGED (by OpenCode in this session)');
-        console.log('='.repeat(80));
-        diff.forEach((d: OpenCodeFileDiff, index: number) => {
-          const path = d.path ?? d.file ?? JSON.stringify(d);
-          console.log(`  ${index + 1}. ${path}`);
-        });
-        console.log('');
-      }
+      console.log('Changes are applied directly in the workspace when OpenCode runs from the repo (e.g. opencode serve).');
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error('❌ Error executing do:', err.message || error);
@@ -474,4 +464,7 @@ program
     await runLocalAction(params);
   });
 
-program.parse(process.argv); 
+if (typeof process.env.JEST_WORKER_ID === 'undefined') {
+  program.parse(process.argv);
+}
+export { program }; 

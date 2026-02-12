@@ -8,6 +8,8 @@ jobs:
   copilot-pull-requests:
     name: Copilot - Pull Request Comment
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -19,4 +21,5 @@ jobs:
           opencode-model: ${{ vars.OPENCODE_MODEL }}
           project-ids: ${{ vars.PROJECT_IDS }}
           token: ${{ secrets.PAT }}
+          bugbot-fix-verify-commands: ${{ vars.BUGBOT_AUTOFIX_VERIFY_COMMANDS }}
           

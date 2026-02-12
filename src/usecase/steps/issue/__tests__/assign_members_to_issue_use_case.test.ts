@@ -91,4 +91,23 @@ describe('AssignMemberToIssueUseCase', () => {
     const results = await useCase.invoke(param);
     expect(results.some((r) => r.success === false)).toBe(true);
   });
+
+  it('assigns PR creator when isPullRequest and creator is team member and not yet assigned', async () => {
+    mockGetAllMembers.mockResolvedValue(['bob', 'alice']);
+    mockGetCurrentAssignees.mockResolvedValue([]);
+    mockAssignMembersToIssue.mockResolvedValue(['bob']);
+    const param = baseParam({
+      isIssue: false,
+      isPullRequest: true,
+      issue: { number: 99, desiredAssigneesCount: 1, creator: '' },
+      pullRequest: { number: 99, desiredAssigneesCount: 1, creator: 'bob' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAssignMembersToIssue).toHaveBeenCalledWith('o', 'r', 99, ['bob'], 't');
+    expect(results.some((r) => r.success && r.steps?.some((s) => s.includes('bob') && s.includes('creator')))).toBe(
+      true
+    );
+  });
 });

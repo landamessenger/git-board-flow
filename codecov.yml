@@ -1,0 +1,26 @@
+# Codecov configuration
+# Validate at: https://api.codecov.io/validate
+
+coverage:
+  precision: 2
+  round: down
+  range: "70..100"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 2%
+    patch:
+      default:
+        target: 80%
+        threshold: 2%
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false
+
+ignore:
+  - "**/__tests__/**"
+  - "**/*.d.ts"
+  - "build/**"

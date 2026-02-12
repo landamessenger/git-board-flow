@@ -1,0 +1,78 @@
+---
+title: Capabilities
+description: What the action does on pull requests: linking, projects, reviewers, size, AI description, comments.
+---
+
+# What the action does on pull requests
+
+This page describes each **capability** the action performs when it runs on a pull request: PR–issue linking, project linking, reviewers, size and priority labels, AI-generated description, and comments with images.
+
+## PR–issue linking
+
+The action **links the pull request to the issue** associated with its branch. The issue number is inferred from the **branch name** (e.g. `feature/123-add-login` → issue `123`). It then:
+
+- Creates the **link** in GitHub (so the issue shows “Linked pull requests” and the PR shows the issue).
+- Can **post a comment** on the PR with the link or a short summary (depending on configuration).
+
+The branch name must follow the pattern that includes the issue number (e.g. `<tree>/<issue-number>-<slug>`). If the branch does not match, the action cannot link an issue. See [Issues → Branch management](/issues/branch-management) for naming conventions.
+
+## Project linking
+
+If **`project-ids`** is set, the action **adds the PR** to the configured GitHub Project boards and **moves it** to the configured column.
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `project-ids` | — | Comma-separated project IDs. The PR is linked to each of these projects. |
+| `project-column-pull-request-created` | "In Progress" | Column name for newly created/linked PRs. |
+| `project-column-pull-request-in-progress` | "In Progress" | Column for in-progress PRs (used when the action updates state). |
+
+Ensure your project **column names** match these values (or pass the names you use). The token must have **project** permissions. See [Authentication](/authentication) and [Configuration](/pull-requests/configuration).
+
+## Reviewers
+
+The action can **assign reviewers** to the PR so that review requests are sent automatically.
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `desired-reviewers-count` | 1 | Number of reviewers to assign (max: 15). The action selects from org/repo members (excluding the PR author when possible). |
+
+Set to `0` or omit if you don’t want automatic reviewer assignment. See [Configuration](/pull-requests/configuration).
+
+## Priority and size labels
+
+The action computes **size** (XS, S, M, L, XL, XXL) and **priority** from the branch diff using configurable **thresholds** (lines changed, files changed, commits). It then applies the corresponding **labels** to both the **issue** and the **PR**, so the issue and PR stay in sync.
+
+- **Size labels:** `size: XS`, `size: S`, … `size: XXL` (configurable via `size-xs-label`, etc.).
+- **Priority labels:** e.g. `priority: high`, `priority: medium`, `priority: low` (configurable).
+- **Progress:** If OpenCode is configured, the action can also compute **progress** (0–100%) from the issue vs branch diff and update the **progress** label on the issue and PR. This often runs in the **push (commit)** workflow as well.
+
+Thresholds are defined in [Configuration](/configuration) (e.g. `size-m-threshold-lines`, `size-m-threshold-files`, `size-m-threshold-commits`). No separate PR workflow is required for size/progress; the same logic can run on push and when the PR is opened/updated.
+
+## AI-generated PR description
+
+When **`ai-pull-request-description`** is `true` and **OpenCode** is configured (`opencode-server-url`, `opencode-model`), the action can **generate or update the PR description** using the OpenCode Plan agent. The agent:
+
+- Reads your repo’s **pull request template** (`.github/pull_request_template.md`).
+- Uses the **issue description** and the **branch diff** (base..head) as context.
+- Fills the template with a structured description (summary, scope, technical details, how to test, etc.).
+
+See [AI PR description](/pull-requests/ai-description) for details, requirements (linked issue, non-empty issue description), and how to enable it in your workflow.
+
+## Comments and images
+
+The action can **post a comment** on the PR when it runs (e.g. on open or sync). The comment can include:
+
+- A short summary or link to the linked issue.
+- **Images** per branch type (feature, bugfix, docs, chore, hotfix, release) if **`images-on-pull-request`** is `true` and the corresponding **`images-pull-request-*`** inputs are set (e.g. `images-pull-request-feature` with image URLs).
+
+Use this for team branding or to show different visuals per type of PR. See [Configuration](/pull-requests/configuration) and the main [Configuration](/configuration) for image inputs.
+
+## Bugbot on PRs
+
+**Bugbot** (potential problems) runs when the **push** workflow runs (or when you run the single action `detect_potential_problems_action`). It posts **review comments** on the PR at the relevant file and line for each finding. When a finding is resolved, the action **marks that review thread as resolved**. You can **ask the bot to fix findings** by replying in the thread or commenting on the PR. See [Bugbot](/bugbot).
+
+## Next steps
+
+- **[Workflow setup](/pull-requests/workflow-setup)** — Enable the action for pull_request.
+- **[AI PR description](/pull-requests/ai-description)** — Enable and configure AI descriptions.
+- **[Configuration](/pull-requests/configuration)** — All PR-related inputs.

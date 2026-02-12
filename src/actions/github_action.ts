@@ -77,6 +77,11 @@ export async function runGitHubAction(): Promise<void> {
         Number.isNaN(bugbotCommentLimitRaw) || bugbotCommentLimitRaw < 1
             ? BUGBOT_MAX_COMMENTS
             : Math.min(bugbotCommentLimitRaw, 200);
+    const bugbotFixVerifyCommandsInput = getInput(INPUT_KEYS.BUGBOT_FIX_VERIFY_COMMANDS);
+    const bugbotFixVerifyCommands = bugbotFixVerifyCommandsInput
+        .split(',')
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0);
 
     /**
      * Projects Details
@@ -519,6 +524,7 @@ export async function runGitHubAction(): Promise<void> {
             aiIncludeReasoning,
             bugbotSeverity,
             bugbotCommentLimit,
+            bugbotFixVerifyCommands,
         ),
         new Labels(
             branchManagementLauncherLabel,
@@ -689,10 +695,13 @@ function setFirstErrorIfExists(results: Result[]): void {
     }
 }
 
-runGitHubAction()
-    .then(() => process.exit(0))
-    .catch((err: unknown) => {
-        logError(err);
-        core.setFailed(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-    });
+// Only auto-run when executed as the action entry (not when imported by tests)
+if (typeof process.env.JEST_WORKER_ID === 'undefined') {
+    runGitHubAction()
+        .then(() => process.exit(0))
+        .catch((err: unknown) => {
+            logError(err);
+            core.setFailed(err instanceof Error ? err.message : String(err));
+            process.exit(1);
+        });
+}

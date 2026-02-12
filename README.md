@@ -1,3 +1,9 @@
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace/actions/copilot?logo=github)](https://github.com/marketplace/actions/copilot)
+[![codecov](https://codecov.io/gh/vypdev/copilot/branch/master/graph/badge.svg)](https://codecov.io/gh/vypdev/copilot)
+![Build](https://github.com/vypdev/copilot/actions/workflows/ci_check.yml/badge.svg)
+![License](https://img.shields.io/github/license/vypdev/copilot)
+
+
 # Copilot — GitHub with super powers
 
 **Copilot** is a GitHub Action for task management using Git-Flow: it links issues, branches, and pull requests to GitHub Projects, automates branch creation from labels, and keeps boards and progress in sync. Think of it as bringing Atlassian-style integration (boards, tasks, branches) to GitHub.
@@ -37,9 +43,9 @@ Full documentation: **[docs.page/vypdev/copilot](https://docs.page/vypdev/copilo
 
 ## What it does
 
-- **Issues** — Branch creation from labels (feature, bugfix, hotfix, release, docs, chore), project linking, assignees, size/progress labels; optional Bugbot (AI) on the issue.
-- **Pull requests** — Link PRs to issues, update project columns, assign reviewers; optional AI-generated PR description.
-- **Push (commits)** — Notify the issue, update size/progress; optional Bugbot and prefix checks.
+- **Issues** — Branch creation from labels (feature, bugfix, hotfix, release, docs, chore), project linking, assignees, size/progress labels; optional Bugbot (AI) on the issue; from a comment you can ask to fix reported findings (Bugbot autofix).
+- **Pull requests** — Link PRs to issues, update project columns, assign reviewers; optional AI-generated PR description; from a PR review comment you can ask to fix reported findings (Bugbot autofix).
+- **Push (commits)** — Notify the issue, update size/progress; optional Bugbot (detection) and prefix checks.
 - **Projects** — Link issues and PRs to boards and move them to the right columns.
 - **Single actions** — On-demand: check progress, think, create release/tag, mark deployed, etc.
 - **Concurrency** — Waits for previous runs of the same workflow so runs can be sequential. See [Features → Workflow concurrency](https://docs.page/vypdev/copilot/features#workflow-concurrency-and-sequential-execution).

@@ -73,4 +73,16 @@ describe('DeployedAddedUseCase (label_deployed_added)', () => {
     expect(results[0].steps?.some((s) => s.includes('hotfix/1.0.1') && s.includes('Deploy complete'))).toBe(true);
   });
 
+  it('returns no step when labeled deployed but release and hotfix branch are undefined', async () => {
+    const param = baseParam({
+      issue: { labeled: true, labelAdded: 'deployed' },
+      labels: { deployed: 'deployed' },
+      release: { active: true, branch: undefined },
+      hotfix: { active: false, branch: undefined },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(0);
+  });
 });

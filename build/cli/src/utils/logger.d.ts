@@ -13,4 +13,3 @@ export declare function logError(message: unknown, metadata?: Record<string, unk
 export declare function logDebugInfo(message: string, previousWasSingleLine?: boolean, metadata?: Record<string, unknown>): void;
 export declare function logDebugWarning(message: string): void;
 export declare function logDebugError(message: unknown): void;
-export declare function logSingleLine(message: string): void;

@@ -123,6 +123,26 @@ describe('DetectPotentialProblemsUseCase', () => {
     expect(mockAskAgent).not.toHaveBeenCalled();
   });
 
+  it('uses default ignore patterns and comment limit when ai has no getAiIgnoreFiles nor getBugbotCommentLimit', async () => {
+    const minimalAi = {
+      getOpencodeModel: () => 'opencode/model',
+      getOpencodeServerUrl: () => 'http://localhost:4096',
+      getBugbotMinSeverity: () => 'low',
+    } as unknown as Execution['ai'];
+    const param = baseParam({ ai: minimalAi });
+    mockAskAgent.mockResolvedValue({
+      findings: [{ id: 'f1', title: 'One', description: 'D' }],
+      resolved_finding_ids: [],
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(mockAddComment).toHaveBeenCalledTimes(1);
+    expect(mockAddComment.mock.calls[0][3]).toContain('One');
+  });
+
   it('returns empty results when issue number is -1', async () => {
     const param = baseParam({ issueNumber: -1 });
 

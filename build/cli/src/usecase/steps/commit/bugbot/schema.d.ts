@@ -1,4 +1,8 @@
-/** OpenCode response schema: agent computes diff, returns new findings and which previous ones are resolved. */
+/**
+ * JSON schemas for OpenCode responses. Used with askAgent(plan) so the agent returns
+ * structured JSON we can parse.
+ */
+/** Detection (on push): OpenCode computes diff itself and returns findings + resolved_finding_ids. */
 export declare const BUGBOT_RESPONSE_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -49,5 +53,32 @@ export declare const BUGBOT_RESPONSE_SCHEMA: {
         };
     };
     readonly required: readonly ["findings"];
+    readonly additionalProperties: false;
+};
+/**
+ * OpenCode (plan agent) response schema for bugbot fix intent.
+ * Given the user comment and the list of unresolved findings, the agent decides whether
+ * the user is asking to fix one or more of them and which finding ids to target.
+ */
+export declare const BUGBOT_FIX_INTENT_RESPONSE_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly is_fix_request: {
+            readonly type: "boolean";
+            readonly description: "True if the user comment is clearly requesting to fix one or more of the reported findings (e.g. \"fix it\", \"arregla\", \"fix this vulnerability\", \"fix all\"). False for questions, unrelated messages, or ambiguous text.";
+        };
+        readonly target_finding_ids: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "string";
+            };
+            readonly description: "When is_fix_request is true: the exact finding ids from the list we provided that the user wants fixed. Use the exact id strings. For \"fix all\" or \"fix everything\" include all listed ids. When is_fix_request is false, return an empty array.";
+        };
+        readonly is_do_request: {
+            readonly type: "boolean";
+            readonly description: "True if the user is asking to perform some change or task in the repository (e.g. \"add a test for X\", \"refactor this\", \"implement feature Y\"). False for pure questions or when the only intent is to fix the reported findings (use is_fix_request for that).";
+        };
+    };
+    readonly required: readonly ["is_fix_request", "target_finding_ids", "is_do_request"];
     readonly additionalProperties: false;
 };
