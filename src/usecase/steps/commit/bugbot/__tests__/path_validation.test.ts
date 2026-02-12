@@ -40,6 +40,11 @@ describe('path_validation', () => {
             expect(isSafeFindingFilePath('file.ts')).toBe(true);
             expect(isSafeFindingFilePath('  src/bar.ts  ')).toBe(true);
         });
+
+        it('returns false for non-string input', () => {
+            expect(isSafeFindingFilePath(123 as unknown as string)).toBe(false);
+            expect(isSafeFindingFilePath({} as unknown as string)).toBe(false);
+        });
     });
 
     describe('isAllowedPathForPr', () => {

@@ -92,4 +92,32 @@ describe("buildBugbotFixPrompt", () => {
         expect(xCount).toBeLessThan(15000);
         expect(xCount).toBeLessThanOrEqual(12000);
     });
+
+    it("escapes backticks in finding id so prompt block is not broken", () => {
+        const context = mockContext({
+            existingByFindingId: { "id-with`backtick": { issueCommentId: 1, resolved: false } },
+            issueComments: [{ id: 1, body: "## Finding\nBody." }],
+        });
+        const prompt = buildBugbotFixPrompt(
+            mockExecution(),
+            context,
+            ["id-with`backtick"],
+            "fix",
+            []
+        );
+        expect(prompt).toContain("id-with\\`backtick");
+        expect(prompt).not.toMatch(/Finding id:\s*`[^`]*`[^`]*`/);
+    });
+
+    it("escapes backticks in verify commands so prompt block is not broken", () => {
+        const prompt = buildBugbotFixPrompt(
+            mockExecution(),
+            mockContext(),
+            ["find-1"],
+            "fix",
+            ["npm run test", "echo `whoami`"]
+        );
+        expect(prompt).toContain("echo \\`whoami\\`");
+        expect(prompt).toContain("Verify commands");
+    });
 });

@@ -37,6 +37,7 @@ export function buildBugbotFixPrompt(
     const openPrNumbers = context.openPrNumbers;
     const prNumber = openPrNumbers.length > 0 ? openPrNumbers[0] : null;
 
+    const safeId = (id: string) => id.replace(/`/g, "\\`");
     const findingsBlock = targetFindingIds
         .map((id) => {
             const data = context.existingByFindingId[id];
@@ -44,14 +45,14 @@ export function buildBugbotFixPrompt(
             const issueBody = context.issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
             const fullBody = truncateFindingBody((issueBody?.trim() ?? ""), MAX_FINDING_BODY_LENGTH);
             if (!fullBody) return null;
-            return `---\n**Finding id:** \`${id}\`\n\n**Full comment (title, description, location, suggestion):**\n${fullBody}\n`;
+            return `---\n**Finding id:** \`${safeId(id)}\`\n\n**Full comment (title, description, location, suggestion):**\n${fullBody}\n`;
         })
         .filter(Boolean)
         .join("\n");
 
     const verifyBlock =
         verifyCommands.length > 0
-            ? `\n**Verify commands (run these in the workspace in order and only consider the fix successful if all pass):**\n${verifyCommands.map((c) => `- \`${c}\``).join("\n")}\n`
+            ? `\n**Verify commands (run these in the workspace in order and only consider the fix successful if all pass):**\n${verifyCommands.map((c) => `- \`${String(c).replace(/`/g, "\\`")}\``).join("\n")}\n`
             : "\n**Verify:** Run any standard project checks (e.g. build, test, lint) that exist in this repo and confirm they pass.\n";
 
     return `You are in the repository workspace. Your task is to fix the reported code findings (bugs, vulnerabilities, or quality issues) listed below, and only those. The user has explicitly requested these fixes.

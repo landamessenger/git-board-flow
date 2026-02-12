@@ -49696,14 +49696,19 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotFixIntentPrompt = buildBugbotFixIntentPrompt;
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
+const MAX_TITLE_LENGTH = 200;
+const MAX_FILE_LENGTH = 256;
+function safeForPrompt(s, maxLen) {
+    return s.replace(/\r\n|\r|\n/g, " ").replace(/`/g, "\\`").slice(0, maxLen);
+}
 function buildBugbotFixIntentPrompt(userComment, unresolvedFindings, parentCommentBody) {
     const findingsBlock = unresolvedFindings.length === 0
         ? '(No unresolved findings.)'
         : unresolvedFindings
-            .map((f) => `- **id:** \`${f.id.replace(/`/g, '\\`')}\` | **title:** ${f.title}` +
-            (f.file != null ? ` | **file:** ${f.file}` : '') +
+            .map((f) => `- **id:** \`${f.id.replace(/`/g, '\\`')}\` | **title:** ${safeForPrompt(f.title ?? "", MAX_TITLE_LENGTH)}` +
+            (f.file != null ? ` | **file:** ${safeForPrompt(f.file, MAX_FILE_LENGTH)}` : '') +
             (f.line != null ? ` | **line:** ${f.line}` : '') +
-            (f.description ? ` | **description:** ${f.description.slice(0, 200)}${f.description.length > 200 ? '...' : ''}` : ''))
+            (f.description ? ` | **description:** ${(f.description ?? "").slice(0, 200)}${(f.description?.length ?? 0) > 200 ? '...' : ''}` : ''))
             .join('\n');
     const parentBlock = parentCommentBody != null
         ? (() => {
@@ -49773,6 +49778,7 @@ function buildBugbotFixPrompt(param, context, targetFindingIds, userComment, ver
     const repo = param.repo;
     const openPrNumbers = context.openPrNumbers;
     const prNumber = openPrNumbers.length > 0 ? openPrNumbers[0] : null;
+    const safeId = (id) => id.replace(/`/g, "\\`");
     const findingsBlock = targetFindingIds
         .map((id) => {
         const data = context.existingByFindingId[id];
@@ -49782,12 +49788,12 @@ function buildBugbotFixPrompt(param, context, targetFindingIds, userComment, ver
         const fullBody = truncateFindingBody((issueBody?.trim() ?? ""), exports.MAX_FINDING_BODY_LENGTH);
         if (!fullBody)
             return null;
-        return `---\n**Finding id:** \`${id}\`\n\n**Full comment (title, description, location, suggestion):**\n${fullBody}\n`;
+        return `---\n**Finding id:** \`${safeId(id)}\`\n\n**Full comment (title, description, location, suggestion):**\n${fullBody}\n`;
     })
         .filter(Boolean)
         .join("\n");
     const verifyBlock = verifyCommands.length > 0
-        ? `\n**Verify commands (run these in the workspace in order and only consider the fix successful if all pass):**\n${verifyCommands.map((c) => `- \`${c}\``).join("\n")}\n`
+        ? `\n**Verify commands (run these in the workspace in order and only consider the fix successful if all pass):**\n${verifyCommands.map((c) => `- \`${String(c).replace(/`/g, "\\`")}\``).join("\n")}\n`
         : "\n**Verify:** Run any standard project checks (e.g. build, test, lint) that exist in this repo and confirm they pass.\n";
     return `You are in the repository workspace. Your task is to fix the reported code findings (bugs, vulnerabilities, or quality issues) listed below, and only those. The user has explicitly requested these fixes.
 
@@ -49841,9 +49847,16 @@ function buildBugbotPrompt(param, context) {
     const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
     const previousBlock = context.previousFindingsBlock;
     const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
+    const MAX_IGNORE_BLOCK_LENGTH = 2000;
     const ignoreBlock = ignorePatterns.length > 0
-        ? `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${ignorePatterns.join(', ')}.`
-        : '';
+        ? (() => {
+            const raw = ignorePatterns.join(", ");
+            const truncated = raw.length <= MAX_IGNORE_BLOCK_LENGTH
+                ? raw
+                : raw.slice(0, MAX_IGNORE_BLOCK_LENGTH - 3) + "...";
+            return `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${truncated}.`;
+        })()
+        : "";
     return `You are analyzing the latest code changes for potential bugs and issues.
 
 ${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
@@ -50628,7 +50641,11 @@ function sanitizeUserCommentForPrompt(raw) {
     if (s.length > MAX_USER_COMMENT_LENGTH) {
         s = s.slice(0, MAX_USER_COMMENT_LENGTH);
         // Do not leave an odd number of trailing backslashes (would break escape sequence or escape the suffix).
-        while (s.endsWith("\\") && (s.match(/\\+$/)?.[0].length ?? 0) % 2 === 1) {
+        let trailingBackslashCount = 0;
+        while (trailingBackslashCount < s.length && s[s.length - 1 - trailingBackslashCount] === "\\") {
+            trailingBackslashCount++;
+        }
+        if (trailingBackslashCount % 2 === 1) {
             s = s.slice(0, -1);
         }
         s = s + TRUNCATION_SUFFIX;

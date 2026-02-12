@@ -14,6 +14,13 @@ export interface UnresolvedFindingSummary {
     line?: number;
 }
 
+const MAX_TITLE_LENGTH = 200;
+const MAX_FILE_LENGTH = 256;
+
+function safeForPrompt(s: string, maxLen: number): string {
+    return s.replace(/\r\n|\r|\n/g, " ").replace(/`/g, "\\`").slice(0, maxLen);
+}
+
 export function buildBugbotFixIntentPrompt(
     userComment: string,
     unresolvedFindings: UnresolvedFindingSummary[],
@@ -25,10 +32,10 @@ export function buildBugbotFixIntentPrompt(
             : unresolvedFindings
                   .map(
                       (f) =>
-                          `- **id:** \`${f.id.replace(/`/g, '\\`')}\` | **title:** ${f.title}` +
-                          (f.file != null ? ` | **file:** ${f.file}` : '') +
+                          `- **id:** \`${f.id.replace(/`/g, '\\`')}\` | **title:** ${safeForPrompt(f.title ?? "", MAX_TITLE_LENGTH)}` +
+                          (f.file != null ? ` | **file:** ${safeForPrompt(f.file, MAX_FILE_LENGTH)}` : '') +
                           (f.line != null ? ` | **line:** ${f.line}` : '') +
-                          (f.description ? ` | **description:** ${f.description.slice(0, 200)}${f.description.length > 200 ? '...' : ''}` : '')
+                          (f.description ? ` | **description:** ${(f.description ?? "").slice(0, 200)}${(f.description?.length ?? 0) > 200 ? '...' : ''}` : '')
                   )
                   .join('\n');
 

@@ -14,10 +14,18 @@ export function buildBugbotPrompt(param: Execution, context: BugbotContext): str
     const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
     const previousBlock = context.previousFindingsBlock;
     const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
+    const MAX_IGNORE_BLOCK_LENGTH = 2000;
     const ignoreBlock =
         ignorePatterns.length > 0
-            ? `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${ignorePatterns.join(', ')}.`
-            : '';
+            ? (() => {
+                  const raw = ignorePatterns.join(", ");
+                  const truncated =
+                      raw.length <= MAX_IGNORE_BLOCK_LENGTH
+                          ? raw
+                          : raw.slice(0, MAX_IGNORE_BLOCK_LENGTH - 3) + "...";
+                  return `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${truncated}.`;
+              })()
+            : "";
 
     return `You are analyzing the latest code changes for potential bugs and issues.
 
