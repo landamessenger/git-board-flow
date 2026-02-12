@@ -84,7 +84,7 @@ export class BugbotAutofixUseCase implements ParamUseCase<BugbotAutofixParam, Re
                 success: true,
                 executed: true,
                 steps: [
-                    `Bugbot autofix completed. OpenCode applied changes for findings: ${idsToFix.join(", ")}. Run verify commands and commit/push.`,
+                    // `Bugbot autofix completed. OpenCode applied changes for findings: ${idsToFix.join(", ")}. Run verify commands and commit/push.`,
                 ],
                 payload: { targetFindingIds: idsToFix, context },
             })

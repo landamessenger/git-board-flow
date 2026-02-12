@@ -73,4 +73,23 @@ describe("buildBugbotFixPrompt", () => {
         const prompt = buildBugbotFixPrompt(mockExecution(), mockContext(), ["find-1"], "fix", []);
         expect(prompt).toContain("Run any standard project checks");
     });
+
+    it("truncates finding body when it exceeds 12000 characters and appends truncation indicator", () => {
+        const longBody = "x".repeat(15000);
+        const context = mockContext({
+            issueComments: [{ id: 1, body: longBody }],
+        });
+        const prompt = buildBugbotFixPrompt(
+            mockExecution(),
+            context,
+            ["find-1"],
+            "fix",
+            []
+        );
+        expect(prompt).toContain("find-1");
+        expect(prompt).toContain("[... truncated for length ...]");
+        const xCount = (prompt.match(/x/g) ?? []).length;
+        expect(xCount).toBeLessThan(15000);
+        expect(xCount).toBeLessThanOrEqual(12000);
+    });
 });

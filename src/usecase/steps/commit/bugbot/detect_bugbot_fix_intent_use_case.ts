@@ -144,7 +144,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
                 success: true,
                 executed: true,
                 steps: [
-                    `Bugbot fix intent: isFixRequest=${isFixRequest}, targetFindingIds=${filteredIds.length} (${filteredIds.join(", ") || "none"}).`,
+                    // `Bugbot fix intent: isFixRequest=${isFixRequest}, targetFindingIds=${filteredIds.length} (${filteredIds.join(", ") || "none"}).`,
                 ],
                 payload: {
                     isFixRequest,

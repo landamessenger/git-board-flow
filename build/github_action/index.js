@@ -49200,6 +49200,8 @@ const exec = __importStar(__nccwpck_require__(1514));
 const shellQuote = __importStar(__nccwpck_require__(7029));
 const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
+/** Maximum number of verify commands to run to avoid excessive build times. */
+const MAX_VERIFY_COMMANDS = 20;
 /**
  * Returns true if there are uncommitted changes (working tree or index).
  */
@@ -49329,6 +49331,10 @@ async function runBugbotAutofixCommitAndPush(execution, options) {
         verifyCommands = [];
     }
     verifyCommands = verifyCommands.filter((cmd) => typeof cmd === "string");
+    if (verifyCommands.length > MAX_VERIFY_COMMANDS) {
+        (0, logger_1.logInfo)(`Limiting verify commands to ${MAX_VERIFY_COMMANDS} (configured: ${verifyCommands.length}).`);
+        verifyCommands = verifyCommands.slice(0, MAX_VERIFY_COMMANDS);
+    }
     if (verifyCommands.length > 0) {
         (0, logger_1.logInfo)(`Running ${verifyCommands.length} verify command(s)...`);
         const verify = await runVerifyCommands(verifyCommands);
@@ -49431,7 +49437,7 @@ class BugbotAutofixUseCase {
             success: true,
             executed: true,
             steps: [
-                `Bugbot autofix completed. OpenCode applied changes for findings: ${idsToFix.join(", ")}. Run verify commands and commit/push.`,
+            // `Bugbot autofix completed. OpenCode applied changes for findings: ${idsToFix.join(", ")}. Run verify commands and commit/push.`,
             ],
             payload: { targetFindingIds: idsToFix, context },
         }));
@@ -49533,6 +49539,17 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotFixPrompt = buildBugbotFixPrompt;
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
+/** Maximum characters for a single finding's full comment body to avoid prompt bloat and token limits. */
+const MAX_FINDING_BODY_LENGTH = 12000;
+const TRUNCATION_SUFFIX = "\n\n[... truncated for length ...]";
+/**
+ * Truncates body to max length and appends indicator when truncated.
+ */
+function truncateFindingBody(body, maxLength) {
+    if (body.length <= maxLength)
+        return body;
+    return body.slice(0, maxLength - TRUNCATION_SUFFIX.length) + TRUNCATION_SUFFIX;
+}
 /**
  * Builds the prompt for the OpenCode build agent to fix the selected bugbot findings.
  * Includes repo context, the findings to fix (with full detail), the user's comment,
@@ -49552,7 +49569,7 @@ function buildBugbotFixPrompt(param, context, targetFindingIds, userComment, ver
         if (!data)
             return null;
         const issueBody = context.issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
-        const fullBody = issueBody?.trim() ?? "";
+        const fullBody = truncateFindingBody((issueBody?.trim() ?? ""), MAX_FINDING_BODY_LENGTH);
         if (!fullBody)
             return null;
         return `---\n**Finding id:** \`${id}\`\n\n**Full comment (title, description, location, suggestion):**\n${fullBody}\n`;
@@ -49781,7 +49798,7 @@ class DetectBugbotFixIntentUseCase {
             success: true,
             executed: true,
             steps: [
-                `Bugbot fix intent: isFixRequest=${isFixRequest}, targetFindingIds=${filteredIds.length} (${filteredIds.join(", ") || "none"}).`,
+            // `Bugbot fix intent: isFixRequest=${isFixRequest}, targetFindingIds=${filteredIds.length} (${filteredIds.join(", ") || "none"}).`,
             ],
             payload: {
                 isFixRequest,

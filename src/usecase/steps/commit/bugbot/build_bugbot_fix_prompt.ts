@@ -3,6 +3,19 @@ import type { BugbotContext } from "./types";
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../../utils/opencode_project_context_instruction";
 import { sanitizeUserCommentForPrompt } from "./sanitize_user_comment_for_prompt";
 
+/** Maximum characters for a single finding's full comment body to avoid prompt bloat and token limits. */
+const MAX_FINDING_BODY_LENGTH = 12000;
+
+const TRUNCATION_SUFFIX = "\n\n[... truncated for length ...]";
+
+/**
+ * Truncates body to max length and appends indicator when truncated.
+ */
+function truncateFindingBody(body: string, maxLength: number): string {
+    if (body.length <= maxLength) return body;
+    return body.slice(0, maxLength - TRUNCATION_SUFFIX.length) + TRUNCATION_SUFFIX;
+}
+
 /**
  * Builds the prompt for the OpenCode build agent to fix the selected bugbot findings.
  * Includes repo context, the findings to fix (with full detail), the user's comment,
@@ -28,7 +41,7 @@ export function buildBugbotFixPrompt(
             const data = context.existingByFindingId[id];
             if (!data) return null;
             const issueBody = context.issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
-            const fullBody = issueBody?.trim() ?? "";
+            const fullBody = truncateFindingBody((issueBody?.trim() ?? ""), MAX_FINDING_BODY_LENGTH);
             if (!fullBody) return null;
             return `---\n**Finding id:** \`${id}\`\n\n**Full comment (title, description, location, suggestion):**\n${fullBody}\n`;
         })
