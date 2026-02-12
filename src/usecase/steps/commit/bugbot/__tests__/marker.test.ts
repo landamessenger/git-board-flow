@@ -96,6 +96,19 @@ describe("marker", () => {
             const regex = markerRegexForFinding("file.ts:1");
             expect(regex.test(body)).toBe(true);
         });
+
+        it("limits finding id length for regex to mitigate ReDoS", () => {
+            const longId = "a".repeat(300);
+            const body = `<!-- copilot-bugbot finding_id:"${"a".repeat(200)}" resolved:false -->`;
+            const regex = markerRegexForFinding(longId);
+            expect(regex.test(body)).toBe(true);
+        });
+
+        it("matches when id has only safe chars (no escape needed)", () => {
+            const body = `<!-- copilot-bugbot finding_id:"src/foo.ts:10" resolved:false -->`;
+            const regex = markerRegexForFinding("src/foo.ts:10");
+            expect(regex.test(body)).toBe(true);
+        });
     });
 
     describe("replaceMarkerInBody", () => {

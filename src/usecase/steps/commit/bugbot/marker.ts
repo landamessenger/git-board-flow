@@ -9,6 +9,12 @@ import { BUGBOT_MARKER_PREFIX } from "../../../../utils/constants";
 import { logError } from "../../../../utils/logger";
 import type { BugbotFinding } from "./types";
 
+/** Max length for finding ID when used in RegExp to mitigate ReDoS from external/crafted IDs. */
+const MAX_FINDING_ID_LENGTH_FOR_REGEX = 200;
+
+/** Safe character set for finding IDs in regex (alphanumeric, path/segment chars). IDs with other chars are escaped but length is always limited. */
+const SAFE_FINDING_ID_REGEX_CHARS = /^[a-zA-Z0-9_\-.:/]+$/;
+
 /** Sanitize finding ID so it cannot break HTML comment syntax (e.g. -->, <!, <, >, newlines, quotes). */
 export function sanitizeFindingIdForMarker(findingId: string): string {
     return findingId
@@ -40,12 +46,22 @@ export function parseMarker(body: string | null): Array<{ findingId: string; res
     return results;
 }
 
-/** Regex to match the marker for a specific finding (same flexible format as parseMarker). */
+/**
+ * Regex to match the marker for a specific finding (same flexible format as parseMarker).
+ * Finding IDs from external data (comments, API) are length-limited and validated to mitigate ReDoS.
+ */
 export function markerRegexForFinding(findingId: string): RegExp {
     const safeId = sanitizeFindingIdForMarker(findingId);
-    const escapedId = safeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const truncated =
+        safeId.length <= MAX_FINDING_ID_LENGTH_FOR_REGEX
+            ? safeId
+            : safeId.slice(0, MAX_FINDING_ID_LENGTH_FOR_REGEX);
+    const idForRegex =
+        SAFE_FINDING_ID_REGEX_CHARS.test(truncated)
+            ? truncated
+            : truncated.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(
-        `<!--\\s*${BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"${escapedId}"\\s+resolved:(?:true|false)\\s*-->`,
+        `<!--\\s*${BUGBOT_MARKER_PREFIX}\\s+finding_id:\\s*"${idForRegex}"\\s+resolved:(?:true|false)\\s*-->`,
         'g'
     );
 }
