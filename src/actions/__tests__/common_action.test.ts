@@ -296,6 +296,16 @@ describe('mainRun', () => {
     expect(results).toEqual([]);
   });
 
+  it('calls core.setFailed with String(error) when use case throws non-Error', async () => {
+    const execution = mockExecution({ isPush: true });
+    mockCommitInvoke.mockRejectedValue('plain string error');
+
+    const results = await mainRun(execution);
+
+    expect(core.setFailed).toHaveBeenCalledWith('plain string error');
+    expect(results).toEqual([]);
+  });
+
   it('exits process when waitForPreviousRuns rejects and welcome is false', async () => {
     const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as () => never);
     (waitForPreviousRuns as jest.Mock).mockRejectedValue(new Error('Queue error'));

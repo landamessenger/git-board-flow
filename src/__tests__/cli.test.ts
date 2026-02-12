@@ -148,5 +148,57 @@ describe('CLI', () => {
       expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.INITIAL_SETUP);
       expect(params[INPUT_KEYS.WELCOME_TITLE]).toContain('Initial Setup');
     });
+
+    it('exits when not inside a git repo', async () => {
+      (execSync as jest.Mock).mockImplementation((cmd: string) => {
+        if (typeof cmd === 'string' && cmd.includes('is-inside-work-tree')) throw new Error('not a repo');
+        return Buffer.from('https://github.com/o/r.git');
+      });
+
+      await program.parseAsync(['node', 'cli', 'setup']);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      const { logError } = require('../utils/logger');
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Not a git repository'));
+    });
+  });
+
+  describe('detect-potential-problems', () => {
+    it('calls runLocalAction with DETECT_POTENTIAL_PROBLEMS', async () => {
+      await program.parseAsync(['node', 'cli', 'detect-potential-problems', '-i', '10']);
+
+      expect(runLocalAction).toHaveBeenCalledTimes(1);
+      const params = (runLocalAction as jest.Mock).mock.calls[0][0];
+      expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.DETECT_POTENTIAL_PROBLEMS);
+      expect(params.issue?.number).toBe(10);
+      expect(params[INPUT_KEYS.WELCOME_TITLE]).toContain('Detect potential problems');
+    });
+
+    it('shows message when issue number is missing or invalid', async () => {
+      (runLocalAction as jest.Mock).mockClear();
+      const logSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await program.parseAsync(['node', 'cli', 'detect-potential-problems', '-i', 'x']);
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('valid issue number'));
+      expect(runLocalAction).not.toHaveBeenCalled();
+      logSpy.mockRestore();
+    });
+  });
+
+  describe('do --output json', () => {
+    it('prints JSON when --output json', async () => {
+      const { AiRepository } = require('../data/repository/ai_repository');
+      AiRepository.mockImplementation(() => ({
+        copilotMessage: jest.fn().mockResolvedValue({ text: 'Hi', sessionId: 'sid-1' }),
+      }));
+      const logSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await program.parseAsync(['node', 'cli', 'do', '-p', 'hello', '--output', 'json']);
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('"response":'));
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('"sessionId":'));
+      logSpy.mockRestore();
+    });
   });
 });
