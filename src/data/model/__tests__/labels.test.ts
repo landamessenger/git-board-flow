@@ -135,12 +135,40 @@ describe('Labels', () => {
     expect(l.sizedLabelOnIssue).toBeUndefined();
   });
 
+  it('sizedLabelOnIssue returns each size tier when only that label is present', () => {
+    const l = createLabels();
+    l.currentIssueLabels = [l.sizeXxl];
+    expect(l.sizedLabelOnIssue).toBe(l.sizeXxl);
+    l.currentIssueLabels = [l.sizeXl];
+    expect(l.sizedLabelOnIssue).toBe(l.sizeXl);
+    l.currentIssueLabels = [l.sizeL];
+    expect(l.sizedLabelOnIssue).toBe(l.sizeL);
+    l.currentIssueLabels = [l.sizeS];
+    expect(l.sizedLabelOnIssue).toBe(l.sizeS);
+    l.currentIssueLabels = [l.sizeXs];
+    expect(l.sizedLabelOnIssue).toBe(l.sizeXs);
+  });
+
   it('sizedLabelOnPullRequest returns first matching size label', () => {
     const l = createLabels();
     l.currentPullRequestLabels = [l.sizeS];
     expect(l.sizedLabelOnPullRequest).toBe(l.sizeS);
     l.currentPullRequestLabels = [];
     expect(l.sizedLabelOnPullRequest).toBeUndefined();
+  });
+
+  it('sizedLabelOnPullRequest returns each size tier when only that label is present', () => {
+    const l = createLabels();
+    l.currentPullRequestLabels = [l.sizeXxl];
+    expect(l.sizedLabelOnPullRequest).toBe(l.sizeXxl);
+    l.currentPullRequestLabels = [l.sizeXl];
+    expect(l.sizedLabelOnPullRequest).toBe(l.sizeXl);
+    l.currentPullRequestLabels = [l.sizeL];
+    expect(l.sizedLabelOnPullRequest).toBe(l.sizeL);
+    l.currentPullRequestLabels = [l.sizeM];
+    expect(l.sizedLabelOnPullRequest).toBe(l.sizeM);
+    l.currentPullRequestLabels = [l.sizeXs];
+    expect(l.sizedLabelOnPullRequest).toBe(l.sizeXs);
   });
 
   it('isIssueSized and isPullRequestSized', () => {
@@ -171,6 +199,32 @@ describe('Labels', () => {
     expect(l.priorityLabelOnIssue).toBeUndefined();
   });
 
+  it('priorityLabelOnIssue returns each priority when only that label is present', () => {
+    const l = createLabels();
+    l.currentIssueLabels = [l.priorityHigh];
+    expect(l.priorityLabelOnIssue).toBe(l.priorityHigh);
+    l.currentIssueLabels = [l.priorityMedium];
+    expect(l.priorityLabelOnIssue).toBe(l.priorityMedium);
+    l.currentIssueLabels = [l.priorityLow];
+    expect(l.priorityLabelOnIssue).toBe(l.priorityLow);
+    l.currentIssueLabels = [l.priorityNone];
+    expect(l.priorityLabelOnIssue).toBe(l.priorityNone);
+  });
+
+  it('priorityLabelOnPullRequest returns each priority when only that label is present', () => {
+    const l = createLabels();
+    l.currentPullRequestLabels = [l.priorityHigh];
+    expect(l.priorityLabelOnPullRequest).toBe(l.priorityHigh);
+    l.currentPullRequestLabels = [l.priorityMedium];
+    expect(l.priorityLabelOnPullRequest).toBe(l.priorityMedium);
+    l.currentPullRequestLabels = [l.priorityLow];
+    expect(l.priorityLabelOnPullRequest).toBe(l.priorityLow);
+    l.currentPullRequestLabels = [l.priorityNone];
+    expect(l.priorityLabelOnPullRequest).toBe(l.priorityNone);
+    l.currentPullRequestLabels = [];
+    expect(l.priorityLabelOnPullRequest).toBeUndefined();
+  });
+
   it('priorityLabelOnIssueProcessable and priorityLabelOnPullRequestProcessable', () => {
     const l = createLabels();
     l.currentIssueLabels = [l.priorityNone];
@@ -178,6 +232,8 @@ describe('Labels', () => {
     l.currentIssueLabels = [l.priorityHigh];
     expect(l.priorityLabelOnIssueProcessable).toBe(true);
     l.currentPullRequestLabels = [l.priorityMedium];
+    expect(l.priorityLabelOnPullRequestProcessable).toBe(true);
+    l.currentPullRequestLabels = [l.priorityLow];
     expect(l.priorityLabelOnPullRequestProcessable).toBe(true);
   });
 
