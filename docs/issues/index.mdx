@@ -1,153 +1,45 @@
 ---
 title: Issues
-description: Boosted and connected issues.
+description: Automate issue tracking, branch management, project linking, and assignees with Copilot.
 ---
 
-Copilot automates issue tracking, ensuring smooth branch management and seamless project integration.
+# Issues
 
-## Labels by issue type and flow
+Copilot automates **issue tracking** so that labels, branch creation, project linking, and assignees stay in sync with your Git-Flow workflow. When you open or update an issue (or add labels), the action can create branches, link the issue to boards, assign members, and later notify you of commits and close the issue when branches are merged.
 
-Use these labels so the action creates the right branches and applies the right behavior. You can configure all label names via [Issues Configuration](/issues/configuration).
+<CardGroup cols={2}>
+  <Card title="Labels and branch types" icon="tag" href="/issues/labels-and-branch-types">
+    Which labels create which branches (feature, bugfix, docs, chore, hotfix, release) and deploy flow.
+  </Card>
+  <Card title="Workflow setup" icon="play" href="/issues/workflow-setup">
+    Enable the action for issues: events, minimal workflow, and what runs when.
+  </Card>
+  <Card title="Assignees and projects" icon="people" href="/issues/assignees-and-projects">
+    Member assignment and linking issues to GitHub Project boards.
+  </Card>
+  <Card title="Branch management" icon="git-branch" href="/issues/branch-management">
+    Launcher label, naming conventions, and hotfix/release rules.
+  </Card>
+  <Card title="Notifications and auto-close" icon="bell" href="/issues/notifications-and-auto-close">
+    Commit notifications on the issue, reopen on push, and auto-close when merged.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/issues/configuration">
+    All issue-related inputs: labels, branches, size, images, workflow.
+  </Card>
+  <Card title="Examples" icon="file-code" href="/issues/examples">
+    Full workflow YAML and label examples.
+  </Card>
+</CardGroup>
 
-| Flow | Required / optional labels | Branch created from | Notes |
-|------|----------------------------|---------------------|--------|
-| **Feature** | `feature`; optionally `branched` (or set `branch-management-always: true`) | `development-branch` | New functionality. |
-| **Bugfix** | `bugfix`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Bug fixes on develop. |
-| **Docs** | `docs` or `documentation`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Documentation tasks. |
-| **Chore** | `chore` or `maintenance`; optionally `branched` (or `branch-management-always: true`) | `development-branch` | Maintenance, refactors, dependencies. |
-| **Hotfix** | `hotfix` (branch is created without needing `branched`; templates often include `branched` too) | `main-branch` (from latest tag) | Urgent production fix. Add `deploy` to trigger deploy workflow. Only org/repo members can create hotfix issues (others are closed). |
-| **Release** | `release` (branch is created without needing `branched`; templates often include `branched` too) | `development-branch` | New version release. Add `deploy` to trigger release workflow. Only org/repo members can create release issues (others are closed). |
-| **Deploy** | `deploy` on the issue | — | Triggers the workflow defined by `release-workflow` or `hotfix-workflow`. |
-| **Deployed** | `deployed` (added by action after deploy success) | — | Marks the issue as deployed; used for auto-close and state updates. |
+## Quick summary
 
-Other labels: `bug` / `enhancement` (issue type), `question` / `help` (no branch), `priority: high` / `medium` / `low`, `size: XS` … `size: XXL`. See [Configuration](/configuration).
+| What you do | What Copilot can do |
+|-------------|---------------------|
+| Open an issue with a **type label** (e.g. `feature`, `bugfix`) | Link to projects, assign members; when **branch launcher** label is added (e.g. `branched`), create the branch from develop (or main for hotfix). |
+| Add **`deploy`** to a release/hotfix issue | Trigger the release or hotfix workflow (e.g. deploy). |
+| Push commits to the issue’s branch | Post commit notifications on the issue; optionally reopen the issue if it was closed. |
+| Merge the branch (e.g. into develop) | Automatically close the issue when the branch is merged. |
 
-For **step-by-step flows** (how branches are created, naming, source branch, deploy trigger, and templates), see the issue type pages: [Feature](/issues/type/feature), [Bugfix](/issues/type/bugfix), [Docs](/issues/type/docs), [Chore](/issues/type/chore), [Hotfix](/issues/type/hotfix), [Release](/issues/type/release).
+**Bugbot** (potential problems) runs on **push** (or single action) and posts findings on the issue and on open PRs; you can ask the bot to fix findings from a comment. See [Bugbot](/bugbot) for full details.
 
-To enable the GitHub Action for issues, create a workflow with the following configuration:  
-
-```yml
-name: Copilot - Issue
-
-on:
-  issues:
-    types: [opened, reopened, edited, labeled, unlabeled, assigned, unassigned]
-
-jobs:
-  git-board-issues:
-    name: Git Board - Issue
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: vypdev/copilot@master
-        with:
-          project-ids: '1,2'
-          token: ${{ secrets.PAT }}
-```
-
-### Member Assignment
-
-Copilot rolls the dice for you by automatically assigning newly created issues to a member of the organization or repository.
-
-<Card title="How many members do we assign?" icon="person-circle-exclamation">
-  
-  The issue is assigned to its creator if they belong to the organization. We will assign additional members if needed.
-
-  ```yml
-  jobs:
-    git-board-issues:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - uses: vypdev/copilot@v1
-          with:
-            desired-assignees-count: 1 // [!code highlight]
-  ```
-</Card>
-
-### Board Assignment
-
-Copilot takes care of organizing your issues by automatically assigning newly created issues to a designated project board, ensuring seamless tracking and management.
-
-<Warning>Linking the issue to a board requires a Personal Access Token (PAT).</Warning>
-
-<Card title="How many boards do you want to work with?" icon="table-columns">
-  
-  Define the links to all the boards where you want to track the issue.
-
-  ```yml
-  jobs:
-    git-board-issues:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - uses: vypdev/copilot@v1
-          with:
-            project-ids: 1, 2 // [!code highlight]
-  ```
-</Card>
-
-### Branch Management
-
-Issues usually require new changes (unless they are inquiries or help requests).
-
-Once members of the organization (or repository) add a specific label, the necessary branches are automatically created to save time and effort for developers.
-
-Some types of issues (`hotfix` and `release`) create branches automatically. This only happens when the issue creator is a member of the organization.
-
-<Card title="How to branch issues" icon="code-branch">
-  
-  `branched` is the default label for running this branch management on non-mandatory branched issues.
-
-  ```yml
-  jobs:
-    git-board-issues:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - uses: vypdev/copilot@v1
-          with:
-            branch-management-launcher-label: branched // [!code highlight]
-  ```
-</Card>
-
-<Card title="Naming conventions" icon="i-cursor">
-  `main` or `master`? `develop` or `dev`? `feature` or `feat`?
-
-  You can define the branch naming convention that best suits your project. Here are all the possibilities and their default values:
-
-  ```yml
-  jobs:
-    git-board-issues:
-      name: Git Board - Issue
-      runs-on: ubuntu-latest
-      steps:
-        - uses: vypdev/copilot@v1
-          with:
-            main-branch: master // [!code highlight]
-            development-branch: develop // [!code highlight]
-            docs-tree: docs // [!code highlight]
-            chore-tree: chore // [!code highlight]
-            feature-tree: feature // [!code highlight]
-            bugfix-tree: bugfix // [!code highlight]
-            hotfix-tree: hotfix // [!code highlight]
-            release-tree: release // [!code highlight]
-  ```
-</Card>
-
-### Smart Workflow Guidance
-
-Many developers are familiar with the Git-Flow methodology, but that doesn’t prevent mistakes from happening during the process of creating new features, maintaining code or documentation, fixing bugs, and deploying new versions. Copilot will remind you of key steps to minimize these errors as much as possible. Even if you're not familiar with the Git-Flow methodology, you'll be able to manage branches easily and confidently.
-
-### Real-Time Code Tracking
-
-Issues take time to be resolved, and interest in their progress increases. Therefore, any changes in the branches created by the issue will be notified as comments, providing real-time feedback on the issue's progress.
-
-### Bugbot (potential problems)
-
-When the **push** workflow runs (or you run the single action `detect_potential_problems_action` with `single-action-issue`), OpenCode analyzes the branch vs the base and reports potential problems (bugs, risks, improvements) as **comments on the issue**. Each finding appears as a comment with title, severity, and optional file/line. If a previously reported finding is later fixed, the action **updates** that comment (e.g. marks it as resolved) so the issue stays in sync. Findings are also posted as **review comments on open PRs** for the same branch; see [Pull Requests → Bugbot](/pull-requests#bugbot-potential-problems). You can **ask the bot to fix one or more findings** by commenting on the issue (e.g. "fix it", "fix all"); OpenCode applies the fixes and the action commits and pushes after running verify commands. You can set a minimum severity with `bugbot-severity` and exclude paths with `ai-ignore-files`; see [Configuration](/configuration). For full details on how to use Bugbot and how it works, see [Bugbot](/bugbot).
-
-### Auto-Closure
-
-Forget about closing issues when development is complete, Copilot will automatically close them once the branches created by the issue are successfully merged.
-
+For **step-by-step flows** per issue type (branch naming, source branch, deploy), see the issue type pages: [Feature](/issues/type/feature), [Bugfix](/issues/type/bugfix), [Docs](/issues/type/docs), [Chore](/issues/type/chore), [Hotfix](/issues/type/hotfix), [Release](/issues/type/release).

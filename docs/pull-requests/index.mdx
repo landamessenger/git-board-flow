@@ -1,57 +1,41 @@
 ---
 title: Pull Requests
-description: How Copilot handles pull requests
+description: How Copilot handles pull requests: linking, projects, reviewers, size, and AI description.
 ---
 
 # Pull Request Management
 
-When your workflow runs on `pull_request` events (e.g. opened, edited, labeled, unlabeled), Copilot performs a set of actions so that PRs stay linked to issues, projects, and team workflows.
+When your workflow runs on **`pull_request`** events (e.g. opened, edited, labeled), Copilot performs a set of actions so that PRs stay linked to issues, projects, and team workflows. It can link the PR to the issue, add it to project boards, assign reviewers, apply size and priority labels, and optionally generate the PR description with AI.
 
-## Enable the action for pull requests
+<CardGroup cols={2}>
+  <Card title="Workflow setup" icon="play" href="/pull-requests/workflow-setup">
+    Enable the action for pull_request events and minimal workflow YAML.
+  </Card>
+  <Card title="Capabilities" icon="list" href="/pull-requests/capabilities">
+    PR–issue linking, project linking, reviewers, size and priority, AI description, comments and images.
+  </Card>
+  <Card title="AI PR description" icon="file-text" href="/pull-requests/ai-description">
+    How OpenCode fills your PR template from the issue and branch diff.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/pull-requests/configuration">
+    PR-specific inputs: project columns, reviewers, images, AI.
+  </Card>
+  <Card title="Examples" icon="file-code" href="/pull-requests/examples">
+    Full workflow YAML and common configurations.
+  </Card>
+</CardGroup>
 
-Create a workflow file (e.g. `.github/workflows/copilot_pull_request.yml`) that runs on `pull_request`:
+## Quick summary
 
-```yaml
-name: Copilot - Pull Request
+| What happens | What Copilot does |
+|--------------|-------------------|
+| A **PR is opened or updated** | Links the PR to the issue (from branch name); adds the PR to configured projects and moves it to the right column; assigns reviewers; computes size and priority from diff and updates labels; optionally generates or updates the PR description with AI. |
+| **Push** to the PR branch | Commit workflow runs; Bugbot can post findings as review comments and update/sync with the issue. You can ask the bot to fix findings from a comment. See [Bugbot](/bugbot). |
 
-on:
-  pull_request:
-    types: [opened, edited, labeled, unlabeled]
-
-jobs:
-  copilot-pull-requests:
-    name: Copilot - Pull Request
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: vypdev/copilot@master
-        with:
-          token: ${{ secrets.PAT }}
-          project-ids: '2,3'
-          commit-prefix-transforms: 'replace-slash'
-```
-
-<Info>
-  For **AI-generated PR descriptions**, add `ai-pull-request-description: true` and configure [OpenCode](/opencode-integration). See [AI PR description](/pull-requests/ai-description) for details.
-</Info>
-
-## What the action does on pull requests
-
-| Capability | Description |
-|------------|-------------|
-| **PR–issue linking** | Links the pull request to the issue associated with its branch (from the branch name, e.g. `feature/123-title`) and posts a comment on the PR. |
-| **Project linking** | Adds the PR to the configured GitHub Projects (`project-ids`) and moves it to the configured column (e.g. "In Progress"). |
-| **Reviewers** | Assigns up to `desired-reviewers-count` reviewers. |
-| **Priority & size** | Applies priority labels and size labels (XS–XXL) based on configured thresholds (lines, files, commits). |
-| **AI-generated PR description** | When enabled, generates or updates the PR description using OpenCode and your repo's PR template. See [AI PR description](/pull-requests/ai-description). |
-| **Comments & images** | Posts a comment with optional images per branch type (feature, bugfix, docs, chore, hotfix, release). |
-
-## Bugbot (potential problems)
-
-When the **push** workflow runs (or the single action `detect_potential_problems_action`), OpenCode analyzes the branch vs the base and posts **review comments** on the PR at the relevant file and line for each finding (potential bugs, risks, or improvements). When OpenCode later reports a finding as resolved (e.g. after code changes), the action **marks that review thread as resolved**, so the PR review reflects the current status. You can **ask the bot to fix one or more findings** by replying in the review thread or commenting on the PR (e.g. "fix it", "fix all"); OpenCode applies the fixes and the action commits and pushes after verify commands. Findings are also summarized as **comments on the linked issue**; see [Issues → Bugbot](/issues#bugbot-potential-problems). Configure minimum severity with `bugbot-severity` and excluded paths with `ai-ignore-files` in [Configuration](/configuration). For full details, see [Bugbot](/bugbot).
+**Bugbot** (potential problems) runs on **push** or on demand; findings appear as **review comments** on the PR and as **comments on the linked issue**. For full details, see [Bugbot](/bugbot).
 
 ## Next steps
 
-- **[Configuration](/pull-requests/configuration)** — PR-specific inputs (reviewers, columns, images, AI).
-- **[AI PR description](/pull-requests/ai-description)** — How the AI fills your PR template from the issue and diff.
-- [Full configuration reference](/configuration) — All action inputs.
+- **[Workflow setup](/pull-requests/workflow-setup)** — Trigger events and minimal workflow.
+- **[Capabilities](/pull-requests/capabilities)** — Detailed description of each capability.
+- **[AI PR description](/pull-requests/ai-description)** — Enable and configure AI-generated descriptions.

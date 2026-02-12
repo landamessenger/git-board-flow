@@ -1,0 +1,64 @@
+---
+title: Available actions
+description: Complete list of single actions with required inputs and when to use each.
+---
+
+# Available single actions
+
+This page lists every **single action** you can run with the `single-action` input: required inputs, what it does, and when to use it.
+
+## Actions that require an issue
+
+These actions need **`single-action-issue`** set to the issue number. The workflow should run in a context where the **branch** to use is the one you want (e.g. checkout that branch before calling Copilot, or use the default branch for the repo).
+
+| Action | Required inputs | Description | When to use |
+|--------|-----------------|-------------|-------------|
+| **`check_progress_action`** | `single-action-issue` | Runs **progress check** on demand. OpenCode compares the issue description with the branch diff and updates the **progress** label (0–100%) on the issue and on any open PR for that branch. | Progress is normally updated on every **push** (commit workflow). Use this to re-run without pushing, or when you don’t use the push workflow. |
+| **`detect_potential_problems_action`** | `single-action-issue` | **Bugbot:** OpenCode analyzes the branch vs base, reports **findings** as comments on the issue and as **review comments** on open PRs; updates issue comments and marks PR threads as resolved when findings are fixed. | Same as push-time Bugbot but on demand. See [Bugbot](/bugbot). |
+| **`recommend_steps_action`** | `single-action-issue` | Uses OpenCode **Plan** to recommend **implementation steps** from the issue description; **posts a comment** on the issue with the steps. | When you want a one-off suggestion for how to implement the issue. |
+| **`deployed_action`** | `single-action-issue` | Marks the issue as **deployed**; updates labels (e.g. `deployed`) and **project state** (e.g. column). | After a release or hotfix has been deployed; often called from your release/hotfix workflow. |
+
+## Actions that do not require an issue
+
+| Action | Required inputs | Description | When to use |
+|--------|-----------------|-------------|-------------|
+| **`think_action`** | — | **Deep code analysis** and change proposals (OpenCode Plan). You can pass a question (e.g. from CLI with `-q "..."`). No issue required. | One-off reasoning over the codebase; use from CLI or a workflow that provides context. |
+| **`initial_setup`** | — | Performs **initial setup** steps: creates labels, issue types (if supported), verifies access. No issue required. | First-time repo setup; run once or when you add new labels/types. |
+| **`create_release`** | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a **GitHub release** with the given version, title, and changelog (markdown body). | From a workflow after tests pass; use version and changelog from your build or inputs. |
+| **`create_tag`** | `single-action-version` | Creates a **Git tag** for the given version. | When you only need a tag (e.g. for versioning) without a full release. |
+| **`publish_github_action`** | — | **Publishes or updates** the GitHub Action (e.g. versioning, release to marketplace). No issue required. | In a CI job that builds and publishes the action. |
+
+## Actions that fail the job on failure
+
+These single actions **throw an error** if their last step fails, so the **workflow job** is marked as failed and you can block deployment or notify:
+
+- **`publish_github_action`**
+- **`create_release`**
+- **`deployed_action`**
+- **`create_tag`**
+
+Use them when you want the workflow to **fail** if the action does not succeed (e.g. release creation or tag creation fails).
+
+## CLI-only: copilot (no single-action equivalent)
+
+The **`copilot`** CLI command (e.g. `giik copilot -p "..."`) uses the OpenCode **Build** agent to analyze or modify code. There is **no** `single-action` equivalent in the GitHub Action; it is available only from the CLI. Use it for interactive or scripted code changes with AI.
+
+## Summary table (inputs)
+
+| Action | `single-action-issue` | `single-action-version` | `single-action-title` | `single-action-changelog` |
+|--------|------------------------|---------------------------|------------------------|----------------------------|
+| `check_progress_action` | ✅ | — | — | — |
+| `detect_potential_problems_action` | ✅ | — | — | — |
+| `recommend_steps_action` | ✅ | — | — | — |
+| `deployed_action` | ✅ | — | — | — |
+| `think_action` | — | — | — | — |
+| `initial_setup` | — | — | — | — |
+| `create_release` | — | ✅ | ✅ | ✅ |
+| `create_tag` | — | ✅ | — | — |
+| `publish_github_action` | — | — | — | — |
+
+## Next steps
+
+- **[Configuration](/single-actions/configuration)** — All inputs for single-action mode.
+- **[Workflow & CLI](/single-actions/workflow-and-cli)** — How to run from a workflow and CLI commands.
+- **[Examples](/single-actions/examples)** — YAML and CLI examples per action.
