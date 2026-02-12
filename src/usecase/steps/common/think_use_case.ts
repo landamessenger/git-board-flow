@@ -3,6 +3,7 @@ import { Result } from '../../../data/model/result';
 import { AiRepository, OPENCODE_AGENT_PLAN, THINK_RESPONSE_SCHEMA } from '../../../data/repository/ai_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
 import { logError, logInfo } from '../../../utils/logger';
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../../utils/opencode_project_context_instruction';
 import { ParamUseCase } from '../../base/param_usecase';
 
 export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
@@ -105,7 +106,10 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             const contextBlock = issueDescription
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
-            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.${contextBlock}Question: ${question}`;
+            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Do not include the question in your response.
+
+${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
+${contextBlock}Question: ${question}`;
             const response = await this.aiRepository.askAgent(param.ai, OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: THINK_RESPONSE_SCHEMA as unknown as Record<string, unknown>,

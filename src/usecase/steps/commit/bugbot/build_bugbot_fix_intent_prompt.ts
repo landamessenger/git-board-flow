@@ -3,6 +3,7 @@
  * to fix one or more bugbot findings and which finding ids to target.
  */
 
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../../utils/opencode_project_context_instruction";
 import { sanitizeUserCommentForPrompt } from "./sanitize_user_comment_for_prompt";
 
 export interface UnresolvedFindingSummary {
@@ -37,6 +38,8 @@ export function buildBugbotFixIntentPrompt(
             : '';
 
     return `You are analyzing a user comment on an issue or pull request to decide whether they are asking to fix one or more reported code findings (bugs, vulnerabilities, or quality issues).
+
+${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **List of unresolved findings (id, title, and optional file/line/description):**
 ${findingsBlock}

@@ -1,5 +1,6 @@
 import type { Execution } from "../../../../data/model/execution";
 import type { BugbotContext } from "./types";
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../../utils/opencode_project_context_instruction";
 import { sanitizeUserCommentForPrompt } from "./sanitize_user_comment_for_prompt";
 
 /**
@@ -40,6 +41,8 @@ export function buildBugbotFixPrompt(
             : "\n**Verify:** Run any standard project checks (e.g. build, test, lint) that exist in this repo and confirm they pass.\n";
 
     return `You are in the repository workspace. Your task is to fix the reported code findings (bugs, vulnerabilities, or quality issues) listed below, and only those. The user has explicitly requested these fixes.
+
+${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **Repository context:**
 - Owner: ${owner}

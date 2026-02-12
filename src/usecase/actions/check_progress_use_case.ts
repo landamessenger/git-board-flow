@@ -8,6 +8,7 @@ import { IssueRepository, PROGRESS_LABEL_PATTERN } from '../../data/repository/i
 import { BranchRepository } from '../../data/repository/branch_repository';
 import { PullRequestRepository } from '../../data/repository/pull_request_repository';
 import { AiRepository, OPENCODE_AGENT_PLAN } from '../../data/repository/ai_repository';
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../utils/opencode_project_context_instruction';
 
 const PROGRESS_RESPONSE_SCHEMA = {
     type: 'object',
@@ -328,6 +329,8 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
         baseBranch: string
     ): string {
         return `You are in the repository workspace. Assess the progress of issue #${issueNumber} using the full diff between the base (parent) branch and the current branch.
+
+${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **Branches:**
 - **Base (parent) branch:** \`${baseBranch}\`

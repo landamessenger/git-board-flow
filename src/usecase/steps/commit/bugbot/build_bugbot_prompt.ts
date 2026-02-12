@@ -5,6 +5,7 @@
  * We do not pass a pre-computed diff or file list.
  */
 
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../../utils/opencode_project_context_instruction";
 import type { Execution } from "../../../../data/model/execution";
 import type { BugbotContext } from "./types";
 
@@ -19,6 +20,8 @@ export function buildBugbotPrompt(param: Execution, context: BugbotContext): str
             : '';
 
     return `You are analyzing the latest code changes for potential bugs and issues.
+
+${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
 
 **Repository context:**
 - Owner: ${param.owner}
