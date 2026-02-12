@@ -51890,11 +51890,13 @@ class PullRequestRepository {
          * Returns the head branch of the first open PR that references the given issue number
          * (e.g. body contains "#123" or head ref contains "123" as in feature/123-...).
          * Used for issue_comment events where commit.branch is empty.
+         * Uses bounded matching so #12 does not match #123 and branch "feature/1234-fix" does not match issue 123.
          */
         this.getHeadBranchForIssue = async (owner, repository, issueNumber, token) => {
             const octokit = github.getOctokit(token);
-            const issueRef = `#${issueNumber}`;
-            const issueNumStr = String(issueNumber);
+            const escaped = String(issueNumber).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const bodyRefRegex = new RegExp(`(?:^|[^\\d])#${escaped}(?:$|[^\\d])`);
+            const headRefRegex = new RegExp(`\\b${escaped}\\b`);
             try {
                 const { data } = await octokit.rest.pulls.list({
                     owner,
@@ -51905,8 +51907,7 @@ class PullRequestRepository {
                 for (const pr of data || []) {
                     const body = pr.body ?? '';
                     const headRef = pr.head?.ref ?? '';
-                    if (body.includes(issueRef) ||
-                        headRef.includes(issueNumStr)) {
+                    if (bodyRefRegex.test(body) || headRefRegex.test(headRef)) {
                         (0, logger_1.logDebugInfo)(`Found head branch "${headRef}" for issue #${issueNumber} (PR #${pr.number}).`);
                         return headRef;
                     }
@@ -54318,7 +54319,7 @@ function canRunBugbotAutofix(payload) {
 /***/ }),
 
 /***/ 7960:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
@@ -54328,6 +54329,7 @@ function canRunBugbotAutofix(payload) {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotFixIntentPrompt = buildBugbotFixIntentPrompt;
+const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 function buildBugbotFixIntentPrompt(userComment, unresolvedFindings, parentCommentBody) {
     const findingsBlock = unresolvedFindings.length === 0
         ? '(No unresolved findings.)'
@@ -54347,7 +54349,7 @@ ${findingsBlock}
 ${parentBlock}
 **User comment:**
 """
-${userComment.trim()}
+${(0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment)}
 """
 
 **Your task:** Decide:
@@ -54361,12 +54363,13 @@ Respond with a JSON object: \`is_fix_request\` (boolean) and \`target_finding_id
 /***/ }),
 
 /***/ 1822:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotFixPrompt = buildBugbotFixPrompt;
+const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 /**
  * Builds the prompt for the OpenCode build agent to fix the selected bugbot findings.
  * Includes repo context, the findings to fix (with full detail), the user's comment,
@@ -54411,7 +54414,7 @@ ${findingsBlock}
 
 **User request:**
 """
-${userComment.trim()}
+${(0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment)}
 """
 
 **Rules:**
@@ -55139,6 +55142,41 @@ There are **${overflowCount}** more finding(s) that were not published as indivi
         await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
         (0, logger_1.logDebugInfo)(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
     }
+}
+
+
+/***/ }),
+
+/***/ 3514:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Sanitizes user-provided comment text before inserting into an AI prompt.
+ * Prevents prompt injection by neutralizing sequences that could break out of
+ * delimiters (e.g. triple quotes) or be interpreted as instructions.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.sanitizeUserCommentForPrompt = sanitizeUserCommentForPrompt;
+const MAX_USER_COMMENT_LENGTH = 4000;
+/**
+ * Sanitize a user comment for safe inclusion in a prompt.
+ * - Trims whitespace.
+ * - Escapes backslashes so triple-quote cannot be smuggled via \"""
+ * - Replaces """ with "" so the comment cannot close a triple-quoted block.
+ * - Truncates to a maximum length.
+ */
+function sanitizeUserCommentForPrompt(raw) {
+    if (typeof raw !== "string")
+        return "";
+    let s = raw.trim();
+    s = s.replace(/\\/g, "\\\\");
+    s = s.replace(/"""/g, '""');
+    if (s.length > MAX_USER_COMMENT_LENGTH) {
+        s = s.slice(0, MAX_USER_COMMENT_LENGTH) + "\n[... truncated]";
+    }
+    return s;
 }
 
 

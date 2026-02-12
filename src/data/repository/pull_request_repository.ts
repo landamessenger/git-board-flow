@@ -34,6 +34,7 @@ export class PullRequestRepository {
      * Returns the head branch of the first open PR that references the given issue number
      * (e.g. body contains "#123" or head ref contains "123" as in feature/123-...).
      * Used for issue_comment events where commit.branch is empty.
+     * Uses bounded matching so #12 does not match #123 and branch "feature/1234-fix" does not match issue 123.
      */
     getHeadBranchForIssue = async (
         owner: string,
@@ -42,8 +43,9 @@ export class PullRequestRepository {
         token: string
     ): Promise<string | undefined> => {
         const octokit = github.getOctokit(token);
-        const issueRef = `#${issueNumber}`;
-        const issueNumStr = String(issueNumber);
+        const escaped = String(issueNumber).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const bodyRefRegex = new RegExp(`(?:^|[^\\d])#${escaped}(?:$|[^\\d])`);
+        const headRefRegex = new RegExp(`\\b${escaped}\\b`);
         try {
             const { data } = await octokit.rest.pulls.list({
                 owner,
@@ -54,10 +56,7 @@ export class PullRequestRepository {
             for (const pr of data || []) {
                 const body = pr.body ?? '';
                 const headRef = pr.head?.ref ?? '';
-                if (
-                    body.includes(issueRef) ||
-                    headRef.includes(issueNumStr)
-                ) {
+                if (bodyRefRegex.test(body) || headRefRegex.test(headRef)) {
                     logDebugInfo(`Found head branch "${headRef}" for issue #${issueNumber} (PR #${pr.number}).`);
                     return headRef;
                 }

@@ -8,6 +8,7 @@ export declare class PullRequestRepository {
      * Returns the head branch of the first open PR that references the given issue number
      * (e.g. body contains "#123" or head ref contains "123" as in feature/123-...).
      * Used for issue_comment events where commit.branch is empty.
+     * Uses bounded matching so #12 does not match #123 and branch "feature/1234-fix" does not match issue 123.
      */
     getHeadBranchForIssue: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string | undefined>;
     isLinked: (pullRequestUrl: string) => Promise<boolean>;
