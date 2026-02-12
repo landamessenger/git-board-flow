@@ -54416,8 +54416,14 @@ function buildBugbotFixIntentPrompt(userComment, unresolvedFindings, parentComme
             (f.line != null ? ` | **line:** ${f.line}` : '') +
             (f.description ? ` | **description:** ${f.description.slice(0, 200)}${f.description.length > 200 ? '...' : ''}` : ''))
             .join('\n');
-    const parentBlock = parentCommentBody != null && parentCommentBody.trim().length > 0
-        ? `\n**Parent comment (the comment the user replied to):**\n${parentCommentBody.trim().slice(0, 1500)}${parentCommentBody.length > 1500 ? '...' : ''}\n`
+    const parentBlock = parentCommentBody != null
+        ? (() => {
+            const sliced = parentCommentBody.slice(0, 1500);
+            const trimmed = sliced.trim();
+            return trimmed.length > 0
+                ? `\n**Parent comment (the comment the user replied to):**\n${trimmed}${parentCommentBody.length > 1500 ? '...' : ''}\n`
+                : '';
+        })()
         : '';
     return `You are analyzing a user comment on an issue or pull request to decide whether they are asking to fix one or more reported code findings (bugs, vulnerabilities, or quality issues).
 
@@ -54447,14 +54453,17 @@ Respond with a JSON object: \`is_fix_request\` (boolean) and \`target_finding_id
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MAX_FINDING_BODY_LENGTH = void 0;
+exports.truncateFindingBody = truncateFindingBody;
 exports.buildBugbotFixPrompt = buildBugbotFixPrompt;
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 /** Maximum characters for a single finding's full comment body to avoid prompt bloat and token limits. */
-const MAX_FINDING_BODY_LENGTH = 12000;
+exports.MAX_FINDING_BODY_LENGTH = 12000;
 const TRUNCATION_SUFFIX = "\n\n[... truncated for length ...]";
 /**
  * Truncates body to max length and appends indicator when truncated.
+ * Exported for use when loading bugbot context so fullBody is bounded at load time.
  */
 function truncateFindingBody(body, maxLength) {
     if (body.length <= maxLength)
@@ -54480,7 +54489,7 @@ function buildBugbotFixPrompt(param, context, targetFindingIds, userComment, ver
         if (!data)
             return null;
         const issueBody = context.issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
-        const fullBody = truncateFindingBody((issueBody?.trim() ?? ""), MAX_FINDING_BODY_LENGTH);
+        const fullBody = truncateFindingBody((issueBody?.trim() ?? ""), exports.MAX_FINDING_BODY_LENGTH);
         if (!fullBody)
             return null;
         return `---\n**Finding id:** \`${id}\`\n\n**Full comment (title, description, location, suggestion):**\n${fullBody}\n`;
@@ -54670,7 +54679,7 @@ class DetectBugbotFixIntentUseCase {
         const unresolvedFindings = unresolvedWithBody.map((p) => ({
             id: p.id,
             title: (0, marker_1.extractTitleFromBody)(p.fullBody) || p.id,
-            description: p.fullBody.slice(0, 400),
+            description: p.fullBody.slice(0, 4000),
         }));
         // When user replied in a PR thread, include parent comment so OpenCode knows which finding they mean.
         let parentCommentBody;
@@ -54818,6 +54827,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.loadBugbotContext = loadBugbotContext;
 const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const build_bugbot_fix_prompt_1 = __nccwpck_require__(1822);
 const marker_1 = __nccwpck_require__(2401);
 /** Builds the text block sent to OpenCode for task 2 (decide which previous findings are now resolved). */
 function buildPreviousFindingsBlock(previousFindings) {
@@ -54881,7 +54891,8 @@ async function loadBugbotContext(param, options) {
     for (const prNumber of openPrNumbers) {
         const prComments = await pullRequestRepository.listPullRequestReviewComments(owner, repo, prNumber, token);
         for (const c of prComments) {
-            const body = c.body ?? '';
+            const body = c.body ?? "";
+            const bodyBounded = (0, build_bugbot_fix_prompt_1.truncateFindingBody)(body, build_bugbot_fix_prompt_1.MAX_FINDING_BODY_LENGTH);
             for (const { findingId, resolved } of (0, marker_1.parseMarker)(body)) {
                 if (!existingByFindingId[findingId]) {
                     existingByFindingId[findingId] = { resolved };
@@ -54889,7 +54900,7 @@ async function loadBugbotContext(param, options) {
                 existingByFindingId[findingId].prCommentId = c.id;
                 existingByFindingId[findingId].prNumber = prNumber;
                 existingByFindingId[findingId].resolved = resolved;
-                prFindingIdToBody[findingId] = body;
+                prFindingIdToBody[findingId] = bodyBounded;
             }
         }
     }
@@ -54899,8 +54910,9 @@ async function loadBugbotContext(param, options) {
         if (data.resolved)
             continue;
         const issueBody = issueComments.find((c) => c.id === data.issueCommentId)?.body ?? null;
-        const fullBody = (issueBody ?? prFindingIdToBody[findingId] ?? '').trim();
-        if (fullBody) {
+        const rawBody = (issueBody ?? prFindingIdToBody[findingId] ?? "").trim();
+        if (rawBody) {
+            const fullBody = (0, build_bugbot_fix_prompt_1.truncateFindingBody)(rawBody, build_bugbot_fix_prompt_1.MAX_FINDING_BODY_LENGTH);
             previousFindingsForPrompt.push({ id: findingId, fullBody });
         }
     }
@@ -55270,12 +55282,14 @@ There are **${overflowCount}** more finding(s) that were not published as indivi
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.sanitizeUserCommentForPrompt = sanitizeUserCommentForPrompt;
 const MAX_USER_COMMENT_LENGTH = 4000;
+const TRUNCATION_SUFFIX = "\n[... truncated]";
 /**
  * Sanitize a user comment for safe inclusion in a prompt.
  * - Trims whitespace.
  * - Escapes backslashes so triple-quote cannot be smuggled via \"""
  * - Replaces """ with "" so the comment cannot close a triple-quoted block.
- * - Truncates to a maximum length.
+ * - Truncates to a maximum length. When truncating, removes trailing backslashes
+ *   until there is an even number so we never split an escape sequence (no lone \ at the end).
  */
 function sanitizeUserCommentForPrompt(raw) {
     if (typeof raw !== "string")
@@ -55284,7 +55298,12 @@ function sanitizeUserCommentForPrompt(raw) {
     s = s.replace(/\\/g, "\\\\");
     s = s.replace(/"""/g, '""');
     if (s.length > MAX_USER_COMMENT_LENGTH) {
-        s = s.slice(0, MAX_USER_COMMENT_LENGTH) + "\n[... truncated]";
+        s = s.slice(0, MAX_USER_COMMENT_LENGTH);
+        // Do not leave an odd number of trailing backslashes (would break escape sequence or escape the suffix).
+        while (s.endsWith("\\") && (s.match(/\\+$/)?.[0].length ?? 0) % 2 === 1) {
+            s = s.slice(0, -1);
+        }
+        s = s + TRUNCATION_SUFFIX;
     }
     return s;
 }

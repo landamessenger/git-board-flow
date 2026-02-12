@@ -8,6 +8,7 @@
  * - Trims whitespace.
  * - Escapes backslashes so triple-quote cannot be smuggled via \"""
  * - Replaces """ with "" so the comment cannot close a triple-quoted block.
- * - Truncates to a maximum length.
+ * - Truncates to a maximum length. When truncating, removes trailing backslashes
+ *   until there is an even number so we never split an escape sequence (no lone \ at the end).
  */
 export declare function sanitizeUserCommentForPrompt(raw: string): string;

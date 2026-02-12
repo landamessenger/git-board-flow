@@ -5,13 +5,15 @@
  */
 
 const MAX_USER_COMMENT_LENGTH = 4000;
+const TRUNCATION_SUFFIX = "\n[... truncated]";
 
 /**
  * Sanitize a user comment for safe inclusion in a prompt.
  * - Trims whitespace.
  * - Escapes backslashes so triple-quote cannot be smuggled via \"""
  * - Replaces """ with "" so the comment cannot close a triple-quoted block.
- * - Truncates to a maximum length.
+ * - Truncates to a maximum length. When truncating, removes trailing backslashes
+ *   until there is an even number so we never split an escape sequence (no lone \ at the end).
  */
 export function sanitizeUserCommentForPrompt(raw: string): string {
     if (typeof raw !== "string") return "";
@@ -19,7 +21,12 @@ export function sanitizeUserCommentForPrompt(raw: string): string {
     s = s.replace(/\\/g, "\\\\");
     s = s.replace(/"""/g, '""');
     if (s.length > MAX_USER_COMMENT_LENGTH) {
-        s = s.slice(0, MAX_USER_COMMENT_LENGTH) + "\n[... truncated]";
+        s = s.slice(0, MAX_USER_COMMENT_LENGTH);
+        // Do not leave an odd number of trailing backslashes (would break escape sequence or escape the suffix).
+        while (s.endsWith("\\") && (s.match(/\\+$/)?.[0].length ?? 0) % 2 === 1) {
+            s = s.slice(0, -1);
+        }
+        s = s + TRUNCATION_SUFFIX;
     }
     return s;
 }

@@ -33,8 +33,14 @@ export function buildBugbotFixIntentPrompt(
                   .join('\n');
 
     const parentBlock =
-        parentCommentBody != null && parentCommentBody.trim().length > 0
-            ? `\n**Parent comment (the comment the user replied to):**\n${parentCommentBody.trim().slice(0, 1500)}${parentCommentBody.length > 1500 ? '...' : ''}\n`
+        parentCommentBody != null
+            ? (() => {
+                  const sliced = parentCommentBody.slice(0, 1500);
+                  const trimmed = sliced.trim();
+                  return trimmed.length > 0
+                      ? `\n**Parent comment (the comment the user replied to):**\n${trimmed}${parentCommentBody.length > 1500 ? '...' : ''}\n`
+                      : '';
+              })()
             : '';
 
     return `You are analyzing a user comment on an issue or pull request to decide whether they are asking to fix one or more reported code findings (bugs, vulnerabilities, or quality issues).
