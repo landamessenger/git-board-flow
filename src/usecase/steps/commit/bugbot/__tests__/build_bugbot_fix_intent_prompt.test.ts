@@ -73,4 +73,28 @@ describe("buildBugbotFixIntentPrompt", () => {
         expect(fileMatch).toBeTruthy();
         expect(fileMatch![1].length).toBeLessThanOrEqual(256);
     });
+
+    it("truncates description to 200 chars with ellipsis when longer", () => {
+        const longDesc = "D" + "e".repeat(250);
+        const findingsWithLongDesc: UnresolvedFindingSummary[] = [
+            { id: "f1", title: "Finding", description: longDesc },
+        ];
+        const prompt = buildBugbotFixIntentPrompt("fix it", findingsWithLongDesc);
+        expect(prompt).toContain("**description:**");
+        expect(prompt).toContain("...");
+        expect(prompt).not.toContain(longDesc);
+    });
+
+    it("omits parent block when parentCommentBody is only whitespace", () => {
+        const prompt = buildBugbotFixIntentPrompt("fix", findings, "   \n\t  ");
+        expect(prompt).not.toContain("Parent comment");
+    });
+
+    it("truncates parent comment to 1500 chars with ellipsis when longer", () => {
+        const longParent = "P" + "x".repeat(2000);
+        const prompt = buildBugbotFixIntentPrompt("fix", findings, longParent);
+        expect(prompt).toContain("Parent comment");
+        expect(prompt).toContain("...");
+        expect(prompt).not.toContain("P" + "x".repeat(2000));
+    });
 });

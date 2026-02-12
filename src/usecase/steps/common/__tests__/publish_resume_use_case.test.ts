@@ -218,4 +218,61 @@ describe('PublishResultUseCase', () => {
     await useCase.invoke(param);
     expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 7, expect.any(String), 't');
   });
+
+  it('uses issueNotBranched and Automatic Actions title when isIssue and issueNotBranched', async () => {
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      isIssue: true,
+      issueNotBranched: true,
+      currentConfiguration: { results: [new Result({ id: 'a', success: true, executed: true, steps: ['Step'] })] },
+    });
+    await useCase.invoke(param);
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 42, expect.stringContaining('Automatic Actions'), 't');
+  });
+
+  it('uses bugfix title when isIssue and isBugfix', async () => {
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      isIssue: true,
+      isBugfix: true,
+      currentConfiguration: { results: [new Result({ id: 'a', success: true, executed: true, steps: ['Step'] })] },
+    });
+    await useCase.invoke(param);
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 42, expect.stringContaining('Bugfix Actions'), 't');
+  });
+
+  it('uses release title when isPullRequest and release.active', async () => {
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      isPullRequest: true,
+      release: { active: true },
+      currentConfiguration: { results: [new Result({ id: 'a', success: true, executed: true, steps: ['Step'] })] },
+    });
+    await useCase.invoke(param);
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 99, expect.stringContaining('Release Actions'), 't');
+  });
+
+  it('uses Automatic Actions when isPullRequest and no release/hotfix/type flags', async () => {
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      isPullRequest: true,
+      release: { active: false },
+      hotfix: { active: false },
+      currentConfiguration: { results: [new Result({ id: 'a', success: true, executed: true, steps: ['Step'] })] },
+    });
+    await useCase.invoke(param);
+    expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 99, expect.stringContaining('Automatic Actions'), 't');
+  });
+
+  it('does not call addComment when isPush but issueNumber is 0', async () => {
+    const param = baseParam({
+      isPush: true,
+      isIssue: false,
+      isPullRequest: false,
+      issueNumber: 0,
+      currentConfiguration: { results: [new Result({ id: 'a', success: true, executed: true, steps: ['Step'] })] },
+    });
+    await useCase.invoke(param);
+    expect(mockAddComment).not.toHaveBeenCalled();
+  });
 });

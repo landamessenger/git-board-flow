@@ -121,4 +121,25 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(false);
   });
+
+  it('calls translation and updateComment when language check returns null', async () => {
+    mockAskAgent
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ translatedText: 'Hola' });
+    mockUpdateComment.mockResolvedValue(undefined);
+    const param = baseParam();
+
+    const results = await useCase.invoke(param);
+
+    expect(mockAskAgent).toHaveBeenCalledTimes(2);
+    expect(mockUpdateComment).toHaveBeenCalledWith(
+      'o',
+      'r',
+      5,
+      10,
+      expect.stringContaining('Hola'),
+      't'
+    );
+    expect(results.length).toBeGreaterThanOrEqual(0);
+  });
 });

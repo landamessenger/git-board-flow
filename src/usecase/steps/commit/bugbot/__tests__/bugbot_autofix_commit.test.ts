@@ -10,6 +10,11 @@ import {
 import type { Execution } from "../../../../../data/model/execution";
 import { logInfo } from "../../../../../utils/logger";
 
+const shellQuoteParse = jest.fn();
+jest.mock("shell-quote", () => ({
+    parse: (s: string, opts?: unknown) => shellQuoteParse(s, opts),
+}));
+
 jest.mock("../../../../../utils/logger", () => ({
     logInfo: jest.fn(),
     logDebugInfo: jest.fn(),
@@ -48,6 +53,8 @@ function baseExecution(overrides: Partial<Execution> = {}): Execution {
 describe("runBugbotAutofixCommitAndPush", () => {
     beforeEach(() => {
         mockExec.mockReset();
+        const actual = jest.requireActual<{ parse: (s: string, o?: unknown) => unknown }>("shell-quote");
+        shellQuoteParse.mockImplementation((s: string, opts?: unknown) => actual.parse(s, opts));
         mockGetTokenUserDetails.mockResolvedValue({
             name: "Test User",
             email: "test@users.noreply.github.com",
@@ -117,6 +124,64 @@ describe("runBugbotAutofixCommitAndPush", () => {
         });
     });
 
+    it("returns failure when stash pop fails after checkout (stashed changes not restored)", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (cmd === "git" && a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            if (cmd === "git" && a[0] === "stash" && a[1] === "pop") {
+                return Promise.reject(new Error("stash pop conflict"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(baseExecution(), {
+            branchOverride: "feature/42-pr",
+        });
+
+        expect(result).toEqual({
+            success: false,
+            committed: false,
+            error: "Failed to checkout branch feature/42-pr.",
+        });
+        const { logError } = require("../../../../../utils/logger");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("Failed to restore stashed changes")
+        );
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("run 'git stash pop' manually")
+        );
+    });
+
+    it("logs that changes were stashed when checkout fails after stashing", async () => {
+        let callCount = 0;
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (cmd === "git" && a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            if (cmd === "git" && a[0] === "fetch") {
+                callCount++;
+                return Promise.reject(new Error("fetch failed"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(baseExecution(), {
+            branchOverride: "feature/42-pr",
+        });
+
+        expect(result.success).toBe(false);
+        const { logError } = require("../../../../../utils/logger");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("Failed to checkout branch")
+        );
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("Changes were stashed; run 'git stash pop' manually")
+        );
+    });
+
     it("runs verify commands when configured and returns failure when one fails", async () => {
         const exec = baseExecution({
             ai: { getBugbotFixVerifyCommands: () => ["npm test"] },
@@ -142,6 +207,88 @@ describe("runBugbotAutofixCommitAndPush", () => {
 
         expect(result.success).toBe(false);
         expect(result.error).toContain("Invalid verify command");
+        expect(mockExec).not.toHaveBeenCalledWith("npm", expect.any(Array));
+    });
+
+    it("rejects empty or whitespace-only verify command (parseVerifyCommand returns null)", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            return Promise.resolve(0);
+        });
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => ["  ", "npm test"] },
+        } as Partial<Execution>);
+
+        const result = await runBugbotAutofixCommitAndPush(exec);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("Invalid verify command");
+        expect(result.error).toContain("  ");
+    });
+
+    it("rejects verify command when shell-quote parse throws", async () => {
+        shellQuoteParse.mockImplementationOnce(() => {
+            throw new Error("Unclosed quote");
+        });
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            return Promise.resolve(0);
+        });
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => ["npm run 'unclosed"] },
+        } as Partial<Execution>);
+
+        const result = await runBugbotAutofixCommitAndPush(exec);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("Invalid verify command");
+    });
+
+    it("returns failure when verify command exec throws", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            if (cmd === "npm") return Promise.reject(new Error("npm not found"));
+            return Promise.resolve(0);
+        });
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => ["npm test"] },
+        } as Partial<Execution>);
+
+        const result = await runBugbotAutofixCommitAndPush(exec);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("Verify command failed");
+        const { logError } = require("../../../../../utils/logger");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("Verify command failed")
+        );
+    });
+
+    it("treats non-array getBugbotFixVerifyCommands as empty (no verify run)", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            return Promise.resolve(0);
+        });
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => "npm test" as unknown as string[] },
+        } as Partial<Execution>);
+
+        const result = await runBugbotAutofixCommitAndPush(exec);
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(true);
         expect(mockExec).not.toHaveBeenCalledWith("npm", expect.any(Array));
     });
 
@@ -380,6 +527,46 @@ describe("runUserRequestCommitAndPush", () => {
         expect(result.committed).toBe(false);
     });
 
+    it("checks out branchOverride when provided", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (cmd === "git" && a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runUserRequestCommitAndPush(baseExecution(), {
+            branchOverride: "feature/42-from-issue",
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(false);
+        expect(mockExec).toHaveBeenCalledWith("git", ["fetch", "origin", "feature/42-from-issue"]);
+        expect(mockExec).toHaveBeenCalledWith("git", ["checkout", "feature/42-from-issue"]);
+    });
+
+    it("returns failure when branchOverride checkout fails in user request", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (cmd === "git" && a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            if (cmd === "git" && a[0] === "fetch") return Promise.reject(new Error("fetch failed"));
+            return Promise.resolve(0);
+        });
+
+        const result = await runUserRequestCommitAndPush(baseExecution(), {
+            branchOverride: "feature/42-other",
+        });
+
+        expect(result).toEqual({
+            success: false,
+            committed: false,
+            error: "Failed to checkout branch feature/42-other.",
+        });
+    });
+
     it("runs git add, commit with generic message, and push when there are changes", async () => {
         (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
             const a = args ?? [];
@@ -418,5 +605,85 @@ describe("runUserRequestCommitAndPush", () => {
 
         expect(result.committed).toBe(true);
         expect(mockExec).toHaveBeenCalledWith("git", ["commit", "-m", "chore: apply user request"]);
+    });
+
+    it("treats non-array getBugbotFixVerifyCommands as empty in user request", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M x"));
+            }
+            return Promise.resolve(0);
+        });
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => ({ length: 1 }) as unknown as string[] },
+        } as Partial<Execution>);
+
+        const result = await runUserRequestCommitAndPush(exec);
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(true);
+        expect(mockExec).not.toHaveBeenCalledWith("npm", expect.any(Array));
+    });
+
+    it("limits verify commands to 20 in user request when configured count exceeds", async () => {
+        const manyCommands = Array.from({ length: 22 }, () => "npm run lint");
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            return Promise.resolve(0);
+        });
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => manyCommands },
+        } as Partial<Execution>);
+
+        const result = await runUserRequestCommitAndPush(exec);
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(false);
+        expect(logInfo).toHaveBeenCalledWith(
+            "Limiting verify commands to 20 (configured: 22)."
+        );
+    });
+
+    it("returns failure when verify command fails in user request", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (cmd === "git" && a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(""));
+            }
+            if (cmd === "npm") return Promise.resolve(1);
+            return Promise.resolve(0);
+        });
+        const exec = baseExecution({
+            ai: { getBugbotFixVerifyCommands: () => ["npm test"] },
+        } as Partial<Execution>);
+
+        const result = await runUserRequestCommitAndPush(exec);
+
+        expect(result.success).toBe(false);
+        expect(result.committed).toBe(false);
+        expect(result.error).toContain("Verify command failed");
+    });
+
+    it("returns failure when commit or push throws in user request", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((cmd, args, opts) => {
+            const a = args ?? [];
+            if (cmd === "git" && a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M x"));
+            }
+            if (cmd === "git" && a[0] === "push") return Promise.reject(new Error("push failed"));
+            return Promise.resolve(0);
+        });
+
+        const result = await runUserRequestCommitAndPush(baseExecution());
+
+        expect(result).toEqual({
+            success: false,
+            committed: false,
+            error: "push failed",
+        });
     });
 });

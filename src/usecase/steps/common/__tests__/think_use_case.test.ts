@@ -312,4 +312,19 @@ describe('ThinkUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].errors?.some((e) => String(e).includes('ThinkUseCase'))).toBe(true);
   });
+
+  it('returns error when issue or PR number is 0 or negative', async () => {
+    mockAskAgent.mockResolvedValue({ answer: 'Reply' });
+    mockAddComment.mockResolvedValue(undefined);
+    const param = baseParam({
+      issue: { ...baseParam().issue, commentBody: '@bot hi', number: 0 },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors).toContain('Issue or PR number not available.');
+    expect(mockAddComment).not.toHaveBeenCalled();
+  });
 });

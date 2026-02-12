@@ -150,6 +150,22 @@ describe("BugbotAutofixUseCase", () => {
         ]);
     });
 
+    it("returns empty results when all target findings are already resolved", async () => {
+        const ctx = contextWithFindings(["f1", "f2"]);
+        ctx.existingByFindingId["f1"] = { ...ctx.existingByFindingId["f1"]!, resolved: true };
+        ctx.existingByFindingId["f2"] = { ...ctx.existingByFindingId["f2"]!, resolved: true };
+
+        const results = await useCase.invoke({
+            execution: baseExecution(),
+            targetFindingIds: ["f1", "f2"],
+            userComment: "fix all",
+            context: ctx,
+        });
+
+        expect(results).toEqual([]);
+        expect(mockCopilotMessage).not.toHaveBeenCalled();
+    });
+
     it("returns failure when copilotMessage returns no text", async () => {
         const ctx = contextWithFindings(["f1"]);
         mockCopilotMessage.mockResolvedValue(null);

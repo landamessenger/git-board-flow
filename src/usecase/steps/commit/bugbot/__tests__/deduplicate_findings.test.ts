@@ -48,6 +48,16 @@ describe('deduplicateFindings', () => {
         expect(result[0].id).toBe('x');
     });
 
+    it('uses title key when file is empty and line is 0', () => {
+        const list = [
+            finding({ id: 'a', title: 'Duplicate', file: '', line: 0 }),
+            finding({ id: 'b', title: 'Duplicate', file: undefined, line: undefined }),
+        ];
+        const result = deduplicateFindings(list);
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe('a');
+    });
+
     it('uses first 80 chars of title for title-based key', () => {
         const longTitle = 'A'.repeat(100);
         const list = [

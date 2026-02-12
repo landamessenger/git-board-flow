@@ -255,6 +255,70 @@ describe("markFindingsResolved", () => {
         expect(mockResolveThread).not.toHaveBeenCalled();
     });
 
+    it("logs error when PR review comment is not found for finding", async () => {
+        const { logError } = require("../../../../../utils/logger");
+        const existing: ExistingByFindingId = {
+            f1: {
+                issueCommentId: 100,
+                prCommentId: 999,
+                prNumber: 5,
+                resolved: false,
+            },
+        };
+        const context = baseContext({
+            existingByFindingId: existing,
+            issueComments: [],
+        });
+        mockListPrReviewComments.mockResolvedValue([
+            { id: 201, body: "other", node_id: "NODE_201" },
+        ]);
+
+        await markFindingsResolved({
+            execution: baseExecution(),
+            context,
+            resolvedFindingIds: new Set(["f1"]),
+            normalizedResolvedIds: new Set(),
+        });
+
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("No se encontró el comentario de la PR")
+        );
+        expect(mockUpdatePrReviewComment).not.toHaveBeenCalled();
+    });
+
+    it("logs error when updatePullRequestReviewComment throws", async () => {
+        const { logError } = require("../../../../../utils/logger");
+        const bodyWithMarker =
+            '## Finding\n\n<!-- copilot-bugbot finding_id:"f1" resolved:false -->';
+        const existing: ExistingByFindingId = {
+            f1: {
+                issueCommentId: 100,
+                prCommentId: 201,
+                prNumber: 5,
+                resolved: false,
+            },
+        };
+        const context = baseContext({
+            existingByFindingId: existing,
+            issueComments: [{ id: 100, body: bodyWithMarker }],
+        });
+        mockListPrReviewComments.mockResolvedValue([
+            { id: 201, body: bodyWithMarker, node_id: "NODE_201" },
+        ]);
+        mockUpdatePrReviewComment.mockRejectedValueOnce(new Error("PR API error"));
+
+        await markFindingsResolved({
+            execution: baseExecution(),
+            context,
+            resolvedFindingIds: new Set(["f1"]),
+            normalizedResolvedIds: new Set(),
+        });
+
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("Error al actualizar comentario de revisión")
+        );
+    });
+
     it("does not call update when replaceMarkerInBody finds no marker (body without marker)", async () => {
         const existing: ExistingByFindingId = {
             f1: { issueCommentId: 100, resolved: false },

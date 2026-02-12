@@ -89,6 +89,35 @@ describe('UpdatePullRequestDescriptionUseCase', () => {
     expect(results[0].steps?.some((s) => s.includes('did not return a PR description'))).toBe(true);
   });
 
+  it('skips update when creator is not team member and AI members only is enabled', async () => {
+    mockGetAllMembers.mockResolvedValue(['bob', 'carol']);
+    const aiMembersOnly = new Ai(
+      'http://localhost:4096',
+      'model',
+      false,
+      true, // aiMembersOnly
+      [],
+      false,
+      'low',
+      20
+    );
+    expect(aiMembersOnly.getAiMembersOnly()).toBe(true);
+    const param = baseParam({
+      pullRequest: { number: 10, head: 'feature/42-x', base: 'develop', creator: 'alice' },
+      ai: aiMembersOnly,
+    });
+    mockAskAgent.mockClear();
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(false);
+    expect(results[0].executed).toBe(false);
+    expect(results[0].steps?.some((s) => s.includes('not a team member') && s.includes('AI members only'))).toBe(
+      true
+    );
+    expect(mockAskAgent).not.toHaveBeenCalled();
+  });
+
   it('returns failure on error', async () => {
     mockGetIssueDescription.mockRejectedValue(new Error('API error'));
     const param = baseParam();

@@ -96,6 +96,23 @@ describe("loadBugbotContext", () => {
         expect(ctx.existingByFindingId["id-b"]).toEqual({ issueCommentId: 101, resolved: true });
     });
 
+    it("updates existingByFindingId when same findingId appears in a later comment", async () => {
+        mockListIssueComments.mockResolvedValue([
+            {
+                id: 100,
+                body: "## First\n\n<!-- copilot-bugbot finding_id:\"id-a\" resolved:false -->",
+            },
+            {
+                id: 101,
+                body: "## Second (same finding)\n\n<!-- copilot-bugbot finding_id:\"id-a\" resolved:true -->",
+            },
+        ]);
+
+        const ctx = await loadBugbotContext(baseParam());
+
+        expect(ctx.existingByFindingId["id-a"]).toEqual({ issueCommentId: 101, resolved: true });
+    });
+
     it("includes only unresolved findings in previousFindingsBlock and unresolvedFindingsWithBody", async () => {
         mockListIssueComments.mockResolvedValue([
             {

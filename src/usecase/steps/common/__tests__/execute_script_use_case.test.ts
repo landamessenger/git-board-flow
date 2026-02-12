@@ -127,8 +127,16 @@ describe('CommitPrefixBuilderUseCase (execute_script)', () => {
   });
 
   it('returns input unchanged for unknown transform', async () => {
+    const { logDebugInfo } = require('../../../../utils/logger');
     const results = await useCase.invoke(param('branch', 'unknown-transform'));
 
     expect(results[0].payload?.scriptResult).toBe('branch');
+    expect(logDebugInfo).toHaveBeenCalledWith(expect.stringContaining('Unknown transform'));
+  });
+
+  it('applies camel-case with single word (index 0 only)', async () => {
+    const results = await useCase.invoke(param('single', 'camel-case'));
+
+    expect(results[0].payload?.scriptResult).toBe('single');
   });
 });

@@ -120,4 +120,34 @@ describe("buildBugbotFixPrompt", () => {
         expect(prompt).toContain("echo \\`whoami\\`");
         expect(prompt).toContain("Verify commands");
     });
+
+    it("uses branches.development as base branch when parentBranch is undefined", () => {
+        const param = mockExecution({
+            currentConfiguration: { parentBranch: undefined },
+            branches: { development: "main" },
+        } as Partial<Execution>);
+        const prompt = buildBugbotFixPrompt(param, mockContext(), ["find-1"], "fix", []);
+        expect(prompt).toContain("main");
+    });
+
+    it("skips findings not in existingByFindingId", () => {
+        const context = mockContext();
+        const prompt = buildBugbotFixPrompt(
+            mockExecution(),
+            context,
+            ["find-1", "find-missing"],
+            "fix",
+            []
+        );
+        expect(prompt).toContain("find-1");
+        expect(prompt).not.toContain("find-missing");
+    });
+
+    it("skips finding when issue comment body is missing or empty", () => {
+        const context = mockContext({
+            issueComments: [{ id: 1, body: "   " }],
+        });
+        const prompt = buildBugbotFixPrompt(mockExecution(), context, ["find-1"], "fix", []);
+        expect(prompt).not.toContain("find-1");
+    });
 });

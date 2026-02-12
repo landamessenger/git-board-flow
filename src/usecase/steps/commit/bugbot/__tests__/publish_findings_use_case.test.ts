@@ -205,4 +205,23 @@ describe("publishFindings", () => {
         expect(overflowCall[3]).toContain("3");
         expect(overflowCall[3]).toContain("Extra 1");
     });
+
+    it("adds overflow comment with 'and N more' when overflowTitles length > 15", async () => {
+        const manyTitles = Array.from({ length: 20 }, (_, i) => `Finding ${i}`);
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext(),
+            findings: [],
+            overflowCount: 20,
+            overflowTitles: manyTitles,
+        });
+
+        const overflowCall = mockAddComment.mock.calls.find(
+            (c: unknown[]) => (c[3] as string).includes("More findings")
+        );
+        expect(overflowCall).toBeDefined();
+        expect(overflowCall[3]).toContain("5 more");
+        expect(overflowCall[3]).toContain("Finding 0");
+        expect(overflowCall[3]).not.toContain("Finding 19");
+    });
 });

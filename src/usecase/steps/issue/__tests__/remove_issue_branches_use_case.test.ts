@@ -59,4 +59,19 @@ describe('RemoveIssueBranchesUseCase', () => {
     const results = await useCase.invoke(param);
     expect(results.some((r) => r.success === false)).toBe(true);
   });
+
+  it('adds hotfix reminder when branch removed and previousConfiguration.branchType is hotfixTree', async () => {
+    mockGetListOfBranches.mockResolvedValue(['feature/42-foo', 'develop', 'main']);
+    mockRemoveBranch.mockResolvedValue(true);
+    const param = baseParam({
+      previousConfiguration: { branchType: 'hotfix' },
+      branches: { featureTree: 'feature', bugfixTree: 'bugfix', hotfixTree: 'hotfix' },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results.some((r) => r.reminders?.some((m) => m.includes('hotfix') && m.includes('no longer required')))).toBe(
+      true
+    );
+  });
 });

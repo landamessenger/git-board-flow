@@ -101,4 +101,42 @@ describe('GetReleaseTypeUseCase', () => {
     expect(results[0].success).toBe(false);
     expect(results[0].steps).toContain('Tried to check action permissions.');
   });
+
+  it('uses issue.number when isIssue true', async () => {
+    mockGetDescription.mockResolvedValue('### Release Type Major\n');
+    const param = {
+      isSingleAction: false,
+      isIssue: true,
+      isPullRequest: false,
+      issue: { number: 200 },
+      pullRequest: { number: 0 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetReleaseTypeUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 200, 't');
+  });
+
+  it('uses pullRequest.number when isPullRequest true', async () => {
+    mockGetDescription.mockResolvedValue('### Release Type Patch\n');
+    const param = {
+      isSingleAction: false,
+      isIssue: false,
+      isPullRequest: true,
+      issue: { number: 0 },
+      pullRequest: { number: 88 },
+      owner: 'o',
+      repo: 'r',
+      tokens: { token: 't' },
+    } as unknown as Parameters<GetReleaseTypeUseCase['invoke']>[0];
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(mockGetDescription).toHaveBeenCalledWith('o', 'r', 88, 't');
+  });
 });
