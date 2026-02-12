@@ -271,6 +271,81 @@ describe("runBugbotAutofixCommitAndPush", () => {
             "fix(#42): bugbot autofix - resolve finding-1, finding-2",
         ]);
     });
+
+    it("sanitizes finding IDs in commit message (newlines, control chars, length)", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(baseExecution(), {
+            targetFindingIds: ["id-with\nnewline", "normal-id", "x".repeat(200)],
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(true);
+        const commitCall = mockExec.mock.calls.find(
+            (c: [string, string[]]) => c[0] === "git" && c[1]?.[0] === "commit" && c[1]?.[1] === "-m"
+        );
+        const commitMessage = commitCall?.[1]?.[2] ?? "";
+        expect(commitMessage).toContain("fix(#42): bugbot autofix - resolve ");
+        expect(commitMessage).not.toMatch(/\n/);
+        expect(commitMessage).toContain("normal-id");
+        expect(commitMessage).not.toContain("id-with\nnewline");
+        expect(commitMessage.length).toBeLessThanOrEqual(600);
+    });
+
+    it("uses 'reported findings' when all finding IDs sanitize to empty", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const result = await runBugbotAutofixCommitAndPush(baseExecution(), {
+            targetFindingIds: ["   ", "\t\n\r", ""],
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(true);
+        const commitCall = mockExec.mock.calls.find(
+            (c: [string, string[]]) => c[0] === "git" && c[1]?.[0] === "commit" && c[1]?.[1] === "-m"
+        );
+        const commitMessage = commitCall?.[1]?.[2] ?? "";
+        expect(commitMessage).toContain("resolve reported findings");
+    });
+
+    it("truncates finding IDs part when total length exceeds limit", async () => {
+        (mockExec.mockImplementation as (fn: ExecCallback) => void)((_cmd, args, opts) => {
+            const a = args ?? [];
+            if (a[0] === "status" && opts?.listeners?.stdout) {
+                opts.listeners.stdout(Buffer.from(" M file.ts"));
+            }
+            return Promise.resolve(0);
+        });
+
+        const longId = "a".repeat(80);
+        const manyIds = Array.from({ length: 10 }, () => longId);
+
+        const result = await runBugbotAutofixCommitAndPush(baseExecution(), {
+            targetFindingIds: manyIds,
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.committed).toBe(true);
+        const commitCall = mockExec.mock.calls.find(
+            (c: [string, string[]]) => c[0] === "git" && c[1]?.[0] === "commit" && c[1]?.[1] === "-m"
+        );
+        const commitMessage = commitCall?.[1]?.[2] ?? "";
+        expect(commitMessage).toContain("fix(#42): bugbot autofix - resolve ");
+        expect(commitMessage).toMatch(/\.\.\.$/);
+        expect(commitMessage.length).toBeLessThanOrEqual(550);
+    });
 });
 
 describe("runUserRequestCommitAndPush", () => {

@@ -54207,6 +54207,43 @@ const project_repository_1 = __nccwpck_require__(7917);
 const logger_1 = __nccwpck_require__(8836);
 /** Maximum number of verify commands to run to avoid excessive build times. */
 const MAX_VERIFY_COMMANDS = 20;
+/** Max length per finding ID in commit message (avoids injection and overflow). */
+const MAX_FINDING_ID_LENGTH_COMMIT = 80;
+/** Max total length of the finding IDs portion in the commit message. */
+const MAX_FINDING_IDS_PART_LENGTH = 500;
+/**
+ * Sanitizes a finding ID for safe inclusion in a git commit message.
+ * Strips newlines, control chars, and limits length to avoid log injection and unexpected behavior.
+ */
+function sanitizeFindingIdForCommitMessage(id) {
+    const withoutNewlines = String(id).replace(/\r\n|\r|\n/g, " ");
+    const withoutControlChars = withoutNewlines.replace(/[\s\S]/g, (c) => {
+        const code = c.charCodeAt(0);
+        if (code < 32 && code !== 9)
+            return ""; // keep tab, drop other C0 controls
+        if (code === 127)
+            return ""; // DEL
+        return c;
+    });
+    const trimmed = withoutControlChars.trim();
+    return trimmed.length <= MAX_FINDING_ID_LENGTH_COMMIT
+        ? trimmed
+        : trimmed.slice(0, MAX_FINDING_ID_LENGTH_COMMIT);
+}
+/**
+ * Builds the sanitized finding IDs part for the bugbot autofix commit message.
+ */
+function buildFindingIdsPartForCommit(targetFindingIds) {
+    if (targetFindingIds.length === 0)
+        return "reported findings";
+    const sanitized = targetFindingIds.map(sanitizeFindingIdForCommitMessage).filter(Boolean);
+    if (sanitized.length === 0)
+        return "reported findings";
+    const part = sanitized.join(", ");
+    if (part.length <= MAX_FINDING_IDS_PART_LENGTH)
+        return part;
+    return part.slice(0, MAX_FINDING_IDS_PART_LENGTH - 3) + "...";
+}
 /**
  * Returns true if there are uncommitted changes (working tree or index).
  */
@@ -54364,7 +54401,7 @@ async function runBugbotAutofixCommitAndPush(execution, options) {
         (0, logger_1.logDebugInfo)(`Git author set to ${name} <${email}>.`);
         await exec.exec("git", ["add", "-A"]);
         const issueNumber = execution.issueNumber > 0 ? execution.issueNumber : undefined;
-        const findingIdsPart = targetFindingIds.length > 0 ? targetFindingIds.join(", ") : "reported findings";
+        const findingIdsPart = buildFindingIdsPartForCommit(targetFindingIds);
         const commitMessage = issueNumber
             ? `fix(#${issueNumber}): bugbot autofix - resolve ${findingIdsPart}`
             : `fix: bugbot autofix - resolve ${findingIdsPart}`;
