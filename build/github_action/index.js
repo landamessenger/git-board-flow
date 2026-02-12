@@ -49822,10 +49822,20 @@ Return in \`resolved_finding_ids\` only the ids from the list above that are now
  */
 async function loadBugbotContext(param, options) {
     const issueNumber = param.issueNumber;
-    const headBranch = options?.branchOverride ?? param.commit.branch;
+    const headBranch = (options?.branchOverride ?? param.commit.branch)?.trim();
     const token = param.tokens.token;
     const owner = param.owner;
     const repo = param.repo;
+    if (!headBranch) {
+        return {
+            existingByFindingId: {},
+            issueComments: [],
+            openPrNumbers: [],
+            previousFindingsBlock: "",
+            prContext: null,
+            unresolvedFindingsWithBody: [],
+        };
+    }
     const issueRepository = new issue_repository_1.IssueRepository();
     const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
     // Parse issue comments for bugbot markers to know which findings we already posted and if resolved.

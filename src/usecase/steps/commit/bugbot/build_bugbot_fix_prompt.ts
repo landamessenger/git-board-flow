@@ -1,5 +1,6 @@
 import type { Execution } from "../../../../data/model/execution";
 import type { BugbotContext } from "./types";
+import { sanitizeUserCommentForPrompt } from "./sanitize_user_comment_for_prompt";
 
 /**
  * Builds the prompt for the OpenCode build agent to fix the selected bugbot findings.
@@ -53,7 +54,7 @@ ${findingsBlock}
 
 **User request:**
 """
-${userComment.trim()}
+${sanitizeUserCommentForPrompt(userComment)}
 """
 
 **Rules:**

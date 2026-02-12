@@ -3,6 +3,8 @@
  * to fix one or more bugbot findings and which finding ids to target.
  */
 
+import { sanitizeUserCommentForPrompt } from "./sanitize_user_comment_for_prompt";
+
 export interface UnresolvedFindingSummary {
     id: string;
     title: string;
@@ -41,7 +43,7 @@ ${findingsBlock}
 ${parentBlock}
 **User comment:**
 """
-${userComment.trim()}
+${sanitizeUserCommentForPrompt(userComment)}
 """
 
 **Your task:** Decide:
