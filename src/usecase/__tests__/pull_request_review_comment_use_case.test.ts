@@ -12,6 +12,7 @@ const mockDetectIntentInvoke = jest.fn();
 const mockAutofixInvoke = jest.fn();
 const mockThinkInvoke = jest.fn();
 const mockRunBugbotAutofixCommitAndPush = jest.fn();
+const mockRunUserRequestCommitAndPush = jest.fn();
 const mockMarkFindingsResolved = jest.fn();
 
 jest.mock(
@@ -46,7 +47,8 @@ jest.mock("../../data/repository/project_repository", () => ({
 jest.mock("../steps/commit/bugbot/bugbot_autofix_commit", () => ({
     runBugbotAutofixCommitAndPush: (...args: unknown[]) =>
         mockRunBugbotAutofixCommitAndPush(...args),
-    runUserRequestCommitAndPush: jest.fn().mockResolvedValue({ committed: true }),
+    runUserRequestCommitAndPush: (...args: unknown[]) =>
+        mockRunUserRequestCommitAndPush(...args),
 }));
 
 const mockDoUserRequestInvoke = jest.fn();
@@ -143,6 +145,7 @@ describe("PullRequestReviewCommentUseCase", () => {
             new Result({ id: "ThinkUseCase", success: true, executed: true, steps: [] }),
         ]);
         mockRunBugbotAutofixCommitAndPush.mockReset().mockResolvedValue({ committed: true });
+        mockRunUserRequestCommitAndPush.mockReset().mockResolvedValue({ committed: true });
         mockMarkFindingsResolved.mockReset().mockResolvedValue(undefined);
         mockDoUserRequestInvoke.mockReset();
     });
@@ -355,6 +358,29 @@ describe("PullRequestReviewCommentUseCase", () => {
 
         expect(mockAutofixInvoke).not.toHaveBeenCalled();
         expect(mockThinkInvoke).toHaveBeenCalledTimes(1);
+    });
+
+    it("when do user request returns empty results array, does not commit", async () => {
+        mockDetectIntentInvoke.mockResolvedValue([
+            new Result({
+                id: "DetectBugbotFixIntentUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+                payload: {
+                    isFixRequest: false,
+                    isDoRequest: true,
+                    targetFindingIds: [],
+                },
+            }),
+        ]);
+        mockDoUserRequestInvoke.mockResolvedValue([]);
+
+        await useCase.invoke(baseExecution());
+
+        expect(mockDoUserRequestInvoke).toHaveBeenCalledTimes(1);
+        expect(mockRunUserRequestCommitAndPush).not.toHaveBeenCalled();
+        expect(mockThinkInvoke).not.toHaveBeenCalled();
     });
 
     it("aggregates results from language check, intent, and either autofix or Think", async () => {

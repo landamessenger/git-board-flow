@@ -12,6 +12,7 @@ const mockDetectIntentInvoke = jest.fn();
 const mockAutofixInvoke = jest.fn();
 const mockThinkInvoke = jest.fn();
 const mockRunBugbotAutofixCommitAndPush = jest.fn();
+const mockRunUserRequestCommitAndPush = jest.fn();
 const mockMarkFindingsResolved = jest.fn();
 
 jest.mock("../steps/issue_comment/check_issue_comment_language_use_case", () => ({
@@ -43,7 +44,8 @@ jest.mock("../../data/repository/project_repository", () => ({
 jest.mock("../steps/commit/bugbot/bugbot_autofix_commit", () => ({
     runBugbotAutofixCommitAndPush: (...args: unknown[]) =>
         mockRunBugbotAutofixCommitAndPush(...args),
-    runUserRequestCommitAndPush: jest.fn().mockResolvedValue({ committed: true }),
+    runUserRequestCommitAndPush: (...args: unknown[]) =>
+        mockRunUserRequestCommitAndPush(...args),
 }));
 
 const mockDoUserRequestInvoke = jest.fn();
@@ -136,6 +138,7 @@ describe("IssueCommentUseCase", () => {
             new Result({ id: "ThinkUseCase", success: true, executed: true, steps: [] }),
         ]);
         mockRunBugbotAutofixCommitAndPush.mockReset().mockResolvedValue({ committed: true });
+        mockRunUserRequestCommitAndPush.mockReset().mockResolvedValue({ committed: true });
         mockMarkFindingsResolved.mockReset().mockResolvedValue(undefined);
         mockDoUserRequestInvoke.mockReset();
     });
@@ -367,6 +370,29 @@ describe("IssueCommentUseCase", () => {
         expect(results[0].id).toBe("CheckIssueCommentLanguageUseCase");
         expect(results.some((r) => r.id === "DetectBugbotFixIntentUseCase")).toBe(true);
         expect(results.some((r) => r.id === "ThinkUseCase")).toBe(true);
+    });
+
+    it("when do user request returns empty results array, does not commit", async () => {
+        mockDetectIntentInvoke.mockResolvedValue([
+            new Result({
+                id: "DetectBugbotFixIntentUseCase",
+                success: true,
+                executed: true,
+                steps: [],
+                payload: {
+                    isFixRequest: false,
+                    isDoRequest: true,
+                    targetFindingIds: [],
+                },
+            }),
+        ]);
+        mockDoUserRequestInvoke.mockResolvedValue([]);
+
+        await useCase.invoke(baseExecution());
+
+        expect(mockDoUserRequestInvoke).toHaveBeenCalledTimes(1);
+        expect(mockRunUserRequestCommitAndPush).not.toHaveBeenCalled();
+        expect(mockThinkInvoke).not.toHaveBeenCalled();
     });
 
     it("when actor is not allowed to modify files, skips autofix and does not run DoUserRequest", async () => {

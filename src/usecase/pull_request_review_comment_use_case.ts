@@ -103,7 +103,8 @@ export class PullRequestReviewCommentUseCase implements ParamUseCase<Execution, 
             });
             results.push(...doResults);
 
-            const lastDo = doResults[doResults.length - 1];
+            const lastDo =
+                doResults.length > 0 ? doResults[doResults.length - 1] : undefined;
             if (lastDo?.success) {
                 logInfo("Do user request succeeded; running commit and push.");
                 await runUserRequestCommitAndPush(param, {
