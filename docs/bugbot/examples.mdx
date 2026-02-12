@@ -31,7 +31,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - uses: vypdev/copilot@v1
+      - uses: vypdev/copilot@v2
         with:
           token: ${{ secrets.PAT }}
           project-ids: ${{ vars.PROJECT_IDS }}
@@ -68,7 +68,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - uses: vypdev/copilot@v1
+      - uses: vypdev/copilot@v2
         with:
           token: ${{ secrets.PAT }}
           opencode-model: ${{ vars.OPENCODE_MODEL }}
@@ -101,7 +101,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - uses: vypdev/copilot@v1
+      - uses: vypdev/copilot@v2
         with:
           token: ${{ secrets.PAT }}
           opencode-model: ${{ vars.OPENCODE_MODEL }}
@@ -140,7 +140,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || format('feature/issue-{0}', github.event.inputs.issue_number) }}
 
-      - uses: vypdev/copilot@v1
+      - uses: vypdev/copilot@v2
         with:
           token: ${{ secrets.PAT }}
           single-action: detect_potential_problems_action

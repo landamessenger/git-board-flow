@@ -1,4 +1,4 @@
-name: "Copilot"
+name: "Copilot - Github with super powers"
 description: "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology."
 author: "Efra Espada"
 inputs:
@@ -424,5 +424,5 @@ runs:
   using: "node20"
   main: "build/github_action/index.js"
 branding:
-  icon: "git-branch"
-  color: "gray-dark"
+  icon: "cpu"
+  color: "blue"

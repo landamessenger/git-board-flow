@@ -1,4 +1,4 @@
-[![GitHub Marketplace](https://img.shields.io/badge/marketplace/actions/copilot?logo=github)](https://github.com/marketplace/actions/copilot)
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace/actions/copilot-github-with-super-powers?logo=github)](https://github.com/marketplace/actions/copilot-github-with-super-powers)
 [![codecov](https://codecov.io/gh/vypdev/copilot/branch/master/graph/badge.svg)](https://codecov.io/gh/vypdev/copilot)
 ![Build](https://github.com/vypdev/copilot/actions/workflows/ci_check.yml/badge.svg)
 ![License](https://img.shields.io/github/license/vypdev/copilot)
@@ -35,7 +35,7 @@ Full documentation: **[docs.page/vypdev/copilot](https://docs.page/vypdev/copilo
 1. **Create a PAT** and store it as a repo secret (e.g. `PAT`). See [Authentication](https://docs.page/vypdev/copilot/authentication).
 2. **Use the action** from the marketplace so versions are stable:
    ```yaml
-   uses: vypdev/copilot@v1
+   uses: vypdev/copilot@v2
    ```
 3. **Add workflows** — Copy the files from `setup/workflows/` into your `.github/workflows/`, or run **`copilot setup`** from your repo root (with `PERSONAL_ACCESS_TOKEN` in `.env`). See [How to use](https://docs.page/vypdev/copilot/how-to-use).
 
