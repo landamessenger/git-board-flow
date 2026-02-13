@@ -5,16 +5,18 @@
  * We do not pass a pre-computed diff or file list.
  */
 
+import { getBugbotPrompt } from "../../../../prompts";
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../../utils/opencode_project_context_instruction";
 import type { Execution } from "../../../../data/model/execution";
 import type { BugbotContext } from "./types";
+
+const MAX_IGNORE_BLOCK_LENGTH = 2000;
 
 export function buildBugbotPrompt(param: Execution, context: BugbotContext): string {
     const headBranch = param.commit.branch;
     const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
     const previousBlock = context.previousFindingsBlock;
     const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
-    const MAX_IGNORE_BLOCK_LENGTH = 2000;
     const ignoreBlock =
         ignorePatterns.length > 0
             ? (() => {
@@ -27,20 +29,14 @@ export function buildBugbotPrompt(param: Execution, context: BugbotContext): str
               })()
             : "";
 
-    return `You are analyzing the latest code changes for potential bugs and issues.
-
-${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Repository context:**
-- Owner: ${param.owner}
-- Repository: ${param.repo}
-- Branch (head): ${headBranch}
-- Base branch: ${baseBranch}
-- Issue number: ${param.issueNumber}
-${ignoreBlock}
-
-**Your task 1 (new/current problems):** Determine what has changed in the branch "${headBranch}" compared to "${baseBranch}" (you must compute or obtain the diff yourself using the repository context above). Then identify potential bugs, logic errors, security issues, and code quality problems. Be strict and descriptive. One finding per distinct problem. Return them in the \`findings\` array (each with id, title, description; optionally file, line, severity, suggestion). Only include findings in files that are not in the ignore list above.
-${previousBlock}
-
-**Output:** Return a JSON object with: "findings" (array of new/current problems from task 1), and if we gave you previously reported issues above, "resolved_finding_ids" (array of those ids that are now fixed or no longer apply, as per task 2).`;
+    return getBugbotPrompt({
+        projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+        owner: param.owner,
+        repo: param.repo,
+        headBranch,
+        baseBranch,
+        issueNumber: String(param.issueNumber),
+        ignoreBlock,
+        previousBlock,
+    });
 }

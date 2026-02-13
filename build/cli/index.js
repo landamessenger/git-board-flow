@@ -47253,8 +47253,9 @@ const local_action_1 = __nccwpck_require__(7002);
 const issue_repository_1 = __nccwpck_require__(57);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
-const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
+const prompts_1 = __nccwpck_require__(5554);
 const ai_1 = __nccwpck_require__(4470);
+const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const ai_repository_1 = __nccwpck_require__(8307);
 // Load environment variables from .env file
 dotenv.config();
@@ -47418,7 +47419,10 @@ program
     try {
         const ai = new ai_1.Ai(serverUrl, model, false, false, [], false, 'low', 20);
         const aiRepository = new ai_repository_1.AiRepository();
-        const fullPrompt = `${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}\n\n${prompt}`;
+        const fullPrompt = (0, prompts_1.getCliDoPrompt)({
+            projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+            userPrompt: prompt,
+        });
         const result = await aiRepository.copilotMessage(ai, fullPrompt);
         if (!result) {
             console.error('❌ Request failed (check OpenCode server and model).');
@@ -49596,6 +49600,174 @@ exports.AiRepository = AiRepository;
 
 /***/ }),
 
+/***/ 8224:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BranchCompareRepository = void 0;
+const github = __importStar(__nccwpck_require__(5438));
+const logger_1 = __nccwpck_require__(8836);
+/**
+ * Repository for comparing branches and computing size categories.
+ * Isolated to allow unit tests with mocked Octokit and pure size logic.
+ */
+class BranchCompareRepository {
+    constructor() {
+        this.getChanges = async (owner, repository, head, base, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                (0, logger_1.logDebugInfo)(`Comparing branches: ${head} with ${base}`);
+                let headRef = `heads/${head}`;
+                if (head.indexOf('tags/') > -1) {
+                    headRef = head;
+                }
+                let baseRef = `heads/${base}`;
+                if (base.indexOf('tags/') > -1) {
+                    baseRef = base;
+                }
+                const { data: comparison } = await octokit.rest.repos.compareCommits({
+                    owner: owner,
+                    repo: repository,
+                    base: baseRef,
+                    head: headRef,
+                });
+                return {
+                    aheadBy: comparison.ahead_by,
+                    behindBy: comparison.behind_by,
+                    totalCommits: comparison.total_commits,
+                    files: (comparison.files || []).map(file => ({
+                        filename: file.filename,
+                        status: file.status,
+                        additions: file.additions ?? 0,
+                        deletions: file.deletions ?? 0,
+                        changes: file.changes ?? 0,
+                        blobUrl: file.blob_url,
+                        rawUrl: file.raw_url,
+                        contentsUrl: file.contents_url,
+                        patch: file.patch,
+                    })),
+                    commits: comparison.commits.map(commit => {
+                        const author = commit.commit.author;
+                        return {
+                            sha: commit.sha,
+                            message: commit.commit.message,
+                            author: {
+                                name: author?.name ?? 'Unknown',
+                                email: author?.email ?? 'unknown@example.com',
+                                date: author?.date ?? new Date().toISOString(),
+                            },
+                            date: author?.date ?? new Date().toISOString(),
+                        };
+                    }),
+                };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error comparing branches: ${error}`);
+                throw error;
+            }
+        };
+        this.getSizeCategoryAndReason = async (owner, repository, head, base, sizeThresholds, labels, token) => {
+            try {
+                const headBranchChanges = await this.getChanges(owner, repository, head, base, token);
+                const totalChanges = headBranchChanges.files.reduce((sum, file) => sum + file.changes, 0);
+                const totalFiles = headBranchChanges.files.length;
+                const totalCommits = headBranchChanges.totalCommits;
+                let sizeCategory;
+                let githubSize;
+                let sizeReason;
+                if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
+                    sizeCategory = labels.sizeXxl;
+                    githubSize = `XL`;
+                    sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
+                        totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
+                            `More than ${sizeThresholds.xxl.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
+                    sizeCategory = labels.sizeXl;
+                    githubSize = `XL`;
+                    sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
+                        totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
+                            `More than ${sizeThresholds.xl.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
+                    sizeCategory = labels.sizeL;
+                    githubSize = `L`;
+                    sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
+                        totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
+                            `More than ${sizeThresholds.l.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
+                    sizeCategory = labels.sizeM;
+                    githubSize = `M`;
+                    sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
+                        totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
+                            `More than ${sizeThresholds.m.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
+                    sizeCategory = labels.sizeS;
+                    githubSize = `S`;
+                    sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
+                        totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
+                            `More than ${sizeThresholds.s.commits} commits`;
+                }
+                else {
+                    sizeCategory = labels.sizeXs;
+                    githubSize = `XS`;
+                    sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
+                }
+                return {
+                    size: sizeCategory,
+                    githubSize: githubSize,
+                    reason: sizeReason,
+                };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error comparing branches: ${error}`);
+                throw error;
+            }
+        };
+    }
+}
+exports.BranchCompareRepository = BranchCompareRepository;
+
+
+/***/ }),
+
 /***/ 7701:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -49636,90 +49808,31 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BranchRepository = void 0;
-const core = __importStar(__nccwpck_require__(2186));
-const exec = __importStar(__nccwpck_require__(1514));
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
-const version_utils_1 = __nccwpck_require__(9887);
 const result_1 = __nccwpck_require__(7305);
+const branch_compare_repository_1 = __nccwpck_require__(8224);
+const git_cli_repository_1 = __nccwpck_require__(5617);
+const merge_repository_1 = __nccwpck_require__(4015);
+const workflow_repository_1 = __nccwpck_require__(779);
+/**
+ * Facade for branch-related operations. Delegates to focused repositories
+ * (GitCli, Workflow, Merge, BranchCompare) for testability.
+ */
 class BranchRepository {
     constructor() {
+        this.gitCliRepository = new git_cli_repository_1.GitCliRepository();
+        this.workflowRepository = new workflow_repository_1.WorkflowRepository();
+        this.mergeRepository = new merge_repository_1.MergeRepository();
+        this.branchCompareRepository = new branch_compare_repository_1.BranchCompareRepository();
         this.fetchRemoteBranches = async () => {
-            try {
-                (0, logger_1.logDebugInfo)('Fetching tags and forcing fetch...');
-                await exec.exec('git', ['fetch', '--tags', '--force']);
-                (0, logger_1.logDebugInfo)('Fetching all remote branches with verbose output...');
-                await exec.exec('git', ['fetch', '--all', '-v']);
-                (0, logger_1.logDebugInfo)('Successfully fetched all remote branches.');
-            }
-            catch (error) {
-                core.setFailed(`Error fetching remote branches: ${error}`);
-            }
+            return this.gitCliRepository.fetchRemoteBranches();
         };
         this.getLatestTag = async () => {
-            try {
-                (0, logger_1.logDebugInfo)('Fetching the latest tag...');
-                await exec.exec('git', ['fetch', '--tags']);
-                const tags = [];
-                await exec.exec('git', ['tag', '--sort=-creatordate'], {
-                    listeners: {
-                        stdout: (data) => {
-                            tags.push(...data.toString().split('\n').map((v) => {
-                                return v.replace('v', '');
-                            }));
-                        },
-                    },
-                });
-                const validTags = tags.filter(tag => /\d+\.\d+\.\d+$/.test(tag));
-                if (validTags.length > 0) {
-                    const latestTag = (0, version_utils_1.getLatestVersion)(validTags);
-                    (0, logger_1.logDebugInfo)(`Latest tag: ${latestTag}`);
-                    return latestTag;
-                }
-                else {
-                    (0, logger_1.logDebugInfo)('No valid tags found.');
-                    return undefined;
-                }
-            }
-            catch (error) {
-                core.setFailed(`Error fetching the latest tag: ${error}`);
-                return undefined;
-            }
+            return this.gitCliRepository.getLatestTag();
         };
         this.getCommitTag = async (latestTag) => {
-            try {
-                if (!latestTag) {
-                    core.setFailed('No LATEST_TAG found in the environment');
-                    return;
-                }
-                let tagVersion;
-                if (latestTag.startsWith('v')) {
-                    tagVersion = latestTag;
-                }
-                else {
-                    tagVersion = `v${latestTag}`;
-                }
-                (0, logger_1.logDebugInfo)(`Fetching commit hash for the tag: ${tagVersion}`);
-                let commitOid = '';
-                await exec.exec('git', ['rev-list', '-n', '1', tagVersion], {
-                    listeners: {
-                        stdout: (data) => {
-                            commitOid = data.toString().trim();
-                        },
-                    },
-                });
-                if (commitOid) {
-                    (0, logger_1.logDebugInfo)(`Commit tag: ${commitOid}`);
-                    return commitOid;
-                }
-                else {
-                    core.setFailed('No commit found for the tag');
-                }
-            }
-            catch (error) {
-                core.setFailed(`Error fetching the commit hash: ${error}`);
-            }
-            return undefined;
+            return this.gitCliRepository.getCommitTag(latestTag);
         };
         /**
          * Returns replaced branch (if any).
@@ -49996,292 +50109,154 @@ class BranchRepository {
             return allBranches;
         };
         this.executeWorkflow = async (owner, repository, branch, workflow, inputs, token) => {
-            const octokit = github.getOctokit(token);
-            return octokit.rest.actions.createWorkflowDispatch({
-                owner: owner,
-                repo: repository,
-                workflow_id: workflow,
-                ref: branch,
-                inputs: inputs
-            });
+            return this.workflowRepository.executeWorkflow(owner, repository, branch, workflow, inputs, token);
         };
         this.mergeBranch = async (owner, repository, head, base, timeout, token) => {
-            const result = [];
-            try {
-                const octokit = github.getOctokit(token);
-                (0, logger_1.logDebugInfo)(`Creating merge from ${head} into ${base}`);
-                // Build PR body with commit list
-                const prBody = `🚀 Automated Merge  
-
-This PR merges **${head}** into **${base}**.  
-
-**Commits included:**`;
-                // We need PAT for creating PR to ensure it can trigger workflows
-                const { data: pullRequest } = await octokit.rest.pulls.create({
-                    owner: owner,
-                    repo: repository,
-                    head: head,
-                    base: base,
-                    title: `Merge ${head} into ${base}`,
-                    body: prBody,
-                });
-                (0, logger_1.logDebugInfo)(`Pull request #${pullRequest.number} created, getting commits...`);
-                // Get all commits in the PR
-                const { data: commits } = await octokit.rest.pulls.listCommits({
-                    owner: owner,
-                    repo: repository,
-                    pull_number: pullRequest.number
-                });
-                const commitMessages = commits.map(commit => commit.commit.message);
-                (0, logger_1.logDebugInfo)(`Found ${commitMessages.length} commits in PR`);
-                // Update PR with commit list and footer
-                await octokit.rest.pulls.update({
-                    owner: owner,
-                    repo: repository,
-                    pull_number: pullRequest.number,
-                    body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
-                        '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).'
-                });
-                const iteration = 10;
-                if (timeout > iteration) {
-                    // Wait for checks to complete - can use regular token for reading checks
-                    let checksCompleted = false;
-                    let attempts = 0;
-                    const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
-                    while (!checksCompleted && attempts < maxAttempts) {
-                        const { data: checkRuns } = await octokit.rest.checks.listForRef({
-                            owner: owner,
-                            repo: repository,
-                            ref: head,
-                        });
-                        // Get commit status checks for the PR head commit
-                        const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
-                            owner: owner,
-                            repo: repository,
-                            ref: head
-                        });
-                        (0, logger_1.logDebugInfo)(`Combined status state: ${commitStatus.state}`);
-                        (0, logger_1.logDebugInfo)(`Number of check runs: ${checkRuns.check_runs.length}`);
-                        // If there are check runs, prioritize those over status checks
-                        if (checkRuns.check_runs.length > 0) {
-                            const pendingCheckRuns = checkRuns.check_runs.filter(check => check.status !== 'completed');
-                            if (pendingCheckRuns.length === 0) {
-                                checksCompleted = true;
-                                (0, logger_1.logDebugInfo)('All check runs have completed.');
-                                // Verify if all checks passed
-                                const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
-                                if (failedChecks.length > 0) {
-                                    throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
-                                }
-                            }
-                            else {
-                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingCheckRuns.length} check runs to complete:`);
-                                pendingCheckRuns.forEach(check => {
-                                    (0, logger_1.logDebugInfo)(`  - ${check.name} (Status: ${check.status})`);
-                                });
-                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
-                                attempts++;
-                                continue;
-                            }
-                        }
-                        else {
-                            // Fall back to status checks if no check runs exist
-                            const pendingChecks = commitStatus.statuses.filter(status => {
-                                (0, logger_1.logDebugInfo)(`Status check: ${status.context} (State: ${status.state})`);
-                                return status.state === 'pending';
-                            });
-                            if (pendingChecks.length === 0) {
-                                checksCompleted = true;
-                                (0, logger_1.logDebugInfo)('All status checks have completed.');
-                            }
-                            else {
-                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingChecks.length} status checks to complete:`);
-                                pendingChecks.forEach(check => {
-                                    (0, logger_1.logDebugInfo)(`  - ${check.context} (State: ${check.state})`);
-                                });
-                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
-                                attempts++;
-                            }
-                        }
-                    }
-                    if (!checksCompleted) {
-                        throw new Error('Timed out waiting for checks to complete');
-                    }
-                }
-                // Need PAT for merging to ensure it can trigger subsequent workflows
-                await octokit.rest.pulls.merge({
-                    owner: owner,
-                    repo: repository,
-                    pull_number: pullRequest.number,
-                    merge_method: 'merge',
-                    commit_title: `Merge ${head} into ${base}. Forced merge with PAT token.`,
-                });
-                result.push(new result_1.Result({
-                    id: 'branch_repository',
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `The branch \`${head}\` was merged into \`${base}\`.`,
-                    ],
-                }));
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error in PR workflow: ${error}`);
-                // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
-                try {
-                    const octokit = github.getOctokit(token);
-                    await octokit.rest.repos.merge({
-                        owner: owner,
-                        repo: repository,
-                        base: base,
-                        head: head,
-                        commit_message: `Forced merge of ${head} into ${base}. Automated merge with PAT token.`,
-                    });
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The branch \`${head}\` was merged into \`${base}\` using direct merge.`,
-                        ],
-                    }));
-                    return result;
-                }
-                catch (directMergeError) {
-                    (0, logger_1.logError)(`Error in direct merge attempt: ${directMergeError}`);
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Failed to merge branch \`${head}\` into \`${base}\`.`,
-                        ],
-                    }));
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: false,
-                        executed: true,
-                        error: error,
-                    }));
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: false,
-                        executed: true,
-                        error: directMergeError,
-                    }));
-                }
-            }
-            return result;
+            return this.mergeRepository.mergeBranch(owner, repository, head, base, timeout, token);
         };
         this.getChanges = async (owner, repository, head, base, token) => {
-            const octokit = github.getOctokit(token);
-            try {
-                (0, logger_1.logDebugInfo)(`Comparing branches: ${head} with ${base}`);
-                let headRef = `heads/${head}`;
-                if (head.indexOf('tags/') > -1) {
-                    headRef = head;
-                }
-                let baseRef = `heads/${base}`;
-                if (base.indexOf('tags/') > -1) {
-                    baseRef = base;
-                }
-                const { data: comparison } = await octokit.rest.repos.compareCommits({
-                    owner: owner,
-                    repo: repository,
-                    base: baseRef,
-                    head: headRef,
-                });
-                return {
-                    aheadBy: comparison.ahead_by,
-                    behindBy: comparison.behind_by,
-                    totalCommits: comparison.total_commits,
-                    files: (comparison.files || []).map(file => ({
-                        filename: file.filename,
-                        status: file.status,
-                        additions: file.additions,
-                        deletions: file.deletions,
-                        changes: file.changes,
-                        blobUrl: file.blob_url,
-                        rawUrl: file.raw_url,
-                        contentsUrl: file.contents_url,
-                        patch: file.patch
-                    })),
-                    commits: comparison.commits.map(commit => ({
-                        sha: commit.sha,
-                        message: commit.commit.message,
-                        author: commit.commit.author || { name: 'Unknown', email: 'unknown@example.com', date: new Date().toISOString() },
-                        date: commit.commit.author?.date || new Date().toISOString()
-                    }))
-                };
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error comparing branches: ${error}`);
-                throw error;
-            }
+            return this.branchCompareRepository.getChanges(owner, repository, head, base, token);
         };
         this.getSizeCategoryAndReason = async (owner, repository, head, base, sizeThresholds, labels, token) => {
-            try {
-                const headBranchChanges = await this.getChanges(owner, repository, head, base, token);
-                const totalChanges = headBranchChanges.files.reduce((sum, file) => sum + file.changes, 0);
-                const totalFiles = headBranchChanges.files.length;
-                const totalCommits = headBranchChanges.totalCommits;
-                let sizeCategory;
-                let githubSize;
-                let sizeReason;
-                if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
-                    sizeCategory = labels.sizeXxl;
-                    githubSize = `XL`;
-                    sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
-                        totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
-                            `More than ${sizeThresholds.xxl.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
-                    sizeCategory = labels.sizeXl;
-                    githubSize = `XL`;
-                    sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
-                        totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
-                            `More than ${sizeThresholds.xl.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
-                    sizeCategory = labels.sizeL;
-                    githubSize = `L`;
-                    sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
-                        totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
-                            `More than ${sizeThresholds.l.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
-                    sizeCategory = labels.sizeM;
-                    githubSize = `M`;
-                    sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
-                        totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
-                            `More than ${sizeThresholds.m.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
-                    sizeCategory = labels.sizeS;
-                    githubSize = `S`;
-                    sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
-                        totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
-                            `More than ${sizeThresholds.s.commits} commits`;
-                }
-                else {
-                    sizeCategory = labels.sizeXs;
-                    githubSize = `XS`;
-                    sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
-                }
-                return {
-                    size: sizeCategory,
-                    githubSize: githubSize,
-                    reason: sizeReason
-                };
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error comparing branches: ${error}`);
-                throw error;
-            }
+            return this.branchCompareRepository.getSizeCategoryAndReason(owner, repository, head, base, sizeThresholds, labels, token);
         };
     }
 }
 exports.BranchRepository = BranchRepository;
+
+
+/***/ }),
+
+/***/ 5617:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GitCliRepository = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const exec = __importStar(__nccwpck_require__(1514));
+const logger_1 = __nccwpck_require__(8836);
+const version_utils_1 = __nccwpck_require__(9887);
+/**
+ * Repository for Git operations executed via CLI (exec).
+ * Isolated to allow unit tests with mocked @actions/exec and @actions/core.
+ */
+class GitCliRepository {
+    constructor() {
+        this.fetchRemoteBranches = async () => {
+            try {
+                (0, logger_1.logDebugInfo)('Fetching tags and forcing fetch...');
+                await exec.exec('git', ['fetch', '--tags', '--force']);
+                (0, logger_1.logDebugInfo)('Fetching all remote branches with verbose output...');
+                await exec.exec('git', ['fetch', '--all', '-v']);
+                (0, logger_1.logDebugInfo)('Successfully fetched all remote branches.');
+            }
+            catch (error) {
+                core.setFailed(`Error fetching remote branches: ${error}`);
+            }
+        };
+        this.getLatestTag = async () => {
+            try {
+                (0, logger_1.logDebugInfo)('Fetching the latest tag...');
+                await exec.exec('git', ['fetch', '--tags']);
+                const tags = [];
+                await exec.exec('git', ['tag', '--sort=-creatordate'], {
+                    listeners: {
+                        stdout: (data) => {
+                            tags.push(...data.toString().split('\n').map((v) => {
+                                return v.replace('v', '');
+                            }));
+                        },
+                    },
+                });
+                const validTags = tags.filter(tag => /\d+\.\d+\.\d+$/.test(tag));
+                if (validTags.length > 0) {
+                    const latestTag = (0, version_utils_1.getLatestVersion)(validTags);
+                    (0, logger_1.logDebugInfo)(`Latest tag: ${latestTag}`);
+                    return latestTag;
+                }
+                else {
+                    (0, logger_1.logDebugInfo)('No valid tags found.');
+                    return undefined;
+                }
+            }
+            catch (error) {
+                core.setFailed(`Error fetching the latest tag: ${error}`);
+                return undefined;
+            }
+        };
+        this.getCommitTag = async (latestTag) => {
+            try {
+                if (!latestTag) {
+                    core.setFailed('No LATEST_TAG found in the environment');
+                    return undefined;
+                }
+                let tagVersion;
+                if (latestTag.startsWith('v')) {
+                    tagVersion = latestTag;
+                }
+                else {
+                    tagVersion = `v${latestTag}`;
+                }
+                (0, logger_1.logDebugInfo)(`Fetching commit hash for the tag: ${tagVersion}`);
+                let commitOid = '';
+                await exec.exec('git', ['rev-list', '-n', '1', tagVersion], {
+                    listeners: {
+                        stdout: (data) => {
+                            commitOid = data.toString().trim();
+                        },
+                    },
+                });
+                if (commitOid) {
+                    (0, logger_1.logDebugInfo)(`Commit tag: ${commitOid}`);
+                    return commitOid;
+                }
+                else {
+                    core.setFailed('No commit found for the tag');
+                }
+            }
+            catch (error) {
+                core.setFailed(`Error fetching the commit hash: ${error}`);
+            }
+            return undefined;
+        };
+    }
+}
+exports.GitCliRepository = GitCliRepository;
 
 
 /***/ }),
@@ -51221,6 +51196,230 @@ class IssueRepository {
 exports.IssueRepository = IssueRepository;
 /** Progress labels: 0%, 5%, 10%, ..., 100% (multiples of 5). */
 IssueRepository.PROGRESS_LABEL_PERCENTS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+
+
+/***/ }),
+
+/***/ 4015:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MergeRepository = void 0;
+const github = __importStar(__nccwpck_require__(5438));
+const logger_1 = __nccwpck_require__(8836);
+const result_1 = __nccwpck_require__(7305);
+/**
+ * Repository for merging branches (via PR or direct merge).
+ * Isolated to allow unit tests with mocked Octokit.
+ */
+class MergeRepository {
+    constructor() {
+        this.mergeBranch = async (owner, repository, head, base, timeout, token) => {
+            const result = [];
+            try {
+                const octokit = github.getOctokit(token);
+                (0, logger_1.logDebugInfo)(`Creating merge from ${head} into ${base}`);
+                // Build PR body with commit list
+                const prBody = `🚀 Automated Merge  
+
+This PR merges **${head}** into **${base}**.  
+
+**Commits included:**`;
+                // We need PAT for creating PR to ensure it can trigger workflows
+                const { data: pullRequest } = await octokit.rest.pulls.create({
+                    owner: owner,
+                    repo: repository,
+                    head: head,
+                    base: base,
+                    title: `Merge ${head} into ${base}`,
+                    body: prBody,
+                });
+                (0, logger_1.logDebugInfo)(`Pull request #${pullRequest.number} created, getting commits...`);
+                // Get all commits in the PR
+                const { data: commits } = await octokit.rest.pulls.listCommits({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                });
+                const commitMessages = commits.map(commit => commit.commit.message);
+                (0, logger_1.logDebugInfo)(`Found ${commitMessages.length} commits in PR`);
+                // Update PR with commit list and footer
+                await octokit.rest.pulls.update({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                    body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
+                        '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).',
+                });
+                const iteration = 10;
+                if (timeout > iteration) {
+                    // Wait for checks to complete - can use regular token for reading checks
+                    let checksCompleted = false;
+                    let attempts = 0;
+                    const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
+                    while (!checksCompleted && attempts < maxAttempts) {
+                        const { data: checkRuns } = await octokit.rest.checks.listForRef({
+                            owner: owner,
+                            repo: repository,
+                            ref: head,
+                        });
+                        // Get commit status checks for the PR head commit
+                        const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
+                            owner: owner,
+                            repo: repository,
+                            ref: head,
+                        });
+                        (0, logger_1.logDebugInfo)(`Combined status state: ${commitStatus.state}`);
+                        (0, logger_1.logDebugInfo)(`Number of check runs: ${checkRuns.check_runs.length}`);
+                        // If there are check runs, prioritize those over status checks
+                        if (checkRuns.check_runs.length > 0) {
+                            const pendingCheckRuns = checkRuns.check_runs.filter(check => check.status !== 'completed');
+                            if (pendingCheckRuns.length === 0) {
+                                checksCompleted = true;
+                                (0, logger_1.logDebugInfo)('All check runs have completed.');
+                                // Verify if all checks passed
+                                const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
+                                if (failedChecks.length > 0) {
+                                    throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
+                                }
+                            }
+                            else {
+                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingCheckRuns.length} check runs to complete:`);
+                                pendingCheckRuns.forEach(check => {
+                                    (0, logger_1.logDebugInfo)(`  - ${check.name} (Status: ${check.status})`);
+                                });
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                                continue;
+                            }
+                        }
+                        else {
+                            // Fall back to status checks if no check runs exist
+                            const pendingChecks = commitStatus.statuses.filter(status => {
+                                (0, logger_1.logDebugInfo)(`Status check: ${status.context} (State: ${status.state})`);
+                                return status.state === 'pending';
+                            });
+                            if (pendingChecks.length === 0) {
+                                checksCompleted = true;
+                                (0, logger_1.logDebugInfo)('All status checks have completed.');
+                            }
+                            else {
+                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingChecks.length} status checks to complete:`);
+                                pendingChecks.forEach(check => {
+                                    (0, logger_1.logDebugInfo)(`  - ${check.context} (State: ${check.state})`);
+                                });
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                            }
+                        }
+                    }
+                    if (!checksCompleted) {
+                        throw new Error('Timed out waiting for checks to complete');
+                    }
+                }
+                // Need PAT for merging to ensure it can trigger subsequent workflows
+                await octokit.rest.pulls.merge({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                    merge_method: 'merge',
+                    commit_title: `Merge ${head} into ${base}. Forced merge with PAT token.`,
+                });
+                result.push(new result_1.Result({
+                    id: 'branch_repository',
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `The branch \`${head}\` was merged into \`${base}\`.`,
+                    ],
+                }));
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error in PR workflow: ${error}`);
+                // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
+                try {
+                    const octokit = github.getOctokit(token);
+                    await octokit.rest.repos.merge({
+                        owner: owner,
+                        repo: repository,
+                        base: base,
+                        head: head,
+                        commit_message: `Forced merge of ${head} into ${base}. Automated merge with PAT token.`,
+                    });
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `The branch \`${head}\` was merged into \`${base}\` using direct merge.`,
+                        ],
+                    }));
+                    return result;
+                }
+                catch (directMergeError) {
+                    (0, logger_1.logError)(`Error in direct merge attempt: ${directMergeError}`);
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Failed to merge branch \`${head}\` into \`${base}\`.`,
+                        ],
+                    }));
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        error: error,
+                    }));
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        error: directMergeError,
+                    }));
+                }
+            }
+            return result;
+        };
+    }
+}
+exports.MergeRepository = MergeRepository;
 
 
 /***/ }),
@@ -52406,6 +52605,16 @@ class WorkflowRepository {
                 return isSameWorkflow && isPrevious && isActive;
             });
         };
+        this.executeWorkflow = async (owner, repository, branch, workflow, inputs, token) => {
+            const octokit = github.getOctokit(token);
+            return octokit.rest.actions.createWorkflowDispatch({
+                owner: owner,
+                repo: repository,
+                workflow_id: workflow,
+                ref: branch,
+                inputs: inputs,
+            });
+        };
     }
 }
 exports.WorkflowRepository = WorkflowRepository;
@@ -52667,6 +52876,529 @@ exports.ConfigurationHandler = ConfigurationHandler;
 
 /***/ }),
 
+/***/ 7879:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getAnswerIssueHelpPrompt = getAnswerIssueHelpPrompt;
+/**
+ * Prompt for the initial reply when a user opens a question/help issue.
+ * Filled by the prompt provider; use getAnswerIssueHelpPrompt().
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `The user has just opened a question/help issue. Provide a helpful initial response to their question or request below. Be concise and actionable.
+
+**Answer in this single response:** Give a complete, direct answer. Do not reply that you need to explore the repository, read documentation first, or gather more information—use the project (README, docs/, code, .cursor/rules) to answer now. For "how do I…" or tutorial-style questions (e.g. how to implement or configure this project), provide concrete steps or guidance based on the project's actual documentation and structure.
+
+{{projectContextInstruction}}
+
+**Issue description (user's question or request):**
+"""
+{{description}}
+"""
+
+Respond with a single JSON object containing an "answer" field with your reply. Format the answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.`;
+function getAnswerIssueHelpPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, {
+        description: params.description,
+        projectContextInstruction: params.projectContextInstruction,
+    });
+}
+
+
+/***/ }),
+
+/***/ 1118:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getBugbotPrompt = getBugbotPrompt;
+/**
+ * Prompt for Bugbot detection (detect potential problems on push).
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `You are analyzing the latest code changes for potential bugs and issues.
+
+{{projectContextInstruction}}
+
+**Repository context:**
+- Owner: {{owner}}
+- Repository: {{repo}}
+- Branch (head): {{headBranch}}
+- Base branch: {{baseBranch}}
+- Issue number: {{issueNumber}}
+{{ignoreBlock}}
+
+**Your task 1 (new/current problems):** Determine what has changed in the branch "{{headBranch}}" compared to "{{baseBranch}}" (you must compute or obtain the diff yourself using the repository context above). Then identify potential bugs, logic errors, security issues, and code quality problems. Be strict and descriptive. One finding per distinct problem. Return them in the \`findings\` array (each with id, title, description; optionally file, line, severity, suggestion). Only include findings in files that are not in the ignore list above.
+{{previousBlock}}
+
+**Output:** Return a JSON object with: "findings" (array of new/current problems from task 1), and if we gave you previously reported issues above, "resolved_finding_ids" (array of those ids that are now fixed or no longer apply, as per task 2).`;
+function getBugbotPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, {
+        ...params,
+        issueNumber: String(params.issueNumber),
+    });
+}
+
+
+/***/ }),
+
+/***/ 9673:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getBugbotFixPrompt = getBugbotFixPrompt;
+/**
+ * Prompt for Bugbot autofix (fix selected findings in workspace).
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `You are in the repository workspace. Your task is to fix the reported code findings (bugs, vulnerabilities, or quality issues) listed below, and only those. The user has explicitly requested these fixes.
+
+{{projectContextInstruction}}
+
+**Repository context:**
+- Owner: {{owner}}
+- Repository: {{repo}}
+- Branch (head): {{headBranch}}
+- Base branch: {{baseBranch}}
+- Issue number: {{issueNumber}}
+{{prNumberLine}}
+
+**Findings to fix (do not change code unrelated to these):**
+{{findingsBlock}}
+
+**User request:**
+"""
+{{userComment}}
+"""
+
+**Rules:**
+1. Fix only the problems described in the findings above. Do not refactor or change other code except as strictly necessary for the fix.
+2. You may add or update tests only to validate that the fix is correct.
+3. After applying changes, run the verify commands (or standard build/test/lint) and ensure they all pass. If they fail, adjust the fix until they pass.
+4. Apply all changes directly in the workspace (edit files, run commands). Do not output diffs for someone else to apply.
+{{verifyBlock}}
+
+Once the fixes are applied and the verify commands pass, reply briefly confirming what was fixed and that checks passed.`;
+function getBugbotFixPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, {
+        ...params,
+        issueNumber: String(params.issueNumber),
+    });
+}
+
+
+/***/ }),
+
+/***/ 3975:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getBugbotFixIntentPrompt = getBugbotFixIntentPrompt;
+/**
+ * Prompt for detecting if user comment is a fix request and which finding ids to target.
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `You are analyzing a user comment on an issue or pull request to decide whether they are asking to fix one or more reported code findings (bugs, vulnerabilities, or quality issues).
+
+{{projectContextInstruction}}
+
+**List of unresolved findings (id, title, and optional file/line/description):**
+{{findingsBlock}}
+{{parentBlock}}
+**User comment:**
+"""
+{{userComment}}
+"""
+
+**Your task:** Decide:
+1. Is this comment clearly a request to fix one or more of the findings above? (e.g. "fix it", "arreglalo", "fix this", "fix all", "fix vulnerability X", "corrige", "fix the bug in src/foo.ts"). If the user is asking a question, discussing something else, or the intent is ambiguous, set \`is_fix_request\` to false.
+2. If it is a fix request, which finding ids should be fixed? Return their exact ids in \`target_finding_ids\`. If the user says "fix all" or equivalent, include every id from the list above. If they refer to a specific finding (e.g. by replying to a comment that contains one finding), return only that finding's id. Use only ids that appear in the list above.
+3. Is the user asking to perform some other change or task in the repo? (e.g. "add a test for X", "refactor this", "implement feature Y", "haz que Z"). If yes, set \`is_do_request\` to true. Set false for pure questions or when the only intent is to fix the listed findings.
+
+Respond with a JSON object: \`is_fix_request\` (boolean), \`target_finding_ids\` (array of strings; empty when \`is_fix_request\` is false), and \`is_do_request\` (boolean).`;
+function getBugbotFixIntentPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, params);
+}
+
+
+/***/ }),
+
+/***/ 6320:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getCheckCommentLanguagePrompt = getCheckCommentLanguagePrompt;
+exports.getTranslateCommentPrompt = getTranslateCommentPrompt;
+/**
+ * Prompts for checking if a comment is in the target locale and for translating it.
+ * Used by CheckIssueCommentLanguageUseCase and CheckPullRequestCommentLanguageUseCase.
+ */
+const fill_1 = __nccwpck_require__(5269);
+const CHECK_TEMPLATE = `
+        You are a helpful assistant that checks if the text is written in {{locale}}.
+        
+        Instructions:
+        1. Analyze the provided text
+        2. If the text is written in {{locale}}, respond with exactly "done"
+        3. If the text is written in any other language, respond with exactly "must_translate"
+        4. Do not provide any explanation or additional text
+        
+        The text is: {{commentBody}}
+        `;
+const TRANSLATE_TEMPLATE = `
+You are a helpful assistant that translates the text to {{locale}}.
+
+Instructions:
+1. Translate the text to {{locale}}
+2. Put the translated text in the translatedText field
+3. If you cannot translate (e.g. ambiguous or invalid input), set translatedText to empty string and explain in reason
+
+The text to translate is: {{commentBody}}
+        `;
+function getCheckCommentLanguagePrompt(params) {
+    return (0, fill_1.fillTemplate)(CHECK_TEMPLATE.trim(), {
+        locale: params.locale,
+        commentBody: params.commentBody,
+    });
+}
+function getTranslateCommentPrompt(params) {
+    return (0, fill_1.fillTemplate)(TRANSLATE_TEMPLATE.trim(), {
+        locale: params.locale,
+        commentBody: params.commentBody,
+    });
+}
+
+
+/***/ }),
+
+/***/ 7553:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getCheckProgressPrompt = getCheckProgressPrompt;
+/**
+ * Prompt for assessing issue progress from branch diff (CheckProgressUseCase).
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `You are in the repository workspace. Assess the progress of issue #{{issueNumber}} using the full diff between the base (parent) branch and the current branch.
+
+{{projectContextInstruction}}
+
+**Branches:**
+- **Base (parent) branch:** \`{{baseBranch}}\`
+- **Current branch:** \`{{currentBranch}}\`
+
+**Instructions:**
+1. Get the full diff by running: \`git diff {{baseBranch}}..{{currentBranch}}\` (or \`git diff {{baseBranch}}...{{currentBranch}}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
+2. Optionally confirm the current branch with \`git branch --show-current\` if needed.
+3. Based on the full diff and the issue description below, assess completion progress (0-100%) and write a short summary.
+4. If progress is below 100%, add a "remaining" field with a short description of what is left to do to complete the task (e.g. missing implementation, tests, docs). Omit "remaining" or leave empty when progress is 100%.
+
+**Issue description:**
+{{issueDescription}}
+
+Respond with a single JSON object: { "progress": <number 0-100>, "summary": "<short explanation>", "remaining": "<what is left to reach 100%, only when progress < 100>" }.`;
+function getCheckProgressPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, {
+        projectContextInstruction: params.projectContextInstruction,
+        issueNumber: String(params.issueNumber),
+        baseBranch: params.baseBranch,
+        currentBranch: params.currentBranch,
+        issueDescription: params.issueDescription,
+    });
+}
+
+
+/***/ }),
+
+/***/ 7663:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getCliDoPrompt = getCliDoPrompt;
+/**
+ * Prompt for CLI "copilot do" command: project context + user prompt.
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `{{projectContextInstruction}}
+
+{{userPrompt}}`;
+function getCliDoPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, params);
+}
+
+
+/***/ }),
+
+/***/ 5269:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.fillTemplate = fillTemplate;
+/**
+ * Replaces {{paramName}} placeholders in a template with values from params.
+ * Missing keys are left as {{paramName}}.
+ */
+function fillTemplate(template, params) {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => params[key] ?? `{{${key}}}`);
+}
+
+
+/***/ }),
+
+/***/ 5554:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PROMPT_NAMES = exports.getBugbotFixIntentPrompt = exports.getBugbotFixPrompt = exports.getBugbotPrompt = exports.getCliDoPrompt = exports.getTranslateCommentPrompt = exports.getCheckCommentLanguagePrompt = exports.getCheckProgressPrompt = exports.getRecommendStepsPrompt = exports.getUserRequestPrompt = exports.getUpdatePullRequestDescriptionPrompt = exports.getThinkPrompt = exports.getAnswerIssueHelpPrompt = exports.fillTemplate = void 0;
+exports.getPrompt = getPrompt;
+/**
+ * Prompt provider: one file per prompt, each exports a getter that fills the template with params.
+ * Use getPrompt(name, params) for a generic call or import the typed getter (e.g. getAnswerIssueHelpPrompt).
+ */
+const answer_issue_help_1 = __nccwpck_require__(7879);
+const think_1 = __nccwpck_require__(5725);
+const update_pull_request_description_1 = __nccwpck_require__(1482);
+const user_request_1 = __nccwpck_require__(1762);
+const recommend_steps_1 = __nccwpck_require__(2041);
+const check_progress_1 = __nccwpck_require__(7553);
+const check_comment_language_1 = __nccwpck_require__(6320);
+const cli_do_1 = __nccwpck_require__(7663);
+const bugbot_1 = __nccwpck_require__(1118);
+const bugbot_fix_1 = __nccwpck_require__(9673);
+const bugbot_fix_intent_1 = __nccwpck_require__(3975);
+var fill_1 = __nccwpck_require__(5269);
+Object.defineProperty(exports, "fillTemplate", ({ enumerable: true, get: function () { return fill_1.fillTemplate; } }));
+var answer_issue_help_2 = __nccwpck_require__(7879);
+Object.defineProperty(exports, "getAnswerIssueHelpPrompt", ({ enumerable: true, get: function () { return answer_issue_help_2.getAnswerIssueHelpPrompt; } }));
+var think_2 = __nccwpck_require__(5725);
+Object.defineProperty(exports, "getThinkPrompt", ({ enumerable: true, get: function () { return think_2.getThinkPrompt; } }));
+var update_pull_request_description_2 = __nccwpck_require__(1482);
+Object.defineProperty(exports, "getUpdatePullRequestDescriptionPrompt", ({ enumerable: true, get: function () { return update_pull_request_description_2.getUpdatePullRequestDescriptionPrompt; } }));
+var user_request_2 = __nccwpck_require__(1762);
+Object.defineProperty(exports, "getUserRequestPrompt", ({ enumerable: true, get: function () { return user_request_2.getUserRequestPrompt; } }));
+var recommend_steps_2 = __nccwpck_require__(2041);
+Object.defineProperty(exports, "getRecommendStepsPrompt", ({ enumerable: true, get: function () { return recommend_steps_2.getRecommendStepsPrompt; } }));
+var check_progress_2 = __nccwpck_require__(7553);
+Object.defineProperty(exports, "getCheckProgressPrompt", ({ enumerable: true, get: function () { return check_progress_2.getCheckProgressPrompt; } }));
+var check_comment_language_2 = __nccwpck_require__(6320);
+Object.defineProperty(exports, "getCheckCommentLanguagePrompt", ({ enumerable: true, get: function () { return check_comment_language_2.getCheckCommentLanguagePrompt; } }));
+Object.defineProperty(exports, "getTranslateCommentPrompt", ({ enumerable: true, get: function () { return check_comment_language_2.getTranslateCommentPrompt; } }));
+var cli_do_2 = __nccwpck_require__(7663);
+Object.defineProperty(exports, "getCliDoPrompt", ({ enumerable: true, get: function () { return cli_do_2.getCliDoPrompt; } }));
+var bugbot_2 = __nccwpck_require__(1118);
+Object.defineProperty(exports, "getBugbotPrompt", ({ enumerable: true, get: function () { return bugbot_2.getBugbotPrompt; } }));
+var bugbot_fix_2 = __nccwpck_require__(9673);
+Object.defineProperty(exports, "getBugbotFixPrompt", ({ enumerable: true, get: function () { return bugbot_fix_2.getBugbotFixPrompt; } }));
+var bugbot_fix_intent_2 = __nccwpck_require__(3975);
+Object.defineProperty(exports, "getBugbotFixIntentPrompt", ({ enumerable: true, get: function () { return bugbot_fix_intent_2.getBugbotFixIntentPrompt; } }));
+/** Known prompt names for getPrompt() */
+exports.PROMPT_NAMES = {
+    ANSWER_ISSUE_HELP: 'answer_issue_help',
+    THINK: 'think',
+    UPDATE_PULL_REQUEST_DESCRIPTION: 'update_pull_request_description',
+    USER_REQUEST: 'user_request',
+    RECOMMEND_STEPS: 'recommend_steps',
+    CHECK_PROGRESS: 'check_progress',
+    CHECK_COMMENT_LANGUAGE: 'check_comment_language',
+    TRANSLATE_COMMENT: 'translate_comment',
+    CLI_DO: 'cli_do',
+    BUGBOT: 'bugbot',
+    BUGBOT_FIX: 'bugbot_fix',
+    BUGBOT_FIX_INTENT: 'bugbot_fix_intent',
+};
+const registry = {
+    [exports.PROMPT_NAMES.ANSWER_ISSUE_HELP]: (p) => (0, answer_issue_help_1.getAnswerIssueHelpPrompt)(p),
+    [exports.PROMPT_NAMES.THINK]: (p) => (0, think_1.getThinkPrompt)(p),
+    [exports.PROMPT_NAMES.UPDATE_PULL_REQUEST_DESCRIPTION]: (p) => (0, update_pull_request_description_1.getUpdatePullRequestDescriptionPrompt)(p),
+    [exports.PROMPT_NAMES.USER_REQUEST]: (p) => (0, user_request_1.getUserRequestPrompt)(p),
+    [exports.PROMPT_NAMES.RECOMMEND_STEPS]: (p) => (0, recommend_steps_1.getRecommendStepsPrompt)(p),
+    [exports.PROMPT_NAMES.CHECK_PROGRESS]: (p) => (0, check_progress_1.getCheckProgressPrompt)(p),
+    [exports.PROMPT_NAMES.CHECK_COMMENT_LANGUAGE]: (p) => (0, check_comment_language_1.getCheckCommentLanguagePrompt)(p),
+    [exports.PROMPT_NAMES.TRANSLATE_COMMENT]: (p) => (0, check_comment_language_1.getTranslateCommentPrompt)(p),
+    [exports.PROMPT_NAMES.CLI_DO]: (p) => (0, cli_do_1.getCliDoPrompt)(p),
+    [exports.PROMPT_NAMES.BUGBOT]: (p) => (0, bugbot_1.getBugbotPrompt)(p),
+    [exports.PROMPT_NAMES.BUGBOT_FIX]: (p) => (0, bugbot_fix_1.getBugbotFixPrompt)(p),
+    [exports.PROMPT_NAMES.BUGBOT_FIX_INTENT]: (p) => (0, bugbot_fix_intent_1.getBugbotFixIntentPrompt)(p),
+};
+/**
+ * Returns a filled prompt by name. Params must match the prompt's expected keys.
+ */
+function getPrompt(name, params) {
+    const fn = registry[name];
+    if (!fn) {
+        throw new Error(`Unknown prompt: ${name}`);
+    }
+    return fn(params);
+}
+
+
+/***/ }),
+
+/***/ 2041:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getRecommendStepsPrompt = getRecommendStepsPrompt;
+/**
+ * Prompt for recommending implementation steps from an issue (RecommendStepsUseCase).
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `Based on the following issue description, recommend concrete steps to implement or address this issue. Order the steps logically (e.g. setup, implementation, tests, docs). Keep each step clear and actionable.
+
+{{projectContextInstruction}}
+
+**Issue #{{issueNumber}} description:**
+{{issueDescription}}
+
+Provide a numbered list of recommended steps in **markdown** (use headings, lists, code blocks for commands or snippets) so it is easy to read. You can add brief sub-bullets per step if needed.`;
+function getRecommendStepsPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, {
+        projectContextInstruction: params.projectContextInstruction,
+        issueNumber: String(params.issueNumber),
+        issueDescription: params.issueDescription,
+    });
+}
+
+
+/***/ }),
+
+/***/ 5725:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getThinkPrompt = getThinkPrompt;
+/**
+ * Prompt for the Think use case (answer to @mention in issue/PR comment).
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Format your answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.
+
+{{projectContextInstruction}}
+{{contextBlock}}Question: {{question}}`;
+function getThinkPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, {
+        projectContextInstruction: params.projectContextInstruction,
+        contextBlock: params.contextBlock,
+        question: params.question,
+    });
+}
+
+
+/***/ }),
+
+/***/ 1482:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getUpdatePullRequestDescriptionPrompt = getUpdatePullRequestDescriptionPrompt;
+/**
+ * Prompt for generating PR description from issue and diff (UpdatePullRequestDescriptionUseCase).
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `You are in the repository workspace. Your task is to produce a pull request description by filling the project's PR template with information from the branch diff and the issue.
+
+{{projectContextInstruction}}
+
+**Branches:**
+- **Base (target) branch:** \`{{baseBranch}}\`
+- **Head (source) branch:** \`{{headBranch}}\`
+
+**Instructions:**
+1. Read the pull request template file: \`.github/pull_request_template.md\`. Use its structure (headings, bullet lists, separators) as the skeleton for your output. The checkboxes in the template are **indicative only**: you may check the ones that apply based on the project and the diff, define different or fewer checkboxes if that fits better, or omit a section entirely if it does not apply.
+2. Get the full diff by running: \`git diff {{baseBranch}}..{{headBranch}}\` (or \`git diff {{baseBranch}}...{{headBranch}}\` for merge-base). Use the diff to understand what changed.
+3. Use the issue description below for context and intent.
+4. Fill each section of the template with concrete content derived from the diff and the issue. Keep the same markdown structure (headings, horizontal rules). For checkbox sections (e.g. Test Coverage, Deployment Notes, Security): use the template's options as guidance; check or add only the items that apply, or skip the section if it does not apply.
+   - **Summary:** brief explanation of what the PR does and why (intent, not implementation details).
+   - **Related Issues:** include \`Closes #{{issueNumber}}\` and "Related to #" only if relevant.
+   - **Scope of Changes:** use Added / Updated / Removed / Refactored with short bullet points (high level, not file-by-file).
+   - **Technical Details:** important decisions, trade-offs, or non-obvious aspects.
+   - **How to Test:** steps a reviewer can follow (infer from the changes when possible).
+   - **Test Coverage / Deployment / Security / Performance / Checklist:** treat checkboxes as indicative; check the ones that apply from the diff and project context, or omit the section if it does not apply.
+   - **Breaking Changes:** list any, or "None".
+   - **Notes for Reviewers / Additional Context:** fill only if useful; otherwise a short placeholder or omit.
+5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules). Use checkboxes \`- [ ]\` / \`- [x]\` only where they add value; you may simplify or drop a section if it does not apply.
+
+**Issue description:**
+{{issueDescription}}
+
+Output only the filled template content (the PR description body), starting with the first heading of the template (e.g. # Summary). Do not wrap it in code blocks or add extra commentary.`;
+function getUpdatePullRequestDescriptionPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, {
+        projectContextInstruction: params.projectContextInstruction,
+        baseBranch: params.baseBranch,
+        headBranch: params.headBranch,
+        issueNumber: String(params.issueNumber),
+        issueDescription: params.issueDescription,
+    });
+}
+
+
+/***/ }),
+
+/***/ 1762:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getUserRequestPrompt = getUserRequestPrompt;
+/**
+ * Prompt for the Do user request use case (generic "do this" in repo).
+ */
+const fill_1 = __nccwpck_require__(5269);
+const TEMPLATE = `You are in the repository workspace. The user has asked you to do something. Perform their request by editing files and running commands directly in the workspace. Do not output diffs for someone else to apply.
+
+{{projectContextInstruction}}
+
+**Repository context:**
+- Owner: {{owner}}
+- Repository: {{repo}}
+- Branch (head): {{headBranch}}
+- Base branch: {{baseBranch}}
+- Issue number: {{issueNumber}}
+
+**User request:**
+"""
+{{userComment}}
+"""
+
+**Rules:**
+1. Apply all changes directly in the workspace (edit files, run commands).
+2. If the project has standard checks (build, test, lint), run them and ensure they pass when relevant.
+3. Reply briefly confirming what you did.`;
+function getUserRequestPrompt(params) {
+    return (0, fill_1.fillTemplate)(TEMPLATE, params);
+}
+
+
+/***/ }),
+
 /***/ 7744:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
@@ -52681,6 +53413,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const branch_repository_1 = __nccwpck_require__(7701);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const ai_repository_1 = __nccwpck_require__(8307);
+const prompts_1 = __nccwpck_require__(5554);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const PROGRESS_RESPONSE_SCHEMA = {
     type: 'object',
@@ -52786,7 +53519,13 @@ class CheckProgressUseCase {
             // Get development (parent) branch – we pass this so the OpenCode agent can compute the diff
             const developmentBranch = param.branches.development || 'develop';
             (0, logger_1.logInfo)(`📦 Progress will be assessed from workspace diff: base branch "${developmentBranch}", current branch "${branch}" (OpenCode agent will run git diff).`);
-            const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
+            const prompt = (0, prompts_1.getCheckProgressPrompt)({
+                projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+                issueNumber: String(issueNumber),
+                issueDescription,
+                baseBranch: developmentBranch,
+                currentBranch: branch,
+            });
             (0, logger_1.logInfo)('🤖 Analyzing progress using OpenCode Plan agent...');
             const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
             const progress = attemptResult.progress;
@@ -52901,31 +53640,6 @@ class CheckProgressUseCase {
             ? String(agentResponse.remaining).trim()
             : '';
         return { progress, summary, reasoning, remaining };
-    }
-    /**
-     * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
-     * we tell the agent the base (parent) branch and current branch so it can run `git diff`
-     * in the workspace and compute the full diff itself.
-     */
-    buildProgressPrompt(issueNumber, issueDescription, currentBranch, baseBranch) {
-        return `You are in the repository workspace. Assess the progress of issue #${issueNumber} using the full diff between the base (parent) branch and the current branch.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Branches:**
-- **Base (parent) branch:** \`${baseBranch}\`
-- **Current branch:** \`${currentBranch}\`
-
-**Instructions:**
-1. Get the full diff by running: \`git diff ${baseBranch}..${currentBranch}\` (or \`git diff ${baseBranch}...${currentBranch}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
-2. Optionally confirm the current branch with \`git branch --show-current\` if needed.
-3. Based on the full diff and the issue description below, assess completion progress (0-100%) and write a short summary.
-4. If progress is below 100%, add a "remaining" field with a short description of what is left to do to complete the task (e.g. missing implementation, tests, docs). Omit "remaining" or leave empty when progress is 100%.
-
-**Issue description:**
-${issueDescription}
-
-Respond with a single JSON object: { "progress": <number 0-100>, "summary": "<short explanation>", "remaining": "<what is left to reach 100%, only when progress < 100>" }.`;
     }
     /**
      * Returns true if the reasoning text looks truncated (e.g. ends with ":" or trailing spaces,
@@ -53500,11 +54214,12 @@ exports.PublishGithubActionUseCase = PublishGithubActionUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.RecommendStepsUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
-const logger_1 = __nccwpck_require__(8836);
-const task_emoji_1 = __nccwpck_require__(9785);
-const issue_repository_1 = __nccwpck_require__(57);
 const ai_repository_1 = __nccwpck_require__(8307);
+const issue_repository_1 = __nccwpck_require__(57);
+const prompts_1 = __nccwpck_require__(5554);
+const logger_1 = __nccwpck_require__(8836);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
+const task_emoji_1 = __nccwpck_require__(9785);
 class RecommendStepsUseCase {
     constructor() {
         this.taskId = 'RecommendStepsUseCase';
@@ -53544,14 +54259,11 @@ class RecommendStepsUseCase {
                 }));
                 return results;
             }
-            const prompt = `Based on the following issue description, recommend concrete steps to implement or address this issue. Order the steps logically (e.g. setup, implementation, tests, docs). Keep each step clear and actionable.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Issue #${issueNumber} description:**
-${issueDescription}
-
-Provide a numbered list of recommended steps in **markdown** (use headings, lists, code blocks for commands or snippets) so it is easy to read. You can add brief sub-bullets per step if needed.`;
+            const prompt = (0, prompts_1.getRecommendStepsPrompt)({
+                projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+                issueNumber: String(issueNumber),
+                issueDescription,
+            });
             (0, logger_1.logInfo)(`🤖 Recommending steps using OpenCode Plan agent...`);
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
             const steps = typeof response === 'string'
@@ -54610,6 +55322,7 @@ function canRunDoUserRequest(payload) {
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotFixIntentPrompt = buildBugbotFixIntentPrompt;
+const prompts_1 = __nccwpck_require__(5554);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 const MAX_TITLE_LENGTH = 200;
@@ -54635,24 +55348,12 @@ function buildBugbotFixIntentPrompt(userComment, unresolvedFindings, parentComme
                 : '';
         })()
         : '';
-    return `You are analyzing a user comment on an issue or pull request to decide whether they are asking to fix one or more reported code findings (bugs, vulnerabilities, or quality issues).
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**List of unresolved findings (id, title, and optional file/line/description):**
-${findingsBlock}
-${parentBlock}
-**User comment:**
-"""
-${(0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment)}
-"""
-
-**Your task:** Decide:
-1. Is this comment clearly a request to fix one or more of the findings above? (e.g. "fix it", "arreglalo", "fix this", "fix all", "fix vulnerability X", "corrige", "fix the bug in src/foo.ts"). If the user is asking a question, discussing something else, or the intent is ambiguous, set \`is_fix_request\` to false.
-2. If it is a fix request, which finding ids should be fixed? Return their exact ids in \`target_finding_ids\`. If the user says "fix all" or equivalent, include every id from the list above. If they refer to a specific finding (e.g. by replying to a comment that contains one finding), return only that finding's id. Use only ids that appear in the list above.
-3. Is the user asking to perform some other change or task in the repo? (e.g. "add a test for X", "refactor this", "implement feature Y", "haz que Z"). If yes, set \`is_do_request\` to true. Set false for pure questions or when the only intent is to fix the listed findings.
-
-Respond with a JSON object: \`is_fix_request\` (boolean), \`target_finding_ids\` (array of strings; empty when \`is_fix_request\` is false), and \`is_do_request\` (boolean).`;
+    return (0, prompts_1.getBugbotFixIntentPrompt)({
+        projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+        findingsBlock,
+        parentBlock,
+        userComment: (0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment),
+    });
 }
 
 
@@ -54667,6 +55368,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.MAX_FINDING_BODY_LENGTH = void 0;
 exports.truncateFindingBody = truncateFindingBody;
 exports.buildBugbotFixPrompt = buildBugbotFixPrompt;
+const prompts_1 = __nccwpck_require__(5554);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 /** Maximum characters for a single finding's full comment body to avoid prompt bloat and token limits. */
@@ -54711,34 +55413,19 @@ function buildBugbotFixPrompt(param, context, targetFindingIds, userComment, ver
     const verifyBlock = verifyCommands.length > 0
         ? `\n**Verify commands (run these in the workspace in order and only consider the fix successful if all pass):**\n${verifyCommands.map((c) => `- \`${String(c).replace(/`/g, "\\`")}\``).join("\n")}\n`
         : "\n**Verify:** Run any standard project checks (e.g. build, test, lint) that exist in this repo and confirm they pass.\n";
-    return `You are in the repository workspace. Your task is to fix the reported code findings (bugs, vulnerabilities, or quality issues) listed below, and only those. The user has explicitly requested these fixes.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Repository context:**
-- Owner: ${owner}
-- Repository: ${repo}
-- Branch (head): ${headBranch}
-- Base branch: ${baseBranch}
-- Issue number: ${issueNumber}
-${prNumber != null ? `- Pull request number: ${prNumber}` : ""}
-
-**Findings to fix (do not change code unrelated to these):**
-${findingsBlock}
-
-**User request:**
-"""
-${(0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment)}
-"""
-
-**Rules:**
-1. Fix only the problems described in the findings above. Do not refactor or change other code except as strictly necessary for the fix.
-2. You may add or update tests only to validate that the fix is correct.
-3. After applying changes, run the verify commands (or standard build/test/lint) and ensure they all pass. If they fail, adjust the fix until they pass.
-4. Apply all changes directly in the workspace (edit files, run commands). Do not output diffs for someone else to apply.
-${verifyBlock}
-
-Once the fixes are applied and the verify commands pass, reply briefly confirming what was fixed and that checks passed.`;
+    const prNumberLine = prNumber != null ? `- Pull request number: ${prNumber}` : "";
+    return (0, prompts_1.getBugbotFixPrompt)({
+        projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+        owner,
+        repo,
+        headBranch,
+        baseBranch,
+        issueNumber: String(issueNumber),
+        prNumberLine,
+        findingsBlock,
+        userComment: (0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment),
+        verifyBlock,
+    });
 }
 
 
@@ -54757,13 +55444,14 @@ Once the fixes are applied and the verify commands pass, reply briefly confirmin
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.buildBugbotPrompt = buildBugbotPrompt;
+const prompts_1 = __nccwpck_require__(5554);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
+const MAX_IGNORE_BLOCK_LENGTH = 2000;
 function buildBugbotPrompt(param, context) {
     const headBranch = param.commit.branch;
     const baseBranch = param.currentConfiguration.parentBranch ?? param.branches.development ?? 'develop';
     const previousBlock = context.previousFindingsBlock;
     const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
-    const MAX_IGNORE_BLOCK_LENGTH = 2000;
     const ignoreBlock = ignorePatterns.length > 0
         ? (() => {
             const raw = ignorePatterns.join(", ");
@@ -54773,22 +55461,16 @@ function buildBugbotPrompt(param, context) {
             return `\n**Files to ignore:** Do not report findings in files or paths matching these patterns: ${truncated}.`;
         })()
         : "";
-    return `You are analyzing the latest code changes for potential bugs and issues.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Repository context:**
-- Owner: ${param.owner}
-- Repository: ${param.repo}
-- Branch (head): ${headBranch}
-- Base branch: ${baseBranch}
-- Issue number: ${param.issueNumber}
-${ignoreBlock}
-
-**Your task 1 (new/current problems):** Determine what has changed in the branch "${headBranch}" compared to "${baseBranch}" (you must compute or obtain the diff yourself using the repository context above). Then identify potential bugs, logic errors, security issues, and code quality problems. Be strict and descriptive. One finding per distinct problem. Return them in the \`findings\` array (each with id, title, description; optionally file, line, severity, suggestion). Only include findings in files that are not in the ignore list above.
-${previousBlock}
-
-**Output:** Return a JSON object with: "findings" (array of new/current problems from task 1), and if we gave you previously reported issues above, "resolved_finding_ids" (array of those ids that are now fixed or no longer apply, as per task 2).`;
+    return (0, prompts_1.getBugbotPrompt)({
+        projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+        owner: param.owner,
+        repo: param.repo,
+        headBranch,
+        baseBranch,
+        issueNumber: String(param.issueNumber),
+        ignoreBlock,
+        previousBlock,
+    });
 }
 
 
@@ -56047,39 +56729,13 @@ exports.NotifyNewCommitOnIssueUseCase = NotifyNewCommitOnIssueUseCase;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DoUserRequestUseCase = void 0;
 const ai_repository_1 = __nccwpck_require__(8307);
+const prompts_1 = __nccwpck_require__(5554);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
 const result_1 = __nccwpck_require__(7305);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const sanitize_user_comment_for_prompt_1 = __nccwpck_require__(3514);
 const TASK_ID = "DoUserRequestUseCase";
-function buildUserRequestPrompt(execution, userComment) {
-    const headBranch = execution.commit.branch;
-    const baseBranch = execution.currentConfiguration.parentBranch ?? execution.branches.development ?? "develop";
-    const issueNumber = execution.issueNumber;
-    const owner = execution.owner;
-    const repo = execution.repo;
-    return `You are in the repository workspace. The user has asked you to do something. Perform their request by editing files and running commands directly in the workspace. Do not output diffs for someone else to apply.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Repository context:**
-- Owner: ${owner}
-- Repository: ${repo}
-- Branch (head): ${headBranch}
-- Base branch: ${baseBranch}
-- Issue number: ${issueNumber}
-
-**User request:**
-"""
-${(0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment)}
-"""
-
-**Rules:**
-1. Apply all changes directly in the workspace (edit files, run commands).
-2. If the project has standard checks (build, test, lint), run them and ensure they pass when relevant.
-3. Reply briefly confirming what you did.`;
-}
 class DoUserRequestUseCase {
     constructor() {
         this.taskId = TASK_ID;
@@ -56098,7 +56754,16 @@ class DoUserRequestUseCase {
             (0, logger_1.logInfo)("No user comment; skipping user request.");
             return results;
         }
-        const prompt = buildUserRequestPrompt(execution, userComment);
+        const baseBranch = execution.currentConfiguration.parentBranch ?? execution.branches.development ?? "develop";
+        const prompt = (0, prompts_1.getUserRequestPrompt)({
+            projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+            owner: execution.owner,
+            repo: execution.repo,
+            headBranch: execution.commit.branch,
+            baseBranch,
+            issueNumber: String(execution.issueNumber),
+            userComment: (0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment),
+        });
         (0, logger_1.logInfo)("Running OpenCode build agent to perform user request (changes applied in workspace).");
         const response = await this.aiRepository.copilotMessage(execution.ai, prompt);
         if (!response?.text) {
@@ -56612,6 +57277,7 @@ exports.ThinkUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
+const prompts_1 = __nccwpck_require__(5554);
 const logger_1 = __nccwpck_require__(8836);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 class ThinkUseCase {
@@ -56684,10 +57350,11 @@ class ThinkUseCase {
             const contextBlock = issueDescription
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
-            const prompt = `You are a helpful assistant. Answer the following question concisely, using the context below when relevant. Format your answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-${contextBlock}Question: ${question}`;
+            const prompt = (0, prompts_1.getThinkPrompt)({
+                projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+                contextBlock,
+                question,
+            });
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
@@ -56879,6 +57546,7 @@ exports.AnswerIssueHelpUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
+const prompts_1 = __nccwpck_require__(5554);
 const logger_1 = __nccwpck_require__(8836);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const task_emoji_1 = __nccwpck_require__(9785);
@@ -56936,16 +57604,10 @@ class AnswerIssueHelpUseCase {
                 return results;
             }
             (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Posting initial help reply for question/help issue #${issueNumber}.`);
-            const prompt = `The user has just opened a question/help issue. Provide a helpful initial response to their question or request below. Be concise and actionable. Use the project context when relevant.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Issue description (user's question or request):**
-"""
-${description}
-"""
-
-Respond with a single JSON object containing an "answer" field with your reply. Format the answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.`;
+            const prompt = (0, prompts_1.getAnswerIssueHelpPrompt)({
+                description,
+                projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+            });
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
@@ -58314,6 +58976,7 @@ exports.CheckIssueCommentLanguageUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
+const prompts_1 = __nccwpck_require__(5554);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
 class CheckIssueCommentLanguageUseCase {
@@ -58338,17 +59001,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             return results;
         }
         const locale = param.locale.issue;
-        let prompt = `
-        You are a helpful assistant that checks if the text is written in ${locale}.
-        
-        Instructions:
-        1. Analyze the provided text
-        2. If the text is written in ${locale}, respond with exactly "done"
-        3. If the text is written in any other language, respond with exactly "must_translate"
-        4. Do not provide any explanation or additional text
-        
-        The text is: ${commentBody}
-        `;
+        let prompt = (0, prompts_1.getCheckCommentLanguagePrompt)({ locale, commentBody });
         const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
@@ -58367,16 +59020,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             }));
             return results;
         }
-        prompt = `
-You are a helpful assistant that translates the text to ${locale}.
-
-Instructions:
-1. Translate the text to ${locale}
-2. Put the translated text in the translatedText field
-3. If you cannot translate (e.g. ambiguous or invalid input), set translatedText to empty string and explain in reason
-
-The text to translate is: ${commentBody}
-        `;
+        prompt = (0, prompts_1.getTranslateCommentPrompt)({ locale, commentBody });
         const translationResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.TRANSLATION_RESPONSE_SCHEMA,
@@ -58803,6 +59447,7 @@ const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const prompts_1 = __nccwpck_require__(5554);
 const logger_1 = __nccwpck_require__(8836);
 const opencode_project_context_instruction_1 = __nccwpck_require__(7381);
 const task_emoji_1 = __nccwpck_require__(9785);
@@ -58859,7 +59504,13 @@ class UpdatePullRequestDescriptionUseCase {
                 }));
                 return result;
             }
-            const prompt = this.buildPrDescriptionPrompt(param.issueNumber, issueDescription, headBranch, baseBranch);
+            const prompt = (0, prompts_1.getUpdatePullRequestDescriptionPrompt)({
+                projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+                baseBranch,
+                headBranch,
+                issueNumber: String(param.issueNumber),
+                issueDescription,
+            });
             const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
             const prBody = typeof agentResponse === 'string'
                 ? agentResponse
@@ -58892,41 +59543,6 @@ class UpdatePullRequestDescriptionUseCase {
         }
         return result;
     }
-    /**
-     * Builds the PR description prompt. We do not send the diff from our side:
-     * we pass the base and head branch so the OpenCode agent can run `git diff`
-     * in the workspace. The agent must read the repo's PR template and fill it
-     * with the same structure (sections, headings, checkboxes).
-     */
-    buildPrDescriptionPrompt(issueNumber, issueDescription, headBranch, baseBranch) {
-        return `You are in the repository workspace. Your task is to produce a pull request description by filling the project's PR template with information from the branch diff and the issue.
-
-${opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Branches:**
-- **Base (target) branch:** \`${baseBranch}\`
-- **Head (source) branch:** \`${headBranch}\`
-
-**Instructions:**
-1. Read the pull request template file: \`.github/pull_request_template.md\`. Use its structure (headings, bullet lists, separators) as the skeleton for your output. The checkboxes in the template are **indicative only**: you may check the ones that apply based on the project and the diff, define different or fewer checkboxes if that fits better, or omit a section entirely if it does not apply.
-2. Get the full diff by running: \`git diff ${baseBranch}..${headBranch}\` (or \`git diff ${baseBranch}...${headBranch}\` for merge-base). Use the diff to understand what changed.
-3. Use the issue description below for context and intent.
-4. Fill each section of the template with concrete content derived from the diff and the issue. Keep the same markdown structure (headings, horizontal rules). For checkbox sections (e.g. Test Coverage, Deployment Notes, Security): use the template's options as guidance; check or add only the items that apply, or skip the section if not relevant.
-   - **Summary:** brief explanation of what the PR does and why (intent, not implementation details).
-   - **Related Issues:** include \`Closes #${issueNumber}\` and "Related to #" only if relevant.
-   - **Scope of Changes:** use Added / Updated / Removed / Refactored with short bullet points (high level, not file-by-file).
-   - **Technical Details:** important decisions, trade-offs, or non-obvious aspects.
-   - **How to Test:** steps a reviewer can follow (infer from the changes when possible).
-   - **Test Coverage / Deployment / Security / Performance / Checklist:** treat checkboxes as indicative; check the ones that apply from the diff and project context, or omit the section if it does not apply.
-   - **Breaking Changes:** list any, or "None".
-   - **Notes for Reviewers / Additional Context:** fill only if useful; otherwise a short placeholder or omit.
-5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules). Use checkboxes \`- [ ]\` / \`- [x]\` only where they add value; you may simplify or drop a section if it does not apply.
-
-**Issue description:**
-${issueDescription}
-
-Output only the filled template content (the PR description body), starting with the first heading of the template (e.g. # Summary). Do not wrap it in code blocks or add extra commentary.`;
-    }
 }
 exports.UpdatePullRequestDescriptionUseCase = UpdatePullRequestDescriptionUseCase;
 
@@ -58943,6 +59559,7 @@ exports.CheckPullRequestCommentLanguageUseCase = void 0;
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const issue_repository_1 = __nccwpck_require__(57);
+const prompts_1 = __nccwpck_require__(5554);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
 class CheckPullRequestCommentLanguageUseCase {
@@ -58967,17 +59584,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             return results;
         }
         const locale = param.locale.pullRequest;
-        let prompt = `
-        You are a helpful assistant that checks if the text is written in ${locale}.
-        
-        Instructions:
-        1. Analyze the provided text
-        2. If the text is written in ${locale}, respond with exactly "done"
-        3. If the text is written in any other language, respond with exactly "must_translate"
-        4. Do not provide any explanation or additional text
-        
-        The text is: ${commentBody}
-        `;
+        let prompt = (0, prompts_1.getCheckCommentLanguagePrompt)({ locale, commentBody });
         const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
@@ -58996,16 +59603,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             }));
             return results;
         }
-        prompt = `
-You are a helpful assistant that translates the text to ${locale}.
-
-Instructions:
-1. Translate the text to ${locale}
-2. Put the translated text in the translatedText field
-3. If you cannot translate (e.g. ambiguous or invalid input), set translatedText to empty string and explain in reason
-
-The text to translate is: ${commentBody}
-        `;
+        prompt = (0, prompts_1.getTranslateCommentPrompt)({ locale, commentBody });
         const translationResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.TRANSLATION_RESPONSE_SCHEMA,

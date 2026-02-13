@@ -169,6 +169,11 @@ describe('CheckProgressUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].payload).toMatchObject({ progress: 60, branch: 'feature/123-add-feature' });
     expect(mockAskAgent).toHaveBeenCalled();
+    const prompt = mockAskAgent.mock.calls[0][2];
+    expect(prompt).toContain('123');
+    expect(prompt).toContain('develop');
+    expect(prompt).toContain('feature/123-add-feature');
+    expect(prompt).toContain('Issue body');
   });
 
   it('returns error result when askAgent returns undefined (OpenCode failure)', async () => {

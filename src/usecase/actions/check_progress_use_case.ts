@@ -8,6 +8,7 @@ import { IssueRepository, PROGRESS_LABEL_PATTERN } from '../../data/repository/i
 import { BranchRepository } from '../../data/repository/branch_repository';
 import { PullRequestRepository } from '../../data/repository/pull_request_repository';
 import { AiRepository, OPENCODE_AGENT_PLAN } from '../../data/repository/ai_repository';
+import { getCheckProgressPrompt } from '../../prompts';
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../utils/opencode_project_context_instruction';
 
 const PROGRESS_RESPONSE_SCHEMA = {
@@ -153,7 +154,13 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
 
             logInfo(`📦 Progress will be assessed from workspace diff: base branch "${developmentBranch}", current branch "${branch}" (OpenCode agent will run git diff).`);
 
-            const prompt = this.buildProgressPrompt(issueNumber, issueDescription, branch, developmentBranch);
+            const prompt = getCheckProgressPrompt({
+                projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+                issueNumber: String(issueNumber),
+                issueDescription,
+                baseBranch: developmentBranch,
+                currentBranch: branch,
+            });
 
             logInfo('🤖 Analyzing progress using OpenCode Plan agent...');
             const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
@@ -315,37 +322,6 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 ? String((agentResponse as Record<string, unknown>).remaining).trim()
                 : '';
         return { progress, summary, reasoning, remaining };
-    }
-
-    /**
-     * Builds the progress prompt for the OpenCode agent. We do not send the diff from our side:
-     * we tell the agent the base (parent) branch and current branch so it can run `git diff`
-     * in the workspace and compute the full diff itself.
-     */
-    private buildProgressPrompt(
-        issueNumber: number,
-        issueDescription: string,
-        currentBranch: string,
-        baseBranch: string
-    ): string {
-        return `You are in the repository workspace. Assess the progress of issue #${issueNumber} using the full diff between the base (parent) branch and the current branch.
-
-${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Branches:**
-- **Base (parent) branch:** \`${baseBranch}\`
-- **Current branch:** \`${currentBranch}\`
-
-**Instructions:**
-1. Get the full diff by running: \`git diff ${baseBranch}..${currentBranch}\` (or \`git diff ${baseBranch}...${currentBranch}\` for merge-base). If you cannot run shell commands, use whatever workspace tools you have to inspect changes between these branches.
-2. Optionally confirm the current branch with \`git branch --show-current\` if needed.
-3. Based on the full diff and the issue description below, assess completion progress (0-100%) and write a short summary.
-4. If progress is below 100%, add a "remaining" field with a short description of what is left to do to complete the task (e.g. missing implementation, tests, docs). Omit "remaining" or leave empty when progress is 100%.
-
-**Issue description:**
-${issueDescription}
-
-Respond with a single JSON object: { "progress": <number 0-100>, "summary": "<short explanation>", "remaining": "<what is left to reach 100%, only when progress < 100>" }.`;
     }
 
     /**

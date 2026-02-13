@@ -80,6 +80,9 @@ describe('RecommendStepsUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].steps).toBeDefined();
     expect(results[0].payload?.recommendedSteps).toContain('1. Add auth module');
+    const prompt = mockAskAgent.mock.calls[0][2];
+    expect(prompt).toContain('42');
+    expect(prompt).toContain('Implement login feature.');
   });
 
   it('returns success when AI returns object with steps', async () => {

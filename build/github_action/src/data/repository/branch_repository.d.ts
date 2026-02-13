@@ -1,8 +1,16 @@
-import { Execution } from "../model/execution";
+import { Execution } from '../model/execution';
 import { Labels } from '../model/labels';
-import { Result } from "../model/result";
+import { Result } from '../model/result';
 import { SizeThresholds } from '../model/size_thresholds';
+/**
+ * Facade for branch-related operations. Delegates to focused repositories
+ * (GitCli, Workflow, Merge, BranchCompare) for testability.
+ */
 export declare class BranchRepository {
+    private readonly gitCliRepository;
+    private readonly workflowRepository;
+    private readonly mergeRepository;
+    private readonly branchCompareRepository;
     fetchRemoteBranches: () => Promise<void>;
     getLatestTag: () => Promise<string | undefined>;
     getCommitTag: (latestTag: string | undefined) => Promise<string | undefined>;
@@ -27,35 +35,6 @@ export declare class BranchRepository {
     getListOfBranches: (owner: string, repository: string, token: string) => Promise<string[]>;
     executeWorkflow: (owner: string, repository: string, branch: string, workflow: string, inputs: Record<string, unknown>, token: string) => Promise<import("@octokit/plugin-paginate-rest/dist-types/types").OctokitResponse<never, 204>>;
     mergeBranch: (owner: string, repository: string, head: string, base: string, timeout: number, token: string) => Promise<Result[]>;
-    getChanges: (owner: string, repository: string, head: string, base: string, token: string) => Promise<{
-        aheadBy: number;
-        behindBy: number;
-        totalCommits: number;
-        files: {
-            filename: string;
-            status: "added" | "removed" | "modified" | "renamed" | "copied" | "changed" | "unchanged";
-            additions: number;
-            deletions: number;
-            changes: number;
-            blobUrl: string;
-            rawUrl: string;
-            contentsUrl: string;
-            patch: string | undefined;
-        }[];
-        commits: {
-            sha: string;
-            message: string;
-            author: {
-                name?: string;
-                email?: string;
-                date?: string;
-            };
-            date: string;
-        }[];
-    }>;
-    getSizeCategoryAndReason: (owner: string, repository: string, head: string, base: string, sizeThresholds: SizeThresholds, labels: Labels, token: string) => Promise<{
-        size: string;
-        githubSize: string;
-        reason: string;
-    }>;
+    getChanges: (owner: string, repository: string, head: string, base: string, token: string) => Promise<import("./branch_compare_repository").BranchComparison>;
+    getSizeCategoryAndReason: (owner: string, repository: string, head: string, base: string, sizeThresholds: SizeThresholds, labels: Labels, token: string) => Promise<import("./branch_compare_repository").SizeCategoryResult>;
 }
