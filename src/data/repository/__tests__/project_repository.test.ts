@@ -196,6 +196,12 @@ describe("ProjectRepository.getProjectDetail", () => {
         mockGetByUsername.mockRejectedValue(new Error("Not found"));
         await expect(repo.getProjectDetail("1", "token")).rejects.toThrow("Failed to get owner");
     });
+
+    it("throws when graphql project query fails", async () => {
+        mockGetByUsername.mockResolvedValue({ data: { type: "User", login: "test-owner" } });
+        mockGraphql.mockRejectedValue(new Error("Network error"));
+        await expect(repo.getProjectDetail("1", "token")).rejects.toThrow("Failed to fetch project data");
+    });
 });
 
 describe("ProjectRepository.getUserFromToken", () => {
@@ -342,6 +348,26 @@ describe("ProjectRepository.getRandomMembers", () => {
         expect(result).toEqual([]);
     });
 
+    it("returns empty array when no available members (all in currentMembers)", async () => {
+        mockTeamsList.mockResolvedValue({ data: [{ slug: "team-a" }] });
+        mockListMembersInOrg.mockResolvedValue({
+            data: [{ login: "alice" }, { login: "bob" }],
+        });
+        const result = await repo.getRandomMembers("org", 2, ["alice", "bob"], "token");
+        expect(result).toEqual([]);
+    });
+
+    it("returns all available when membersToAdd >= availableMembers.length", async () => {
+        mockTeamsList.mockResolvedValue({ data: [{ slug: "team-a" }] });
+        mockListMembersInOrg.mockResolvedValue({
+            data: [{ login: "alice" }, { login: "bob" }],
+        });
+        const result = await repo.getRandomMembers("org", 5, [], "token");
+        expect(result).toHaveLength(2);
+        expect(result).toContain("alice");
+        expect(result).toContain("bob");
+    });
+
     it("returns members not in currentMembers", async () => {
         mockTeamsList.mockResolvedValue({ data: [{ slug: "team-a" }] });
         mockListMembersInOrg.mockResolvedValue({
@@ -350,6 +376,12 @@ describe("ProjectRepository.getRandomMembers", () => {
         const result = await repo.getRandomMembers("org", 1, ["alice"], "token");
         expect(result).toHaveLength(1);
         expect(result[0]).toBe("bob");
+    });
+
+    it("returns empty array when teams.list throws", async () => {
+        mockTeamsList.mockRejectedValue(new Error("API error"));
+        const result = await repo.getRandomMembers("org", 2, [], "token");
+        expect(result).toEqual([]);
     });
 });
 
@@ -374,6 +406,12 @@ describe("ProjectRepository.getAllMembers", () => {
             .mockResolvedValueOnce({ data: [{ login: "b" }, { login: "c" }] });
         const result = await repo.getAllMembers("org", "token");
         expect(result.sort()).toEqual(["a", "b", "c"]);
+    });
+
+    it("returns empty array when teams.list throws", async () => {
+        mockTeamsList.mockRejectedValue(new Error("API error"));
+        const result = await repo.getAllMembers("org", "token");
+        expect(result).toEqual([]);
     });
 });
 
@@ -495,6 +533,13 @@ describe("ProjectRepository.updateTag", () => {
             })
         );
     });
+
+    it("returns early when source tag does not exist", async () => {
+        mockGetRef.mockRejectedValue(new Error("Not found"));
+        await repo.updateTag("owner", "repo", "missing-tag", "latest", "token");
+        expect(mockUpdateRef).not.toHaveBeenCalled();
+        expect(mockCreateRef).not.toHaveBeenCalled();
+    });
 });
 
 describe("ProjectRepository.updateRelease", () => {
@@ -553,5 +598,148 @@ describe("ProjectRepository.updateRelease", () => {
                 body: "Changelog",
             })
         );
+    });
+
+    it("returns undefined when source release has no name or body", async () => {
+        mockGetReleaseByTag.mockResolvedValue({
+            data: { name: "", body: null, draft: false, prerelease: false },
+        });
+        const result = await repo.updateRelease("owner", "repo", "v1.0", "latest", "token");
+        expect(result).toBeUndefined();
+        expect(mockListReleases).not.toHaveBeenCalled();
+    });
+});
+
+describe("ProjectRepository.setTaskPriority", () => {
+    const repo = new ProjectRepository();
+    const project = new ProjectDetail({
+        id: "PVT_1",
+        title: "P",
+        url: "https://example.com",
+        type: "orgs",
+        owner: "org",
+        number: 1,
+    });
+
+    beforeEach(() => {
+        mockGraphql.mockReset();
+    });
+
+    const fieldQueryResponseWithItem = {
+        node: {
+            fields: {
+                nodes: [
+                    {
+                        id: "f1",
+                        name: "Priority",
+                        options: [{ id: "opt_high", name: "High" }],
+                    },
+                ],
+            },
+            items: {
+                nodes: [
+                    {
+                        id: "item_1",
+                        fieldValues: { nodes: [] },
+                    },
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+            },
+        },
+    };
+
+    it("sets priority and returns true when mutation succeeds", async () => {
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce({
+                node: {
+                    items: {
+                        nodes: [{ id: "item_1", content: { id: "I_issue1" } }],
+                        pageInfo: { hasNextPage: false, endCursor: null },
+                    },
+                },
+            })
+            .mockResolvedValueOnce(fieldQueryResponseWithItem)
+            .mockResolvedValueOnce(fieldQueryResponseWithItem)
+            .mockResolvedValueOnce({
+                updateProjectV2ItemFieldValue: { projectV2Item: { id: "item_1" } },
+            });
+        const result = await repo.setTaskPriority(
+            project,
+            "owner",
+            "repo",
+            1,
+            "High",
+            "token"
+        );
+        expect(result).toBe(true);
+        expect(mockGraphql).toHaveBeenCalledTimes(5);
+    });
+
+    it("returns false when field already set to target value", async () => {
+        const fieldQueryResponseAlreadySet = {
+            node: {
+                fields: {
+                    nodes: [
+                        {
+                            id: "f1",
+                            name: "Priority",
+                            options: [{ id: "opt_high", name: "High" }],
+                        },
+                    ],
+                },
+                items: {
+                    nodes: [
+                        {
+                            id: "item_1",
+                            fieldValues: {
+                                nodes: [
+                                    {
+                                        field: { name: "Priority" },
+                                        optionId: "opt_high",
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                },
+            },
+        };
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce({
+                node: {
+                    items: {
+                        nodes: [{ id: "item_1", content: { id: "I_issue1" } }],
+                        pageInfo: { hasNextPage: false, endCursor: null },
+                    },
+                },
+            })
+            .mockResolvedValueOnce(fieldQueryResponseAlreadySet)
+            .mockResolvedValueOnce(fieldQueryResponseAlreadySet);
+        const result = await repo.setTaskPriority(
+            project,
+            "owner",
+            "repo",
+            1,
+            "High",
+            "token"
+        );
+        expect(result).toBe(false);
+        expect(mockGraphql).toHaveBeenCalledTimes(4);
+    });
+
+    it("throws when content id not found for issue", async () => {
+        mockGraphql.mockResolvedValueOnce({
+            repository: { issueOrPullRequest: null },
+        });
+        await expect(
+            repo.setTaskPriority(project, "owner", "repo", 999, "High", "token")
+        ).rejects.toThrow("Content ID not found");
     });
 });

@@ -50,11 +50,187 @@ jest.mock('@actions/github', () => ({
   }),
 }));
 
+/** Build Labels with optional currentIssueLabels (for isHotfix, containsBranchedLabel, etc.). */
+function makeLabels(overrides: { currentIssueLabels?: string[] } = {}): Labels {
+  const labels = new Labels(
+    'launch',
+    'bug',
+    'bugfix',
+    'hotfix',
+    'enhancement',
+    'feature',
+    'release',
+    'question',
+    'help',
+    'deploy',
+    'deployed',
+    'docs',
+    'documentation',
+    'chore',
+    'maintenance',
+    'priority-high',
+    'priority-medium',
+    'priority-low',
+    'priority-none',
+    'xxl',
+    'xl',
+    'l',
+    'm',
+    's',
+    'xs'
+  );
+  if (overrides.currentIssueLabels) {
+    labels.currentIssueLabels = overrides.currentIssueLabels;
+  }
+  return labels;
+}
+
 describe('IssueRepository', () => {
   const repo = new IssueRepository();
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('updateTitleIssueFormat', () => {
+    it('updates title with emoji when hotfix and branched', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['hotfix', 'launch'] });
+      mockRest.issues.update.mockResolvedValue(undefined);
+      const result = await repo.updateTitleIssueFormat(
+        'o',
+        'r',
+        '',
+        'Fix login',
+        1,
+        false,
+        'x',
+        labels,
+        'token'
+      );
+      expect(result).toBe('🔥x - Fix login');
+      expect(mockRest.issues.update).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        title: '🔥x - Fix login',
+      });
+    });
+
+    it('returns undefined when formatted title equals current title', async () => {
+      const labels = makeLabels();
+      const result = await repo.updateTitleIssueFormat(
+        'o',
+        'r',
+        '',
+        '🤖 - Clean title',
+        1,
+        false,
+        'x',
+        labels,
+        'token'
+      );
+      expect(result).toBeUndefined();
+      expect(mockRest.issues.update).not.toHaveBeenCalled();
+    });
+
+    it('includes version in title when version length > 0', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['feature', 'launch'] });
+      mockRest.issues.update.mockResolvedValue(undefined);
+      const result = await repo.updateTitleIssueFormat(
+        'o',
+        'r',
+        'v1.0',
+        'Add API',
+        2,
+        true,
+        'y',
+        labels,
+        'token'
+      );
+      expect(result).toContain('v1.0');
+      expect(result).toContain('Add API');
+    });
+
+    it('returns undefined and setFailed when update throws', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['bug'] });
+      mockRest.issues.update.mockRejectedValue(new Error('API error'));
+      const result = await repo.updateTitleIssueFormat(
+        'o',
+        'r',
+        '',
+        'Broken',
+        1,
+        false,
+        'x',
+        labels,
+        'token'
+      );
+      expect(result).toBeUndefined();
+      expect(mockSetFailed).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateTitlePullRequestFormat', () => {
+    it('updates PR title with [#N] and emoji when title differs', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['feature'] });
+      mockRest.issues.update.mockResolvedValue(undefined);
+      const result = await repo.updateTitlePullRequestFormat(
+        'o',
+        'r',
+        'Old PR title',
+        'Add feature',
+        42,
+        10,
+        false,
+        'x',
+        labels,
+        'token'
+      );
+      expect(result).toBe('[#42] ✨ - Add feature');
+      expect(mockRest.issues.update).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 10,
+        title: '[#42] ✨ - Add feature',
+      });
+    });
+
+    it('returns undefined when formatted title equals pullRequestTitle', async () => {
+      const labels = makeLabels();
+      const result = await repo.updateTitlePullRequestFormat(
+        'o',
+        'r',
+        '[#1] 🤖 - Same',
+        'Same',
+        1,
+        5,
+        false,
+        'x',
+        labels,
+        'token'
+      );
+      expect(result).toBeUndefined();
+      expect(mockRest.issues.update).not.toHaveBeenCalled();
+    });
+
+    it('returns undefined and setFailed when update throws', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['hotfix'] });
+      mockRest.issues.update.mockRejectedValue(new Error('API error'));
+      const result = await repo.updateTitlePullRequestFormat(
+        'o',
+        'r',
+        'PR',
+        'Fix',
+        1,
+        1,
+        false,
+        'x',
+        labels,
+        'token'
+      );
+      expect(result).toBeUndefined();
+      expect(mockSetFailed).toHaveBeenCalled();
+    });
   });
 
   describe('getDescription', () => {
@@ -531,6 +707,68 @@ describe('IssueRepository', () => {
     });
   });
 
+  describe('setIssueType', () => {
+    const issueTypes = new IssueTypes(
+      'Task', 'Task desc', 'BLUE',
+      'Bug', 'Bug desc', 'RED',
+      'Feature', 'Feature desc', 'GREEN',
+      'Docs', 'Docs desc', 'GREY',
+      'Maintenance', 'Maint desc', 'GREY',
+      'Hotfix', 'Hotfix desc', 'RED',
+      'Release', 'Release desc', 'BLUE',
+      'Question', 'Q desc', 'PURPLE',
+      'Help', 'Help desc', 'PURPLE'
+    );
+
+    it('sets issue type when type exists in organization', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['bug'] });
+      mockGraphql
+        .mockResolvedValueOnce({ repository: { issue: { id: 'I_1' } } })
+        .mockResolvedValueOnce({
+          organization: {
+            id: 'O_1',
+            issueTypes: { nodes: [{ id: 'T_BUG', name: 'Bug' }] },
+          },
+        })
+        .mockResolvedValueOnce({ updateIssueIssueType: { issue: { id: 'I_1', issueType: { id: 'T_BUG', name: 'Bug' } } } });
+      await repo.setIssueType('org', 'repo', 1, labels, issueTypes, 'token');
+      expect(mockGraphql).toHaveBeenCalledTimes(3);
+    });
+
+    it('creates issue type when not found then updates issue', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['hotfix'] });
+      mockGraphql
+        .mockResolvedValueOnce({ repository: { issue: { id: 'I_1' } } })
+        .mockResolvedValueOnce({
+          organization: { id: 'O_1', issueTypes: { nodes: [] } },
+        })
+        .mockResolvedValueOnce({ createIssueType: { issueType: { id: 'T_NEW' } } })
+        .mockResolvedValueOnce({ updateIssueIssueType: { issue: { id: 'I_1' } } });
+      await repo.setIssueType('org', 'repo', 1, labels, issueTypes, 'token');
+      expect(mockGraphql).toHaveBeenCalledTimes(4);
+    });
+
+    it('returns early when createIssueType throws', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['release'] });
+      mockGraphql
+        .mockResolvedValueOnce({ repository: { issue: { id: 'I_1' } } })
+        .mockResolvedValueOnce({
+          organization: { id: 'O_1', issueTypes: { nodes: [] } },
+        })
+        .mockRejectedValueOnce(new Error('Create failed'));
+      await repo.setIssueType('org', 'repo', 1, labels, issueTypes, 'token');
+      expect(mockGraphql).toHaveBeenCalledTimes(3);
+    });
+
+    it('throws when getId or organization query fails', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['feature'] });
+      mockGraphql.mockRejectedValue(new Error('GraphQL error'));
+      await expect(
+        repo.setIssueType('org', 'repo', 1, labels, issueTypes, 'token')
+      ).rejects.toThrow('GraphQL error');
+    });
+  });
+
   describe('ensureLabels', () => {
     it('ensures all required labels and returns counts', async () => {
       const labels = new Labels(
@@ -565,6 +803,20 @@ describe('IssueRepository', () => {
       const result = await repo.ensureLabels('o', 'r', labels, 'token');
       expect(result.errors).toEqual([]);
       expect(result.created).toBeGreaterThan(0);
+    });
+
+    it('collects errors when one ensureLabel throws', async () => {
+      const labels = makeLabels();
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({ data: [] });
+      let callCount = 0;
+      mockRest.issues.createLabel.mockImplementation(() => {
+        callCount++;
+        if (callCount === 2) return Promise.reject(new Error('Label exists'));
+        return Promise.resolve(undefined);
+      });
+      const result = await repo.ensureLabels('o', 'r', labels, 'token');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors.some((e) => e.includes('Label exists'))).toBe(true);
     });
   });
 
@@ -661,6 +913,35 @@ describe('IssueRepository', () => {
       expect(result.existing).toBe(9);
       expect(result.created).toBe(0);
       expect(result.errors).toEqual([]);
+    });
+
+    it('collects errors when one ensureIssueType throws', async () => {
+      const issueTypesForTest = new IssueTypes(
+        'Task', 'Task desc', 'BLUE',
+        'Bug', 'Bug desc', 'RED',
+        'Feature', 'Feature desc', 'GREEN',
+        'Docs', 'Docs desc', 'GREY',
+        'Maintenance', 'Maint desc', 'GREY',
+        'Hotfix', 'Hotfix desc', 'RED',
+        'Release', 'Release desc', 'BLUE',
+        'Question', 'Q desc', 'PURPLE',
+        'Help', 'Help desc', 'PURPLE'
+      );
+      let callCount = 0;
+      mockGraphql.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            organization: { id: 'O_1', issueTypes: { nodes: [{ id: 'T1', name: 'Task' }] } },
+          });
+        }
+        if (callCount <= 3) {
+          return Promise.resolve({ organization: { id: 'O_1', issueTypes: { nodes: [] } } });
+        }
+        return Promise.reject(new Error('Create failed'));
+      });
+      const result = await repo.ensureIssueTypes('org', issueTypesForTest, 'token');
+      expect(result.errors.length).toBeGreaterThan(0);
     });
   });
 });

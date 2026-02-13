@@ -25,6 +25,7 @@ const mockGetReviewComment = jest.fn();
 const mockUpdateReviewComment = jest.fn();
 const mockCreateReviewComment = jest.fn();
 const mockPaginateIterator = jest.fn();
+const mockGraphql = jest.fn();
 
 jest.mock('@actions/github', () => ({
   getOctokit: () => ({
@@ -46,6 +47,7 @@ jest.mock('@actions/github', () => ({
     paginate: {
       iterator: (...args: unknown[]) => mockPaginateIterator(...args),
     },
+    graphql: (...args: unknown[]) => mockGraphql(...args),
   }),
 }));
 
@@ -65,6 +67,7 @@ describe('PullRequestRepository', () => {
     mockUpdateReviewComment.mockReset();
     mockCreateReviewComment.mockReset();
     mockPaginateIterator.mockReset();
+    mockGraphql.mockReset();
   });
 
   describe('getOpenPullRequestNumbersByHeadBranch', () => {
@@ -388,9 +391,106 @@ describe('PullRequestRepository', () => {
       });
     });
 
+    it('logs error but continues when one comment fails', async () => {
+      mockCreateReviewComment
+        .mockResolvedValueOnce({ data: { id: 1 } })
+        .mockRejectedValueOnce(new Error('Comment failed'))
+        .mockResolvedValueOnce({ data: { id: 2 } });
+      await repo.createReviewWithComments(
+        'o',
+        'r',
+        1,
+        'sha',
+        [
+          { path: 'a.ts', line: 1, body: 'First' },
+          { path: 'b.ts', line: 2, body: 'Second' },
+          { path: 'c.ts', line: 3, body: 'Third' },
+        ],
+        'token'
+      );
+      expect(mockCreateReviewComment).toHaveBeenCalledTimes(3);
+    });
+
     it('does nothing when comments empty', async () => {
       await repo.createReviewWithComments('o', 'r', 1, 'sha', [], 'token');
       expect(mockCreateReviewComment).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolvePullRequestReviewThread', () => {
+    it('finds thread with comment and resolves it', async () => {
+      mockGraphql
+        .mockResolvedValueOnce({
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: [
+                  {
+                    id: 'THREAD_1',
+                    comments: {
+                      nodes: [{ id: 'COMMENT_NODE_123' }],
+                      pageInfo: { hasNextPage: false, endCursor: null },
+                    },
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                  },
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          resolveReviewThread: { thread: { id: 'THREAD_1' } },
+        });
+      await repo.resolvePullRequestReviewThread(
+        'owner',
+        'repo',
+        1,
+        'COMMENT_NODE_123',
+        'token'
+      );
+      expect(mockGraphql).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not throw when no thread found for comment', async () => {
+      mockGraphql.mockResolvedValue({
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: [
+                {
+                  id: 'THREAD_1',
+                  comments: {
+                    nodes: [{ id: 'OTHER_COMMENT' }],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                  },
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      });
+      await repo.resolvePullRequestReviewThread(
+        'owner',
+        'repo',
+        1,
+        'MISSING_COMMENT_ID',
+        'token'
+      );
+      expect(mockGraphql).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not throw when graphql throws', async () => {
+      mockGraphql.mockRejectedValue(new Error('GraphQL error'));
+      await repo.resolvePullRequestReviewThread(
+        'owner',
+        'repo',
+        1,
+        'COMMENT_ID',
+        'token'
+      );
     });
   });
 
