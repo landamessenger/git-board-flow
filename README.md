@@ -1,4 +1,4 @@
-[![GitHub Marketplace](https://img.shields.io/badge/marketplace/actions/copilot-github-with-super-powers?logo=github)](https://github.com/marketplace/actions/copilot-github-with-super-powers)
+[![GitHub Marketplace](https://img.shields.io/badge/Copilot-Github_with_super_powers-white)](https://github.com/marketplace/actions/copilot-github-with-super-powers)
 [![codecov](https://codecov.io/gh/vypdev/copilot/branch/master/graph/badge.svg)](https://codecov.io/gh/vypdev/copilot)
 ![Build](https://github.com/vypdev/copilot/actions/workflows/ci_check.yml/badge.svg)
 ![License](https://img.shields.io/github/license/vypdev/copilot)

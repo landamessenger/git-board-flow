@@ -8,6 +8,7 @@ import { Execution } from '../../../data/model/execution';
 import { Result } from '../../../data/model/result';
 import { AiRepository, OPENCODE_AGENT_PLAN, THINK_RESPONSE_SCHEMA } from '../../../data/repository/ai_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
+import { getAnswerIssueHelpPrompt } from '../../../prompts';
 import { logError, logInfo } from '../../../utils/logger';
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../../utils/opencode_project_context_instruction';
 import { getTaskEmoji } from '../../../utils/task_emoji';
@@ -83,16 +84,10 @@ export class AnswerIssueHelpUseCase implements ParamUseCase<Execution, Result[]>
 
             logInfo(`${getTaskEmoji(this.taskId)} Posting initial help reply for question/help issue #${issueNumber}.`);
 
-            const prompt = `The user has just opened a question/help issue. Provide a helpful initial response to their question or request below. Be concise and actionable. Use the project context when relevant.
-
-${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Issue description (user's question or request):**
-"""
-${description}
-"""
-
-Respond with a single JSON object containing an "answer" field with your reply. Format the answer in **markdown** (headings, lists, code blocks where useful) so it is easy to read. Do not include the question in your response.`;
+            const prompt = getAnswerIssueHelpPrompt({
+                description,
+                projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+            });
 
             const response = await this.aiRepository.askAgent(param.ai, OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,

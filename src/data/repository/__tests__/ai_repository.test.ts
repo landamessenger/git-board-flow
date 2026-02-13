@@ -54,6 +54,16 @@ describe('AiRepository', () => {
       expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES);
     });
 
+    it('returns undefined when session create returns empty body after all retries', async () => {
+      const ai = createAi();
+      mockFetch.mockResolvedValue({ ok: true, text: async () => '' });
+      const promise = repo.askAgent(ai, 'plan', 'Prompt', {});
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES);
+    });
+
     it('returns undefined when agent message request fails after all retries', async () => {
       const ai = createAi();
       const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
@@ -257,6 +267,163 @@ describe('AiRepository', () => {
         });
       await repo.askAgent(ai, 'plan', 'P', {});
       expect(mockFetch).toHaveBeenNthCalledWith(1, 'http://localhost:4096/session', expect.any(Object));
+    });
+
+    it('uses session id from session.data.id when session.id is missing', async () => {
+      const ai = createAi();
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => JSON.stringify({ data: { id: 'sid-from-data' } }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              parts: [{ type: 'text', text: '{"answer": "ok"}' }],
+            }),
+        });
+      const result = await repo.askAgent(ai, 'plan', 'P', {
+        expectJson: true,
+        schema: {},
+      });
+      expect(result).toEqual({ answer: 'ok' });
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('/session/sid-from-data/message'),
+        expect.any(Object)
+      );
+    });
+
+    it('returns undefined when expectJson is true but agent returns empty text part', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageEmptyText = {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ parts: [{ type: 'text', text: '' }] }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageEmptyText);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'P', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES * 2);
+    });
+
+    it('parses JSON with escaped quote inside string (extractFirstJsonObject)', async () => {
+      const ai = createAi();
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => JSON.stringify({ id: 's1' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              parts: [
+                {
+                  type: 'text',
+                  text: 'Analysis. {"key": "value with \\"nested\\" quote", "n": 1}',
+                },
+              ],
+            }),
+        });
+      const result = await repo.askAgent(ai, 'plan', 'P', { expectJson: true, schema: {} });
+      expect(result).toEqual({ key: 'value with "nested" quote', n: 1 });
+    });
+
+    it('returns undefined when expectJson and extracted JSON object is invalid', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageInvalidExtracted = {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            parts: [{ type: 'text', text: 'Here is the result. { invalid json here }' }],
+          }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageInvalidExtracted);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'P', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+    });
+
+    it('returns undefined when message response has empty parts array (empty text throws and retries exhaust)', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageEmptyParts = {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ parts: [] }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageEmptyParts);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'P', {});
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES * 2);
+    });
+
+    it('returns undefined when expectJson is true but response has no JSON object (no curly brace)', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageNoJson = {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            parts: [{ type: 'text', text: 'No JSON here, just plain text.' }],
+          }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageNoJson);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'P', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+    });
+
+    it('returns undefined when session create returns invalid JSON (error with cause)', async () => {
+      const ai = createAi();
+      mockFetch.mockResolvedValue({ ok: true, text: async () => 'not valid json' });
+      const promise = repo.askAgent(ai, 'plan', 'P', {});
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES);
+    });
+
+    it('hits single-quote path in extractor when response has single-quoted object (invalid JSON)', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageSingleQuote = {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            parts: [{ type: 'text', text: "Note { 'a': 1 }" }],
+          }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageSingleQuote);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'P', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
     });
   });
 

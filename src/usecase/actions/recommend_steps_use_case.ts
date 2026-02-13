@@ -1,11 +1,12 @@
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
+import { AiRepository, OPENCODE_AGENT_PLAN } from '../../data/repository/ai_repository';
+import { IssueRepository } from '../../data/repository/issue_repository';
+import { getRecommendStepsPrompt } from '../../prompts';
 import { logError, logInfo } from '../../utils/logger';
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../utils/opencode_project_context_instruction';
 import { getTaskEmoji } from '../../utils/task_emoji';
 import { ParamUseCase } from '../base/param_usecase';
-import { IssueRepository } from '../../data/repository/issue_repository';
-import { AiRepository, OPENCODE_AGENT_PLAN } from '../../data/repository/ai_repository';
-import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../utils/opencode_project_context_instruction';
 
 export class RecommendStepsUseCase implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'RecommendStepsUseCase';
@@ -62,14 +63,11 @@ export class RecommendStepsUseCase implements ParamUseCase<Execution, Result[]> 
                 return results;
             }
 
-            const prompt = `Based on the following issue description, recommend concrete steps to implement or address this issue. Order the steps logically (e.g. setup, implementation, tests, docs). Keep each step clear and actionable.
-
-${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Issue #${issueNumber} description:**
-${issueDescription}
-
-Provide a numbered list of recommended steps in **markdown** (use headings, lists, code blocks for commands or snippets) so it is easy to read. You can add brief sub-bullets per step if needed.`;
+            const prompt = getRecommendStepsPrompt({
+                projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+                issueNumber: String(issueNumber),
+                issueDescription,
+            });
 
             logInfo(`🤖 Recommending steps using OpenCode Plan agent...`);
             const response = await this.aiRepository.askAgent(

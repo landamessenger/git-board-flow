@@ -71,6 +71,9 @@ describe('CheckIssueCommentLanguageUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
     expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    const checkPrompt = mockAskAgent.mock.calls[0][2];
+    expect(checkPrompt).toContain('Spanish');
+    expect(checkPrompt).toContain('Hello world');
     expect(mockUpdateComment).not.toHaveBeenCalled();
   });
 
@@ -84,6 +87,9 @@ describe('CheckIssueCommentLanguageUseCase', () => {
     const results = await useCase.invoke(param);
 
     expect(mockAskAgent).toHaveBeenCalledTimes(2);
+    const translatePrompt = mockAskAgent.mock.calls[1][2];
+    expect(translatePrompt).toContain('Spanish');
+    expect(translatePrompt).toContain('Hello world');
     expect(mockUpdateComment).toHaveBeenCalledWith(
       'o',
       'r',

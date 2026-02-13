@@ -97,4 +97,10 @@ describe("getHeadBranchForIssue", () => {
         const branch = await repo.getHeadBranchForIssue("o", "r", 123, "token");
         expect(branch).toBe("feature/123-b");
     });
+
+    it("returns undefined when pulls.list throws", async () => {
+        mockPullsList.mockRejectedValue(new Error("API error"));
+        const branch = await repo.getHeadBranchForIssue("o", "r", 123, "token");
+        expect(branch).toBeUndefined();
+    });
 });
