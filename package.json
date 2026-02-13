@@ -1,6 +1,6 @@
 {
   "name": "copilot",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Automates branch management, GitHub project linking, and issue/PR tracking with Git-Flow methodology.",
   "main": "build/github_action/index.js",
   "bin": {
