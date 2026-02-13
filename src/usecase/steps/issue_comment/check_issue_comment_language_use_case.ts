@@ -7,6 +7,7 @@ import {
     TRANSLATION_RESPONSE_SCHEMA,
 } from "../../../data/repository/ai_repository";
 import { IssueRepository } from "../../../data/repository/issue_repository";
+import { getCheckCommentLanguagePrompt, getTranslateCommentPrompt } from "../../../prompts";
 import { logInfo } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
@@ -39,17 +40,7 @@ If you'd like this comment to be translated again, please delete the entire comm
         }
 
         const locale = param.locale.issue;
-        let prompt = `
-        You are a helpful assistant that checks if the text is written in ${locale}.
-        
-        Instructions:
-        1. Analyze the provided text
-        2. If the text is written in ${locale}, respond with exactly "done"
-        3. If the text is written in any other language, respond with exactly "must_translate"
-        4. Do not provide any explanation or additional text
-        
-        The text is: ${commentBody}
-        `;
+        let prompt = getCheckCommentLanguagePrompt({ locale, commentBody });
         const checkResponse = await this.aiRepository.askAgent(
             param.ai,
             OPENCODE_AGENT_PLAN,
@@ -77,16 +68,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             return results;
         }
 
-        prompt = `
-You are a helpful assistant that translates the text to ${locale}.
-
-Instructions:
-1. Translate the text to ${locale}
-2. Put the translated text in the translatedText field
-3. If you cannot translate (e.g. ambiguous or invalid input), set translatedText to empty string and explain in reason
-
-The text to translate is: ${commentBody}
-        `;
+        prompt = getTranslateCommentPrompt({ locale, commentBody });
         const translationResponse = await this.aiRepository.askAgent(
             param.ai,
             OPENCODE_AGENT_PLAN,

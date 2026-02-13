@@ -1,5 +1,6 @@
 import type { Execution } from "../../../../data/model/execution";
 import type { BugbotContext } from "./types";
+import { getBugbotFixPrompt } from "../../../../prompts";
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../../utils/opencode_project_context_instruction";
 import { sanitizeUserCommentForPrompt } from "./sanitize_user_comment_for_prompt";
 
@@ -55,32 +56,18 @@ export function buildBugbotFixPrompt(
             ? `\n**Verify commands (run these in the workspace in order and only consider the fix successful if all pass):**\n${verifyCommands.map((c) => `- \`${String(c).replace(/`/g, "\\`")}\``).join("\n")}\n`
             : "\n**Verify:** Run any standard project checks (e.g. build, test, lint) that exist in this repo and confirm they pass.\n";
 
-    return `You are in the repository workspace. Your task is to fix the reported code findings (bugs, vulnerabilities, or quality issues) listed below, and only those. The user has explicitly requested these fixes.
+    const prNumberLine = prNumber != null ? `- Pull request number: ${prNumber}` : "";
 
-${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Repository context:**
-- Owner: ${owner}
-- Repository: ${repo}
-- Branch (head): ${headBranch}
-- Base branch: ${baseBranch}
-- Issue number: ${issueNumber}
-${prNumber != null ? `- Pull request number: ${prNumber}` : ""}
-
-**Findings to fix (do not change code unrelated to these):**
-${findingsBlock}
-
-**User request:**
-"""
-${sanitizeUserCommentForPrompt(userComment)}
-"""
-
-**Rules:**
-1. Fix only the problems described in the findings above. Do not refactor or change other code except as strictly necessary for the fix.
-2. You may add or update tests only to validate that the fix is correct.
-3. After applying changes, run the verify commands (or standard build/test/lint) and ensure they all pass. If they fail, adjust the fix until they pass.
-4. Apply all changes directly in the workspace (edit files, run commands). Do not output diffs for someone else to apply.
-${verifyBlock}
-
-Once the fixes are applied and the verify commands pass, reply briefly confirming what was fixed and that checks passed.`;
+    return getBugbotFixPrompt({
+        projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+        owner,
+        repo,
+        headBranch,
+        baseBranch,
+        issueNumber: String(issueNumber),
+        prNumberLine,
+        findingsBlock,
+        userComment: sanitizeUserCommentForPrompt(userComment),
+        verifyBlock,
+    });
 }

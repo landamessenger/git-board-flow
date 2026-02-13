@@ -7,8 +7,9 @@ import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
 import { logError, logInfo } from './utils/logger';
-import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from './utils/opencode_project_context_instruction';
+import { getCliDoPrompt } from './prompts';
 import { Ai } from './data/model/ai';
+import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from './utils/opencode_project_context_instruction';
 import { AiRepository } from './data/repository/ai_repository';
 
 // Load environment variables from .env file
@@ -194,7 +195,10 @@ program
     try {
       const ai = new Ai(serverUrl, model, false, false, [], false, 'low', 20);
       const aiRepository = new AiRepository();
-      const fullPrompt = `${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}\n\n${prompt}`;
+      const fullPrompt = getCliDoPrompt({
+        projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+        userPrompt: prompt,
+      });
       const result = await aiRepository.copilotMessage(ai, fullPrompt);
 
       if (!result) {

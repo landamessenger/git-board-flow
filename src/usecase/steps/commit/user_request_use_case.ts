@@ -6,6 +6,7 @@
 
 import type { Execution } from "../../../data/model/execution";
 import { AiRepository } from "../../../data/repository/ai_repository";
+import { getUserRequestPrompt } from "../../../prompts";
 import { logError, logInfo } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
@@ -19,36 +20,6 @@ export interface DoUserRequestParam {
     execution: Execution;
     userComment: string;
     branchOverride?: string;
-}
-
-function buildUserRequestPrompt(execution: Execution, userComment: string): string {
-    const headBranch = execution.commit.branch;
-    const baseBranch =
-        execution.currentConfiguration.parentBranch ?? execution.branches.development ?? "develop";
-    const issueNumber = execution.issueNumber;
-    const owner = execution.owner;
-    const repo = execution.repo;
-
-    return `You are in the repository workspace. The user has asked you to do something. Perform their request by editing files and running commands directly in the workspace. Do not output diffs for someone else to apply.
-
-${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Repository context:**
-- Owner: ${owner}
-- Repository: ${repo}
-- Branch (head): ${headBranch}
-- Base branch: ${baseBranch}
-- Issue number: ${issueNumber}
-
-**User request:**
-"""
-${sanitizeUserCommentForPrompt(userComment)}
-"""
-
-**Rules:**
-1. Apply all changes directly in the workspace (edit files, run commands).
-2. If the project has standard checks (build, test, lint), run them and ensure they pass when relevant.
-3. Reply briefly confirming what you did.`;
 }
 
 export class DoUserRequestUseCase implements ParamUseCase<DoUserRequestParam, Result[]> {
@@ -73,7 +44,17 @@ export class DoUserRequestUseCase implements ParamUseCase<DoUserRequestParam, Re
             return results;
         }
 
-        const prompt = buildUserRequestPrompt(execution, userComment);
+        const baseBranch =
+            execution.currentConfiguration.parentBranch ?? execution.branches.development ?? "develop";
+        const prompt = getUserRequestPrompt({
+            projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+            owner: execution.owner,
+            repo: execution.repo,
+            headBranch: execution.commit.branch,
+            baseBranch,
+            issueNumber: String(execution.issueNumber),
+            userComment: sanitizeUserCommentForPrompt(userComment),
+        });
 
         logInfo("Running OpenCode build agent to perform user request (changes applied in workspace).");
         const response = await this.aiRepository.copilotMessage(execution.ai, prompt);

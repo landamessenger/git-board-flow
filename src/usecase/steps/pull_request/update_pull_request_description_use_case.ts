@@ -4,6 +4,7 @@ import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../data/repository/ai_r
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
+import { getUpdatePullRequestDescriptionPrompt } from "../../../prompts";
 import { logDebugInfo, logError } from "../../../utils/logger";
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../utils/opencode_project_context_instruction";
 import { getTaskEmoji } from "../../../utils/task_emoji";
@@ -88,12 +89,13 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 return result;
             }
 
-            const prompt = this.buildPrDescriptionPrompt(
-                param.issueNumber,
-                issueDescription,
+            const prompt = getUpdatePullRequestDescriptionPrompt({
+                projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
+                baseBranch,
                 headBranch,
-                baseBranch
-            );
+                issueNumber: String(param.issueNumber),
+                issueDescription,
+            });
 
             const agentResponse = await this.aiRepository.askAgent(
                 param.ai,
@@ -147,46 +149,5 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
         }
 
         return result;
-    }
-
-    /**
-     * Builds the PR description prompt. We do not send the diff from our side:
-     * we pass the base and head branch so the OpenCode agent can run `git diff`
-     * in the workspace. The agent must read the repo's PR template and fill it
-     * with the same structure (sections, headings, checkboxes).
-     */
-    private buildPrDescriptionPrompt(
-        issueNumber: number,
-        issueDescription: string,
-        headBranch: string,
-        baseBranch: string
-    ): string {
-        return `You are in the repository workspace. Your task is to produce a pull request description by filling the project's PR template with information from the branch diff and the issue.
-
-${OPENCODE_PROJECT_CONTEXT_INSTRUCTION}
-
-**Branches:**
-- **Base (target) branch:** \`${baseBranch}\`
-- **Head (source) branch:** \`${headBranch}\`
-
-**Instructions:**
-1. Read the pull request template file: \`.github/pull_request_template.md\`. Use its structure (headings, bullet lists, separators) as the skeleton for your output. The checkboxes in the template are **indicative only**: you may check the ones that apply based on the project and the diff, define different or fewer checkboxes if that fits better, or omit a section entirely if it does not apply.
-2. Get the full diff by running: \`git diff ${baseBranch}..${headBranch}\` (or \`git diff ${baseBranch}...${headBranch}\` for merge-base). Use the diff to understand what changed.
-3. Use the issue description below for context and intent.
-4. Fill each section of the template with concrete content derived from the diff and the issue. Keep the same markdown structure (headings, horizontal rules). For checkbox sections (e.g. Test Coverage, Deployment Notes, Security): use the template's options as guidance; check or add only the items that apply, or skip the section if not relevant.
-   - **Summary:** brief explanation of what the PR does and why (intent, not implementation details).
-   - **Related Issues:** include \`Closes #${issueNumber}\` and "Related to #" only if relevant.
-   - **Scope of Changes:** use Added / Updated / Removed / Refactored with short bullet points (high level, not file-by-file).
-   - **Technical Details:** important decisions, trade-offs, or non-obvious aspects.
-   - **How to Test:** steps a reviewer can follow (infer from the changes when possible).
-   - **Test Coverage / Deployment / Security / Performance / Checklist:** treat checkboxes as indicative; check the ones that apply from the diff and project context, or omit the section if it does not apply.
-   - **Breaking Changes:** list any, or "None".
-   - **Notes for Reviewers / Additional Context:** fill only if useful; otherwise a short placeholder or omit.
-5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules). Use checkboxes \`- [ ]\` / \`- [x]\` only where they add value; you may simplify or drop a section if it does not apply.
-
-**Issue description:**
-${issueDescription}
-
-Output only the filled template content (the PR description body), starting with the first heading of the template (e.g. # Summary). Do not wrap it in code blocks or add extra commentary.`;
     }
 }

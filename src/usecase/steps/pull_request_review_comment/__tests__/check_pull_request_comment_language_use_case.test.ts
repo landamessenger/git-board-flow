@@ -70,6 +70,9 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].executed).toBe(true);
     expect(mockAskAgent).toHaveBeenCalledTimes(1);
+    const checkPrompt = mockAskAgent.mock.calls[0][2];
+    expect(checkPrompt).toContain('Spanish');
+    expect(checkPrompt).toContain('Hello');
   });
 
   it('calls updateComment when must_translate and askAgent returns schema with translatedText', async () => {
@@ -82,6 +85,9 @@ describe('CheckPullRequestCommentLanguageUseCase', () => {
     const results = await useCase.invoke(param);
 
     expect(mockAskAgent).toHaveBeenCalledTimes(2);
+    const translatePrompt = mockAskAgent.mock.calls[1][2];
+    expect(translatePrompt).toContain('Spanish');
+    expect(translatePrompt).toContain('Hello');
     expect(mockUpdateComment).toHaveBeenCalledWith(
       'o',
       'r',

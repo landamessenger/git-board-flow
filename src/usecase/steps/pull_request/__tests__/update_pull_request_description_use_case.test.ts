@@ -77,6 +77,11 @@ describe('UpdatePullRequestDescriptionUseCase', () => {
     const param = baseParam();
     const results = await useCase.invoke(param);
     expect(mockAskAgent).toHaveBeenCalled();
+    const prompt = mockAskAgent.mock.calls[0][2];
+    expect(prompt).toContain('feature/42-x');
+    expect(prompt).toContain('develop');
+    expect(prompt).toContain('Issue description');
+    expect(prompt).toContain('Closes #42');
     expect(mockUpdateDescription).toHaveBeenCalledWith('o', 'r', 10, '## Summary\nPR does X.', 't');
     expect(results.some((r) => r.success === true)).toBe(true);
   });
