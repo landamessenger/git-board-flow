@@ -1,28 +1,52 @@
 /**
- * Unit tests for IssueRepository: getDescription, addComment, getIssueDescription, isIssue, isPullRequest.
+ * Unit tests for IssueRepository: getDescription, addComment, getIssueDescription, isIssue, isPullRequest,
+ * getLabels, setLabels, getTitle, getId, getMilestone, updateDescription, cleanTitle, getHeadBranch,
+ * updateComment, listIssueComments, closeIssue, openIssue, getCurrentAssignees, assignMembersToIssue,
+ * listLabelsForRepo, createLabel, ensureLabel, setProgressLabel, ensureProgressLabels.
  */
 
 import { IssueRepository, PROGRESS_LABEL_PATTERN } from '../issue_repository';
+import { Labels } from '../../model/labels';
+import { IssueTypes } from '../../model/issue_types';
 
 jest.mock('../../../utils/logger', () => ({
   logDebugInfo: jest.fn(),
   logError: jest.fn(),
 }));
 
+const mockSetFailed = jest.fn();
+jest.mock('@actions/core', () => ({
+  setFailed: (...args: unknown[]) => mockSetFailed(...args),
+}));
+
 const mockRest = {
   issues: {
     get: jest.fn(),
+    update: jest.fn(),
     createComment: jest.fn(),
     updateComment: jest.fn(),
+    listLabelsOnIssue: jest.fn(),
+    setLabels: jest.fn(),
+    addAssignees: jest.fn(),
+    listLabelsForRepo: jest.fn(),
+    createLabel: jest.fn(),
+    listComments: jest.fn(),
   },
   pulls: {
     get: jest.fn(),
   },
 };
 
+const mockPaginateIterator = jest.fn();
+const mockGraphql = jest.fn();
+
 jest.mock('@actions/github', () => ({
   getOctokit: () => ({
     rest: mockRest,
+    graphql: (...args: unknown[]) => mockGraphql(...args),
+    paginate: {
+      iterator: (...args: unknown[]) => mockPaginateIterator(...args),
+    },
   }),
 }));
 
@@ -129,6 +153,514 @@ describe('IssueRepository', () => {
       mockRest.issues.get.mockResolvedValue({ data: { pull_request: {} } });
       const result = await repo.isIssue('o', 'r', 3, 'token');
       expect(result).toBe(false);
+    });
+  });
+
+  describe('getLabels', () => {
+    it('returns empty array when issueNumber is -1', async () => {
+      const result = await repo.getLabels('o', 'r', -1, 'token');
+      expect(result).toEqual([]);
+      expect(mockRest.issues.listLabelsOnIssue).not.toHaveBeenCalled();
+    });
+
+    it('returns label names from listLabelsOnIssue', async () => {
+      mockRest.issues.listLabelsOnIssue.mockResolvedValue({
+        data: [{ name: 'bug' }, { name: 'feature' }],
+      });
+      const result = await repo.getLabels('owner', 'repo', 1, 'token');
+      expect(result).toEqual(['bug', 'feature']);
+      expect(mockRest.issues.listLabelsOnIssue).toHaveBeenCalledWith({
+        owner: 'owner',
+        repo: 'repo',
+        issue_number: 1,
+      });
+    });
+  });
+
+  describe('setLabels', () => {
+    it('calls issues.setLabels with given labels', async () => {
+      mockRest.issues.setLabels.mockResolvedValue(undefined);
+      await repo.setLabels('o', 'r', 5, ['a', 'b'], 'token');
+      expect(mockRest.issues.setLabels).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 5,
+        labels: ['a', 'b'],
+      });
+    });
+  });
+
+  describe('getTitle', () => {
+    it('returns issue title', async () => {
+      mockRest.issues.get.mockResolvedValue({
+        data: { title: 'My issue title' },
+      });
+      const result = await repo.getTitle('o', 'r', 1, 'token');
+      expect(result).toBe('My issue title');
+    });
+
+    it('returns undefined when get throws', async () => {
+      mockRest.issues.get.mockRejectedValue(new Error('Not found'));
+      const result = await repo.getTitle('o', 'r', 1, 'token');
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('getId', () => {
+    it('returns issue node id from GraphQL', async () => {
+      mockGraphql.mockResolvedValue({
+        repository: { issue: { id: 'I_kwDOABC123' } },
+      });
+      const result = await repo.getId('o', 'r', 1, 'token');
+      expect(result).toBe('I_kwDOABC123');
+      expect(mockGraphql).toHaveBeenCalled();
+    });
+  });
+
+  describe('getMilestone', () => {
+    it('returns Milestone when issue has milestone', async () => {
+      mockRest.issues.get.mockResolvedValue({
+        data: {
+          milestone: {
+            id: 42,
+            title: 'v1.0',
+            description: 'Release 1.0',
+          },
+        },
+      });
+      const result = await repo.getMilestone('o', 'r', 1, 'token');
+      expect(result).not.toBeUndefined();
+      expect(result?.title).toBe('v1.0');
+      expect(result?.id).toBe(42);
+    });
+
+    it('returns undefined when issue has no milestone', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: { milestone: null } });
+      const result = await repo.getMilestone('o', 'r', 1, 'token');
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('updateDescription', () => {
+    it('calls issues.update with body', async () => {
+      mockRest.issues.update.mockResolvedValue(undefined);
+      await repo.updateDescription('o', 'r', 1, 'New body', 'token');
+      expect(mockRest.issues.update).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        body: 'New body',
+      });
+    });
+
+    it('throws when update throws', async () => {
+      mockRest.issues.update.mockRejectedValue(new Error('API error'));
+      await expect(
+        repo.updateDescription('o', 'r', 1, 'Body', 'token')
+      ).rejects.toThrow('API error');
+    });
+  });
+
+  describe('cleanTitle', () => {
+    it('updates title when sanitized differs from original', async () => {
+      mockRest.issues.update.mockResolvedValue(undefined);
+      const result = await repo.cleanTitle('o', 'r', '  messy   title  ', 1, 'token');
+      expect(result).toBe('messy title');
+      expect(mockRest.issues.update).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        title: 'messy title',
+      });
+    });
+
+    it('returns undefined when title already clean', async () => {
+      const result = await repo.cleanTitle('o', 'r', 'Clean title', 1, 'token');
+      expect(result).toBeUndefined();
+      expect(mockRest.issues.update).not.toHaveBeenCalled();
+    });
+
+    it('returns undefined and setFailed when update throws', async () => {
+      mockRest.issues.update.mockRejectedValue(new Error('Fail'));
+      const result = await repo.cleanTitle('o', 'r', '  x  ', 1, 'token');
+      expect(result).toBeUndefined();
+      expect(mockSetFailed).toHaveBeenCalled();
+    });
+  });
+
+  describe('getHeadBranch', () => {
+    it('returns undefined when not a PR', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: {} });
+      const result = await repo.getHeadBranch('o', 'r', 3, 'token');
+      expect(result).toBeUndefined();
+      expect(mockRest.pulls.get).not.toHaveBeenCalled();
+    });
+
+    it('returns head ref when issue is a PR', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: { pull_request: {} } });
+      mockRest.pulls.get.mockResolvedValue({
+        data: { head: { ref: 'feature/123-branch' } },
+      });
+      const result = await repo.getHeadBranch('o', 'r', 3, 'token');
+      expect(result).toBe('feature/123-branch');
+      expect(mockRest.pulls.get).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        pull_number: 3,
+      });
+    });
+  });
+
+  describe('updateComment', () => {
+    it('calls issues.updateComment with comment_id and body', async () => {
+      mockRest.issues.updateComment.mockResolvedValue(undefined);
+      await repo.updateComment('o', 'r', 1, 100, 'Updated body', 'token');
+      expect(mockRest.issues.updateComment).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        comment_id: 100,
+        body: 'Updated body',
+      });
+    });
+  });
+
+  describe('listIssueComments', () => {
+    it('returns all comments from paginated iterator', async () => {
+      const asyncIter = (async function* () {
+        yield { data: [{ id: 1, body: 'c1', user: { login: 'u1' } }] };
+        yield { data: [{ id: 2, body: 'c2', user: undefined }] };
+      })();
+      mockPaginateIterator.mockReturnValue(asyncIter);
+      const result = await repo.listIssueComments('o', 'r', 5, 'token');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ id: 1, body: 'c1', user: { login: 'u1' } });
+      expect(result[1]).toEqual({ id: 2, body: 'c2', user: undefined });
+    });
+  });
+
+  describe('closeIssue', () => {
+    it('closes issue when open and returns true', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: { state: 'open' } });
+      mockRest.issues.update.mockResolvedValue(undefined);
+      const result = await repo.closeIssue('o', 'r', 1, 'token');
+      expect(result).toBe(true);
+      expect(mockRest.issues.update).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        state: 'closed',
+      });
+    });
+
+    it('returns false when issue already closed', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: { state: 'closed' } });
+      const result = await repo.closeIssue('o', 'r', 1, 'token');
+      expect(result).toBe(false);
+      expect(mockRest.issues.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('openIssue', () => {
+    it('reopens issue when closed and returns true', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: { state: 'closed' } });
+      mockRest.issues.update.mockResolvedValue(undefined);
+      const result = await repo.openIssue('o', 'r', 1, 'token');
+      expect(result).toBe(true);
+      expect(mockRest.issues.update).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        state: 'open',
+      });
+    });
+
+    it('returns false when issue already open', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: { state: 'open' } });
+      const result = await repo.openIssue('o', 'r', 1, 'token');
+      expect(result).toBe(false);
+      expect(mockRest.issues.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getCurrentAssignees', () => {
+    it('returns assignee logins', async () => {
+      mockRest.issues.get.mockResolvedValue({
+        data: { assignees: [{ login: 'alice' }, { login: 'bob' }] },
+      });
+      const result = await repo.getCurrentAssignees('o', 'r', 1, 'token');
+      expect(result).toEqual(['alice', 'bob']);
+    });
+
+    it('returns empty array when assignees null', async () => {
+      mockRest.issues.get.mockResolvedValue({ data: { assignees: null } });
+      const result = await repo.getCurrentAssignees('o', 'r', 1, 'token');
+      expect(result).toEqual([]);
+    });
+
+    it('returns empty array when get throws', async () => {
+      mockRest.issues.get.mockRejectedValue(new Error('API error'));
+      const result = await repo.getCurrentAssignees('o', 'r', 1, 'token');
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('assignMembersToIssue', () => {
+    it('adds assignees and returns their logins', async () => {
+      mockRest.issues.addAssignees.mockResolvedValue({
+        data: { assignees: [{ login: 'alice' }, { login: 'bob' }] },
+      });
+      const result = await repo.assignMembersToIssue('o', 'r', 1, ['alice', 'bob'], 'token');
+      expect(result).toEqual(['alice', 'bob']);
+      expect(mockRest.issues.addAssignees).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        assignees: ['alice', 'bob'],
+      });
+    });
+
+    it('returns empty array when members empty', async () => {
+      const result = await repo.assignMembersToIssue('o', 'r', 1, [], 'token');
+      expect(result).toEqual([]);
+      expect(mockRest.issues.addAssignees).not.toHaveBeenCalled();
+    });
+
+    it('returns empty array when addAssignees throws', async () => {
+      mockRest.issues.addAssignees.mockRejectedValue(new Error('API error'));
+      const result = await repo.assignMembersToIssue('o', 'r', 1, ['x'], 'token');
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('listLabelsForRepo', () => {
+    it('returns labels with name, color, description', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({
+        data: [
+          { name: 'bug', color: 'd73a4a', description: 'Bug' },
+          { name: 'feature', color: '0e8a16', description: null },
+        ],
+      });
+      const result = await repo.listLabelsForRepo('o', 'r', 'token');
+      expect(result).toEqual([
+        { name: 'bug', color: 'd73a4a', description: 'Bug' },
+        { name: 'feature', color: '0e8a16', description: null },
+      ]);
+    });
+  });
+
+  describe('createLabel', () => {
+    it('calls issues.createLabel', async () => {
+      mockRest.issues.createLabel.mockResolvedValue(undefined);
+      await repo.createLabel('o', 'r', 'new-label', 'abc123', 'Description', 'token');
+      expect(mockRest.issues.createLabel).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        name: 'new-label',
+        color: 'abc123',
+        description: 'Description',
+      });
+    });
+  });
+
+  describe('ensureLabel', () => {
+    it('returns existed true when label already exists', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({
+        data: [{ name: 'existing', color: 'x', description: null }],
+      });
+      const result = await repo.ensureLabel('o', 'r', 'existing', 'abc', 'Desc', 'token');
+      expect(result).toEqual({ created: false, existed: true });
+      expect(mockRest.issues.createLabel).not.toHaveBeenCalled();
+    });
+
+    it('returns created true when label created', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({ data: [] });
+      mockRest.issues.createLabel.mockResolvedValue(undefined);
+      const result = await repo.ensureLabel('o', 'r', 'new-label', 'abc', 'Desc', 'token');
+      expect(result).toEqual({ created: true, existed: false });
+      expect(mockRest.issues.createLabel).toHaveBeenCalled();
+    });
+
+    it('returns existed true on 422 already exists', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({ data: [] });
+      mockRest.issues.createLabel.mockRejectedValue(
+        Object.assign(new Error('already exists'), { status: 422 })
+      );
+      const result = await repo.ensureLabel('o', 'r', 'new', 'abc', 'd', 'token');
+      expect(result).toEqual({ created: false, existed: true });
+    });
+
+    it('returns created false and existed false when name is empty', async () => {
+      const result = await repo.ensureLabel('o', 'r', '  ', 'abc', 'd', 'token');
+      expect(result).toEqual({ created: false, existed: false });
+      expect(mockRest.issues.createLabel).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setProgressLabel', () => {
+    it('sets progress label and removes other percentage labels', async () => {
+      mockRest.issues.listLabelsOnIssue.mockResolvedValue({
+        data: [{ name: '50%' }, { name: 'feature' }],
+      });
+      mockRest.issues.setLabels.mockResolvedValue(undefined);
+      await repo.setProgressLabel('o', 'r', 1, 75, 'token');
+      expect(mockRest.issues.setLabels).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        labels: ['feature', '75%'],
+      });
+    });
+  });
+
+  describe('ensureProgressLabels', () => {
+    it('creates and counts created/existing progress labels', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({
+        data: [{ name: '0%', color: 'x', description: null }],
+      });
+      mockRest.issues.createLabel.mockResolvedValue(undefined);
+      const result = await repo.ensureProgressLabels('o', 'r', 'token');
+      expect(result.errors).toEqual([]);
+      expect(result.created + result.existing).toBeGreaterThan(0);
+    });
+
+    it('collects errors when ensureLabel throws', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({ data: [] });
+      mockRest.issues.createLabel.mockRejectedValue(new Error('API error'));
+      const result = await repo.ensureProgressLabels('o', 'r', 'token');
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('ensureLabels', () => {
+    it('ensures all required labels and returns counts', async () => {
+      const labels = new Labels(
+        'launch',
+        'bug',
+        'bugfix',
+        'hotfix',
+        'enhancement',
+        'feature',
+        'release',
+        'question',
+        'help',
+        'deploy',
+        'deployed',
+        'docs',
+        'documentation',
+        'chore',
+        'maintenance',
+        'priority-high',
+        'priority-medium',
+        'priority-low',
+        'priority-none',
+        'xxl',
+        'xl',
+        'l',
+        'm',
+        's',
+        'xs'
+      );
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({ data: [] });
+      mockRest.issues.createLabel.mockResolvedValue(undefined);
+      const result = await repo.ensureLabels('o', 'r', labels, 'token');
+      expect(result.errors).toEqual([]);
+      expect(result.created).toBeGreaterThan(0);
+    });
+  });
+
+  describe('listIssueTypes', () => {
+    it('returns issue types from organization', async () => {
+      mockGraphql.mockResolvedValue({
+        organization: {
+          id: 'O_1',
+          issueTypes: { nodes: [{ id: 'T1', name: 'Task' }, { id: 'T2', name: 'Bug' }] },
+        },
+      });
+      const result = await repo.listIssueTypes('org', 'token');
+      expect(result).toEqual([{ id: 'T1', name: 'Task' }, { id: 'T2', name: 'Bug' }]);
+    });
+
+    it('throws when organization is missing', async () => {
+      mockGraphql.mockResolvedValue({ organization: null });
+      await expect(repo.listIssueTypes('org', 'token')).rejects.toThrow();
+    });
+  });
+
+  describe('createIssueType', () => {
+    it('returns new issue type id', async () => {
+      mockGraphql
+        .mockResolvedValueOnce({ organization: { id: 'O_1' } })
+        .mockResolvedValueOnce({
+          createIssueType: { issueType: { id: 'NEW_ID' } },
+        });
+      const result = await repo.createIssueType('org', 'Task', 'A task', 'BLUE', 'token');
+      expect(result).toBe('NEW_ID');
+    });
+
+    it('throws when organization is missing', async () => {
+      mockGraphql.mockResolvedValue({ organization: null });
+      await expect(
+        repo.createIssueType('org', 'T', 'D', 'BLUE', 'token')
+      ).rejects.toThrow();
+    });
+  });
+
+  describe('ensureIssueType', () => {
+    it('returns existed true when type already exists', async () => {
+      mockGraphql.mockResolvedValue({
+        organization: { issueTypes: { nodes: [{ id: 'T1', name: 'task' }] } },
+      });
+      const result = await repo.ensureIssueType('org', 'Task', 'Desc', 'BLUE', 'token');
+      expect(result).toEqual({ created: false, existed: true });
+    });
+
+    it('returns created true when type created', async () => {
+      mockGraphql
+        .mockResolvedValueOnce({
+          organization: { issueTypes: { nodes: [] } },
+        })
+        .mockResolvedValueOnce({ organization: { id: 'O_1' } })
+        .mockResolvedValueOnce({ createIssueType: { issueType: { id: 'NEW' } } });
+      const result = await repo.ensureIssueType('org', 'NewType', 'D', 'BLUE', 'token');
+      expect(result).toEqual({ created: true, existed: false });
+    });
+  });
+
+  describe('ensureIssueTypes', () => {
+    it('ensures issue types and returns counts when types already exist', async () => {
+      const issueTypes = new IssueTypes(
+        'Task', 'Task desc', 'BLUE',
+        'Bug', 'Bug desc', 'RED',
+        'Feature', 'Feature desc', 'GREEN',
+        'Docs', 'Docs desc', 'GREY',
+        'Maintenance', 'Maint desc', 'GREY',
+        'Hotfix', 'Hotfix desc', 'RED',
+        'Release', 'Release desc', 'BLUE',
+        'Question', 'Q desc', 'PURPLE',
+        'Help', 'Help desc', 'PURPLE'
+      );
+      mockGraphql.mockResolvedValue({
+        organization: {
+          id: 'O_1',
+          issueTypes: {
+            nodes: [
+              { id: 'T1', name: 'Task' },
+              { id: 'T2', name: 'Bug' },
+              { id: 'T3', name: 'Feature' },
+              { id: 'T4', name: 'Docs' },
+              { id: 'T5', name: 'Maintenance' },
+              { id: 'T6', name: 'Hotfix' },
+              { id: 'T7', name: 'Release' },
+              { id: 'T8', name: 'Question' },
+              { id: 'T9', name: 'Help' },
+            ],
+          },
+        },
+      });
+      const result = await repo.ensureIssueTypes('org', issueTypes, 'token');
+      expect(result.existing).toBe(9);
+      expect(result.created).toBe(0);
+      expect(result.errors).toEqual([]);
     });
   });
 });

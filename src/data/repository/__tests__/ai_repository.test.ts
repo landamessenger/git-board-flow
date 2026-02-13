@@ -375,6 +375,56 @@ describe('AiRepository', () => {
       expect(result).toBeUndefined();
       expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES * 2);
     });
+
+    it('returns undefined when expectJson is true but response has no JSON object (no curly brace)', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageNoJson = {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            parts: [{ type: 'text', text: 'No JSON here, just plain text.' }],
+          }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageNoJson);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'P', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+    });
+
+    it('returns undefined when session create returns invalid JSON (error with cause)', async () => {
+      const ai = createAi();
+      mockFetch.mockResolvedValue({ ok: true, text: async () => 'not valid json' });
+      const promise = repo.askAgent(ai, 'plan', 'P', {});
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+      expect(mockFetch).toHaveBeenCalledTimes(OPENCODE_MAX_RETRIES);
+    });
+
+    it('hits single-quote path in extractor when response has single-quoted object (invalid JSON)', async () => {
+      const ai = createAi();
+      const sessionOk = { ok: true, text: async () => JSON.stringify({ id: 's1' }) };
+      const messageSingleQuote = {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            parts: [{ type: 'text', text: "Note { 'a': 1 }" }],
+          }),
+      };
+      for (let i = 0; i < OPENCODE_MAX_RETRIES; i++) {
+        mockFetch.mockResolvedValueOnce(sessionOk).mockResolvedValueOnce(messageSingleQuote);
+      }
+      const promise = repo.askAgent(ai, 'plan', 'P', { expectJson: true, schema: {} });
+      await jest.advanceTimersByTimeAsync((OPENCODE_MAX_RETRIES - 1) * OPENCODE_RETRY_DELAY_MS);
+      const result = await promise;
+      expect(result).toBeUndefined();
+    });
   });
 
   describe('copilotMessage', () => {
