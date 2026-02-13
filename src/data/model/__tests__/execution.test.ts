@@ -710,5 +710,45 @@ describe('Execution', () => {
       expect(e.hotfix.version).toBeDefined();
       expect(e.hotfix.branch).toBe('hotfix/1.0.1');
     });
+
+    it('setup returns early when release type from GetReleaseTypeUseCase is undefined', async () => {
+      mockGetLabels.mockResolvedValue(['release']);
+      mockConfigGet.mockResolvedValue(undefined);
+      mockGetReleaseVersionInvoke.mockResolvedValue([{ executed: true, success: false }]);
+      mockGetReleaseTypeInvoke.mockResolvedValue([
+        { executed: true, success: true, payload: { releaseType: undefined } },
+      ]);
+      const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
+      const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { issue });
+      await e.setup();
+      expect(e.release.version).toBeUndefined();
+      expect(e.release.branch).toBeUndefined();
+    });
+
+    it('setup returns early when getLatestTag returns undefined in release path', async () => {
+      mockGetLabels.mockResolvedValue(['release']);
+      mockConfigGet.mockResolvedValue(undefined);
+      mockGetReleaseVersionInvoke.mockResolvedValue([{ executed: true, success: false }]);
+      mockGetReleaseTypeInvoke.mockResolvedValue([
+        { executed: true, success: true, payload: { releaseType: 'Minor' } },
+      ]);
+      mockGetLatestTag.mockResolvedValue(undefined);
+      const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
+      const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { issue });
+      await e.setup();
+      expect(e.release.version).toBeUndefined();
+    });
+
+    it('setup returns early when getLatestTag returns undefined in hotfix path', async () => {
+      mockGetLabels.mockResolvedValue(['hotfix']);
+      mockConfigGet.mockResolvedValue(undefined);
+      mockGetHotfixVersionInvoke.mockResolvedValue([{ executed: true, success: false }]);
+      mockGetLatestTag.mockResolvedValue(undefined);
+      const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
+      const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { issue });
+      await e.setup();
+      expect(e.hotfix.baseVersion).toBeUndefined();
+      expect(e.hotfix.version).toBeUndefined();
+    });
   });
 });
