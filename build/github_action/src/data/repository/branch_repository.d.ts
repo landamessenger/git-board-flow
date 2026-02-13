@@ -33,7 +33,7 @@ export declare class BranchRepository {
         totalCommits: number;
         files: {
             filename: string;
-            status: "modified" | "added" | "removed" | "renamed" | "copied" | "changed" | "unchanged";
+            status: "added" | "removed" | "modified" | "renamed" | "copied" | "changed" | "unchanged";
             additions: number;
             deletions: number;
             changes: number;
