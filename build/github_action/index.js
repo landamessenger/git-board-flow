@@ -44684,6 +44684,174 @@ exports.AiRepository = AiRepository;
 
 /***/ }),
 
+/***/ 8224:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BranchCompareRepository = void 0;
+const github = __importStar(__nccwpck_require__(5438));
+const logger_1 = __nccwpck_require__(8836);
+/**
+ * Repository for comparing branches and computing size categories.
+ * Isolated to allow unit tests with mocked Octokit and pure size logic.
+ */
+class BranchCompareRepository {
+    constructor() {
+        this.getChanges = async (owner, repository, head, base, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                (0, logger_1.logDebugInfo)(`Comparing branches: ${head} with ${base}`);
+                let headRef = `heads/${head}`;
+                if (head.indexOf('tags/') > -1) {
+                    headRef = head;
+                }
+                let baseRef = `heads/${base}`;
+                if (base.indexOf('tags/') > -1) {
+                    baseRef = base;
+                }
+                const { data: comparison } = await octokit.rest.repos.compareCommits({
+                    owner: owner,
+                    repo: repository,
+                    base: baseRef,
+                    head: headRef,
+                });
+                return {
+                    aheadBy: comparison.ahead_by,
+                    behindBy: comparison.behind_by,
+                    totalCommits: comparison.total_commits,
+                    files: (comparison.files || []).map(file => ({
+                        filename: file.filename,
+                        status: file.status,
+                        additions: file.additions ?? 0,
+                        deletions: file.deletions ?? 0,
+                        changes: file.changes ?? 0,
+                        blobUrl: file.blob_url,
+                        rawUrl: file.raw_url,
+                        contentsUrl: file.contents_url,
+                        patch: file.patch,
+                    })),
+                    commits: comparison.commits.map(commit => {
+                        const author = commit.commit.author;
+                        return {
+                            sha: commit.sha,
+                            message: commit.commit.message,
+                            author: {
+                                name: author?.name ?? 'Unknown',
+                                email: author?.email ?? 'unknown@example.com',
+                                date: author?.date ?? new Date().toISOString(),
+                            },
+                            date: author?.date ?? new Date().toISOString(),
+                        };
+                    }),
+                };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error comparing branches: ${error}`);
+                throw error;
+            }
+        };
+        this.getSizeCategoryAndReason = async (owner, repository, head, base, sizeThresholds, labels, token) => {
+            try {
+                const headBranchChanges = await this.getChanges(owner, repository, head, base, token);
+                const totalChanges = headBranchChanges.files.reduce((sum, file) => sum + file.changes, 0);
+                const totalFiles = headBranchChanges.files.length;
+                const totalCommits = headBranchChanges.totalCommits;
+                let sizeCategory;
+                let githubSize;
+                let sizeReason;
+                if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
+                    sizeCategory = labels.sizeXxl;
+                    githubSize = `XL`;
+                    sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
+                        totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
+                            `More than ${sizeThresholds.xxl.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
+                    sizeCategory = labels.sizeXl;
+                    githubSize = `XL`;
+                    sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
+                        totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
+                            `More than ${sizeThresholds.xl.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
+                    sizeCategory = labels.sizeL;
+                    githubSize = `L`;
+                    sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
+                        totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
+                            `More than ${sizeThresholds.l.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
+                    sizeCategory = labels.sizeM;
+                    githubSize = `M`;
+                    sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
+                        totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
+                            `More than ${sizeThresholds.m.commits} commits`;
+                }
+                else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
+                    sizeCategory = labels.sizeS;
+                    githubSize = `S`;
+                    sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
+                        totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
+                            `More than ${sizeThresholds.s.commits} commits`;
+                }
+                else {
+                    sizeCategory = labels.sizeXs;
+                    githubSize = `XS`;
+                    sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
+                }
+                return {
+                    size: sizeCategory,
+                    githubSize: githubSize,
+                    reason: sizeReason,
+                };
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error comparing branches: ${error}`);
+                throw error;
+            }
+        };
+    }
+}
+exports.BranchCompareRepository = BranchCompareRepository;
+
+
+/***/ }),
+
 /***/ 7701:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -44724,90 +44892,31 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.BranchRepository = void 0;
-const core = __importStar(__nccwpck_require__(2186));
-const exec = __importStar(__nccwpck_require__(1514));
 const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
-const version_utils_1 = __nccwpck_require__(9887);
 const result_1 = __nccwpck_require__(7305);
+const branch_compare_repository_1 = __nccwpck_require__(8224);
+const git_cli_repository_1 = __nccwpck_require__(5617);
+const merge_repository_1 = __nccwpck_require__(4015);
+const workflow_repository_1 = __nccwpck_require__(779);
+/**
+ * Facade for branch-related operations. Delegates to focused repositories
+ * (GitCli, Workflow, Merge, BranchCompare) for testability.
+ */
 class BranchRepository {
     constructor() {
+        this.gitCliRepository = new git_cli_repository_1.GitCliRepository();
+        this.workflowRepository = new workflow_repository_1.WorkflowRepository();
+        this.mergeRepository = new merge_repository_1.MergeRepository();
+        this.branchCompareRepository = new branch_compare_repository_1.BranchCompareRepository();
         this.fetchRemoteBranches = async () => {
-            try {
-                (0, logger_1.logDebugInfo)('Fetching tags and forcing fetch...');
-                await exec.exec('git', ['fetch', '--tags', '--force']);
-                (0, logger_1.logDebugInfo)('Fetching all remote branches with verbose output...');
-                await exec.exec('git', ['fetch', '--all', '-v']);
-                (0, logger_1.logDebugInfo)('Successfully fetched all remote branches.');
-            }
-            catch (error) {
-                core.setFailed(`Error fetching remote branches: ${error}`);
-            }
+            return this.gitCliRepository.fetchRemoteBranches();
         };
         this.getLatestTag = async () => {
-            try {
-                (0, logger_1.logDebugInfo)('Fetching the latest tag...');
-                await exec.exec('git', ['fetch', '--tags']);
-                const tags = [];
-                await exec.exec('git', ['tag', '--sort=-creatordate'], {
-                    listeners: {
-                        stdout: (data) => {
-                            tags.push(...data.toString().split('\n').map((v) => {
-                                return v.replace('v', '');
-                            }));
-                        },
-                    },
-                });
-                const validTags = tags.filter(tag => /\d+\.\d+\.\d+$/.test(tag));
-                if (validTags.length > 0) {
-                    const latestTag = (0, version_utils_1.getLatestVersion)(validTags);
-                    (0, logger_1.logDebugInfo)(`Latest tag: ${latestTag}`);
-                    return latestTag;
-                }
-                else {
-                    (0, logger_1.logDebugInfo)('No valid tags found.');
-                    return undefined;
-                }
-            }
-            catch (error) {
-                core.setFailed(`Error fetching the latest tag: ${error}`);
-                return undefined;
-            }
+            return this.gitCliRepository.getLatestTag();
         };
         this.getCommitTag = async (latestTag) => {
-            try {
-                if (!latestTag) {
-                    core.setFailed('No LATEST_TAG found in the environment');
-                    return;
-                }
-                let tagVersion;
-                if (latestTag.startsWith('v')) {
-                    tagVersion = latestTag;
-                }
-                else {
-                    tagVersion = `v${latestTag}`;
-                }
-                (0, logger_1.logDebugInfo)(`Fetching commit hash for the tag: ${tagVersion}`);
-                let commitOid = '';
-                await exec.exec('git', ['rev-list', '-n', '1', tagVersion], {
-                    listeners: {
-                        stdout: (data) => {
-                            commitOid = data.toString().trim();
-                        },
-                    },
-                });
-                if (commitOid) {
-                    (0, logger_1.logDebugInfo)(`Commit tag: ${commitOid}`);
-                    return commitOid;
-                }
-                else {
-                    core.setFailed('No commit found for the tag');
-                }
-            }
-            catch (error) {
-                core.setFailed(`Error fetching the commit hash: ${error}`);
-            }
-            return undefined;
+            return this.gitCliRepository.getCommitTag(latestTag);
         };
         /**
          * Returns replaced branch (if any).
@@ -45084,292 +45193,154 @@ class BranchRepository {
             return allBranches;
         };
         this.executeWorkflow = async (owner, repository, branch, workflow, inputs, token) => {
-            const octokit = github.getOctokit(token);
-            return octokit.rest.actions.createWorkflowDispatch({
-                owner: owner,
-                repo: repository,
-                workflow_id: workflow,
-                ref: branch,
-                inputs: inputs
-            });
+            return this.workflowRepository.executeWorkflow(owner, repository, branch, workflow, inputs, token);
         };
         this.mergeBranch = async (owner, repository, head, base, timeout, token) => {
-            const result = [];
-            try {
-                const octokit = github.getOctokit(token);
-                (0, logger_1.logDebugInfo)(`Creating merge from ${head} into ${base}`);
-                // Build PR body with commit list
-                const prBody = `🚀 Automated Merge  
-
-This PR merges **${head}** into **${base}**.  
-
-**Commits included:**`;
-                // We need PAT for creating PR to ensure it can trigger workflows
-                const { data: pullRequest } = await octokit.rest.pulls.create({
-                    owner: owner,
-                    repo: repository,
-                    head: head,
-                    base: base,
-                    title: `Merge ${head} into ${base}`,
-                    body: prBody,
-                });
-                (0, logger_1.logDebugInfo)(`Pull request #${pullRequest.number} created, getting commits...`);
-                // Get all commits in the PR
-                const { data: commits } = await octokit.rest.pulls.listCommits({
-                    owner: owner,
-                    repo: repository,
-                    pull_number: pullRequest.number
-                });
-                const commitMessages = commits.map(commit => commit.commit.message);
-                (0, logger_1.logDebugInfo)(`Found ${commitMessages.length} commits in PR`);
-                // Update PR with commit list and footer
-                await octokit.rest.pulls.update({
-                    owner: owner,
-                    repo: repository,
-                    pull_number: pullRequest.number,
-                    body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
-                        '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).'
-                });
-                const iteration = 10;
-                if (timeout > iteration) {
-                    // Wait for checks to complete - can use regular token for reading checks
-                    let checksCompleted = false;
-                    let attempts = 0;
-                    const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
-                    while (!checksCompleted && attempts < maxAttempts) {
-                        const { data: checkRuns } = await octokit.rest.checks.listForRef({
-                            owner: owner,
-                            repo: repository,
-                            ref: head,
-                        });
-                        // Get commit status checks for the PR head commit
-                        const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
-                            owner: owner,
-                            repo: repository,
-                            ref: head
-                        });
-                        (0, logger_1.logDebugInfo)(`Combined status state: ${commitStatus.state}`);
-                        (0, logger_1.logDebugInfo)(`Number of check runs: ${checkRuns.check_runs.length}`);
-                        // If there are check runs, prioritize those over status checks
-                        if (checkRuns.check_runs.length > 0) {
-                            const pendingCheckRuns = checkRuns.check_runs.filter(check => check.status !== 'completed');
-                            if (pendingCheckRuns.length === 0) {
-                                checksCompleted = true;
-                                (0, logger_1.logDebugInfo)('All check runs have completed.');
-                                // Verify if all checks passed
-                                const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
-                                if (failedChecks.length > 0) {
-                                    throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
-                                }
-                            }
-                            else {
-                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingCheckRuns.length} check runs to complete:`);
-                                pendingCheckRuns.forEach(check => {
-                                    (0, logger_1.logDebugInfo)(`  - ${check.name} (Status: ${check.status})`);
-                                });
-                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
-                                attempts++;
-                                continue;
-                            }
-                        }
-                        else {
-                            // Fall back to status checks if no check runs exist
-                            const pendingChecks = commitStatus.statuses.filter(status => {
-                                (0, logger_1.logDebugInfo)(`Status check: ${status.context} (State: ${status.state})`);
-                                return status.state === 'pending';
-                            });
-                            if (pendingChecks.length === 0) {
-                                checksCompleted = true;
-                                (0, logger_1.logDebugInfo)('All status checks have completed.');
-                            }
-                            else {
-                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingChecks.length} status checks to complete:`);
-                                pendingChecks.forEach(check => {
-                                    (0, logger_1.logDebugInfo)(`  - ${check.context} (State: ${check.state})`);
-                                });
-                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
-                                attempts++;
-                            }
-                        }
-                    }
-                    if (!checksCompleted) {
-                        throw new Error('Timed out waiting for checks to complete');
-                    }
-                }
-                // Need PAT for merging to ensure it can trigger subsequent workflows
-                await octokit.rest.pulls.merge({
-                    owner: owner,
-                    repo: repository,
-                    pull_number: pullRequest.number,
-                    merge_method: 'merge',
-                    commit_title: `Merge ${head} into ${base}. Forced merge with PAT token.`,
-                });
-                result.push(new result_1.Result({
-                    id: 'branch_repository',
-                    success: true,
-                    executed: true,
-                    steps: [
-                        `The branch \`${head}\` was merged into \`${base}\`.`,
-                    ],
-                }));
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error in PR workflow: ${error}`);
-                // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
-                try {
-                    const octokit = github.getOctokit(token);
-                    await octokit.rest.repos.merge({
-                        owner: owner,
-                        repo: repository,
-                        base: base,
-                        head: head,
-                        commit_message: `Forced merge of ${head} into ${base}. Automated merge with PAT token.`,
-                    });
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: true,
-                        executed: true,
-                        steps: [
-                            `The branch \`${head}\` was merged into \`${base}\` using direct merge.`,
-                        ],
-                    }));
-                    return result;
-                }
-                catch (directMergeError) {
-                    (0, logger_1.logError)(`Error in direct merge attempt: ${directMergeError}`);
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: false,
-                        executed: true,
-                        steps: [
-                            `Failed to merge branch \`${head}\` into \`${base}\`.`,
-                        ],
-                    }));
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: false,
-                        executed: true,
-                        error: error,
-                    }));
-                    result.push(new result_1.Result({
-                        id: 'branch_repository',
-                        success: false,
-                        executed: true,
-                        error: directMergeError,
-                    }));
-                }
-            }
-            return result;
+            return this.mergeRepository.mergeBranch(owner, repository, head, base, timeout, token);
         };
         this.getChanges = async (owner, repository, head, base, token) => {
-            const octokit = github.getOctokit(token);
-            try {
-                (0, logger_1.logDebugInfo)(`Comparing branches: ${head} with ${base}`);
-                let headRef = `heads/${head}`;
-                if (head.indexOf('tags/') > -1) {
-                    headRef = head;
-                }
-                let baseRef = `heads/${base}`;
-                if (base.indexOf('tags/') > -1) {
-                    baseRef = base;
-                }
-                const { data: comparison } = await octokit.rest.repos.compareCommits({
-                    owner: owner,
-                    repo: repository,
-                    base: baseRef,
-                    head: headRef,
-                });
-                return {
-                    aheadBy: comparison.ahead_by,
-                    behindBy: comparison.behind_by,
-                    totalCommits: comparison.total_commits,
-                    files: (comparison.files || []).map(file => ({
-                        filename: file.filename,
-                        status: file.status,
-                        additions: file.additions,
-                        deletions: file.deletions,
-                        changes: file.changes,
-                        blobUrl: file.blob_url,
-                        rawUrl: file.raw_url,
-                        contentsUrl: file.contents_url,
-                        patch: file.patch
-                    })),
-                    commits: comparison.commits.map(commit => ({
-                        sha: commit.sha,
-                        message: commit.commit.message,
-                        author: commit.commit.author || { name: 'Unknown', email: 'unknown@example.com', date: new Date().toISOString() },
-                        date: commit.commit.author?.date || new Date().toISOString()
-                    }))
-                };
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error comparing branches: ${error}`);
-                throw error;
-            }
+            return this.branchCompareRepository.getChanges(owner, repository, head, base, token);
         };
         this.getSizeCategoryAndReason = async (owner, repository, head, base, sizeThresholds, labels, token) => {
-            try {
-                const headBranchChanges = await this.getChanges(owner, repository, head, base, token);
-                const totalChanges = headBranchChanges.files.reduce((sum, file) => sum + file.changes, 0);
-                const totalFiles = headBranchChanges.files.length;
-                const totalCommits = headBranchChanges.totalCommits;
-                let sizeCategory;
-                let githubSize;
-                let sizeReason;
-                if (totalChanges > sizeThresholds.xxl.lines || totalFiles > sizeThresholds.xxl.files || totalCommits > sizeThresholds.xxl.commits) {
-                    sizeCategory = labels.sizeXxl;
-                    githubSize = `XL`;
-                    sizeReason = totalChanges > sizeThresholds.xxl.lines ? `More than ${sizeThresholds.xxl.lines} lines changed` :
-                        totalFiles > sizeThresholds.xxl.files ? `More than ${sizeThresholds.xxl.files} files modified` :
-                            `More than ${sizeThresholds.xxl.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.xl.lines || totalFiles > sizeThresholds.xl.files || totalCommits > sizeThresholds.xl.commits) {
-                    sizeCategory = labels.sizeXl;
-                    githubSize = `XL`;
-                    sizeReason = totalChanges > sizeThresholds.xl.lines ? `More than ${sizeThresholds.xl.lines} lines changed` :
-                        totalFiles > sizeThresholds.xl.files ? `More than ${sizeThresholds.xl.files} files modified` :
-                            `More than ${sizeThresholds.xl.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.l.lines || totalFiles > sizeThresholds.l.files || totalCommits > sizeThresholds.l.commits) {
-                    sizeCategory = labels.sizeL;
-                    githubSize = `L`;
-                    sizeReason = totalChanges > sizeThresholds.l.lines ? `More than ${sizeThresholds.l.lines} lines changed` :
-                        totalFiles > sizeThresholds.l.files ? `More than ${sizeThresholds.l.files} files modified` :
-                            `More than ${sizeThresholds.l.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.m.lines || totalFiles > sizeThresholds.m.files || totalCommits > sizeThresholds.m.commits) {
-                    sizeCategory = labels.sizeM;
-                    githubSize = `M`;
-                    sizeReason = totalChanges > sizeThresholds.m.lines ? `More than ${sizeThresholds.m.lines} lines changed` :
-                        totalFiles > sizeThresholds.m.files ? `More than ${sizeThresholds.m.files} files modified` :
-                            `More than ${sizeThresholds.m.commits} commits`;
-                }
-                else if (totalChanges > sizeThresholds.s.lines || totalFiles > sizeThresholds.s.files || totalCommits > sizeThresholds.s.commits) {
-                    sizeCategory = labels.sizeS;
-                    githubSize = `S`;
-                    sizeReason = totalChanges > sizeThresholds.s.lines ? `More than ${sizeThresholds.s.lines} lines changed` :
-                        totalFiles > sizeThresholds.s.files ? `More than ${sizeThresholds.s.files} files modified` :
-                            `More than ${sizeThresholds.s.commits} commits`;
-                }
-                else {
-                    sizeCategory = labels.sizeXs;
-                    githubSize = `XS`;
-                    sizeReason = `Small changes (${totalChanges} lines, ${totalFiles} files)`;
-                }
-                return {
-                    size: sizeCategory,
-                    githubSize: githubSize,
-                    reason: sizeReason
-                };
-            }
-            catch (error) {
-                (0, logger_1.logError)(`Error comparing branches: ${error}`);
-                throw error;
-            }
+            return this.branchCompareRepository.getSizeCategoryAndReason(owner, repository, head, base, sizeThresholds, labels, token);
         };
     }
 }
 exports.BranchRepository = BranchRepository;
+
+
+/***/ }),
+
+/***/ 5617:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GitCliRepository = void 0;
+const core = __importStar(__nccwpck_require__(2186));
+const exec = __importStar(__nccwpck_require__(1514));
+const logger_1 = __nccwpck_require__(8836);
+const version_utils_1 = __nccwpck_require__(9887);
+/**
+ * Repository for Git operations executed via CLI (exec).
+ * Isolated to allow unit tests with mocked @actions/exec and @actions/core.
+ */
+class GitCliRepository {
+    constructor() {
+        this.fetchRemoteBranches = async () => {
+            try {
+                (0, logger_1.logDebugInfo)('Fetching tags and forcing fetch...');
+                await exec.exec('git', ['fetch', '--tags', '--force']);
+                (0, logger_1.logDebugInfo)('Fetching all remote branches with verbose output...');
+                await exec.exec('git', ['fetch', '--all', '-v']);
+                (0, logger_1.logDebugInfo)('Successfully fetched all remote branches.');
+            }
+            catch (error) {
+                core.setFailed(`Error fetching remote branches: ${error}`);
+            }
+        };
+        this.getLatestTag = async () => {
+            try {
+                (0, logger_1.logDebugInfo)('Fetching the latest tag...');
+                await exec.exec('git', ['fetch', '--tags']);
+                const tags = [];
+                await exec.exec('git', ['tag', '--sort=-creatordate'], {
+                    listeners: {
+                        stdout: (data) => {
+                            tags.push(...data.toString().split('\n').map((v) => {
+                                return v.replace('v', '');
+                            }));
+                        },
+                    },
+                });
+                const validTags = tags.filter(tag => /\d+\.\d+\.\d+$/.test(tag));
+                if (validTags.length > 0) {
+                    const latestTag = (0, version_utils_1.getLatestVersion)(validTags);
+                    (0, logger_1.logDebugInfo)(`Latest tag: ${latestTag}`);
+                    return latestTag;
+                }
+                else {
+                    (0, logger_1.logDebugInfo)('No valid tags found.');
+                    return undefined;
+                }
+            }
+            catch (error) {
+                core.setFailed(`Error fetching the latest tag: ${error}`);
+                return undefined;
+            }
+        };
+        this.getCommitTag = async (latestTag) => {
+            try {
+                if (!latestTag) {
+                    core.setFailed('No LATEST_TAG found in the environment');
+                    return undefined;
+                }
+                let tagVersion;
+                if (latestTag.startsWith('v')) {
+                    tagVersion = latestTag;
+                }
+                else {
+                    tagVersion = `v${latestTag}`;
+                }
+                (0, logger_1.logDebugInfo)(`Fetching commit hash for the tag: ${tagVersion}`);
+                let commitOid = '';
+                await exec.exec('git', ['rev-list', '-n', '1', tagVersion], {
+                    listeners: {
+                        stdout: (data) => {
+                            commitOid = data.toString().trim();
+                        },
+                    },
+                });
+                if (commitOid) {
+                    (0, logger_1.logDebugInfo)(`Commit tag: ${commitOid}`);
+                    return commitOid;
+                }
+                else {
+                    core.setFailed('No commit found for the tag');
+                }
+            }
+            catch (error) {
+                core.setFailed(`Error fetching the commit hash: ${error}`);
+            }
+            return undefined;
+        };
+    }
+}
+exports.GitCliRepository = GitCliRepository;
 
 
 /***/ }),
@@ -46309,6 +46280,230 @@ class IssueRepository {
 exports.IssueRepository = IssueRepository;
 /** Progress labels: 0%, 5%, 10%, ..., 100% (multiples of 5). */
 IssueRepository.PROGRESS_LABEL_PERCENTS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+
+
+/***/ }),
+
+/***/ 4015:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MergeRepository = void 0;
+const github = __importStar(__nccwpck_require__(5438));
+const logger_1 = __nccwpck_require__(8836);
+const result_1 = __nccwpck_require__(7305);
+/**
+ * Repository for merging branches (via PR or direct merge).
+ * Isolated to allow unit tests with mocked Octokit.
+ */
+class MergeRepository {
+    constructor() {
+        this.mergeBranch = async (owner, repository, head, base, timeout, token) => {
+            const result = [];
+            try {
+                const octokit = github.getOctokit(token);
+                (0, logger_1.logDebugInfo)(`Creating merge from ${head} into ${base}`);
+                // Build PR body with commit list
+                const prBody = `🚀 Automated Merge  
+
+This PR merges **${head}** into **${base}**.  
+
+**Commits included:**`;
+                // We need PAT for creating PR to ensure it can trigger workflows
+                const { data: pullRequest } = await octokit.rest.pulls.create({
+                    owner: owner,
+                    repo: repository,
+                    head: head,
+                    base: base,
+                    title: `Merge ${head} into ${base}`,
+                    body: prBody,
+                });
+                (0, logger_1.logDebugInfo)(`Pull request #${pullRequest.number} created, getting commits...`);
+                // Get all commits in the PR
+                const { data: commits } = await octokit.rest.pulls.listCommits({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                });
+                const commitMessages = commits.map(commit => commit.commit.message);
+                (0, logger_1.logDebugInfo)(`Found ${commitMessages.length} commits in PR`);
+                // Update PR with commit list and footer
+                await octokit.rest.pulls.update({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                    body: prBody + '\n' + commitMessages.map(msg => `- ${msg}`).join('\n') +
+                        '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).',
+                });
+                const iteration = 10;
+                if (timeout > iteration) {
+                    // Wait for checks to complete - can use regular token for reading checks
+                    let checksCompleted = false;
+                    let attempts = 0;
+                    const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
+                    while (!checksCompleted && attempts < maxAttempts) {
+                        const { data: checkRuns } = await octokit.rest.checks.listForRef({
+                            owner: owner,
+                            repo: repository,
+                            ref: head,
+                        });
+                        // Get commit status checks for the PR head commit
+                        const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
+                            owner: owner,
+                            repo: repository,
+                            ref: head,
+                        });
+                        (0, logger_1.logDebugInfo)(`Combined status state: ${commitStatus.state}`);
+                        (0, logger_1.logDebugInfo)(`Number of check runs: ${checkRuns.check_runs.length}`);
+                        // If there are check runs, prioritize those over status checks
+                        if (checkRuns.check_runs.length > 0) {
+                            const pendingCheckRuns = checkRuns.check_runs.filter(check => check.status !== 'completed');
+                            if (pendingCheckRuns.length === 0) {
+                                checksCompleted = true;
+                                (0, logger_1.logDebugInfo)('All check runs have completed.');
+                                // Verify if all checks passed
+                                const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
+                                if (failedChecks.length > 0) {
+                                    throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
+                                }
+                            }
+                            else {
+                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingCheckRuns.length} check runs to complete:`);
+                                pendingCheckRuns.forEach(check => {
+                                    (0, logger_1.logDebugInfo)(`  - ${check.name} (Status: ${check.status})`);
+                                });
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                                continue;
+                            }
+                        }
+                        else {
+                            // Fall back to status checks if no check runs exist
+                            const pendingChecks = commitStatus.statuses.filter(status => {
+                                (0, logger_1.logDebugInfo)(`Status check: ${status.context} (State: ${status.state})`);
+                                return status.state === 'pending';
+                            });
+                            if (pendingChecks.length === 0) {
+                                checksCompleted = true;
+                                (0, logger_1.logDebugInfo)('All status checks have completed.');
+                            }
+                            else {
+                                (0, logger_1.logDebugInfo)(`Waiting for ${pendingChecks.length} status checks to complete:`);
+                                pendingChecks.forEach(check => {
+                                    (0, logger_1.logDebugInfo)(`  - ${check.context} (State: ${check.state})`);
+                                });
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                            }
+                        }
+                    }
+                    if (!checksCompleted) {
+                        throw new Error('Timed out waiting for checks to complete');
+                    }
+                }
+                // Need PAT for merging to ensure it can trigger subsequent workflows
+                await octokit.rest.pulls.merge({
+                    owner: owner,
+                    repo: repository,
+                    pull_number: pullRequest.number,
+                    merge_method: 'merge',
+                    commit_title: `Merge ${head} into ${base}. Forced merge with PAT token.`,
+                });
+                result.push(new result_1.Result({
+                    id: 'branch_repository',
+                    success: true,
+                    executed: true,
+                    steps: [
+                        `The branch \`${head}\` was merged into \`${base}\`.`,
+                    ],
+                }));
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error in PR workflow: ${error}`);
+                // If the PR workflow fails, we try to merge directly - need PAT for direct merge to ensure it can trigger workflows
+                try {
+                    const octokit = github.getOctokit(token);
+                    await octokit.rest.repos.merge({
+                        owner: owner,
+                        repo: repository,
+                        base: base,
+                        head: head,
+                        commit_message: `Forced merge of ${head} into ${base}. Automated merge with PAT token.`,
+                    });
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: true,
+                        executed: true,
+                        steps: [
+                            `The branch \`${head}\` was merged into \`${base}\` using direct merge.`,
+                        ],
+                    }));
+                    return result;
+                }
+                catch (directMergeError) {
+                    (0, logger_1.logError)(`Error in direct merge attempt: ${directMergeError}`);
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        steps: [
+                            `Failed to merge branch \`${head}\` into \`${base}\`.`,
+                        ],
+                    }));
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        error: error,
+                    }));
+                    result.push(new result_1.Result({
+                        id: 'branch_repository',
+                        success: false,
+                        executed: true,
+                        error: directMergeError,
+                    }));
+                }
+            }
+            return result;
+        };
+    }
+}
+exports.MergeRepository = MergeRepository;
 
 
 /***/ }),
@@ -47492,6 +47687,16 @@ class WorkflowRepository {
                 const isPrevious = run.id < runId;
                 const isActive = constants_1.WORKFLOW_ACTIVE_STATUSES.includes(run.status);
                 return isSameWorkflow && isPrevious && isActive;
+            });
+        };
+        this.executeWorkflow = async (owner, repository, branch, workflow, inputs, token) => {
+            const octokit = github.getOctokit(token);
+            return octokit.rest.actions.createWorkflowDispatch({
+                owner: owner,
+                repo: repository,
+                workflow_id: workflow,
+                ref: branch,
+                inputs: inputs,
             });
         };
     }

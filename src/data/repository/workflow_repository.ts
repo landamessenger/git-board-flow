@@ -43,4 +43,22 @@ export class WorkflowRepository {
             return isSameWorkflow && isPrevious && isActive;
         });
     }
+
+    executeWorkflow = async (
+        owner: string,
+        repository: string,
+        branch: string,
+        workflow: string,
+        inputs: Record<string, unknown>,
+        token: string,
+    ) => {
+        const octokit = github.getOctokit(token);
+        return octokit.rest.actions.createWorkflowDispatch({
+            owner: owner,
+            repo: repository,
+            workflow_id: workflow,
+            ref: branch,
+            inputs: inputs,
+        });
+    };
 }
