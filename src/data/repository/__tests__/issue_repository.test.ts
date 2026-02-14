@@ -625,7 +625,7 @@ describe('IssueRepository', () => {
   });
 
   describe('createLabel', () => {
-    it('calls issues.createLabel', async () => {
+    it('calls issues.createLabel with owner, repo, name, color, description', async () => {
       mockRest.issues.createLabel.mockResolvedValue(undefined);
       await repo.createLabel('o', 'r', 'new-label', 'abc123', 'Description', 'token');
       expect(mockRest.issues.createLabel).toHaveBeenCalledWith({
