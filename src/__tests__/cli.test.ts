@@ -34,8 +34,18 @@ jest.mock('../data/repository/ai_repository', () => ({
   })),
 }));
 
+jest.mock('../utils/setup_files', () => {
+  const actual = jest.requireActual<typeof import('../utils/setup_files')>('../utils/setup_files');
+  return {
+    ...actual,
+    hasValidSetupToken: jest.fn((cwd: string) => actual.hasValidSetupToken(cwd)),
+  };
+});
+
 describe('CLI', () => {
   let exitSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpyInstance;
+  let consoleLogSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -43,10 +53,14 @@ describe('CLI', () => {
     (execSync as jest.Mock).mockReturnValue(Buffer.from('https://github.com/test-owner/test-repo.git'));
     (runLocalAction as jest.Mock).mockResolvedValue(undefined);
     mockIsIssue.mockResolvedValue(true);
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
     exitSpy?.mockRestore();
+    consoleErrorSpy?.mockRestore();
+    consoleLogSpy?.mockRestore();
   });
 
   describe('think', () => {
@@ -265,8 +279,7 @@ describe('CLI', () => {
 
   describe('setup', () => {
     // Token check: hasValidSetupToken/setupEnvFileExists and message variants are covered in
-    // setup_files.test.ts and initial_setup_use_case.test.ts. Full "exit with proposal" path
-    // is hard to test here because Commander captures options.token default at CLI load time.
+    // setup_files.test.ts and initial_setup_use_case.test.ts.
     it('calls runLocalAction with INITIAL_SETUP', async () => {
       await program.parseAsync(['node', 'cli', 'setup']);
 
@@ -275,6 +288,19 @@ describe('CLI', () => {
       expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.INITIAL_SETUP);
       expect(params[INPUT_KEYS.TOKEN]).toBeTruthy();
       expect(params[INPUT_KEYS.WELCOME_TITLE]).toContain('Initial Setup');
+    });
+
+    it('proceeds when --token is provided even if env/.env has no token', async () => {
+      const { hasValidSetupToken } = require('../utils/setup_files');
+      (hasValidSetupToken as jest.Mock).mockReturnValue(false);
+
+      await program.parseAsync(['node', 'cli', 'setup', '--token', 'ghp_abcdefghijklmnopqrstuvwxyz12']);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(runLocalAction).toHaveBeenCalledTimes(1);
+      const params = (runLocalAction as jest.Mock).mock.calls[0][0];
+      expect(params[INPUT_KEYS.TOKEN]).toBe('ghp_abcdefghijklmnopqrstuvwxyz12');
+      expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.INITIAL_SETUP);
     });
 
     it('exits when not inside a git repo', async () => {
