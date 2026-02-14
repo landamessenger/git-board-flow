@@ -48725,6 +48725,17 @@ class ProjectDetail {
         this.url = data[`url`] ?? '';
         this.number = data[`number`] ?? -1;
     }
+    /**
+     * Returns the full public URL to the project (board).
+     * Uses the URL from the API when present and valid; otherwise builds it from owner, type and number.
+     */
+    get publicUrl() {
+        if (this.url && typeof this.url === 'string' && this.url.startsWith('https://')) {
+            return this.url;
+        }
+        const path = this.type === 'organization' ? 'orgs' : 'users';
+        return `https://github.com/${path}/${this.owner}/projects/${this.number}`;
+    }
 }
 exports.ProjectDetail = ProjectDetail;
 
@@ -57948,7 +57959,7 @@ class CheckPriorityIssueSizeUseCase {
                         success: true,
                         executed: true,
                         steps: [
-                            `Priority set to \`${priorityLabel}\` in [${project.title}](https://github.com/${param.owner}/${param.repo}/projects/${project.id}).`,
+                            `Priority set to \`${priorityLabel}\` in [${project.title}](${project.publicUrl}).`,
                         ],
                     }));
                 }
@@ -58389,7 +58400,7 @@ class MoveIssueToInProgressUseCase {
                         success: true,
                         executed: true,
                         steps: [
-                            `Moved issue to \`${columnName}\` in [${project.title}](https://github.com/${param.owner}/${param.repo}/projects/${project.id}).`,
+                            `Moved issue to \`${columnName}\` in [${project.title}](${project.publicUrl}).`,
                         ],
                     }));
                 }
@@ -59141,7 +59152,7 @@ class CheckPriorityPullRequestSizeUseCase {
                         success: true,
                         executed: true,
                         steps: [
-                            `Priority set to \`${priorityLabel}\` in [${project.title}](https://github.com/${param.owner}/${param.repo}/projects/${project.id}).`,
+                            `Priority set to \`${priorityLabel}\` in [${project.title}](${project.publicUrl}).`,
                         ],
                     }));
                 }
