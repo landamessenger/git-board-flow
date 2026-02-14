@@ -140,12 +140,16 @@ describe('CLI', () => {
   });
 
   describe('setup', () => {
+    // Token check: hasValidSetupToken/setupEnvFileExists and message variants are covered in
+    // setup_files.test.ts and initial_setup_use_case.test.ts. Full "exit with proposal" path
+    // is hard to test here because Commander captures options.token default at CLI load time.
     it('calls runLocalAction with INITIAL_SETUP', async () => {
       await program.parseAsync(['node', 'cli', 'setup']);
 
       expect(runLocalAction).toHaveBeenCalledTimes(1);
       const params = (runLocalAction as jest.Mock).mock.calls[0][0];
       expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.INITIAL_SETUP);
+      expect(params[INPUT_KEYS.TOKEN]).toBeTruthy();
       expect(params[INPUT_KEYS.WELCOME_TITLE]).toContain('Initial Setup');
     });
 
