@@ -49,5 +49,16 @@ describe('ProjectDetail', () => {
       const p = new ProjectDetail({ type: 'user', owner: 'jane', number: 3 });
       expect(p.publicUrl).toBe('https://github.com/users/jane/projects/3');
     });
+
+    it('returns empty string when number is invalid (missing or <= 0)', () => {
+      const pEmpty = new ProjectDetail({ type: 'organization', owner: 'acme' });
+      expect(pEmpty.publicUrl).toBe('');
+
+      const pZero = new ProjectDetail({ type: 'organization', owner: 'acme', number: 0 });
+      expect(pZero.publicUrl).toBe('');
+
+      const pNegative = new ProjectDetail({ type: 'organization', owner: 'acme', number: -1 });
+      expect(pNegative.publicUrl).toBe('');
+    });
   });
 });

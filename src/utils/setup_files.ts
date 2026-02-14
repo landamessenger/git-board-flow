@@ -129,18 +129,19 @@ export function ensureEnvWithToken(cwd: string): void {
 
 function isTokenValueValid(token: string): boolean {
   const t = token.trim();
-  return (
-    t.length >= MIN_VALID_TOKEN_LENGTH &&
-    t !== ENV_PLACEHOLDER_VALUE &&
-    !t.startsWith('github_pat_11..')
-  );
+  return t.length >= MIN_VALID_TOKEN_LENGTH && t !== ENV_PLACEHOLDER_VALUE;
 }
 
 /**
- * Returns the PERSONAL_ACCESS_TOKEN to use for setup (from environment or .env in cwd).
- * Same resolution order as hasValidSetupToken; returns undefined if no valid token is found.
+ * Resolves the PERSONAL_ACCESS_TOKEN for setup from a single priority order:
+ * 1. override (e.g. CLI --token) if provided and valid,
+ * 2. process.env.PERSONAL_ACCESS_TOKEN,
+ * 3. .env file in cwd.
+ * Returns undefined if no valid token is found.
  */
-export function getSetupToken(cwd: string): string | undefined {
+export function getSetupToken(cwd: string, override?: string): string | undefined {
+  const overrideTrimmed = override?.trim();
+  if (overrideTrimmed && isTokenValueValid(overrideTrimmed)) return overrideTrimmed;
   const fromEnv = process.env[ENV_TOKEN_KEY]?.trim();
   if (fromEnv && isTokenValueValid(fromEnv)) return fromEnv;
   const envPath = path.join(cwd, '.env');
@@ -150,11 +151,11 @@ export function getSetupToken(cwd: string): string | undefined {
 }
 
 /**
- * Returns true if PERSONAL_ACCESS_TOKEN is available and looks like a real token
- * (from environment or .env), not the placeholder. Setup should only continue when this is true.
+ * Returns true if a valid setup token is available (same resolution order as getSetupToken).
+ * Pass an optional override (e.g. CLI --token) so validation considers all sources consistently.
  */
-export function hasValidSetupToken(cwd: string): boolean {
-  return getSetupToken(cwd) !== undefined;
+export function hasValidSetupToken(cwd: string, override?: string): boolean {
+  return getSetupToken(cwd, override) !== undefined;
 }
 
 /** Returns true if a .env file exists in the given directory. */

@@ -47651,9 +47651,11 @@ program
         process.exit(1);
     }
     (0, logger_1.logInfo)(`📦 Repository: ${gitInfo.owner}/${gitInfo.repo}`);
-    if (!(0, setup_files_1.hasValidSetupToken)(cwd)) {
+    const hasTokenFromCli = Boolean(options.token && String(options.token).trim());
+    if (!hasTokenFromCli && !(0, setup_files_1.hasValidSetupToken)(cwd)) {
         (0, logger_1.logError)('🛑 Setup requires PERSONAL_ACCESS_TOKEN with a valid token.');
         (0, logger_1.logInfo)('   You can:');
+        (0, logger_1.logInfo)('   • Pass it on the command line: copilot setup --token <your_github_token>');
         (0, logger_1.logInfo)('   • Add it to your environment: export PERSONAL_ACCESS_TOKEN=your_github_token');
         if ((0, setup_files_1.setupEnvFileExists)(cwd)) {
             (0, logger_1.logInfo)('   • Or add PERSONAL_ACCESS_TOKEN=your_github_token to your existing .env file');

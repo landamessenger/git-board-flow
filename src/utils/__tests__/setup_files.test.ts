@@ -224,6 +224,18 @@ describe('setup_files', () => {
       fs.writeFileSync(path.join(tmpDir, '.env'), 'PERSONAL_ACCESS_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
       expect(hasValidSetupToken(tmpDir)).toBe(true);
     });
+
+    it('returns true when valid override is passed (e.g. CLI --token)', () => {
+      delete process.env[ENV_TOKEN_KEY];
+      expect(hasValidSetupToken(tmpDir, 'ghp_override_token_xxxxxxxxxxxxxxxxxx')).toBe(true);
+    });
+
+    it('falls back to env/.env when override is invalid (placeholder or too short)', () => {
+      delete process.env[ENV_TOKEN_KEY];
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'PERSONAL_ACCESS_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+      expect(hasValidSetupToken(tmpDir, 'github_pat_11..')).toBe(true);
+      expect(hasValidSetupToken(tmpDir, 'short')).toBe(true);
+    });
   });
 
   describe('getSetupToken', () => {
@@ -243,6 +255,20 @@ describe('setup_files', () => {
       delete process.env[ENV_TOKEN_KEY];
       fs.writeFileSync(path.join(tmpDir, '.env'), 'PERSONAL_ACCESS_TOKEN=github_pat_11..');
       expect(getSetupToken(tmpDir)).toBeUndefined();
+    });
+
+    it('returns valid override first (CLI token priority)', () => {
+      delete process.env[ENV_TOKEN_KEY];
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'PERSONAL_ACCESS_TOKEN=ghp_from_env_file_xxxxxxxxxxxxxxxxxx');
+      expect(getSetupToken(tmpDir, 'ghp_cli_token_xxxxxxxxxxxxxxxxxxxxxxxx')).toBe('ghp_cli_token_xxxxxxxxxxxxxxxxxxxxxxxx');
+    });
+
+    it('falls back to env then .env when override is invalid', () => {
+      process.env[ENV_TOKEN_KEY] = 'ghp_from_env_xxxxxxxxxxxxxxxxxxxxxxxxxx';
+      fs.writeFileSync(path.join(tmpDir, '.env'), 'PERSONAL_ACCESS_TOKEN=ghp_from_file_xxxxxxxxxxxxxxxxxxxx');
+      expect(getSetupToken(tmpDir, 'github_pat_11..')).toBe('ghp_from_env_xxxxxxxxxxxxxxxxxxxxxxxxxx');
+      delete process.env[ENV_TOKEN_KEY];
+      expect(getSetupToken(tmpDir, 'short')).toBe('ghp_from_file_xxxxxxxxxxxxxxxxxxxx');
     });
   });
 

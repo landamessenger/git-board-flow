@@ -6,7 +6,7 @@ import * as dotenv from 'dotenv';
 import { runLocalAction } from './actions/local_action';
 import { IssueRepository } from './data/repository/issue_repository';
 import { ACTIONS, ERRORS, INPUT_KEYS, OPENCODE_DEFAULT_MODEL, TITLE } from './utils/constants';
-import { getSetupToken, hasValidSetupToken, setupEnvFileExists } from './utils/setup_files';
+import { getSetupToken, setupEnvFileExists } from './utils/setup_files';
 import { logError, logInfo } from './utils/logger';
 import { getCliDoPrompt } from './prompts';
 import { Ai } from './data/model/ai';
@@ -444,8 +444,8 @@ program
     }
     logInfo(`📦 Repository: ${gitInfo.owner}/${gitInfo.repo}`);
 
-    const hasTokenFromCli = Boolean(options.token && String(options.token).trim());
-    if (!hasTokenFromCli && !hasValidSetupToken(cwd)) {
+    const token = getSetupToken(cwd, options.token);
+    if (!token) {
       logError('🛑 Setup requires PERSONAL_ACCESS_TOKEN with a valid token.');
       logInfo('   You can:');
       logInfo('   • Pass it on the command line: copilot setup --token <your_github_token>');
@@ -464,7 +464,7 @@ program
       [INPUT_KEYS.DEBUG]: options.debug.toString(),
       [INPUT_KEYS.SINGLE_ACTION]: ACTIONS.INITIAL_SETUP,
       [INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
-      [INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN || getSetupToken(cwd),
+      [INPUT_KEYS.TOKEN]: token,
       repo: {
         owner: gitInfo.owner,
         repo: gitInfo.repo,

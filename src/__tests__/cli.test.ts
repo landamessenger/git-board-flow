@@ -34,13 +34,7 @@ jest.mock('../data/repository/ai_repository', () => ({
   })),
 }));
 
-jest.mock('../utils/setup_files', () => {
-  const actual = jest.requireActual<typeof import('../utils/setup_files')>('../utils/setup_files');
-  return {
-    ...actual,
-    hasValidSetupToken: jest.fn((cwd: string) => actual.hasValidSetupToken(cwd)),
-  };
-});
+jest.mock('../utils/setup_files', () => jest.requireActual<typeof import('../utils/setup_files')>('../utils/setup_files'));
 
 describe('CLI', () => {
   let exitSpy: jest.SpyInstance;
@@ -291,9 +285,6 @@ describe('CLI', () => {
     });
 
     it('proceeds when --token is provided even if env/.env has no token', async () => {
-      const { hasValidSetupToken } = require('../utils/setup_files');
-      (hasValidSetupToken as jest.Mock).mockReturnValue(false);
-
       await program.parseAsync(['node', 'cli', 'setup', '--token', 'ghp_abcdefghijklmnopqrstuvwxyz12']);
 
       expect(exitSpy).not.toHaveBeenCalled();
