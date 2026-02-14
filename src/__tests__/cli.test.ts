@@ -275,12 +275,18 @@ describe('CLI', () => {
     // Token check: hasValidSetupToken/setupEnvFileExists and message variants are covered in
     // setup_files.test.ts and initial_setup_use_case.test.ts.
     it('calls runLocalAction with INITIAL_SETUP', async () => {
-      await program.parseAsync(['node', 'cli', 'setup']);
+      await program.parseAsync([
+        'node',
+        'cli',
+        'setup',
+        '--token',
+        'ghp_setup_test_token_xxxxxxxxxxxxxxxxxxxx',
+      ]);
 
       expect(runLocalAction).toHaveBeenCalledTimes(1);
       const params = (runLocalAction as jest.Mock).mock.calls[0][0];
       expect(params[INPUT_KEYS.SINGLE_ACTION]).toBe(ACTIONS.INITIAL_SETUP);
-      expect(params[INPUT_KEYS.TOKEN]).toBeTruthy();
+      expect(params[INPUT_KEYS.TOKEN]).toBe('ghp_setup_test_token_xxxxxxxxxxxxxxxxxxxx');
       expect(params[INPUT_KEYS.WELCOME_TITLE]).toContain('Initial Setup');
     });
 
