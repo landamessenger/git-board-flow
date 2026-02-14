@@ -678,6 +678,75 @@ describe("ProjectRepository.setTaskPriority", () => {
         expect(mockGraphql).toHaveBeenCalledTimes(5);
     });
 
+    it("finds issue on second page of project items (pagination)", async () => {
+        const firstPage = {
+            node: {
+                items: {
+                    nodes: [
+                        { id: "item_other_1", content: { id: "I_other1" } },
+                        { id: "item_other_2", content: { id: "I_other2" } },
+                    ],
+                    pageInfo: { hasNextPage: true, endCursor: "cursor_page1" },
+                },
+            },
+        };
+        const secondPage = {
+            node: {
+                items: {
+                    nodes: [{ id: "item_issue_1", content: { id: "I_issue1" } }],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                },
+            },
+        };
+        const fieldResponseWithIssueItem = {
+            node: {
+                fields: {
+                    nodes: [
+                        {
+                            id: "f1",
+                            name: "Priority",
+                            options: [{ id: "opt_high", name: "High" }],
+                        },
+                    ],
+                },
+                items: {
+                    nodes: [
+                        {
+                            id: "item_issue_1",
+                            fieldValues: { nodes: [] },
+                        },
+                    ],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                },
+            },
+        };
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce(firstPage)
+            .mockResolvedValueOnce(secondPage)
+            .mockResolvedValueOnce(fieldResponseWithIssueItem)
+            .mockResolvedValueOnce(fieldResponseWithIssueItem)
+            .mockResolvedValueOnce({
+                updateProjectV2ItemFieldValue: { projectV2Item: { id: "item_issue_1" } },
+            });
+        const result = await repo.setTaskPriority(
+            project,
+            "owner",
+            "repo",
+            1,
+            "High",
+            "token"
+        );
+        expect(result).toBe(true);
+        expect(mockGraphql).toHaveBeenCalledTimes(6);
+        const firstItemsCall = mockGraphql.mock.calls[1];
+        const secondItemsCall = mockGraphql.mock.calls[2];
+        expect((firstItemsCall[1] as { cursor?: string | null }).cursor).toBeNull();
+        expect((secondItemsCall[1] as { cursor?: string | null }).cursor).toBe("cursor_page1");
+    });
+
     it("returns false when field already set to target value", async () => {
         const fieldQueryResponseAlreadySet = {
             node: {
@@ -734,12 +803,41 @@ describe("ProjectRepository.setTaskPriority", () => {
         expect(mockGraphql).toHaveBeenCalledTimes(4);
     });
 
-    it("throws when content id not found for issue", async () => {
+    it("throws when content id not found for issue (issue/PR not in repo)", async () => {
         mockGraphql.mockResolvedValueOnce({
             repository: { issueOrPullRequest: null },
         });
         await expect(
             repo.setTaskPriority(project, "owner", "repo", 999, "High", "token")
         ).rejects.toThrow("Content ID not found");
+    });
+
+    it("throws when project node is null (invalid project ID)", async () => {
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce({ node: null });
+        await expect(
+            repo.setTaskPriority(project, "owner", "repo", 1, "High", "token")
+        ).rejects.toThrow("Project not found or invalid project ID");
+    });
+
+    it("throws when issue/PR not in project yet", async () => {
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce({
+                node: {
+                    items: {
+                        nodes: [], // issue not in project
+                        pageInfo: { hasNextPage: false, endCursor: null },
+                    },
+                },
+            });
+        await expect(
+            repo.setTaskPriority(project, "owner", "repo", 1, "High", "token")
+        ).rejects.toThrow("not in the project yet");
     });
 });

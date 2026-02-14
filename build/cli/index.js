@@ -47651,8 +47651,8 @@ program
         process.exit(1);
     }
     (0, logger_1.logInfo)(`📦 Repository: ${gitInfo.owner}/${gitInfo.repo}`);
-    const hasTokenFromCli = Boolean(options.token && String(options.token).trim());
-    if (!hasTokenFromCli && !(0, setup_files_1.hasValidSetupToken)(cwd)) {
+    const token = (0, setup_files_1.getSetupToken)(cwd, options.token);
+    if (!token) {
         (0, logger_1.logError)('🛑 Setup requires PERSONAL_ACCESS_TOKEN with a valid token.');
         (0, logger_1.logInfo)('   You can:');
         (0, logger_1.logInfo)('   • Pass it on the command line: copilot setup --token <your_github_token>');
@@ -47670,7 +47670,7 @@ program
         [constants_1.INPUT_KEYS.DEBUG]: options.debug.toString(),
         [constants_1.INPUT_KEYS.SINGLE_ACTION]: constants_1.ACTIONS.INITIAL_SETUP,
         [constants_1.INPUT_KEYS.SINGLE_ACTION_ISSUE]: 1,
-        [constants_1.INPUT_KEYS.TOKEN]: options.token || process.env.PERSONAL_ACCESS_TOKEN || (0, setup_files_1.getSetupToken)(cwd),
+        [constants_1.INPUT_KEYS.TOKEN]: token,
         repo: {
             owner: gitInfo.owner,
             repo: gitInfo.repo,
@@ -48730,10 +48730,14 @@ class ProjectDetail {
     /**
      * Returns the full public URL to the project (board).
      * Uses the URL from the API when present and valid; otherwise builds it from owner, type and number.
+     * Returns empty string when project number is invalid (e.g. missing from API).
      */
     get publicUrl() {
         if (this.url && typeof this.url === 'string' && this.url.startsWith('https://')) {
             return this.url;
+        }
+        if (typeof this.number !== 'number' || this.number <= 0) {
+            return '';
         }
         const path = this.type === 'organization' ? 'orgs' : 'users';
         return `https://github.com/${path}/${this.owner}/projects/${this.number}`;
@@ -51582,14 +51586,22 @@ class ProjectRepository {
                 number: issueOrPullRequestNumber
             });
             if (!issueOrPrResult.repository.issueOrPullRequest) {
-                console.error(`Issue or PR #${issueOrPullRequestNumber} not found.`);
+                (0, logger_1.logError)(`Issue or PR #${issueOrPullRequestNumber} not found in repository.`);
                 return undefined;
             }
             const contentId = issueOrPrResult.repository.issueOrPullRequest.id;
             // Search for the item ID in the project with pagination
             let cursor = null;
             let projectItemId = undefined;
+            let totalItemsChecked = 0;
+            const maxPages = 100; // 100 * 100 = 10_000 items max to avoid runaway loops
+            let pageCount = 0;
             do {
+                if (pageCount >= maxPages) {
+                    (0, logger_1.logError)(`Stopped after ${maxPages} pages (${totalItemsChecked} items). Issue or PR #${issueOrPullRequestNumber} not found in project.`);
+                    break;
+                }
+                pageCount += 1;
                 const projectQuery = `
         query($projectId: ID!, $cursor: String) {
           node(id: $projectId) {
@@ -51618,16 +51630,36 @@ class ProjectRepository {
                     projectId: project.id,
                     cursor
                 });
-                const items = projectResult.node.items.nodes;
+                if (projectResult.node === null) {
+                    (0, logger_1.logError)(`Project not found for ID "${project.id}". Ensure the project is loaded via getProjectDetail (GraphQL node ID), not the project number.`);
+                    throw new Error(`Project not found or invalid project ID. The project ID must be the GraphQL node ID from the API (e.g. PVT_...), not the project number.`);
+                }
+                const items = projectResult.node.items?.nodes ?? [];
+                totalItemsChecked += items.length;
+                const pageInfo = projectResult.node.items?.pageInfo;
                 const foundItem = items.find((item) => item.content?.id === contentId);
                 if (foundItem) {
                     projectItemId = foundItem.id;
                     break;
                 }
-                cursor = projectResult.node.items.pageInfo.hasNextPage
-                    ? projectResult.node.items.pageInfo.endCursor
-                    : null;
+                // Advance cursor only when there is a next page AND a non-null cursor (avoid missing pages)
+                const hasNextPage = pageInfo?.hasNextPage === true;
+                const endCursor = pageInfo?.endCursor ?? null;
+                if (hasNextPage && endCursor) {
+                    cursor = endCursor;
+                }
+                else {
+                    if (hasNextPage && !endCursor) {
+                        (0, logger_1.logError)(`Project items pagination: hasNextPage is true but endCursor is null (page ${pageCount}, ${totalItemsChecked} items so far). Cannot fetch more.`);
+                    }
+                    cursor = null;
+                }
             } while (cursor);
+            if (projectItemId === undefined) {
+                (0, logger_1.logError)(`Issue or PR #${issueOrPullRequestNumber} not found in project after checking ${totalItemsChecked} items (${pageCount} page(s)). ` +
+                    `Link it to the project first, or wait for the board to sync.`);
+                throw new Error(`Issue or pull request #${issueOrPullRequestNumber} is not in the project yet (checked ${totalItemsChecked} items). Link it to the project first, or wait for the board to sync.`);
+            }
             return projectItemId;
         };
         this.isContentLinked = async (project, contentId, token) => {
@@ -60515,15 +60547,19 @@ function ensureEnvWithToken(cwd) {
 }
 function isTokenValueValid(token) {
     const t = token.trim();
-    return (t.length >= MIN_VALID_TOKEN_LENGTH &&
-        t !== ENV_PLACEHOLDER_VALUE &&
-        !t.startsWith('github_pat_11..'));
+    return t.length >= MIN_VALID_TOKEN_LENGTH && t !== ENV_PLACEHOLDER_VALUE;
 }
 /**
- * Returns the PERSONAL_ACCESS_TOKEN to use for setup (from environment or .env in cwd).
- * Same resolution order as hasValidSetupToken; returns undefined if no valid token is found.
+ * Resolves the PERSONAL_ACCESS_TOKEN for setup from a single priority order:
+ * 1. override (e.g. CLI --token) if provided and valid,
+ * 2. process.env.PERSONAL_ACCESS_TOKEN,
+ * 3. .env file in cwd.
+ * Returns undefined if no valid token is found.
  */
-function getSetupToken(cwd) {
+function getSetupToken(cwd, override) {
+    const overrideTrimmed = override?.trim();
+    if (overrideTrimmed && isTokenValueValid(overrideTrimmed))
+        return overrideTrimmed;
     const fromEnv = process.env[ENV_TOKEN_KEY]?.trim();
     if (fromEnv && isTokenValueValid(fromEnv))
         return fromEnv;
@@ -60534,11 +60570,11 @@ function getSetupToken(cwd) {
     return undefined;
 }
 /**
- * Returns true if PERSONAL_ACCESS_TOKEN is available and looks like a real token
- * (from environment or .env), not the placeholder. Setup should only continue when this is true.
+ * Returns true if a valid setup token is available (same resolution order as getSetupToken).
+ * Pass an optional override (e.g. CLI --token) so validation considers all sources consistently.
  */
-function hasValidSetupToken(cwd) {
-    return getSetupToken(cwd) !== undefined;
+function hasValidSetupToken(cwd, override) {
+    return getSetupToken(cwd, override) !== undefined;
 }
 /** Returns true if a .env file exists in the given directory. */
 function setupEnvFileExists(cwd) {

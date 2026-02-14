@@ -21,14 +21,17 @@ export declare function copySetupFiles(cwd: string, setupDirOverride?: string): 
  */
 export declare function ensureEnvWithToken(cwd: string): void;
 /**
- * Returns the PERSONAL_ACCESS_TOKEN to use for setup (from environment or .env in cwd).
- * Same resolution order as hasValidSetupToken; returns undefined if no valid token is found.
+ * Resolves the PERSONAL_ACCESS_TOKEN for setup from a single priority order:
+ * 1. override (e.g. CLI --token) if provided and valid,
+ * 2. process.env.PERSONAL_ACCESS_TOKEN,
+ * 3. .env file in cwd.
+ * Returns undefined if no valid token is found.
  */
-export declare function getSetupToken(cwd: string): string | undefined;
+export declare function getSetupToken(cwd: string, override?: string): string | undefined;
 /**
- * Returns true if PERSONAL_ACCESS_TOKEN is available and looks like a real token
- * (from environment or .env), not the placeholder. Setup should only continue when this is true.
+ * Returns true if a valid setup token is available (same resolution order as getSetupToken).
+ * Pass an optional override (e.g. CLI --token) so validation considers all sources consistently.
  */
-export declare function hasValidSetupToken(cwd: string): boolean;
+export declare function hasValidSetupToken(cwd: string, override?: string): boolean;
 /** Returns true if a .env file exists in the given directory. */
 export declare function setupEnvFileExists(cwd: string): boolean;
