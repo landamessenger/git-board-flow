@@ -3,8 +3,14 @@ import { logDebugInfo, logError } from '../../utils/logger';
 import { Result } from '../model/result';
 
 /**
- * Repository for merging branches (via PR or direct merge).
- * Isolated to allow unit tests with mocked Octokit.
+ * Repository for merging branches: creates a PR, waits for that PR's check runs (or status checks),
+ * then merges the PR; on failure, falls back to a direct Git merge.
+ *
+ * Check runs are filtered by PR (pull_requests) so we only wait for the current PR's checks,
+ * not those of another PR sharing the same head (e.g. release→main vs release→develop).
+ * If the PR has no check runs after a short wait, we proceed to merge (branch may have no required checks).
+ *
+ * @see docs/single-actions/deploy-label-and-merge.mdx for the deploy flow and check-wait behaviour.
  */
 export class MergeRepository {
 
@@ -61,10 +67,13 @@ This PR merges **${head}** into **${base}**.
             });
 
             const iteration = 10;
+            /** Give workflows a short window to register check runs for this PR; after this, we allow merge with no check runs (e.g. branch has no required checks). */
+            const maxWaitForPrChecksAttempts = 3;
             if (timeout > iteration) {
                 // Wait for checks to complete - can use regular token for reading checks
                 let checksCompleted = false;
                 let attempts = 0;
+                let waitForPrChecksAttempts = 0;
                 const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
 
                 while (!checksCompleted && attempts < maxAttempts) {
@@ -74,6 +83,14 @@ This PR merges **${head}** into **${base}**.
                         ref: head,
                     });
 
+                    // Only consider check runs that are for this PR. When the same branch is used in
+                    // multiple PRs (e.g. release→master and release→develop), listForRef returns runs
+                    // for all PRs; we must wait for runs tied to the current PR or we may see completed
+                    // runs from the other PR and merge before this PR's checks have run.
+                    const runsForThisPr = (checkRuns.check_runs as Array<{ status: string; conclusion: string | null; name: string; pull_requests?: Array<{ number: number }> }>).filter(
+                        run => run.pull_requests?.some(pr => pr.number === pullRequest.number),
+                    );
+
                     // Get commit status checks for the PR head commit
                     const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
                         owner: owner,
@@ -82,11 +99,11 @@ This PR merges **${head}** into **${base}**.
                     });
 
                     logDebugInfo(`Combined status state: ${commitStatus.state}`);
-                    logDebugInfo(`Number of check runs: ${checkRuns.check_runs.length}`);
+                    logDebugInfo(`Number of check runs for this PR: ${runsForThisPr.length} (total on ref: ${checkRuns.check_runs.length})`);
 
-                    // If there are check runs, prioritize those over status checks
-                    if (checkRuns.check_runs.length > 0) {
-                        const pendingCheckRuns = checkRuns.check_runs.filter(
+                    // If there are check runs for this PR, wait for them to complete
+                    if (runsForThisPr.length > 0) {
+                        const pendingCheckRuns = runsForThisPr.filter(
                             check => check.status !== 'completed',
                         );
 
@@ -95,7 +112,7 @@ This PR merges **${head}** into **${base}**.
                             logDebugInfo('All check runs have completed.');
 
                             // Verify if all checks passed
-                            const failedChecks = checkRuns.check_runs.filter(
+                            const failedChecks = runsForThisPr.filter(
                                 check => check.conclusion === 'failure',
                             );
 
@@ -111,6 +128,21 @@ This PR merges **${head}** into **${base}**.
                             attempts++;
                             continue;
                         }
+                    } else if (checkRuns.check_runs.length > 0 && runsForThisPr.length === 0) {
+                        // There are runs on the ref but none for this PR. Either workflows for this PR
+                        // haven't registered yet, or this PR/base has no required checks.
+                        waitForPrChecksAttempts++;
+                        if (waitForPrChecksAttempts >= maxWaitForPrChecksAttempts) {
+                            checksCompleted = true;
+                            logDebugInfo(
+                                `No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; proceeding to merge (branch may have no required checks).`,
+                            );
+                        } else {
+                            logDebugInfo('Check runs exist on ref but none for this PR yet; waiting for workflows to register.');
+                            await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                            attempts++;
+                        }
+                        continue;
                     } else {
                         // Fall back to status checks if no check runs exist
                         const pendingChecks = commitStatus.statuses.filter(status => {
