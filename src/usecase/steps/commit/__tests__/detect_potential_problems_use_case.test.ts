@@ -8,6 +8,14 @@ import { DetectPotentialProblemsUseCase } from '../detect_potential_problems_use
 import { Ai } from '../../../../data/model/ai';
 import type { Execution } from '../../../../data/model/execution';
 
+jest.mock('@actions/github', () => {
+  const actual = jest.requireActual<typeof import('@actions/github')>('@actions/github');
+  return {
+    ...actual,
+    context: { ...actual.context, sha: undefined },
+  };
+});
+
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
