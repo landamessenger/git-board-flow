@@ -133,10 +133,28 @@ This PR merges **${head}** into **${base}**.
                         // haven't registered yet, or this PR/base has no required checks.
                         waitForPrChecksAttempts++;
                         if (waitForPrChecksAttempts >= maxWaitForPrChecksAttempts) {
-                            checksCompleted = true;
-                            logDebugInfo(
-                                `No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; proceeding to merge (branch may have no required checks).`,
-                            );
+                            // Give up waiting for PR-specific check runs; fall back to status checks
+                            // before proceeding to merge (PR may have required status checks).
+                            const pendingChecksFallback = commitStatus.statuses.filter(status => {
+                                logDebugInfo(`Status check (fallback): ${status.context} (State: ${status.state})`);
+                                return status.state === 'pending';
+                            });
+
+                            if (pendingChecksFallback.length === 0) {
+                                checksCompleted = true;
+                                logDebugInfo(
+                                    `No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; no pending status checks; proceeding to merge.`,
+                                );
+                            } else {
+                                logDebugInfo(
+                                    `No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; falling back to status checks. Waiting for ${pendingChecksFallback.length} status checks to complete.`,
+                                );
+                                pendingChecksFallback.forEach(check => {
+                                    logDebugInfo(`  - ${check.context} (State: ${check.state})`);
+                                });
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                            }
                         } else {
                             logDebugInfo('Check runs exist on ref but none for this PR yet; waiting for workflows to register.');
                             await new Promise(resolve => setTimeout(resolve, iteration * 1000));
