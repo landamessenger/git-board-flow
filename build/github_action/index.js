@@ -42212,6 +42212,7 @@ const queue_utils_1 = __nccwpck_require__(9800);
 async function mainRun(execution) {
     const results = [];
     await execution.setup();
+    (0, logger_1.clearAccumulatedLogs)();
     if (!execution.welcome) {
         /**
          * Wait for previous runs to finish
@@ -45402,6 +45403,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueRepository = exports.PROGRESS_LABEL_PATTERN = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
+const comment_watermark_1 = __nccwpck_require__(4467);
 const logger_1 = __nccwpck_require__(8836);
 const milestone_1 = __nccwpck_require__(2298);
 /** Matches labels that are progress percentages (e.g. "0%", "85%"). Used for setProgressLabel and syncing. */
@@ -45758,23 +45760,27 @@ class IssueRepository {
             });
             return pullRequest.data.head.ref;
         };
-        this.addComment = async (owner, repository, issueNumber, comment, token) => {
+        this.addComment = async (owner, repository, issueNumber, comment, token, options) => {
+            const watermark = (0, comment_watermark_1.getCommentWatermark)(options?.commitSha ? { commitSha: options.commitSha, owner, repo: repository } : undefined);
+            const body = `${comment}\n\n${watermark}`;
             const octokit = github.getOctokit(token);
             await octokit.rest.issues.createComment({
                 owner: owner,
                 repo: repository,
                 issue_number: issueNumber,
-                body: comment,
+                body,
             });
             (0, logger_1.logDebugInfo)(`Comment added to Issue ${issueNumber}.`);
         };
-        this.updateComment = async (owner, repository, issueNumber, commentId, comment, token) => {
+        this.updateComment = async (owner, repository, issueNumber, commentId, comment, token, options) => {
+            const watermark = (0, comment_watermark_1.getCommentWatermark)(options?.commitSha ? { commitSha: options.commitSha, owner, repo: repository } : undefined);
+            const body = `${comment}\n\n${watermark}`;
             const octokit = github.getOctokit(token);
             await octokit.rest.issues.updateComment({
                 owner: owner,
                 repo: repository,
                 comment_id: commentId,
-                body: comment,
+                body,
             });
             (0, logger_1.logDebugInfo)(`Comment ${commentId} updated in Issue ${issueNumber}.`);
         };
@@ -46343,8 +46349,14 @@ const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
 const result_1 = __nccwpck_require__(7305);
 /**
- * Repository for merging branches (via PR or direct merge).
- * Isolated to allow unit tests with mocked Octokit.
+ * Repository for merging branches: creates a PR, waits for that PR's check runs (or status checks),
+ * then merges the PR; on failure, falls back to a direct Git merge.
+ *
+ * Check runs are filtered by PR (pull_requests) so we only wait for the current PR's checks,
+ * not those of another PR sharing the same head (e.g. release→main vs release→develop).
+ * If the PR has no check runs after a short wait, we proceed to merge (branch may have no required checks).
+ *
+ * @see docs/single-actions/deploy-label-and-merge.mdx for the deploy flow and check-wait behaviour.
  */
 class MergeRepository {
     constructor() {
@@ -46386,10 +46398,13 @@ This PR merges **${head}** into **${base}**.
                         '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).',
                 });
                 const iteration = 10;
+                /** Give workflows a short window to register check runs for this PR; after this, we allow merge with no check runs (e.g. branch has no required checks). */
+                const maxWaitForPrChecksAttempts = 3;
                 if (timeout > iteration) {
                     // Wait for checks to complete - can use regular token for reading checks
                     let checksCompleted = false;
                     let attempts = 0;
+                    let waitForPrChecksAttempts = 0;
                     const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
                     while (!checksCompleted && attempts < maxAttempts) {
                         const { data: checkRuns } = await octokit.rest.checks.listForRef({
@@ -46397,6 +46412,11 @@ This PR merges **${head}** into **${base}**.
                             repo: repository,
                             ref: head,
                         });
+                        // Only consider check runs that are for this PR. When the same branch is used in
+                        // multiple PRs (e.g. release→master and release→develop), listForRef returns runs
+                        // for all PRs; we must wait for runs tied to the current PR or we may see completed
+                        // runs from the other PR and merge before this PR's checks have run.
+                        const runsForThisPr = checkRuns.check_runs.filter(run => run.pull_requests?.some(pr => pr.number === pullRequest.number));
                         // Get commit status checks for the PR head commit
                         const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
                             owner: owner,
@@ -46404,15 +46424,15 @@ This PR merges **${head}** into **${base}**.
                             ref: head,
                         });
                         (0, logger_1.logDebugInfo)(`Combined status state: ${commitStatus.state}`);
-                        (0, logger_1.logDebugInfo)(`Number of check runs: ${checkRuns.check_runs.length}`);
-                        // If there are check runs, prioritize those over status checks
-                        if (checkRuns.check_runs.length > 0) {
-                            const pendingCheckRuns = checkRuns.check_runs.filter(check => check.status !== 'completed');
+                        (0, logger_1.logDebugInfo)(`Number of check runs for this PR: ${runsForThisPr.length} (total on ref: ${checkRuns.check_runs.length})`);
+                        // If there are check runs for this PR, wait for them to complete
+                        if (runsForThisPr.length > 0) {
+                            const pendingCheckRuns = runsForThisPr.filter(check => check.status !== 'completed');
                             if (pendingCheckRuns.length === 0) {
                                 checksCompleted = true;
                                 (0, logger_1.logDebugInfo)('All check runs have completed.');
                                 // Verify if all checks passed
-                                const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
+                                const failedChecks = runsForThisPr.filter(check => check.conclusion === 'failure');
                                 if (failedChecks.length > 0) {
                                     throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
                                 }
@@ -46426,6 +46446,37 @@ This PR merges **${head}** into **${base}**.
                                 attempts++;
                                 continue;
                             }
+                        }
+                        else if (checkRuns.check_runs.length > 0 && runsForThisPr.length === 0) {
+                            // There are runs on the ref but none for this PR. Either workflows for this PR
+                            // haven't registered yet, or this PR/base has no required checks.
+                            waitForPrChecksAttempts++;
+                            if (waitForPrChecksAttempts >= maxWaitForPrChecksAttempts) {
+                                // Give up waiting for PR-specific check runs; fall back to status checks
+                                // before proceeding to merge (PR may have required status checks).
+                                const pendingChecksFallback = commitStatus.statuses.filter(status => {
+                                    (0, logger_1.logDebugInfo)(`Status check (fallback): ${status.context} (State: ${status.state})`);
+                                    return status.state === 'pending';
+                                });
+                                if (pendingChecksFallback.length === 0) {
+                                    checksCompleted = true;
+                                    (0, logger_1.logDebugInfo)(`No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; no pending status checks; proceeding to merge.`);
+                                }
+                                else {
+                                    (0, logger_1.logDebugInfo)(`No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; falling back to status checks. Waiting for ${pendingChecksFallback.length} status checks to complete.`);
+                                    pendingChecksFallback.forEach(check => {
+                                        (0, logger_1.logDebugInfo)(`  - ${check.context} (State: ${check.state})`);
+                                    });
+                                    await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                    attempts++;
+                                }
+                            }
+                            else {
+                                (0, logger_1.logDebugInfo)('Check runs exist on ref but none for this PR yet; waiting for workflows to register.');
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                            }
+                            continue;
                         }
                         else {
                             // Fall back to status checks if no check runs exist
@@ -48979,6 +49030,16 @@ const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
+/**
+ * Single action run after a successful deployment (triggered with the "deployed" action and an issue number).
+ *
+ * Requires the issue to have the "deploy" label and not already have the "deployed" label. Then:
+ * 1. Replaces the "deploy" label with "deployed".
+ * 2. If a release or hotfix branch is configured: merges it into default and develop (each via PR, waiting for that PR's checks).
+ * 3. Closes the issue only when all merges succeed.
+ *
+ * @see docs/single-actions/deploy-label-and-merge.mdx for the full flow and how merge/check waiting works.
+ */
 class DeployedActionUseCase {
     constructor() {
         this.taskId = 'DeployedActionUseCase';
@@ -51285,12 +51346,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.publishFindings = publishFindings;
 const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const comment_watermark_1 = __nccwpck_require__(4467);
 const logger_1 = __nccwpck_require__(8836);
 const marker_1 = __nccwpck_require__(2401);
 const path_validation_1 = __nccwpck_require__(1999);
 /** Creates or updates issue comments for each finding; creates PR review comments only when finding.file is in prFiles. */
 async function publishFindings(param) {
-    const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
+    const { execution, context, findings, commitSha, overflowCount = 0, overflowTitles = [] } = param;
     const { existingByFindingId, openPrNumbers, prContext } = context;
     const issueNumber = execution.issueNumber;
     const token = execution.tokens.token;
@@ -51298,18 +51360,22 @@ async function publishFindings(param) {
     const repo = execution.repo;
     const issueRepository = new issue_repository_1.IssueRepository();
     const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    const bugbotWatermark = commitSha && owner && repo
+        ? (0, comment_watermark_1.getCommentWatermark)({ commitSha, owner, repo })
+        : (0, comment_watermark_1.getCommentWatermark)();
     const prFiles = prContext?.prFiles ?? [];
     const pathToFirstDiffLine = prContext?.pathToFirstDiffLine ?? {};
     const prCommentsToCreate = [];
     for (const finding of findings) {
         const existing = existingByFindingId[finding.id];
         const commentBody = (0, marker_1.buildCommentBody)(finding, false);
+        const bodyWithWatermark = `${commentBody}\n\n${bugbotWatermark}`;
         if (existing?.issueCommentId != null) {
-            await issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token);
+            await issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token, commitSha ? { commitSha } : undefined);
             (0, logger_1.logDebugInfo)(`Updated bugbot comment for finding ${finding.id} on issue.`);
         }
         else {
-            await issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
+            await issueRepository.addComment(owner, repo, issueNumber, commentBody, token, commitSha ? { commitSha } : undefined);
             (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
         }
         // PR review comment: only if this finding's file is in the PR changed files (so GitHub can attach the comment).
@@ -51318,10 +51384,10 @@ async function publishFindings(param) {
             if (path) {
                 const line = finding.line ?? pathToFirstDiffLine[path] ?? 1;
                 if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
-                    await pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
+                    await pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, bodyWithWatermark, token);
                 }
                 else {
-                    prCommentsToCreate.push({ path, line, body: commentBody });
+                    prCommentsToCreate.push({ path, line, body: bodyWithWatermark });
                 }
             }
             else if (finding.file != null && String(finding.file).trim() !== "") {
@@ -51339,7 +51405,7 @@ async function publishFindings(param) {
         const overflowBody = `## More findings (comment limit)
 
 There are **${overflowCount}** more finding(s) that were not published as individual comments. Review locally or in the full diff to see the list.${titlesList}`;
-        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
+        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token, commitSha ? { commitSha } : undefined);
         (0, logger_1.logDebugInfo)(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
     }
 }
@@ -51599,12 +51665,46 @@ exports.CheckChangesIssueSizeUseCase = CheckChangesIssueSizeUseCase;
 /***/ }),
 
 /***/ 7395:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DetectPotentialProblemsUseCase = void 0;
+const github = __importStar(__nccwpck_require__(5438));
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const constants_1 = __nccwpck_require__(8593);
@@ -51683,6 +51783,7 @@ class DetectPotentialProblemsUseCase {
                 execution: param,
                 context,
                 findings: toPublish,
+                commitSha: github.context.sha,
                 overflowCount: overflowCount > 0 ? overflowCount : undefined,
                 overflowTitles: overflowCount > 0 ? overflowTitles : undefined,
             });
@@ -52547,6 +52648,22 @@ ${errors}
 Check your project configuration, if everything is okay consider [opening an issue](https://github.com/vypdev/copilot/issues/new/choose).
 `;
             }
+            let debugLogSection = '';
+            if (param.debug) {
+                const logsText = (0, logger_1.getAccumulatedLogsAsText)();
+                if (logsText.length > 0) {
+                    debugLogSection = `
+
+<details>
+<summary>Debug log</summary>
+
+\`\`\`
+${logsText}
+\`\`\`
+</details>
+`;
+                }
+            }
             const commentBody = `# ${title}
 ${content}
 ${errors.length > 0 ? errors : ''}
@@ -52554,7 +52671,7 @@ ${errors.length > 0 ? errors : ''}
 ${stupidGif}
 
 ${footer}
-
+${debugLogSection}
 🚀 Happy coding!
             `;
             if (content.length === 0) {
@@ -54999,6 +55116,34 @@ exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguage
 
 /***/ }),
 
+/***/ 4467:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Watermark appended to comments (issues and PRs) to attribute Copilot.
+ * Bugbot comments include commit link and note about auto-update on new commits.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.COPILOT_MARKETPLACE_URL = void 0;
+exports.getCommentWatermark = getCommentWatermark;
+exports.COPILOT_MARKETPLACE_URL = 'https://github.com/marketplace/actions/copilot-github-with-super-powers';
+const DEFAULT_WATERMARK = `<sup>Made with ❤️ by [vypdev/copilot](${exports.COPILOT_MARKETPLACE_URL})</sup>`;
+function commitUrl(owner, repo, sha) {
+    return `https://github.com/${owner}/${repo}/commit/${sha}`;
+}
+function getCommentWatermark(options) {
+    if (options?.commitSha && options?.owner && options?.repo) {
+        const url = commitUrl(options.owner, options.repo, options.commitSha);
+        return `<sup>Written by [vypdev/copilot](${exports.COPILOT_MARKETPLACE_URL}) for commit [${options.commitSha}](${url}). This will update automatically on new commits.</sup>`;
+    }
+    return DEFAULT_WATERMARK;
+}
+
+
+/***/ }),
+
 /***/ 8593:
 /***/ ((__unused_webpack_module, exports) => {
 
@@ -55513,6 +55658,9 @@ exports.getRandomElement = getRandomElement;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getAccumulatedLogEntries = getAccumulatedLogEntries;
+exports.getAccumulatedLogsAsText = getAccumulatedLogsAsText;
+exports.clearAccumulatedLogs = clearAccumulatedLogs;
 exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
 exports.setStructuredLogging = setStructuredLogging;
 exports.logInfo = logInfo;
@@ -55525,6 +55673,25 @@ exports.logDebugError = logDebugError;
 let loggerDebug = false;
 let loggerRemote = false;
 let structuredLogging = false;
+const accumulatedLogEntries = [];
+function pushLogEntry(entry) {
+    accumulatedLogEntries.push(entry);
+}
+function getAccumulatedLogEntries() {
+    return [...accumulatedLogEntries];
+}
+function getAccumulatedLogsAsText() {
+    return accumulatedLogEntries
+        .map((e) => {
+        const prefix = `[${e.level.toUpperCase()}]`;
+        const meta = e.metadata?.stack ? `\n${String(e.metadata.stack)}` : '';
+        return `${prefix} ${e.message}${meta}`;
+    })
+        .join('\n');
+}
+function clearAccumulatedLogs() {
+    accumulatedLogEntries.length = 0;
+}
 function setGlobalLoggerDebug(debug, isRemote = false) {
     loggerDebug = debug;
     loggerRemote = isRemote;
@@ -55535,7 +55702,10 @@ function setStructuredLogging(enabled) {
 function formatStructuredLog(entry) {
     return JSON.stringify(entry);
 }
-function logInfo(message, previousWasSingleLine = false, metadata) {
+function logInfo(message, previousWasSingleLine = false, metadata, skipAccumulation) {
+    if (!skipAccumulation) {
+        pushLogEntry({ level: 'info', message, timestamp: Date.now(), metadata });
+    }
     if (previousWasSingleLine && !loggerRemote) {
         console.log();
     }
@@ -55552,6 +55722,7 @@ function logInfo(message, previousWasSingleLine = false, metadata) {
     }
 }
 function logWarn(message, metadata) {
+    pushLogEntry({ level: 'warn', message, timestamp: Date.now(), metadata });
     if (structuredLogging) {
         console.warn(formatStructuredLog({
             level: 'warn',
@@ -55569,15 +55740,17 @@ function logWarning(message) {
 }
 function logError(message, metadata) {
     const errorMessage = message instanceof Error ? message.message : String(message);
+    const metaWithStack = {
+        ...metadata,
+        stack: message instanceof Error ? message.stack : undefined
+    };
+    pushLogEntry({ level: 'error', message: errorMessage, timestamp: Date.now(), metadata: metaWithStack });
     if (structuredLogging) {
         console.error(formatStructuredLog({
             level: 'error',
             message: errorMessage,
             timestamp: Date.now(),
-            metadata: {
-                ...metadata,
-                stack: message instanceof Error ? message.stack : undefined
-            }
+            metadata: metaWithStack
         }));
     }
     else {
@@ -55586,6 +55759,7 @@ function logError(message, metadata) {
 }
 function logDebugInfo(message, previousWasSingleLine = false, metadata) {
     if (loggerDebug) {
+        pushLogEntry({ level: 'debug', message, timestamp: Date.now(), metadata });
         if (structuredLogging) {
             console.log(formatStructuredLog({
                 level: 'debug',
@@ -55595,7 +55769,7 @@ function logDebugInfo(message, previousWasSingleLine = false, metadata) {
             }));
         }
         else {
-            logInfo(message, previousWasSingleLine);
+            logInfo(message, previousWasSingleLine, undefined, true);
         }
     }
 }

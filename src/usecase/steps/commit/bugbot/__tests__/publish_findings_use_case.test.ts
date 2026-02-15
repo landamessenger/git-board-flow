@@ -74,7 +74,7 @@ describe("publishFindings", () => {
         });
 
         expect(mockAddComment).toHaveBeenCalledTimes(1);
-        expect(mockAddComment).toHaveBeenCalledWith("o", "r", 42, expect.stringContaining("## Test"), "t");
+        expect(mockAddComment).toHaveBeenCalledWith("o", "r", 42, expect.stringContaining("## Test"), "t", undefined);
         expect(mockUpdateComment).not.toHaveBeenCalled();
     });
 
@@ -87,7 +87,7 @@ describe("publishFindings", () => {
             findings: [finding()],
         });
 
-        expect(mockUpdateComment).toHaveBeenCalledWith("o", "r", 42, 100, expect.any(String), "t");
+        expect(mockUpdateComment).toHaveBeenCalledWith("o", "r", 42, 100, expect.any(String), "t", undefined);
         expect(mockAddComment).not.toHaveBeenCalled();
     });
 

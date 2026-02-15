@@ -23,6 +23,7 @@ Full documentation: **[docs.page/vypdev/copilot](https://docs.page/vypdev/copilo
 | [OpenCode (AI)](https://docs.page/vypdev/copilot/opencode-integration) | Progress, Bugbot, think, AI PR description |
 | [Testing OpenCode locally](https://docs.page/vypdev/copilot/testing-opencode-plan-locally) | Run check-progress, detect-potential-problems, recommend-steps via CLI |
 | [Single actions](https://docs.page/vypdev/copilot/single-actions) | On-demand: check progress, think, create release/tag, deployed |
+| [Deploy label and merge flow](docs/single-actions/deploy-label-and-merge.mdx) | Deploy/deployed labels, post-deploy merges, waiting for checks per PR |
 | [Issues](https://docs.page/vypdev/copilot/issues) | Issue configuration and types (feature, bugfix, hotfix, release, docs, chore) |
 | [Pull requests](https://docs.page/vypdev/copilot/pull-requests) | PR configuration and AI description |
 | [Troubleshooting](https://docs.page/vypdev/copilot/troubleshooting) | Common issues and solutions |

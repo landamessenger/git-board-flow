@@ -9,6 +9,7 @@
 import type { Execution } from "../../../../data/model/execution";
 import { IssueRepository } from "../../../../data/repository/issue_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";
+import { getCommentWatermark } from "../../../../utils/comment_watermark";
 import { logDebugInfo, logInfo } from "../../../../utils/logger";
 import type { BugbotContext } from "./types";
 import type { BugbotFinding } from "./types";
@@ -19,6 +20,8 @@ export interface PublishFindingsParam {
     execution: Execution;
     context: BugbotContext;
     findings: BugbotFinding[];
+    /** Commit SHA for bugbot watermark (commit link). When set, comment uses "for commit ..." watermark. */
+    commitSha?: string;
     /** When findings were limited by max comments, add one summary comment with this overflow info. */
     overflowCount?: number;
     overflowTitles?: string[];
@@ -26,7 +29,7 @@ export interface PublishFindingsParam {
 
 /** Creates or updates issue comments for each finding; creates PR review comments only when finding.file is in prFiles. */
 export async function publishFindings(param: PublishFindingsParam): Promise<void> {
-    const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
+    const { execution, context, findings, commitSha, overflowCount = 0, overflowTitles = [] } = param;
     const { existingByFindingId, openPrNumbers, prContext } = context;
     const issueNumber = execution.issueNumber;
     const token = execution.tokens.token;
@@ -36,6 +39,11 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
     const issueRepository = new IssueRepository();
     const pullRequestRepository = new PullRequestRepository();
 
+    const bugbotWatermark =
+        commitSha && owner && repo
+            ? getCommentWatermark({ commitSha, owner, repo })
+            : getCommentWatermark();
+
     const prFiles = prContext?.prFiles ?? [];
     const pathToFirstDiffLine = prContext?.pathToFirstDiffLine ?? {};
     const prCommentsToCreate: Array<{ path: string; line: number; body: string }> = [];
@@ -43,6 +51,7 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
     for (const finding of findings) {
         const existing = existingByFindingId[finding.id];
         const commentBody = buildCommentBody(finding, false);
+        const bodyWithWatermark = `${commentBody}\n\n${bugbotWatermark}`;
 
         if (existing?.issueCommentId != null) {
             await issueRepository.updateComment(
@@ -51,11 +60,12 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
                 issueNumber,
                 existing.issueCommentId,
                 commentBody,
-                token
+                token,
+                commitSha ? { commitSha } : undefined
             );
             logDebugInfo(`Updated bugbot comment for finding ${finding.id} on issue.`);
         } else {
-            await issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
+            await issueRepository.addComment(owner, repo, issueNumber, commentBody, token, commitSha ? { commitSha } : undefined);
             logDebugInfo(`Added bugbot comment for finding ${finding.id} on issue.`);
         }
 
@@ -69,11 +79,11 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
                         owner,
                         repo,
                         existing.prCommentId,
-                        commentBody,
+                        bodyWithWatermark,
                         token
                     );
                 } else {
-                    prCommentsToCreate.push({ path, line, body: commentBody });
+                    prCommentsToCreate.push({ path, line, body: bodyWithWatermark });
                 }
             } else if (finding.file != null && String(finding.file).trim() !== "") {
                 logInfo(
@@ -102,7 +112,7 @@ export async function publishFindings(param: PublishFindingsParam): Promise<void
         const overflowBody = `## More findings (comment limit)
 
 There are **${overflowCount}** more finding(s) that were not published as individual comments. Review locally or in the full diff to see the list.${titlesList}`;
-        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
+        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token, commitSha ? { commitSha } : undefined);
         logDebugInfo(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
     }
 }

@@ -37,8 +37,12 @@ export declare class IssueRepository {
     isIssue: (owner: string, repository: string, issueNumber: number, token: string) => Promise<boolean>;
     isPullRequest: (owner: string, repository: string, issueNumber: number, token: string) => Promise<boolean>;
     getHeadBranch: (owner: string, repository: string, issueNumber: number, token: string) => Promise<string | undefined>;
-    addComment: (owner: string, repository: string, issueNumber: number, comment: string, token: string) => Promise<void>;
-    updateComment: (owner: string, repository: string, issueNumber: number, commentId: number, comment: string, token: string) => Promise<void>;
+    addComment: (owner: string, repository: string, issueNumber: number, comment: string, token: string, options?: {
+        commitSha?: string;
+    }) => Promise<void>;
+    updateComment: (owner: string, repository: string, issueNumber: number, commentId: number, comment: string, token: string, options?: {
+        commitSha?: string;
+    }) => Promise<void>;
     /**
      * Lists all comments on an issue (for bugbot: find existing findings by marker).
      * Uses pagination to fetch every comment (default API returns only 30 per page).

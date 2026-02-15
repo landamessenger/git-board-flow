@@ -1,3 +1,4 @@
+import * as github from "@actions/github";
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../data/repository/ai_repository";
@@ -96,6 +97,7 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
                 execution: param,
                 context,
                 findings: toPublish,
+                commitSha: github.context.sha,
                 overflowCount: overflowCount > 0 ? overflowCount : undefined,
                 overflowTitles: overflowCount > 0 ? overflowTitles : undefined,
             });

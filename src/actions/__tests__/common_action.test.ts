@@ -21,6 +21,7 @@ jest.mock('@actions/core', () => ({
 jest.mock('../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  clearAccumulatedLogs: jest.fn(),
 }));
 
 jest.mock('../../utils/queue_utils', () => ({
@@ -66,6 +67,7 @@ jest.mock('../../usecase/commit_use_case', () => ({
 }));
 
 const core = require('@actions/core');
+const logger = require('../../utils/logger');
 const { waitForPreviousRuns } = require('../../utils/queue_utils');
 
 function mockExecution(overrides: Record<string, unknown> = {}): Execution {
@@ -103,11 +105,12 @@ describe('mainRun', () => {
     mockCommitInvoke.mockResolvedValue([]);
   });
 
-  it('calls execution.setup()', async () => {
+  it('calls execution.setup() and clearAccumulatedLogs()', async () => {
     const setupMock = jest.fn().mockResolvedValue(undefined);
     const execution = mockExecution({ setup: setupMock });
     await mainRun(execution);
     expect(setupMock).toHaveBeenCalledTimes(1);
+    expect(logger.clearAccumulatedLogs).toHaveBeenCalledTimes(1);
   });
 
   it('waits for previous runs when welcome is false', async () => {

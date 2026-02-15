@@ -2,7 +2,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { getRandomElement } from "../../../utils/list_utils";
-import { logError, logInfo } from "../../../utils/logger";
+import { getAccumulatedLogsAsText, logError, logInfo } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -128,6 +128,23 @@ Check your project configuration, if everything is okay consider [opening an iss
 `
             }
 
+            let debugLogSection = '';
+            if (param.debug) {
+                const logsText = getAccumulatedLogsAsText();
+                if (logsText.length > 0) {
+                    debugLogSection = `
+
+<details>
+<summary>Debug log</summary>
+
+\`\`\`
+${logsText}
+\`\`\`
+</details>
+`;
+                }
+            }
+
             const commentBody = `# ${title}
 ${content}
 ${errors.length > 0 ? errors : ''}
@@ -135,7 +152,7 @@ ${errors.length > 0 ? errors : ''}
 ${stupidGif}
 
 ${footer}
-
+${debugLogSection}
 🚀 Happy coding!
             `;
 

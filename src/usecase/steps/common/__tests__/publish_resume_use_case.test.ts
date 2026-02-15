@@ -1,9 +1,11 @@
 import { Result } from '../../../../data/model/result';
 import { PublishResultUseCase } from '../publish_resume_use_case';
 
+const mockGetAccumulatedLogsAsText = jest.fn(() => '');
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  getAccumulatedLogsAsText: () => mockGetAccumulatedLogsAsText(),
 }));
 
 jest.mock('../../../../utils/list_utils', () => ({
@@ -53,6 +55,7 @@ function baseParam(overrides: Record<string, unknown> = {}) {
     release: { active: false },
     hotfix: { active: false },
     issueNotBranched: false,
+    debug: false,
     ...overrides,
   } as unknown as Parameters<PublishResultUseCase['invoke']>[0];
 }
@@ -63,6 +66,7 @@ describe('PublishResultUseCase', () => {
   beforeEach(() => {
     useCase = new PublishResultUseCase();
     mockAddComment.mockReset();
+    mockGetAccumulatedLogsAsText.mockReturnValue('');
   });
 
   it('does not call addComment when content is empty (no steps in results)', async () => {
@@ -98,6 +102,49 @@ describe('PublishResultUseCase', () => {
 
     expect(mockAddComment).toHaveBeenCalledTimes(1);
     expect(mockAddComment).toHaveBeenCalledWith('o', 'r', 99, expect.stringContaining('1. Step 1'), 't');
+  });
+
+  it('includes debug log section in comment body when debug is true and logs are present', async () => {
+    mockAddComment.mockResolvedValue(undefined);
+    mockGetAccumulatedLogsAsText.mockReturnValue('[INFO] line1\n[WARN] line2');
+    const param = baseParam({
+      isIssue: true,
+      debug: true,
+      currentConfiguration: { results: [new Result({ id: 'a', success: true, executed: true, steps: ['Step 1'] })] },
+    });
+
+    await useCase.invoke(param);
+
+    const commentBody = mockAddComment.mock.calls[0][3] as string;
+    expect(commentBody).toContain('Debug log');
+    expect(commentBody).toContain('[INFO] line1');
+    expect(commentBody).toContain('[WARN] line2');
+  });
+
+  it('does not include debug log section when debug is false', async () => {
+    mockAddComment.mockResolvedValue(undefined);
+    mockGetAccumulatedLogsAsText.mockReturnValue('[INFO] line1');
+    const param = baseParam({ isIssue: true, debug: false });
+
+    await useCase.invoke(param);
+
+    const commentBody = mockAddComment.mock.calls[0][3] as string;
+    expect(commentBody).not.toContain('Debug log');
+  });
+
+  it('does not include debug log section when debug is true but accumulated logs are empty', async () => {
+    mockAddComment.mockResolvedValue(undefined);
+    mockGetAccumulatedLogsAsText.mockReturnValue('');
+    const param = baseParam({
+      isIssue: true,
+      debug: true,
+      currentConfiguration: { results: [new Result({ id: 'a', success: true, executed: true, steps: ['Step 1'] })] },
+    });
+
+    await useCase.invoke(param);
+
+    const commentBody = mockAddComment.mock.calls[0][3] as string;
+    expect(commentBody).not.toContain('Debug log');
   });
 
   it('pushes failure result to currentConfiguration.results when addComment throws', async () => {

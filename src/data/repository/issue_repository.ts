@@ -1,5 +1,6 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
+import { getCommentWatermark } from "../../utils/comment_watermark";
 import { logDebugInfo, logError } from "../../utils/logger";
 import { Labels } from "../model/labels";
 import { Milestone } from "../model/milestone";
@@ -503,13 +504,18 @@ export class IssueRepository {
         issueNumber: number,
         comment: string,
         token: string,
+        options?: { commitSha?: string },
     ) => {
+        const watermark = getCommentWatermark(
+            options?.commitSha ? { commitSha: options.commitSha, owner, repo: repository } : undefined
+        );
+        const body = `${comment}\n\n${watermark}`;
         const octokit = github.getOctokit(token);
         await octokit.rest.issues.createComment({
             owner: owner,
             repo: repository,
             issue_number: issueNumber,
-            body: comment,
+            body,
         });
 
         logDebugInfo(`Comment added to Issue ${issueNumber}.`);
@@ -522,13 +528,18 @@ export class IssueRepository {
         commentId: number,
         comment: string,
         token: string,
+        options?: { commitSha?: string },
     ) => {
+        const watermark = getCommentWatermark(
+            options?.commitSha ? { commitSha: options.commitSha, owner, repo: repository } : undefined
+        );
+        const body = `${comment}\n\n${watermark}`;
         const octokit = github.getOctokit(token);
         await octokit.rest.issues.updateComment({
             owner: owner,
             repo: repository,
             comment_id: commentId,
-            body: comment,
+            body,
         });
 
         logDebugInfo(`Comment ${commentId} updated in Issue ${issueNumber}.`);
