@@ -9,6 +9,30 @@ export interface LogEntry {
     metadata?: Record<string, unknown>;
 }
 
+const accumulatedLogEntries: LogEntry[] = [];
+
+function pushLogEntry(entry: LogEntry): void {
+    accumulatedLogEntries.push(entry);
+}
+
+export function getAccumulatedLogEntries(): LogEntry[] {
+    return [...accumulatedLogEntries];
+}
+
+export function getAccumulatedLogsAsText(): string {
+    return accumulatedLogEntries
+        .map((e) => {
+            const prefix = `[${e.level.toUpperCase()}]`;
+            const meta = e.metadata?.stack ? `\n${String(e.metadata.stack)}` : '';
+            return `${prefix} ${e.message}${meta}`;
+        })
+        .join('\n');
+}
+
+export function clearAccumulatedLogs(): void {
+    accumulatedLogEntries.length = 0;
+}
+
 export function setGlobalLoggerDebug(debug: boolean, isRemote: boolean = false) {
     loggerDebug = debug;
     loggerRemote = isRemote;
@@ -22,7 +46,10 @@ function formatStructuredLog(entry: LogEntry): string {
     return JSON.stringify(entry);
 }
 
-export function logInfo(message: string, previousWasSingleLine: boolean = false, metadata?: Record<string, unknown>) {
+export function logInfo(message: string, previousWasSingleLine: boolean = false, metadata?: Record<string, unknown>, skipAccumulation?: boolean) {
+    if (!skipAccumulation) {
+        pushLogEntry({ level: 'info', message, timestamp: Date.now(), metadata });
+    }
     if (previousWasSingleLine && !loggerRemote) {
         console.log()
     }
@@ -40,6 +67,7 @@ export function logInfo(message: string, previousWasSingleLine: boolean = false,
 }
 
 export function logWarn(message: string, metadata?: Record<string, unknown>) {
+    pushLogEntry({ level: 'warn', message, timestamp: Date.now(), metadata });
     if (structuredLogging) {
         console.warn(formatStructuredLog({
             level: 'warn',
@@ -58,16 +86,17 @@ export function logWarning(message: string) {
 
 export function logError(message: unknown, metadata?: Record<string, unknown>) {
     const errorMessage = message instanceof Error ? message.message : String(message);
-    
+    const metaWithStack = {
+        ...metadata,
+        stack: message instanceof Error ? message.stack : undefined
+    };
+    pushLogEntry({ level: 'error', message: errorMessage, timestamp: Date.now(), metadata: metaWithStack });
     if (structuredLogging) {
         console.error(formatStructuredLog({
             level: 'error',
             message: errorMessage,
             timestamp: Date.now(),
-            metadata: {
-                ...metadata,
-                stack: message instanceof Error ? message.stack : undefined
-            }
+            metadata: metaWithStack
         }));
     } else {
         console.error(errorMessage);
@@ -76,6 +105,7 @@ export function logError(message: unknown, metadata?: Record<string, unknown>) {
 
 export function logDebugInfo(message: string, previousWasSingleLine: boolean = false, metadata?: Record<string, unknown>) {
     if (loggerDebug) {
+        pushLogEntry({ level: 'debug', message, timestamp: Date.now(), metadata });
         if (structuredLogging) {
             console.log(formatStructuredLog({
                 level: 'debug',
@@ -84,7 +114,7 @@ export function logDebugInfo(message: string, previousWasSingleLine: boolean = f
                 metadata
             }));
         } else {
-            logInfo(message, previousWasSingleLine);
+            logInfo(message, previousWasSingleLine, undefined, true);
         }
     }
 }

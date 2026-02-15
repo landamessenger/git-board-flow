@@ -7,7 +7,7 @@ import { IssueUseCase } from '../usecase/issue_use_case';
 import { PullRequestReviewCommentUseCase } from '../usecase/pull_request_review_comment_use_case';
 import { PullRequestUseCase } from '../usecase/pull_request_use_case';
 import { SingleActionUseCase } from '../usecase/single_action_use_case';
-import { logError, logInfo } from '../utils/logger';
+import { clearAccumulatedLogs, logError, logInfo } from '../utils/logger';
 import { TITLE } from '../utils/constants';
 import chalk from 'chalk';
 import boxen from 'boxen';
@@ -17,6 +17,7 @@ export async function mainRun(execution: Execution): Promise<Result[]> {
     const results: Result[] = []
     
     await execution.setup();
+    clearAccumulatedLogs();
 
     if (!execution.welcome) {
         /**

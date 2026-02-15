@@ -42212,6 +42212,7 @@ const queue_utils_1 = __nccwpck_require__(9800);
 async function mainRun(execution) {
     const results = [];
     await execution.setup();
+    (0, logger_1.clearAccumulatedLogs)();
     if (!execution.welcome) {
         /**
          * Wait for previous runs to finish
@@ -46446,8 +46447,24 @@ This PR merges **${head}** into **${base}**.
                             // haven't registered yet, or this PR/base has no required checks.
                             waitForPrChecksAttempts++;
                             if (waitForPrChecksAttempts >= maxWaitForPrChecksAttempts) {
-                                checksCompleted = true;
-                                (0, logger_1.logDebugInfo)(`No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; proceeding to merge (branch may have no required checks).`);
+                                // Give up waiting for PR-specific check runs; fall back to status checks
+                                // before proceeding to merge (PR may have required status checks).
+                                const pendingChecksFallback = commitStatus.statuses.filter(status => {
+                                    (0, logger_1.logDebugInfo)(`Status check (fallback): ${status.context} (State: ${status.state})`);
+                                    return status.state === 'pending';
+                                });
+                                if (pendingChecksFallback.length === 0) {
+                                    checksCompleted = true;
+                                    (0, logger_1.logDebugInfo)(`No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; no pending status checks; proceeding to merge.`);
+                                }
+                                else {
+                                    (0, logger_1.logDebugInfo)(`No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; falling back to status checks. Waiting for ${pendingChecksFallback.length} status checks to complete.`);
+                                    pendingChecksFallback.forEach(check => {
+                                        (0, logger_1.logDebugInfo)(`  - ${check.context} (State: ${check.state})`);
+                                    });
+                                    await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                    attempts++;
+                                }
                             }
                             else {
                                 (0, logger_1.logDebugInfo)('Check runs exist on ref but none for this PR yet; waiting for workflows to register.');
@@ -52586,6 +52603,22 @@ ${errors}
 Check your project configuration, if everything is okay consider [opening an issue](https://github.com/vypdev/copilot/issues/new/choose).
 `;
             }
+            let debugLogSection = '';
+            if (param.debug) {
+                const logsText = (0, logger_1.getAccumulatedLogsAsText)();
+                if (logsText.length > 0) {
+                    debugLogSection = `
+
+<details>
+<summary>Debug log</summary>
+
+\`\`\`
+${logsText}
+\`\`\`
+</details>
+`;
+                }
+            }
             const commentBody = `# ${title}
 ${content}
 ${errors.length > 0 ? errors : ''}
@@ -52593,7 +52626,7 @@ ${errors.length > 0 ? errors : ''}
 ${stupidGif}
 
 ${footer}
-
+${debugLogSection}
 🚀 Happy coding!
             `;
             if (content.length === 0) {
@@ -55552,6 +55585,9 @@ exports.getRandomElement = getRandomElement;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getAccumulatedLogEntries = getAccumulatedLogEntries;
+exports.getAccumulatedLogsAsText = getAccumulatedLogsAsText;
+exports.clearAccumulatedLogs = clearAccumulatedLogs;
 exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
 exports.setStructuredLogging = setStructuredLogging;
 exports.logInfo = logInfo;
@@ -55564,6 +55600,25 @@ exports.logDebugError = logDebugError;
 let loggerDebug = false;
 let loggerRemote = false;
 let structuredLogging = false;
+const accumulatedLogEntries = [];
+function pushLogEntry(entry) {
+    accumulatedLogEntries.push(entry);
+}
+function getAccumulatedLogEntries() {
+    return [...accumulatedLogEntries];
+}
+function getAccumulatedLogsAsText() {
+    return accumulatedLogEntries
+        .map((e) => {
+        const prefix = `[${e.level.toUpperCase()}]`;
+        const meta = e.metadata?.stack ? `\n${String(e.metadata.stack)}` : '';
+        return `${prefix} ${e.message}${meta}`;
+    })
+        .join('\n');
+}
+function clearAccumulatedLogs() {
+    accumulatedLogEntries.length = 0;
+}
 function setGlobalLoggerDebug(debug, isRemote = false) {
     loggerDebug = debug;
     loggerRemote = isRemote;
@@ -55574,7 +55629,10 @@ function setStructuredLogging(enabled) {
 function formatStructuredLog(entry) {
     return JSON.stringify(entry);
 }
-function logInfo(message, previousWasSingleLine = false, metadata) {
+function logInfo(message, previousWasSingleLine = false, metadata, skipAccumulation) {
+    if (!skipAccumulation) {
+        pushLogEntry({ level: 'info', message, timestamp: Date.now(), metadata });
+    }
     if (previousWasSingleLine && !loggerRemote) {
         console.log();
     }
@@ -55591,6 +55649,7 @@ function logInfo(message, previousWasSingleLine = false, metadata) {
     }
 }
 function logWarn(message, metadata) {
+    pushLogEntry({ level: 'warn', message, timestamp: Date.now(), metadata });
     if (structuredLogging) {
         console.warn(formatStructuredLog({
             level: 'warn',
@@ -55608,15 +55667,17 @@ function logWarning(message) {
 }
 function logError(message, metadata) {
     const errorMessage = message instanceof Error ? message.message : String(message);
+    const metaWithStack = {
+        ...metadata,
+        stack: message instanceof Error ? message.stack : undefined
+    };
+    pushLogEntry({ level: 'error', message: errorMessage, timestamp: Date.now(), metadata: metaWithStack });
     if (structuredLogging) {
         console.error(formatStructuredLog({
             level: 'error',
             message: errorMessage,
             timestamp: Date.now(),
-            metadata: {
-                ...metadata,
-                stack: message instanceof Error ? message.stack : undefined
-            }
+            metadata: metaWithStack
         }));
     }
     else {
@@ -55625,6 +55686,7 @@ function logError(message, metadata) {
 }
 function logDebugInfo(message, previousWasSingleLine = false, metadata) {
     if (loggerDebug) {
+        pushLogEntry({ level: 'debug', message, timestamp: Date.now(), metadata });
         if (structuredLogging) {
             console.log(formatStructuredLog({
                 level: 'debug',
@@ -55634,7 +55696,7 @@ function logDebugInfo(message, previousWasSingleLine = false, metadata) {
             }));
         }
         else {
-            logInfo(message, previousWasSingleLine);
+            logInfo(message, previousWasSingleLine, undefined, true);
         }
     }
 }
