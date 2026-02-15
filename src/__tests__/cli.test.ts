@@ -34,7 +34,16 @@ jest.mock('../data/repository/ai_repository', () => ({
   })),
 }));
 
-jest.mock('../utils/setup_files', () => jest.requireActual<typeof import('../utils/setup_files')>('../utils/setup_files'));
+const mockGetSetupToken = jest.fn();
+const mockSetupEnvFileExists = jest.fn();
+jest.mock('../utils/setup_files', () => {
+  const actual = jest.requireActual<typeof import('../utils/setup_files')>('../utils/setup_files');
+  return {
+    ...actual,
+    getSetupToken: (...args: unknown[]) => mockGetSetupToken(...args),
+    setupEnvFileExists: (...args: unknown[]) => mockSetupEnvFileExists(...args),
+  };
+});
 
 describe('CLI', () => {
   let exitSpy: jest.SpyInstance;
@@ -49,6 +58,11 @@ describe('CLI', () => {
     mockIsIssue.mockResolvedValue(true);
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    // Default: return override token when present (so setup --token ... still works)
+    mockGetSetupToken.mockImplementation((_cwd: string, override?: string) =>
+      override?.trim() && override.trim().length >= 20 ? override.trim() : undefined
+    );
+    mockSetupEnvFileExists.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -329,6 +343,34 @@ describe('CLI', () => {
       const runCalls = (runLocalAction as jest.Mock).mock.calls;
       const ranWithValidRepo = runCalls.length > 0 && runCalls[0][0]?.repo?.owner && runCalls[0][0]?.repo?.repo;
       expect(ranWithValidRepo).not.toBe(true);
+    });
+
+    it('exits when no valid token and suggests creating .env when .env does not exist', async () => {
+      mockGetSetupToken.mockReturnValue(undefined);
+      mockSetupEnvFileExists.mockReturnValue(false);
+      const { logError, logInfo } = require('../utils/logger');
+      (runLocalAction as jest.Mock).mockClear();
+
+      await program.parseAsync(['node', 'cli', 'setup']);
+
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Setup requires PERSONAL_ACCESS_TOKEN'));
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('create a .env file'));
+      expect(runLocalAction).not.toHaveBeenCalled();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('exits when no valid token and suggests adding to existing .env when .env exists', async () => {
+      mockGetSetupToken.mockReturnValue(undefined);
+      mockSetupEnvFileExists.mockReturnValue(true);
+      const { logError, logInfo } = require('../utils/logger');
+      (runLocalAction as jest.Mock).mockClear();
+
+      await program.parseAsync(['node', 'cli', 'setup']);
+
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('Setup requires PERSONAL_ACCESS_TOKEN'));
+      expect(logInfo).toHaveBeenCalledWith(expect.stringContaining('existing .env file'));
+      expect(runLocalAction).not.toHaveBeenCalled();
+      expect(exitSpy).toHaveBeenCalledWith(1);
     });
   });
 

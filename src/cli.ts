@@ -456,6 +456,7 @@ program
         logInfo('   • Or create a .env file in this repo with: PERSONAL_ACCESS_TOKEN=your_github_token');
       }
       process.exit(1);
+      return;
     }
 
     logInfo('⚙️  Running initial setup (labels, issue types, access)...');

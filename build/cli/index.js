@@ -47664,6 +47664,7 @@ program
             (0, logger_1.logInfo)('   • Or create a .env file in this repo with: PERSONAL_ACCESS_TOKEN=your_github_token');
         }
         process.exit(1);
+        return;
     }
     (0, logger_1.logInfo)('⚙️  Running initial setup (labels, issue types, access)...');
     const params = {

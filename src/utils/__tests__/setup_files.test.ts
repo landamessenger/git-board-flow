@@ -87,6 +87,16 @@ describe('setup_files', () => {
       expect(fs.readFileSync(path.join(tmpDir, '.github', 'pull_request_template.md'), 'utf8')).toBe('# PR template');
     });
 
+    it('skips pull_request_template.md when destination already exists', () => {
+      fs.mkdirSync(path.join(tmpDir, 'setup'), { recursive: true });
+      fs.mkdirSync(path.join(tmpDir, '.github'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'setup', 'pull_request_template.md'), '# from setup');
+      fs.writeFileSync(path.join(tmpDir, '.github', 'pull_request_template.md'), '# existing');
+      const result = copySetupFiles(tmpDir, setupDir());
+      expect(result.skipped).toBe(1);
+      expect(fs.readFileSync(path.join(tmpDir, '.github', 'pull_request_template.md'), 'utf8')).toBe('# existing');
+    });
+
     it('does not create .env when no token in env and no .env (only suggests via log)', () => {
       const saved = process.env[ENV_TOKEN_KEY];
       delete process.env[ENV_TOKEN_KEY];
