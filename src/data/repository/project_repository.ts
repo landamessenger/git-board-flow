@@ -111,7 +111,7 @@ export class ProjectRepository {
       });
     
       if (!issueOrPrResult.repository.issueOrPullRequest) {
-        console.error(`Issue or PR #${issueOrPullRequestNumber} not found.`);
+        logError(`Issue or PR #${issueOrPullRequestNumber} not found in repository.`);
         return undefined;
       }
     
@@ -120,8 +120,17 @@ export class ProjectRepository {
       // Search for the item ID in the project with pagination
       let cursor: string | null = null;
       let projectItemId: string | undefined = undefined;
-    
+      let totalItemsChecked = 0;
+      const maxPages = 100; // 100 * 100 = 10_000 items max to avoid runaway loops
+      let pageCount = 0;
+
       do {
+        if (pageCount >= maxPages) {
+          logError(`Stopped after ${maxPages} pages (${totalItemsChecked} items). Issue or PR #${issueOrPullRequestNumber} not found in project.`);
+          break;
+        }
+        pageCount += 1;
+
         const projectQuery = `
         query($projectId: ID!, $cursor: String) {
           node(id: $projectId) {
@@ -148,26 +157,50 @@ export class ProjectRepository {
         }`;
     
         interface ProjectItemsNode { id: string; content?: { id?: string } }
-        type ProjectItemsResponse = { node: { items: { nodes: ProjectItemsNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } };
+        type ProjectItemsResponse = { node: { items?: { nodes: ProjectItemsNode[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } | null };
         const projectResult: ProjectItemsResponse = await octokit.graphql<ProjectItemsResponse>(projectQuery, {
           projectId: project.id,
           cursor
         });
     
-        const items = projectResult.node.items.nodes;
+        if (projectResult.node === null) {
+          logError(`Project not found for ID "${project.id}". Ensure the project is loaded via getProjectDetail (GraphQL node ID), not the project number.`);
+          throw new Error(
+            `Project not found or invalid project ID. The project ID must be the GraphQL node ID from the API (e.g. PVT_...), not the project number.`
+          );
+        }
+        const items = projectResult.node.items?.nodes ?? [];
+        totalItemsChecked += items.length;
+        const pageInfo = projectResult.node.items?.pageInfo;
         const foundItem = items.find((item: ProjectItemsNode) => item.content?.id === contentId);
-    
+
         if (foundItem) {
           projectItemId = foundItem.id;
           break;
         }
-    
-        cursor = projectResult.node.items.pageInfo.hasNextPage
-          ? projectResult.node.items.pageInfo.endCursor
-          : null;
-    
+
+        // Advance cursor only when there is a next page AND a non-null cursor (avoid missing pages)
+        const hasNextPage = pageInfo?.hasNextPage === true;
+        const endCursor = pageInfo?.endCursor ?? null;
+        if (hasNextPage && endCursor) {
+          cursor = endCursor;
+        } else {
+          if (hasNextPage && !endCursor) {
+            logError(`Project items pagination: hasNextPage is true but endCursor is null (page ${pageCount}, ${totalItemsChecked} items so far). Cannot fetch more.`);
+          }
+          cursor = null;
+        }
       } while (cursor);
-    
+
+      if (projectItemId === undefined) {
+        logError(
+          `Issue or PR #${issueOrPullRequestNumber} not found in project after checking ${totalItemsChecked} items (${pageCount} page(s)). ` +
+            `Link it to the project first, or wait for the board to sync.`
+        );
+        throw new Error(
+          `Issue or pull request #${issueOrPullRequestNumber} is not in the project yet (checked ${totalItemsChecked} items). Link it to the project first, or wait for the board to sync.`
+        );
+      }
       return projectItemId;
     };
     
