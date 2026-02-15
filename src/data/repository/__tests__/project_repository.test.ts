@@ -678,6 +678,75 @@ describe("ProjectRepository.setTaskPriority", () => {
         expect(mockGraphql).toHaveBeenCalledTimes(5);
     });
 
+    it("finds issue on second page of project items (pagination)", async () => {
+        const firstPage = {
+            node: {
+                items: {
+                    nodes: [
+                        { id: "item_other_1", content: { id: "I_other1" } },
+                        { id: "item_other_2", content: { id: "I_other2" } },
+                    ],
+                    pageInfo: { hasNextPage: true, endCursor: "cursor_page1" },
+                },
+            },
+        };
+        const secondPage = {
+            node: {
+                items: {
+                    nodes: [{ id: "item_issue_1", content: { id: "I_issue1" } }],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                },
+            },
+        };
+        const fieldResponseWithIssueItem = {
+            node: {
+                fields: {
+                    nodes: [
+                        {
+                            id: "f1",
+                            name: "Priority",
+                            options: [{ id: "opt_high", name: "High" }],
+                        },
+                    ],
+                },
+                items: {
+                    nodes: [
+                        {
+                            id: "item_issue_1",
+                            fieldValues: { nodes: [] },
+                        },
+                    ],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                },
+            },
+        };
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce(firstPage)
+            .mockResolvedValueOnce(secondPage)
+            .mockResolvedValueOnce(fieldResponseWithIssueItem)
+            .mockResolvedValueOnce(fieldResponseWithIssueItem)
+            .mockResolvedValueOnce({
+                updateProjectV2ItemFieldValue: { projectV2Item: { id: "item_issue_1" } },
+            });
+        const result = await repo.setTaskPriority(
+            project,
+            "owner",
+            "repo",
+            1,
+            "High",
+            "token"
+        );
+        expect(result).toBe(true);
+        expect(mockGraphql).toHaveBeenCalledTimes(6);
+        const firstItemsCall = mockGraphql.mock.calls[1];
+        const secondItemsCall = mockGraphql.mock.calls[2];
+        expect((firstItemsCall[1] as { cursor?: string | null }).cursor).toBeNull();
+        expect((secondItemsCall[1] as { cursor?: string | null }).cursor).toBe("cursor_page1");
+    });
+
     it("returns false when field already set to target value", async () => {
         const fieldQueryResponseAlreadySet = {
             node: {
@@ -734,12 +803,107 @@ describe("ProjectRepository.setTaskPriority", () => {
         expect(mockGraphql).toHaveBeenCalledTimes(4);
     });
 
-    it("throws when content id not found for issue", async () => {
+    it("throws when content id not found for issue (issue/PR not in repo)", async () => {
+        const { logError } = require("../../../utils/logger");
+        (logError as jest.Mock).mockClear();
         mockGraphql.mockResolvedValueOnce({
             repository: { issueOrPullRequest: null },
         });
         await expect(
             repo.setTaskPriority(project, "owner", "repo", 999, "High", "token")
         ).rejects.toThrow("Content ID not found");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("999 not found in repository")
+        );
+    });
+
+    it("throws when project node is null (invalid project ID)", async () => {
+        const { logError } = require("../../../utils/logger");
+        (logError as jest.Mock).mockClear();
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce({ node: null });
+        await expect(
+            repo.setTaskPriority(project, "owner", "repo", 1, "High", "token")
+        ).rejects.toThrow("Project not found or invalid project ID");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("Project not found for ID")
+        );
+    });
+
+    it("throws when issue/PR not in project yet", async () => {
+        const { logError } = require("../../../utils/logger");
+        (logError as jest.Mock).mockClear();
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce({
+                node: {
+                    items: {
+                        nodes: [], // issue not in project
+                        pageInfo: { hasNextPage: false, endCursor: null },
+                    },
+                },
+            });
+        await expect(
+            repo.setTaskPriority(project, "owner", "repo", 1, "High", "token")
+        ).rejects.toThrow("not in the project yet");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("not found in project after checking")
+        );
+    });
+
+    it("logs error when hasNextPage is true but endCursor is null", async () => {
+        const { logError } = require("../../../utils/logger");
+        (logError as jest.Mock).mockClear();
+        mockGraphql
+            .mockResolvedValueOnce({
+                repository: { issueOrPullRequest: { id: "I_issue1" } },
+            })
+            .mockResolvedValueOnce({
+                node: {
+                    items: {
+                        nodes: [{ id: "other", content: { id: "I_other" } }],
+                        pageInfo: { hasNextPage: true, endCursor: null },
+                    },
+                },
+            });
+        await expect(
+            repo.setTaskPriority(project, "owner", "repo", 1, "High", "token")
+        ).rejects.toThrow("not in the project yet");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("hasNextPage is true but endCursor is null")
+        );
+    });
+
+    it("stops after maxPages and throws when item not found", async () => {
+        const { logError } = require("../../../utils/logger");
+        (logError as jest.Mock).mockClear();
+        const pageWithNext = {
+            node: {
+                items: {
+                    nodes: Array.from({ length: 100 }, (_, i) => ({
+                        id: `item_${i}`,
+                        content: { id: `I_other_${i}` },
+                    })),
+                    pageInfo: { hasNextPage: true, endCursor: "next" },
+                },
+            },
+        };
+        mockGraphql.mockResolvedValueOnce({
+            repository: { issueOrPullRequest: { id: "I_issue1" } },
+        });
+        for (let p = 0; p < 100; p++) {
+            mockGraphql.mockResolvedValueOnce(pageWithNext);
+        }
+        await expect(
+            repo.setTaskPriority(project, "owner", "repo", 1, "High", "token")
+        ).rejects.toThrow("not in the project yet");
+        expect(logError).toHaveBeenCalledWith(
+            expect.stringContaining("Stopped after 100 pages")
+        );
     });
 });
