@@ -4,6 +4,7 @@ import { Ai } from '../../../../data/model/ai';
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  logDebugInfo: jest.fn(),
 }));
 
 const mockAskAgent = jest.fn();

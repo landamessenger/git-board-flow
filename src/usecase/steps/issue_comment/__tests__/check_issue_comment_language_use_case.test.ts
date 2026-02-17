@@ -2,6 +2,7 @@ import { CheckIssueCommentLanguageUseCase } from '../check_issue_comment_languag
 
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
+  logDebugInfo: jest.fn(),
 }));
 
 const translatedKey = `<!-- content_translated

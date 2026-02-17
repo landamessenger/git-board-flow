@@ -2,7 +2,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { extractVersion } from "../../../utils/content_utils";
-import { logError, logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -44,6 +44,7 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
             )
 
             if (description === undefined) {
+                logDebugInfo(`GetReleaseVersion: no description for issue/PR ${number}.`);
                 result.push(
                     new Result({
                         id: this.taskId,
@@ -58,6 +59,7 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
             const releaseVersion = extractVersion('Release Version', description)
 
             if (releaseVersion === undefined) {
+                logDebugInfo(`GetReleaseVersion: no "Release Version" found in description (issue/PR ${number}).`);
                 result.push(
                     new Result({
                         id: this.taskId,
@@ -79,13 +81,13 @@ export class GetReleaseVersionUseCase implements ParamUseCase<Execution, Result[
                 })
             );
         } catch (error) {
-            logError(error);
+            logError(`GetReleaseVersion: failed to get version for issue/PR.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
             result.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
-                    steps: [`Tried to check action permissions.`],
+                    steps: [`Tried to get the release version but there was a problem.`],
                     error: error,
                 })
             );

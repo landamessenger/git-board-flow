@@ -1,6 +1,6 @@
 import { Execution } from "../data/model/execution";
 import { Result } from "../data/model/result";
-import { logDebugInfo, logError, logInfo } from "../utils/logger";
+import { logDebugInfo, logError, logInfo, logWarn } from "../utils/logger";
 import { getTaskEmoji } from "../utils/task_emoji";
 import { DeployedActionUseCase } from "./actions/deployed_action_use_case";
 import { ParamUseCase } from "./base/param_usecase";
@@ -22,9 +22,11 @@ export class SingleActionUseCase implements ParamUseCase<Execution, Result[]> {
         const results: Result[] = []
         try {
             if (!param.singleAction.validSingleAction) {
-                logDebugInfo(`Not a valid single action: ${param.singleAction.currentSingleAction}`);
+                logWarn(`Single action invoked but not a valid single action: ${param.singleAction.currentSingleAction}. Skipping.`);
                 return results;
             }
+
+            logDebugInfo(`SingleAction: dispatching to handler for action: ${param.singleAction.currentSingleAction}.`);
 
             if (param.singleAction.isDeployedAction) {
                 results.push(...await new DeployedActionUseCase().invoke(param));

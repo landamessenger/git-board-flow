@@ -1,0 +1,69 @@
+---
+title: Deploy label and merge flow
+description: How the deploy and deployed labels work and how post-deploy merges and check runs are handled.
+---
+
+# Deploy label and merge flow
+
+This page describes how the **deploy** label is used and what happens when you run the **deployed** single action after a successful deployment. It also explains how branch merges and check runs are handled so that both release→default and release→develop (or hotfix equivalents) complete correctly.
+
+## The deploy label
+
+- **`deploy`** — Applied to the issue when the release (or hotfix) is ready to be deployed. Your CI/CD or team adds this label when deployment has been triggered or is about to be.
+- **`deployed`** — Set by Copilot when the **deployed** single action runs and the issue had the **deploy** label. It indicates "deployment is done and post-deploy steps have been run."
+
+The **deployed** single action is intended to be run **after a successful deployment** (e.g. from a pipeline step or a manual trigger). It requires:
+
+- An issue number (single action is run with `single-action-issue: <number>`).
+- The issue must have the **deploy** label and must **not** already have the **deployed** label.
+
+## What the deployed action does
+
+1. **Label update**  
+   Replaces the **deploy** label with **deployed** on the issue.
+
+2. **Branch merges** (if a release or hotfix branch is configured):
+   - **Release:** merges the release branch into the default branch (e.g. `main`), then into the development branch (e.g. `develop`).
+   - **Hotfix:** merges the hotfix branch into the default branch, then merges the default branch into the development branch.
+
+3. **Issue closure**  
+   If **all** merge operations succeed, the issue is closed. If any merge fails, the issue is left open and the action reports that one or more merge operations failed.
+
+Each merge is done via a **pull request**: create PR, wait for checks (see below), then merge the PR. If the PR workflow fails (e.g. checks fail or timeout), the code falls back to a **direct** Git merge when possible.
+
+## Waiting for checks before merging
+
+For each PR we create (e.g. release→main, release→develop), we wait until the PR is ready to merge before calling the merge API.
+
+### Per-PR check runs
+
+- GitHub's Checks API returns check runs **by ref** (branch), not by PR. The same branch can be the head of **multiple PRs** (e.g. release→main and release→develop).
+- We **only consider check runs that belong to the current PR**, using the `pull_requests` array on each check run (filter by `pull_request.number === this PR`). We do **not** use check runs from another PR (e.g. the first merge) to decide that the second PR is ready.
+- We wait until all check runs for **this** PR are completed and none have failed. Only then do we merge.
+
+### When the PR has no check runs
+
+- If there are **no** check runs on the ref, we use **commit status checks** (legacy) and merge when none are pending.
+- If there **are** check runs on the ref but **none** for this PR (e.g. they are from another PR with the same head, or this base branch has no required checks), we wait a short number of polls (~30 seconds). If no check runs appear for this PR in that window, we assume this PR does not require check runs and **proceed to merge**. If the branch actually requires checks, GitHub will reject the merge and we fall back to the direct merge path (which may also fail under branch protection).
+
+### Timeout
+
+- A configurable **merge timeout** (input `merge-timeout`, default 600 seconds) limits how long we wait for checks **per merge**. If we hit the timeout, we throw and the code attempts a direct merge as fallback.
+
+## Summary table
+
+| Scenario | Behaviour |
+|----------|-----------|
+| PR has check runs for this PR | Wait until all are completed and none failed, then merge. |
+| PR has no check runs on ref | Use status checks; if none pending, merge. |
+| Check runs on ref but none for this PR | Wait a few polls (~30 s); if still none, proceed to merge (branch may have no required checks). |
+| Timeout waiting for checks | Attempt direct merge. |
+| PR merge fails, direct merge fails | Return failure; issue is not closed. |
+
+## Related code and tests
+
+- **Use case:** `src/usecase/actions/deployed_action_use_case.ts` — deploy label handling, merge order, issue close.
+- **Merge and checks:** `src/data/repository/merge_repository.ts` — PR creation, per-PR check filtering, status checks fallback, direct merge fallback.
+- **Tests:**
+  - `src/usecase/actions/__tests__/deployed_action_use_case.test.ts` — deploy label validation, release/hotfix merge order, close on success, no close on merge failure.
+  - `src/data/repository/__tests__/merge_repository.test.ts` — check runs per PR, no check runs, timeout, direct merge fallback.

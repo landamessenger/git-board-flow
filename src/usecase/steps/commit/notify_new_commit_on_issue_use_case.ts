@@ -133,7 +133,7 @@ ${this.separator}
                 param.tokens.token,
             )
         } catch (error) {
-            logError(error);
+            logError(`NotifyNewCommitOnIssue: failed to notify issue #${param.issueNumber}.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
             result.push(
                 new Result({
                     id: this.taskId,

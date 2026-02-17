@@ -6,6 +6,7 @@ import type { Execution } from '../../../data/model/execution';
 jest.mock('../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  logWarn: jest.fn(),
 }));
 
 jest.mock('../../../utils/task_emoji', () => ({

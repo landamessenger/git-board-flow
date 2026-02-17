@@ -2,6 +2,8 @@ import { CloseNotAllowedIssueUseCase } from '../close_not_allowed_issue_use_case
 
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
+  logError: jest.fn(),
+  logDebugInfo: jest.fn(),
 }));
 
 const mockCloseIssue = jest.fn();

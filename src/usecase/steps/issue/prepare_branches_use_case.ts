@@ -2,7 +2,7 @@ import * as core from "@actions/core";
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { BranchRepository } from "../../../data/repository/branch_repository";
-import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo, logWarn } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 import { CommitPrefixBuilderUseCase } from "../common/execute_script_use_case";
@@ -110,6 +110,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                         )
                     }
                 } else {
+                    logWarn('PrepareBranches: hotfix requested but no tag or base version found.');
                     result.push(
                         new Result({
                             id: this.taskId,
@@ -213,6 +214,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
                         )
                     }
                 } else {
+                    logWarn('PrepareBranches: release requested but no release version found.');
                     result.push(
                         new Result({
                             id: this.taskId,
@@ -321,7 +323,7 @@ export class PrepareBranchesUseCase implements ParamUseCase<Execution, Result[]>
 
             return result;
         } catch (error) {
-            logError(error);
+            logError(`PrepareBranches: error preparing branches for issue #${param.issueNumber}.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
             result.push(
                 new Result({
                     id: this.taskId,

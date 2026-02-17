@@ -23,17 +23,22 @@ import { ProjectRepository } from '../data/repository/project_repository';
 import { PublishResultUseCase } from '../usecase/steps/common/publish_resume_use_case';
 import { StoreConfigurationUseCase } from '../usecase/steps/common/store_configuration_use_case';
 import { BUGBOT_MAX_COMMENTS, BUGBOT_MIN_SEVERITY, DEFAULT_IMAGE_CONFIG, INPUT_KEYS, OPENCODE_DEFAULT_MODEL } from '../utils/constants';
-import { logError, logInfo } from '../utils/logger';
+import { logDebugInfo, logError, logInfo } from '../utils/logger';
 import { startOpencodeServer, type ManagedOpencodeServer } from '../utils/opencode_server';
 import { mainRun } from './common_action';
 
 export async function runGitHubAction(): Promise<void> {
     const projectRepository = new ProjectRepository();
 
+    logInfo('GitHub Action: runGitHubAction started.');
+
     /**
      * Debug
      */
-    const debug = getInput(INPUT_KEYS.DEBUG) == 'true'
+    const debug = getInput(INPUT_KEYS.DEBUG) == 'true';
+    if (debug) {
+        logInfo('Debug mode is enabled. Full logs will be included in the report.');
+    }
 
     /**
      * Single action
@@ -58,8 +63,12 @@ export async function runGitHubAction(): Promise<void> {
 
     let managedOpencodeServer: ManagedOpencodeServer | undefined;
     if (opencodeStartServer) {
+        logInfo('Starting managed OpenCode server...');
         managedOpencodeServer = await startOpencodeServer({ cwd: process.cwd() });
         opencodeServerUrl = managedOpencodeServer.url;
+        logInfo(`OpenCode server started at ${opencodeServerUrl}.`);
+    } else {
+        logDebugInfo(`Using OpenCode server URL: ${opencodeServerUrl}, model: ${opencodeModel}.`);
     }
 
     try {
@@ -642,6 +651,8 @@ export async function runGitHubAction(): Promise<void> {
         undefined,
     )
 
+    logDebugInfo(`Execution built. Event will be resolved in mainRun. Single action: ${execution.singleAction.currentSingleAction ?? 'none'}, AI PR description: ${execution.ai.getAiPullRequestDescription()}, bugbot min severity: ${execution.ai.getBugbotMinSeverity()}.`);
+
     const results: Result[] = await mainRun(execution);
 
     await finishWithResults(execution, results);
@@ -655,9 +666,13 @@ export async function runGitHubAction(): Promise<void> {
 }
 
 async function finishWithResults(execution: Execution, results: Result[]): Promise<void> {
+    const stepCount = results.reduce((acc, r) => acc + (r.steps?.length ?? 0), 0);
+    const errorCount = results.reduce((acc, r) => acc + (r.errors?.length ?? 0), 0);
+    logInfo(`Publishing result: ${results.length} result(s), ${stepCount} step(s), ${errorCount} error(s).`);
+
     execution.currentConfiguration.results = results;
-    await new PublishResultUseCase().invoke(execution)
-    await new StoreConfigurationUseCase().invoke(execution)
+    await new PublishResultUseCase().invoke(execution);
+    await new StoreConfigurationUseCase().invoke(execution);
     logInfo('Configuration stored. Finishing.');
 
     /**

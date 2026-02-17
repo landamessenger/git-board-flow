@@ -19,7 +19,7 @@ export class StoreConfigurationUseCase implements ParamUseCase<Execution, void> 
                 param
             )
         } catch (error) {
-            logError(error);
+            logError(`StoreConfiguration: failed to update configuration.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
         }
     }
 }

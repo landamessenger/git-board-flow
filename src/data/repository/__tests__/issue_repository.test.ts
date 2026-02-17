@@ -367,15 +367,24 @@ describe('IssueRepository', () => {
   });
 
   describe('addComment', () => {
-    it('calls issues.createComment with owner, repo, issue_number, body', async () => {
+    it('calls issues.createComment with owner, repo, issue_number, body including default watermark', async () => {
       mockRest.issues.createComment.mockResolvedValue(undefined);
       await repo.addComment('owner', 'repo', 10, 'Hello comment', 'token');
-      expect(mockRest.issues.createComment).toHaveBeenCalledWith({
-        owner: 'owner',
-        repo: 'repo',
-        issue_number: 10,
-        body: 'Hello comment',
-      });
+      const call = mockRest.issues.createComment.mock.calls[0][0];
+      expect(call).toMatchObject({ owner: 'owner', repo: 'repo', issue_number: 10 });
+      expect(call.body).toContain('Hello comment');
+      expect(call.body).toContain('Made with');
+      expect(call.body).toContain('vypdev/copilot');
+    });
+
+    it('appends bugbot watermark when commitSha option is provided', async () => {
+      mockRest.issues.createComment.mockResolvedValue(undefined);
+      await repo.addComment('owner', 'repo', 10, 'Bugbot finding', 'token', { commitSha: 'abc123' });
+      const call = mockRest.issues.createComment.mock.calls[0][0];
+      expect(call.body).toContain('Bugbot finding');
+      expect(call.body).toContain('Written by');
+      expect(call.body).toContain('abc123');
+      expect(call.body).toContain('github.com/owner/repo/commit/abc123');
     });
   });
 
@@ -588,15 +597,22 @@ describe('IssueRepository', () => {
   });
 
   describe('updateComment', () => {
-    it('calls issues.updateComment with comment_id and body', async () => {
+    it('calls issues.updateComment with comment_id and body including default watermark', async () => {
       mockRest.issues.updateComment.mockResolvedValue(undefined);
       await repo.updateComment('o', 'r', 1, 100, 'Updated body', 'token');
-      expect(mockRest.issues.updateComment).toHaveBeenCalledWith({
-        owner: 'o',
-        repo: 'r',
-        comment_id: 100,
-        body: 'Updated body',
-      });
+      const call = mockRest.issues.updateComment.mock.calls[0][0];
+      expect(call).toMatchObject({ owner: 'o', repo: 'r', comment_id: 100 });
+      expect(call.body).toContain('Updated body');
+      expect(call.body).toContain('Made with');
+    });
+
+    it('appends bugbot watermark when commitSha option is provided', async () => {
+      mockRest.issues.updateComment.mockResolvedValue(undefined);
+      await repo.updateComment('o', 'r', 1, 100, 'Finding update', 'token', { commitSha: 'sha1' });
+      const call = mockRest.issues.updateComment.mock.calls[0][0];
+      expect(call.body).toContain('Finding update');
+      expect(call.body).toContain('Written by');
+      expect(call.body).toContain('sha1');
     });
   });
 

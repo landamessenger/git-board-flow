@@ -7,7 +7,7 @@
 import type { Execution } from "../../../data/model/execution";
 import { AiRepository } from "../../../data/repository/ai_repository";
 import { getUserRequestPrompt } from "../../../prompts";
-import { logError, logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 import { Result } from "../../../data/model/result";
@@ -56,8 +56,11 @@ export class DoUserRequestUseCase implements ParamUseCase<DoUserRequestParam, Re
             userComment: sanitizeUserCommentForPrompt(userComment),
         });
 
+        logDebugInfo(`DoUserRequest: prompt length=${prompt.length}, user comment length=${commentTrimmed.length}.`);
         logInfo("Running OpenCode build agent to perform user request (changes applied in workspace).");
         const response = await this.aiRepository.copilotMessage(execution.ai, prompt);
+
+        logDebugInfo(`DoUserRequest: OpenCode build agent response length=${response?.text?.length ?? 0}. Full response:\n${response?.text ?? '(none)'}`);
 
         if (!response?.text) {
             logError("DoUserRequest: no response from OpenCode build agent.");
