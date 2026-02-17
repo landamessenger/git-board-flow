@@ -1,7 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { ProjectRepository } from "../../../data/repository/project_repository";
-import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo, logWarn } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -62,6 +62,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
                         })
                     );
                 } else {
+                    logWarn(`CheckPermissions: @${param.issue.creator} not authorized to create [${param.labels.currentIssueLabels.join(',')}] issues.`);
                     result.push(
                         new Result({
                             id: this.taskId,
@@ -82,7 +83,7 @@ export class CheckPermissionsUseCase implements ParamUseCase<Execution, Result[]
                 );
             }
         } catch (error) {
-            logError(error);
+            logError(`CheckPermissions: failed to get project members or check creator.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
             result.push(
                 new Result({
                     id: this.taskId,

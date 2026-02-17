@@ -1,7 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { BranchRepository } from "../../../data/repository/branch_repository";
-import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo, logWarn } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -35,6 +35,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                 const matchingBranch = branches.find(branch => branch.indexOf(prefix) > -1);
                 if (!matchingBranch) continue;
                 branchName = matchingBranch;
+                logDebugInfo(`RemoveIssueBranches: attempting to remove branch ${branchName}.`);
                 const removed = await this.branchRepository.removeBranch(
                     param.owner,
                     param.repo,
@@ -42,6 +43,7 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                     param.tokens.token,
                 );
                 if (removed) {
+                    logDebugInfo(`RemoveIssueBranches: removed branch ${branchName}.`);
                     results.push(
                         new Result({
                             id: this.taskId,
@@ -64,17 +66,19 @@ export class RemoveIssueBranchesUseCase implements ParamUseCase<Execution, Resul
                             })
                         )
                     }
+                } else {
+                    logWarn(`RemoveIssueBranches: failed to remove branch ${branchName}.`);
                 }
             }
         } catch (error) {
-            logError(error);
+            logError(`RemoveIssueBranches: error removing branches for issue #${param.issueNumber}.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
             results.push(
                 new Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     steps: [
-                        `Tried to update issue's title, but there was a problem.`,
+                        `Tried to remove issue branches, but there was a problem.`,
                     ],
                     error: error,
                 })

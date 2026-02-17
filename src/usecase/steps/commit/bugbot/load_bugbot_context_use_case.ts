@@ -11,6 +11,7 @@ import { PullRequestRepository } from "../../../../data/repository/pull_request_
 import type { BugbotContext, ExistingByFindingId } from "./types";
 import { MAX_FINDING_BODY_LENGTH, truncateFindingBody } from "./build_bugbot_fix_prompt";
 import { parseMarker } from "./marker";
+import { logDebugInfo } from "../../../../utils/logger";
 
 /** Builds the text block sent to OpenCode for task 2 (decide which previous findings are now resolved). */
 function buildPreviousFindingsBlock(previousFindings: Array<{ id: string; fullBody: string }>): string {
@@ -54,6 +55,7 @@ export async function loadBugbotContext(
     const repo = param.repo;
 
     if (!headBranch) {
+        logDebugInfo('LoadBugbotContext: no head branch (branchOverride or commit.branch); returning empty context.');
         return {
             existingByFindingId: {},
             issueComments: [],
@@ -135,6 +137,8 @@ export async function loadBugbotContext(
 
     const unresolvedFindingsWithBody: BugbotContext['unresolvedFindingsWithBody'] =
         previousFindingsForPrompt.map((p) => ({ id: p.id, fullBody: p.fullBody }));
+
+    logDebugInfo(`LoadBugbotContext: issue #${issueNumber}, branch ${headBranch}, open PRs=${openPrNumbers.length}, existing findings=${Object.keys(existingByFindingId).length}, unresolved with body=${unresolvedFindingsWithBody.length}.`);
 
     // PR context is only for publishing: we need file list and diff lines so GitHub review comments attach to valid (path, line).
     let prContext: BugbotContext['prContext'] = null;

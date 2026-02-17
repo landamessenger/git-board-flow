@@ -2,6 +2,8 @@ import { CloseIssueAfterMergingUseCase } from '../close_issue_after_merging_use_
 
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
+  logError: jest.fn(),
+  logDebugInfo: jest.fn(),
 }));
 
 const mockCloseIssue = jest.fn();

@@ -1,7 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { ProjectRepository } from "../../../data/repository/project_repository";
-import { logError, logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo, logWarn } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -16,9 +16,13 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
         const result: Result[] = []
 
         const columnName = param.project.getProjectColumnPullRequestCreated();
-
+        const projects = param.project.getProjects();
+        if (projects.length === 0) {
+            logDebugInfo('LinkPullRequestProject: no projects configured; skipping.');
+            return result;
+        }
         try {
-            for (const project of param.project.getProjects()) {
+            for (const project of projects) {
                 let actionDone = await this.projectRepository.linkContentId(
                     project,
                     param.pullRequest.id,
@@ -51,6 +55,7 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                             })
                         )
                     } else {
+                        logWarn(`LinkPullRequestProject: linked PR to project "${project?.title}" but move to column "${columnName}" failed.`);
                         result.push(
                             new Result({
                                 id: this.taskId,
@@ -62,6 +67,8 @@ export class LinkPullRequestProjectUseCase implements ParamUseCase<Execution, Re
                             })
                         )
                     }
+                } else {
+                    logDebugInfo(`LinkPullRequestProject: PR already linked to project "${project?.title}" or link failed.`);
                 }
             }
             return result;

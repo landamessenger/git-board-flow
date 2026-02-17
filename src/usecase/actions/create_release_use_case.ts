@@ -2,7 +2,7 @@ import { Execution } from "../../data/model/execution";
 import { Result } from "../../data/model/result";
 import { ProjectRepository } from "../../data/repository/project_repository";
 import { INPUT_KEYS } from "../../utils/constants";
-import { logError, logInfo } from "../../utils/logger";
+import { logError, logInfo, logWarn } from "../../utils/logger";
 import { getTaskEmoji } from "../../utils/task_emoji";
 import { ParamUseCase } from "../base/param_usecase";
 
@@ -75,6 +75,7 @@ export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> 
                     })
                 );
             } else {
+                logWarn(`CreateRelease: createRelease returned no URL for version ${param.singleAction.version}.`);
                 result.push(
                     new Result({
                         id: this.taskId,

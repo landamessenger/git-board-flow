@@ -3,6 +3,8 @@ import { LinkIssueProjectUseCase } from '../link_issue_project_use_case';
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  logDebugInfo: jest.fn(),
+  logWarn: jest.fn(),
 }));
 
 jest.useFakeTimers();

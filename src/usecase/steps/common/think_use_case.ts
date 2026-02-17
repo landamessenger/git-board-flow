@@ -3,7 +3,7 @@ import { Result } from '../../../data/model/result';
 import { AiRepository, OPENCODE_AGENT_PLAN, THINK_RESPONSE_SCHEMA } from '../../../data/repository/ai_repository';
 import { IssueRepository } from '../../../data/repository/issue_repository';
 import { getThinkPrompt } from '../../../prompts';
-import { logError, logInfo } from '../../../utils/logger';
+import { logDebugInfo, logError, logInfo } from '../../../utils/logger';
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from '../../../utils/opencode_project_context_instruction';
 import { ParamUseCase } from '../../base/param_usecase';
 
@@ -14,6 +14,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
 
     async invoke(param: Execution): Promise<Result[]> {
         const results: Result[] = [];
+
+        logInfo('Think: processing comment (AI Q&A).');
 
         try {
             const commentBody =
@@ -101,11 +103,13 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
             const contextBlock = issueDescription
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
+            logDebugInfo(`Think: question length=${question.length}, issue context length=${issueDescription.length}. Full question:\n${question}`);
             const prompt = getThinkPrompt({
                 projectContextInstruction: OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
                 contextBlock,
                 question,
             });
+            logDebugInfo(`Think: calling OpenCode Plan agent (prompt length=${prompt.length}).`);
             const response = await this.aiRepository.askAgent(param.ai, OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: THINK_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
@@ -117,6 +121,8 @@ export class ThinkUseCase implements ParamUseCase<Execution, Result[]> {
                 typeof (response as Record<string, unknown>).answer === 'string'
                     ? ((response as Record<string, unknown>).answer as string).trim()
                     : '';
+
+            logDebugInfo(`Think: OpenCode response received. Answer length=${answer.length}. Full answer:\n${answer}`);
 
             if (!answer) {
                 logError('OpenCode returned no answer for Think.');

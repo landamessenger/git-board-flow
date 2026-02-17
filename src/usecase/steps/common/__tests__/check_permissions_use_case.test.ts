@@ -4,6 +4,7 @@ jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
   logDebugInfo: jest.fn(),
+  logWarn: jest.fn(),
 }));
 
 const mockGetAllMembers = jest.fn();

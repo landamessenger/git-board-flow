@@ -21,6 +21,7 @@ jest.mock('@actions/core', () => ({
 jest.mock('../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  logDebugInfo: jest.fn(),
   clearAccumulatedLogs: jest.fn(),
 }));
 

@@ -37,12 +37,14 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
             }
 
             if (param.issueNumber === -1) {
-                logDebugInfo('No issue number for this branch; skipping.');
+                logDebugInfo('No issue number for this branch; skipping potential problems detection.');
                 return results;
             }
 
+            logDebugInfo(`DetectPotentialProblems: loading context for issue #${param.issueNumber}.`);
             const context = await loadBugbotContext(param);
             const prompt = buildBugbotPrompt(param, context);
+            logDebugInfo(`DetectPotentialProblems: prompt length=${prompt.length}. Calling OpenCode Plan agent.`);
             logInfo('Detecting potential problems via OpenCode (agent computes changes and checks resolved)...');
             const response = await this.aiRepository.askAgent(param.ai, OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
@@ -51,7 +53,7 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
             });
 
             if (response == null || typeof response !== 'object') {
-                logDebugInfo('No response from OpenCode.');
+                logDebugInfo('DetectPotentialProblems: No response from OpenCode.');
                 return results;
             }
 
@@ -60,6 +62,8 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
             const resolvedFindingIdsRaw = Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : [];
             const resolvedFindingIds = new Set(resolvedFindingIdsRaw);
             const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(sanitizeFindingIdForMarker));
+
+            logDebugInfo(`DetectPotentialProblems: OpenCode returned findings=${findings.length}, resolved_finding_ids=${resolvedFindingIdsRaw.length}. Resolved ids: ${JSON.stringify([...resolvedFindingIds])}.`);
 
             const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
             const minSeverity = normalizeMinSeverity(param.ai?.getBugbotMinSeverity?.());
@@ -73,8 +77,10 @@ export class DetectPotentialProblemsUseCase implements ParamUseCase<Execution, R
             const maxComments = param.ai?.getBugbotCommentLimit?.() ?? BUGBOT_MAX_COMMENTS;
             const { toPublish, overflowCount, overflowTitles } = applyCommentLimit(findings, maxComments);
 
+            logDebugInfo(`DetectPotentialProblems: after filters and limit — toPublish=${toPublish.length}, overflow=${overflowCount}, minSeverity applied, ignore patterns applied.`);
+
             if (toPublish.length === 0 && resolvedFindingIds.size === 0) {
-                logDebugInfo('OpenCode returned no new findings (after filters) and no resolved ids.');
+                logDebugInfo('DetectPotentialProblems: OpenCode returned no new findings (after filters) and no resolved ids.');
                 results.push(
                     new Result({
                         id: this.taskId,

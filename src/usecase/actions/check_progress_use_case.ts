@@ -1,7 +1,7 @@
 import { Ai } from '../../data/model/ai';
 import { Execution } from '../../data/model/execution';
 import { Result } from '../../data/model/result';
-import { logError, logInfo } from '../../utils/logger';
+import { logDebugInfo, logError, logInfo, logWarn } from '../../utils/logger';
 import { getTaskEmoji } from '../../utils/task_emoji';
 import { ParamUseCase } from '../base/param_usecase';
 import { IssueRepository, PROGRESS_LABEL_PATTERN } from '../../data/repository/issue_repository';
@@ -162,6 +162,7 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
                 currentBranch: branch,
             });
 
+            logDebugInfo(`CheckProgress: prompt length=${prompt.length}, issue description length=${issueDescription.length}.`);
             logInfo('🤖 Analyzing progress using OpenCode Plan agent...');
             const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
             const progress = attemptResult.progress;
@@ -169,6 +170,17 @@ export class CheckProgressUseCase implements ParamUseCase<Execution, Result[]> {
             const reasoning = attemptResult.reasoning;
             const remaining = attemptResult.remaining;
 
+            logDebugInfo(`CheckProgress: raw progress=${progress}, summary length=${summary.length}, reasoning length=${reasoning.length}, remaining length=${remaining?.length ?? 0}. Full summary:\n${summary}`);
+            if (reasoning) {
+                logDebugInfo(`CheckProgress: full reasoning:\n${reasoning}`);
+            }
+            if (remaining) {
+                logDebugInfo(`CheckProgress: full remaining:\n${remaining}`);
+            }
+
+            if (progress < 0 || progress > 100) {
+                logWarn(`CheckProgress: unexpected progress value ${progress} (expected 0-100). Clamping for display.`);
+            }
             if (progress > 0) {
                 logInfo(`✅ Progress detection completed: ${progress}%`);
             }

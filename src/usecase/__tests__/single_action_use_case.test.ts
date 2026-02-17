@@ -7,6 +7,7 @@ jest.mock('../../utils/logger', () => ({
   logInfo: jest.fn(),
   logDebugInfo: jest.fn(),
   logError: jest.fn(),
+  logWarn: jest.fn(),
 }));
 
 const mockDeployedInvoke = jest.fn();

@@ -132,7 +132,7 @@ export class CheckChangesIssueSizeUseCase implements ParamUseCase<Execution, Res
                 );
             }
         } catch (error) {
-            logError(error);
+            logError(`CheckChangesIssueSize: failed for issue #${param.issueNumber}.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
             result.push(
                 new Result({
                     id: this.taskId,
