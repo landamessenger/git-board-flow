@@ -15,7 +15,7 @@ export interface BugbotWatermarkOptions {
 }
 
 function commitUrl(owner: string, repo: string, sha: string): string {
-    return `https://github.com/${owner}/${repo}/commit/${sha}`;
+    return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commit/${sha}`;
 }
 
 export function getCommentWatermark(options?: BugbotWatermarkOptions): string {

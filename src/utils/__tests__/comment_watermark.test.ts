@@ -22,4 +22,19 @@ describe('comment_watermark', () => {
     expect(w).toContain('github.com/o/r/commit/abc123');
     expect(w).toContain('This will update automatically on new commits');
   });
+
+  it('URL-encodes owner and repo in commit link when they contain special characters', () => {
+    const w = getCommentWatermark({
+      commitSha: 'abc123',
+      owner: 'my.org',
+      repo: 'my-repo',
+    });
+    expect(w).toContain('github.com/my.org/my-repo/commit/abc123');
+    const w2 = getCommentWatermark({
+      commitSha: 'def456',
+      owner: 'org with spaces',
+      repo: 'repo',
+    });
+    expect(w2).toContain('github.com/org%20with%20spaces/repo/commit/def456');
+  });
 });
