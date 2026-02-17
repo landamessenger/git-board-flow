@@ -55,6 +55,31 @@ describe('ContentInterface', () => {
         const desc = `pre\n${start}\norphan`;
         expect(handler.getContent(desc)).toBeUndefined();
       });
+
+      it('logs and rethrows when extraction throws', () => {
+        const desc = `pre\n${start}\ninner\n${end}\npost`;
+        const originalSplit = String.prototype.split;
+        (jest.spyOn(String.prototype, 'split') as jest.Mock).mockImplementation(
+          function (this: string, separator: unknown, limit?: number) {
+            if (separator === start) {
+              return ['only-one-element'];
+            }
+            return (originalSplit as (sep: string, limit?: number) => string[]).call(
+              this,
+              separator as string,
+              limit,
+            );
+          },
+        );
+        const { logError } = require('../../../../utils/logger');
+
+        expect(() => handler.getContent(desc)).toThrow();
+        expect(logError).toHaveBeenCalledWith(
+          expect.stringMatching(/Error reading issue configuration/),
+        );
+
+        (String.prototype.split as jest.Mock).mockRestore();
+      });
     });
 
     describe('updateContent', () => {
@@ -82,6 +107,33 @@ describe('ContentInterface', () => {
         const desc = `pre\n${start}\norphan`;
         const result = handler.updateContent(desc, 'new');
         expect(result).toBeUndefined();
+      });
+
+      it('logs and returns undefined when update throws', () => {
+        const desc = `pre\n${start}\nold\n${end}\npost`;
+        const originalSplit = String.prototype.split;
+        (jest.spyOn(String.prototype, 'split') as jest.Mock).mockImplementation(
+          function (this: string, separator: unknown, limit?: number) {
+            if (separator === start) {
+              throw new Error('split failed');
+            }
+            return (originalSplit as (sep: string, limit?: number) => string[]).call(
+              this,
+              separator as string,
+              limit,
+            );
+          },
+        );
+        const { logError } = require('../../../../utils/logger');
+
+        const result = handler.updateContent(desc, 'new');
+
+        expect(result).toBeUndefined();
+        expect(logError).toHaveBeenCalledWith(
+          expect.stringMatching(/Error updating issue description/),
+        );
+
+        (String.prototype.split as jest.Mock).mockRestore();
       });
     });
   });
