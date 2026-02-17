@@ -59828,7 +59828,7 @@ exports.getCommentWatermark = getCommentWatermark;
 exports.COPILOT_MARKETPLACE_URL = 'https://github.com/marketplace/actions/copilot-github-with-super-powers';
 const DEFAULT_WATERMARK = `<sup>Made with ❤️ by [vypdev/copilot](${exports.COPILOT_MARKETPLACE_URL})</sup>`;
 function commitUrl(owner, repo, sha) {
-    return `https://github.com/${owner}/${repo}/commit/${sha}`;
+    return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commit/${sha}`;
 }
 function getCommentWatermark(options) {
     if (options?.commitSha && options?.owner && options?.repo) {
