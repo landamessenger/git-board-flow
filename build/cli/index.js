@@ -60455,6 +60455,10 @@ let loggerDebug = false;
 let loggerRemote = false;
 let structuredLogging = false;
 const accumulatedLogEntries = [];
+/** Removes markdown code fences from message so log output does not break when visualized (e.g. GitHub Actions). */
+function sanitizeLogMessage(message) {
+    return message.replace(/```/g, '');
+}
 function pushLogEntry(entry) {
     accumulatedLogEntries.push(entry);
 }
@@ -60484,8 +60488,9 @@ function formatStructuredLog(entry) {
     return JSON.stringify(entry);
 }
 function logInfo(message, previousWasSingleLine = false, metadata, skipAccumulation) {
+    const sanitized = sanitizeLogMessage(message);
     if (!skipAccumulation) {
-        pushLogEntry({ level: 'info', message, timestamp: Date.now(), metadata });
+        pushLogEntry({ level: 'info', message: sanitized, timestamp: Date.now(), metadata });
     }
     if (previousWasSingleLine && !loggerRemote) {
         console.log();
@@ -60493,27 +60498,28 @@ function logInfo(message, previousWasSingleLine = false, metadata, skipAccumulat
     if (structuredLogging) {
         console.log(formatStructuredLog({
             level: 'info',
-            message,
+            message: sanitized,
             timestamp: Date.now(),
             metadata
         }));
     }
     else {
-        console.log(message);
+        console.log(sanitized);
     }
 }
 function logWarn(message, metadata) {
-    pushLogEntry({ level: 'warn', message, timestamp: Date.now(), metadata });
+    const sanitized = sanitizeLogMessage(message);
+    pushLogEntry({ level: 'warn', message: sanitized, timestamp: Date.now(), metadata });
     if (structuredLogging) {
         console.warn(formatStructuredLog({
             level: 'warn',
-            message,
+            message: sanitized,
             timestamp: Date.now(),
             metadata
         }));
     }
     else {
-        console.warn(message);
+        console.warn(sanitized);
     }
 }
 function logWarning(message) {
@@ -60521,36 +60527,38 @@ function logWarning(message) {
 }
 function logError(message, metadata) {
     const errorMessage = message instanceof Error ? message.message : String(message);
+    const sanitized = sanitizeLogMessage(errorMessage);
     const metaWithStack = {
         ...metadata,
         stack: message instanceof Error ? message.stack : undefined
     };
-    pushLogEntry({ level: 'error', message: errorMessage, timestamp: Date.now(), metadata: metaWithStack });
+    pushLogEntry({ level: 'error', message: sanitized, timestamp: Date.now(), metadata: metaWithStack });
     if (structuredLogging) {
         console.error(formatStructuredLog({
             level: 'error',
-            message: errorMessage,
+            message: sanitized,
             timestamp: Date.now(),
             metadata: metaWithStack
         }));
     }
     else {
-        console.error(errorMessage);
+        console.error(sanitized);
     }
 }
 function logDebugInfo(message, previousWasSingleLine = false, metadata) {
     if (loggerDebug) {
-        pushLogEntry({ level: 'debug', message, timestamp: Date.now(), metadata });
+        const sanitized = sanitizeLogMessage(message);
+        pushLogEntry({ level: 'debug', message: sanitized, timestamp: Date.now(), metadata });
         if (structuredLogging) {
             console.log(formatStructuredLog({
                 level: 'debug',
-                message,
+                message: sanitized,
                 timestamp: Date.now(),
                 metadata
             }));
         }
         else {
-            logInfo(message, previousWasSingleLine, undefined, true);
+            logInfo(sanitized, previousWasSingleLine, undefined, true);
         }
     }
 }

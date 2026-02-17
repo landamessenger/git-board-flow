@@ -37,6 +37,13 @@ describe('logger', () => {
       expect(consoleLogSpy).toHaveBeenCalledWith('hello');
     });
 
+    it('logInfo strips markdown code fences from message so output does not break when visualized', () => {
+      logInfo('some ```json\n{"x":1}\n``` content');
+      expect(consoleLogSpy).toHaveBeenCalledWith('some json\n{"x":1}\n content');
+      const entries = getAccumulatedLogEntries();
+      expect(entries[0].message).toBe('some json\n{"x":1}\n content');
+    });
+
     it('logInfo logs JSON when structured logging is on', () => {
       setStructuredLogging(true);
       logInfo('hello');
@@ -59,6 +66,11 @@ describe('logger', () => {
       expect(consoleWarnSpy).toHaveBeenCalledWith('warn msg');
     });
 
+    it('logWarn strips markdown code fences from message', () => {
+      logWarn('error ```code``` here');
+      expect(consoleWarnSpy).toHaveBeenCalledWith('error code here');
+    });
+
     it('logWarn logs JSON when structured is on', () => {
       setStructuredLogging(true);
       logWarn('warn msg', { key: 'value' });
@@ -77,6 +89,11 @@ describe('logger', () => {
     it('logs string message when structured is off', () => {
       logError('error string');
       expect(consoleErrorSpy).toHaveBeenCalledWith('error string');
+    });
+
+    it('strips markdown code fences from error message', () => {
+      logError('failed with ```output```');
+      expect(consoleErrorSpy).toHaveBeenCalledWith('failed with output');
     });
 
     it('logs Error message when given Error', () => {
