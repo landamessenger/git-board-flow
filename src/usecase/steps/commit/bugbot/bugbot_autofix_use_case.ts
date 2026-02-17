@@ -62,8 +62,11 @@ export class BugbotAutofixUseCase implements ParamUseCase<BugbotAutofixParam, Re
         const verifyCommands = execution.ai.getBugbotFixVerifyCommands?.() ?? [];
         const prompt = buildBugbotFixPrompt(execution, context, idsToFix, userComment, verifyCommands);
 
+        logDebugInfo(`BugbotAutofix: prompt length=${prompt.length}, target finding ids=${idsToFix.length}, verifyCommands=${verifyCommands.length}.`);
         logInfo("Running OpenCode build agent to fix selected findings (changes applied in workspace).");
         const response = await this.aiRepository.copilotMessage(execution.ai, prompt);
+
+        logDebugInfo(`BugbotAutofix: OpenCode build agent response length=${response?.text?.length ?? 0}. Full response:\n${response?.text ?? '(none)'}`);
 
         if (!response?.text) {
             logError("Bugbot autofix: no response from OpenCode build agent.");

@@ -2,6 +2,7 @@ import { UpdatePullRequestDescriptionUseCase } from '../update_pull_request_desc
 import { Ai } from '../../../../data/model/ai';
 
 jest.mock('../../../../utils/logger', () => ({
+  logInfo: jest.fn(),
   logDebugInfo: jest.fn(),
   logError: jest.fn(),
 }));

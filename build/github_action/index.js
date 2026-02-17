@@ -42211,7 +42211,11 @@ const boxen_1 = __importDefault(__nccwpck_require__(4506));
 const queue_utils_1 = __nccwpck_require__(9800);
 async function mainRun(execution) {
     const results = [];
+    (0, logger_1.logInfo)('GitHub Action: starting main run.');
+    (0, logger_1.logDebugInfo)(`Event: ${execution.eventName}, actor: ${execution.actor}, repo: ${execution.owner}/${execution.repo}, debug: ${execution.debug}`);
     await execution.setup();
+    (0, logger_1.clearAccumulatedLogs)();
+    (0, logger_1.logDebugInfo)(`Setup done. Issue number: ${execution.issueNumber}, isSingleAction: ${execution.isSingleAction}, isIssue: ${execution.isIssue}, isPullRequest: ${execution.isPullRequest}, isPush: ${execution.isPush}`);
     if (!execution.welcome) {
         /**
          * Wait for previous runs to finish
@@ -42223,19 +42227,21 @@ async function mainRun(execution) {
     }
     if (execution.runnedByToken) {
         if (execution.isSingleAction && execution.singleAction.validSingleAction) {
-            (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Executing single action.`);
+            (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Executing single action: ${execution.singleAction.currentSingleAction}.`);
             results.push(...await new single_action_use_case_1.SingleActionUseCase().invoke(execution));
+            (0, logger_1.logInfo)(`Single action finished. Results: ${results.length}.`);
             return results;
         }
-        (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring.`);
+        (0, logger_1.logInfo)(`User from token (${execution.tokenUser}) matches actor. Ignoring (not a valid single action).`);
         return results;
     }
     if (execution.issueNumber === -1) {
         if (execution.isSingleAction && execution.singleAction.isSingleActionWithoutIssue) {
+            (0, logger_1.logInfo)('No issue number; running single action without issue.');
             results.push(...await new single_action_use_case_1.SingleActionUseCase().invoke(execution));
         }
         else {
-            (0, logger_1.logInfo)(`Issue number not found. Skipping.`);
+            (0, logger_1.logInfo)('Issue number not found. Skipping.');
         }
         return results;
     }
@@ -42252,34 +42258,45 @@ async function mainRun(execution) {
     }
     try {
         if (execution.isSingleAction) {
+            (0, logger_1.logInfo)(`Running SingleActionUseCase (action: ${execution.singleAction.currentSingleAction}).`);
             results.push(...await new single_action_use_case_1.SingleActionUseCase().invoke(execution));
         }
         else if (execution.isIssue) {
             if (execution.issue.isIssueComment) {
+                (0, logger_1.logInfo)(`Running IssueCommentUseCase for issue #${execution.issue.number}.`);
                 results.push(...await new issue_comment_use_case_1.IssueCommentUseCase().invoke(execution));
             }
             else {
+                (0, logger_1.logInfo)(`Running IssueUseCase for issue #${execution.issueNumber}.`);
                 results.push(...await new issue_use_case_1.IssueUseCase().invoke(execution));
             }
         }
         else if (execution.isPullRequest) {
             if (execution.pullRequest.isPullRequestReviewComment) {
+                (0, logger_1.logInfo)(`Running PullRequestReviewCommentUseCase for PR #${execution.pullRequest.number}.`);
                 results.push(...await new pull_request_review_comment_use_case_1.PullRequestReviewCommentUseCase().invoke(execution));
             }
             else {
+                (0, logger_1.logInfo)(`Running PullRequestUseCase for PR #${execution.pullRequest.number}.`);
                 results.push(...await new pull_request_use_case_1.PullRequestUseCase().invoke(execution));
             }
         }
         else if (execution.isPush) {
+            (0, logger_1.logDebugInfo)(`Push event. Branch: ${execution.commit?.branch ?? 'unknown'}, commits: ${execution.commit?.commits?.length ?? 0}, issue number: ${execution.issueNumber}.`);
+            (0, logger_1.logInfo)('Running CommitUseCase.');
             results.push(...await new commit_use_case_1.CommitUseCase().invoke(execution));
         }
         else {
+            (0, logger_1.logError)(`Action not handled. Event: ${execution.eventName}.`);
             core.setFailed(`Action not handled.`);
         }
+        const totalSteps = results.reduce((acc, r) => acc + (r.steps?.length ?? 0), 0);
+        (0, logger_1.logInfo)(`Main run finished. Results: ${results.length}, total steps: ${totalSteps}.`);
         return results;
     }
     catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
+        (0, logger_1.logError)(`Main run failed: ${msg}`, error instanceof Error ? { stack: error.stack } : undefined);
         core.setFailed(msg);
         return [];
     }
@@ -42356,10 +42373,14 @@ const opencode_server_1 = __nccwpck_require__(1942);
 const common_action_1 = __nccwpck_require__(3752);
 async function runGitHubAction() {
     const projectRepository = new project_repository_1.ProjectRepository();
+    (0, logger_1.logInfo)('GitHub Action: runGitHubAction started.');
     /**
      * Debug
      */
     const debug = getInput(constants_1.INPUT_KEYS.DEBUG) == 'true';
+    if (debug) {
+        (0, logger_1.logInfo)('Debug mode is enabled. Full logs will be included in the report.');
+    }
     /**
      * Single action
      */
@@ -42380,8 +42401,13 @@ async function runGitHubAction() {
     const opencodeStartServer = getInput(constants_1.INPUT_KEYS.OPENCODE_START_SERVER) === 'true';
     let managedOpencodeServer;
     if (opencodeStartServer) {
+        (0, logger_1.logInfo)('Starting managed OpenCode server...');
         managedOpencodeServer = await (0, opencode_server_1.startOpencodeServer)({ cwd: process.cwd() });
         opencodeServerUrl = managedOpencodeServer.url;
+        (0, logger_1.logInfo)(`OpenCode server started at ${opencodeServerUrl}.`);
+    }
+    else {
+        (0, logger_1.logDebugInfo)(`Using OpenCode server URL: ${opencodeServerUrl}, model: ${opencodeModel}.`);
     }
     try {
         const aiPullRequestDescription = getInput(constants_1.INPUT_KEYS.AI_PULL_REQUEST_DESCRIPTION) === 'true';
@@ -42718,6 +42744,7 @@ async function runGitHubAction() {
         const pullRequestDesiredReviewersCount = parseInt(getInput(constants_1.INPUT_KEYS.PULL_REQUEST_DESIRED_REVIEWERS_COUNT)) ?? 0;
         const pullRequestMergeTimeout = parseInt(getInput(constants_1.INPUT_KEYS.PULL_REQUEST_MERGE_TIMEOUT)) ?? 0;
         const execution = new execution_1.Execution(debug, new single_action_1.SingleAction(singleAction, singleActionIssue, singleActionVersion, singleActionTitle, singleActionChangelog), commitPrefixBuilder, new issue_1.Issue(branchManagementAlways, reopenIssueOnPush, issueDesiredAssigneesCount), new pull_request_1.PullRequest(pullRequestDesiredAssigneesCount, pullRequestDesiredReviewersCount, pullRequestMergeTimeout), new emoji_1.Emoji(titleEmoji, branchManagementEmoji), new images_1.Images(imagesOnIssue, imagesOnPullRequest, imagesOnCommit, imagesIssueAutomatic, imagesIssueFeature, imagesIssueBugfix, imagesIssueDocs, imagesIssueChore, imagesIssueRelease, imagesIssueHotfix, imagesPullRequestAutomatic, imagesPullRequestFeature, imagesPullRequestBugfix, imagesPullRequestRelease, imagesPullRequestHotfix, imagesPullRequestDocs, imagesPullRequestChore, imagesCommitAutomatic, imagesCommitFeature, imagesCommitBugfix, imagesCommitRelease, imagesCommitHotfix, imagesCommitDocs, imagesCommitChore), new tokens_1.Tokens(token), new ai_1.Ai(opencodeServerUrl, opencodeModel, aiPullRequestDescription, aiMembersOnly, aiIgnoreFiles, aiIncludeReasoning, bugbotSeverity, bugbotCommentLimit, bugbotFixVerifyCommands), new labels_1.Labels(branchManagementLauncherLabel, bugLabel, bugfixLabel, hotfixLabel, enhancementLabel, featureLabel, releaseLabel, questionLabel, helpLabel, deployLabel, deployedLabel, docsLabel, documentationLabel, choreLabel, maintenanceLabel, priorityHighLabel, priorityMediumLabel, priorityLowLabel, priorityNoneLabel, sizeXxlLabel, sizeXlLabel, sizeLLabel, sizeMLabel, sizeSLabel, sizeXsLabel), new issue_types_1.IssueTypes(issueTypeTask, issueTypeTaskDescription, issueTypeTaskColor, issueTypeBug, issueTypeBugDescription, issueTypeBugColor, issueTypeFeature, issueTypeFeatureDescription, issueTypeFeatureColor, issueTypeDocumentation, issueTypeDocumentationDescription, issueTypeDocumentationColor, issueTypeMaintenance, issueTypeMaintenanceDescription, issueTypeMaintenanceColor, issueTypeHotfix, issueTypeHotfixDescription, issueTypeHotfixColor, issueTypeRelease, issueTypeReleaseDescription, issueTypeReleaseColor, issueTypeQuestion, issueTypeQuestionDescription, issueTypeQuestionColor, issueTypeHelp, issueTypeHelpDescription, issueTypeHelpColor), new locale_1.Locale(issueLocale, pullRequestLocale), new size_thresholds_1.SizeThresholds(new size_threshold_1.SizeThreshold(sizeXxlThresholdLines, sizeXxlThresholdFiles, sizeXxlThresholdCommits), new size_threshold_1.SizeThreshold(sizeXlThresholdLines, sizeXlThresholdFiles, sizeXlThresholdCommits), new size_threshold_1.SizeThreshold(sizeLThresholdLines, sizeLThresholdFiles, sizeLThresholdCommits), new size_threshold_1.SizeThreshold(sizeMThresholdLines, sizeMThresholdFiles, sizeMThresholdCommits), new size_threshold_1.SizeThreshold(sizeSThresholdLines, sizeSThresholdFiles, sizeSThresholdCommits), new size_threshold_1.SizeThreshold(sizeXsThresholdLines, sizeXsThresholdFiles, sizeXsThresholdCommits)), new branches_1.Branches(mainBranch, developmentBranch, featureTree, bugfixTree, hotfixTree, releaseTree, docsTree, choreTree), new release_1.Release(), new hotfix_1.Hotfix(), new workflows_1.Workflows(releaseWorkflow, hotfixWorkflow), new projects_1.Projects(projects, projectColumnIssueCreated, projectColumnPullRequestCreated, projectColumnIssueInProgress, projectColumnPullRequestInProgress), undefined, undefined);
+        (0, logger_1.logDebugInfo)(`Execution built. Event will be resolved in mainRun. Single action: ${execution.singleAction.currentSingleAction ?? 'none'}, AI PR description: ${execution.ai.getAiPullRequestDescription()}, bugbot min severity: ${execution.ai.getBugbotMinSeverity()}.`);
         const results = await (0, common_action_1.mainRun)(execution);
         await finishWithResults(execution, results);
     }
@@ -42730,6 +42757,9 @@ async function runGitHubAction() {
     }
 }
 async function finishWithResults(execution, results) {
+    const stepCount = results.reduce((acc, r) => acc + (r.steps?.length ?? 0), 0);
+    const errorCount = results.reduce((acc, r) => acc + (r.errors?.length ?? 0), 0);
+    (0, logger_1.logInfo)(`Publishing result: ${results.length} result(s), ${stepCount} step(s), ${errorCount} error(s).`);
     execution.currentConfiguration.results = results;
     await new publish_resume_use_case_1.PublishResultUseCase().invoke(execution);
     await new store_configuration_use_case_1.StoreConfigurationUseCase().invoke(execution);
@@ -44321,11 +44351,6 @@ function createTimeoutSignal(ms) {
 function ensureNoTrailingSlash(url) {
     return url.replace(/\/+$/, '') || url;
 }
-function truncate(s, maxLen) {
-    return s.length <= maxLen ? s : s.slice(0, maxLen) + '...';
-}
-const OPENCODE_PROMPT_LOG_PREVIEW_LEN = 500;
-const OPENCODE_PROMPT_LOG_FULL_LEN = 3000;
 function getValidatedOpenCodeConfig(ai) {
     const serverUrl = ai.getOpencodeServerUrl();
     const model = ai.getOpencodeModel();
@@ -44410,16 +44435,12 @@ function parseJsonFromAgentText(text) {
                 }
                 catch (e) {
                     const msg = e instanceof Error ? e.message : String(e);
-                    (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): failed to parse extracted JSON. Full text length=${trimmed.length} firstChars=${JSON.stringify(trimmed.slice(0, 200))}`);
+                    (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): failed to parse extracted JSON. Full text length=${trimmed.length}. Full text:\n${trimmed}`);
                     throw new Error(`Agent response is not valid JSON: ${msg}`);
                 }
             }
-            const previewLen = 500;
-            const msg = trimmed.length > previewLen ? `${trimmed.slice(0, previewLen)}...` : trimmed;
-            const fullTruncated = trimmed.length > 3000 ? `${trimmed.slice(0, 3000)}... [total ${trimmed.length} chars]` : trimmed;
-            (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): no JSON object found. length=${trimmed.length} preview=${JSON.stringify(msg)}`);
-            (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson) full text for debugging:\n${fullTruncated}`);
-            throw new Error(`Agent response is not valid JSON: no JSON object found. Response starts with: ${msg.slice(0, 150)}`);
+            (0, logger_1.logDebugInfo)(`OpenCode agent response (expectJson): no JSON object found. length=${trimmed.length}. Full text:\n${trimmed}`);
+            throw new Error(`Agent response is not valid JSON: no JSON object found. Response length: ${trimmed.length} chars.`);
         }
     }
 }
@@ -44435,14 +44456,10 @@ function extractPartsByType(parts, type, joinWith) {
         .join(joinWith)
         .trim();
 }
-const OPENCODE_RESPONSE_LOG_MAX_LEN = 80000;
-/** Parse response as JSON; on empty or invalid body throw a clear error with context. */
+/** Parse response as JSON; on empty or invalid body throw a clear error with context. Logs full body (no truncation). */
 async function parseJsonResponse(res, context) {
     const raw = await res.text();
-    const truncated = raw.length > OPENCODE_RESPONSE_LOG_MAX_LEN
-        ? `${raw.slice(0, OPENCODE_RESPONSE_LOG_MAX_LEN)}... [truncated, total ${raw.length} chars]`
-        : raw;
-    (0, logger_1.logDebugInfo)(`OpenCode response [${context}] status=${res.status} bodyLength=${raw.length}: ${truncated}`);
+    (0, logger_1.logDebugInfo)(`OpenCode response [${context}] status=${res.status} bodyLength=${raw.length}. Full body:\n${raw}`);
     if (!raw || !raw.trim()) {
         throw new Error(`${context}: empty response body (status ${res.status}). The server may have returned nothing or closed the connection early.`);
     }
@@ -44450,8 +44467,7 @@ async function parseJsonResponse(res, context) {
         return JSON.parse(raw);
     }
     catch (parseError) {
-        const snippet = raw.length > 200 ? `${raw.slice(0, 200)}...` : raw;
-        const err = new Error(`${context}: invalid JSON (status ${res.status}). Body snippet: ${snippet}`);
+        const err = new Error(`${context}: invalid JSON (status ${res.status}). Body length: ${raw.length} chars. See debug log for full body.`);
         if (parseError instanceof Error && 'cause' in err)
             err.cause = parseError;
         throw err;
@@ -44465,25 +44481,27 @@ function extractTextFromParts(parts) {
 function extractReasoningFromParts(parts) {
     return extractPartsByType(parts, 'reasoning', '\n\n');
 }
-/** Max length of per-part text preview in debug log (to avoid huge log lines). */
-const OPENCODE_PART_PREVIEW_LEN = 80;
 /**
- * Build a short summary of OpenCode message parts for debug logs (types, text lengths, and short preview).
+ * Log OpenCode message parts: summary line and full text of each part (no truncation).
  */
-function summarizePartsForLog(parts, context) {
+function logPartsForDebug(parts, context) {
     if (!Array.isArray(parts) || parts.length === 0) {
-        return `${context}: 0 parts`;
+        (0, logger_1.logDebugInfo)(`${context}: 0 parts`);
+        return;
     }
-    const items = parts.map((p, i) => {
+    const summary = parts.map((p, i) => {
+        const type = p?.type ?? '(missing type)';
+        const len = typeof p?.text === 'string' ? p.text.length : 0;
+        return `[${i}] type=${type} length=${len}`;
+    }).join(' | ');
+    (0, logger_1.logDebugInfo)(`${context}: ${parts.length} part(s) — ${summary}`);
+    parts.forEach((p, i) => {
         const type = p?.type ?? '(missing type)';
         const text = typeof p?.text === 'string' ? p.text : '';
-        const len = text.length;
-        const preview = len > OPENCODE_PART_PREVIEW_LEN
-            ? `${text.slice(0, OPENCODE_PART_PREVIEW_LEN).replace(/\n/g, ' ')}...`
-            : text.replace(/\n/g, ' ');
-        return `[${i}] type=${type} length=${len}${preview ? ` preview=${JSON.stringify(preview)}` : ''}`;
+        if (text) {
+            (0, logger_1.logDebugInfo)(`OpenCode part [${i}] type=${type} full text:\n${text}`);
+        }
     });
-    return `${context}: ${parts.length} part(s) — ${items.join(' | ')}`;
 }
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
 exports.OPENCODE_AGENT_PLAN = 'plan';
@@ -44536,8 +44554,8 @@ exports.LANGUAGE_CHECK_RESPONSE_SCHEMA = {
  */
 async function opencodeMessageWithAgentRaw(baseUrl, options) {
     (0, logger_1.logInfo)(`OpenCode request [agent ${options.agent}] model=${options.providerID}/${options.modelID} promptLength=${options.promptText.length}`);
-    (0, logger_1.logInfo)(`OpenCode sending prompt (preview): ${truncate(options.promptText, OPENCODE_PROMPT_LOG_PREVIEW_LEN)}`);
-    (0, logger_1.logDebugInfo)(`OpenCode prompt (full): ${truncate(options.promptText, OPENCODE_PROMPT_LOG_FULL_LEN)}`);
+    (0, logger_1.logInfo)(`OpenCode sending prompt (full):\n${options.promptText}`);
+    (0, logger_1.logDebugInfo)(`OpenCode prompt (full, no truncation):\n${options.promptText}`);
     (0, logger_1.logDebugInfo)(`OpenCode message body: agent=${options.agent}, model=${options.providerID}/${options.modelID}, parts[0].text length=${options.promptText.length}`);
     const base = ensureNoTrailingSlash(baseUrl);
     const signal = createTimeoutSignal(constants_1.OPENCODE_REQUEST_TIMEOUT_MS);
@@ -44579,7 +44597,7 @@ async function opencodeMessageWithAgentRaw(baseUrl, options) {
     const messageData = await parseJsonResponse(messageRes, `OpenCode agent "${options.agent}" message`);
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     const partsArray = Array.isArray(parts) ? parts : [];
-    (0, logger_1.logDebugInfo)(summarizePartsForLog(partsArray, `OpenCode agent "${options.agent}" message parts`));
+    logPartsForDebug(partsArray, `OpenCode agent "${options.agent}" message parts`);
     const text = extractTextFromParts(partsArray);
     (0, logger_1.logInfo)(`OpenCode response [agent ${options.agent}] responseLength=${text.length} sessionId=${sessionId}`);
     return { text, parts: partsArray, sessionId };
@@ -44648,9 +44666,8 @@ class AiRepository {
                         throw new Error('Empty response text');
                     const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
                     if (options.expectJson && options.schema) {
-                        const maxLogLen = 5000000;
-                        const toLog = text.length > maxLogLen ? `${text.slice(0, maxLogLen)}\n... [truncated, total ${text.length} chars]` : text;
-                        (0, logger_1.logInfo)(`OpenCode agent response (full text, expectJson=true) length=${text.length}:\n${toLog}`);
+                        (0, logger_1.logInfo)(`OpenCode agent response (expectJson=true) length=${text.length}`);
+                        (0, logger_1.logDebugInfo)(`OpenCode agent response (full text, no truncation) length=${text.length}:\n${text}`);
                         const parsed = parseJsonFromAgentText(text);
                         if (options.includeReasoning && reasoning) {
                             return { ...parsed, reasoning };
@@ -45402,6 +45419,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.IssueRepository = exports.PROGRESS_LABEL_PATTERN = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
+const comment_watermark_1 = __nccwpck_require__(4467);
 const logger_1 = __nccwpck_require__(8836);
 const milestone_1 = __nccwpck_require__(2298);
 /** Matches labels that are progress percentages (e.g. "0%", "85%"). Used for setProgressLabel and syncing. */
@@ -45758,23 +45776,27 @@ class IssueRepository {
             });
             return pullRequest.data.head.ref;
         };
-        this.addComment = async (owner, repository, issueNumber, comment, token) => {
+        this.addComment = async (owner, repository, issueNumber, comment, token, options) => {
+            const watermark = (0, comment_watermark_1.getCommentWatermark)(options?.commitSha ? { commitSha: options.commitSha, owner, repo: repository } : undefined);
+            const body = `${comment}\n\n${watermark}`;
             const octokit = github.getOctokit(token);
             await octokit.rest.issues.createComment({
                 owner: owner,
                 repo: repository,
                 issue_number: issueNumber,
-                body: comment,
+                body,
             });
             (0, logger_1.logDebugInfo)(`Comment added to Issue ${issueNumber}.`);
         };
-        this.updateComment = async (owner, repository, issueNumber, commentId, comment, token) => {
+        this.updateComment = async (owner, repository, issueNumber, commentId, comment, token, options) => {
+            const watermark = (0, comment_watermark_1.getCommentWatermark)(options?.commitSha ? { commitSha: options.commitSha, owner, repo: repository } : undefined);
+            const body = `${comment}\n\n${watermark}`;
             const octokit = github.getOctokit(token);
             await octokit.rest.issues.updateComment({
                 owner: owner,
                 repo: repository,
                 comment_id: commentId,
-                body: comment,
+                body,
             });
             (0, logger_1.logDebugInfo)(`Comment ${commentId} updated in Issue ${issueNumber}.`);
         };
@@ -46343,8 +46365,14 @@ const github = __importStar(__nccwpck_require__(5438));
 const logger_1 = __nccwpck_require__(8836);
 const result_1 = __nccwpck_require__(7305);
 /**
- * Repository for merging branches (via PR or direct merge).
- * Isolated to allow unit tests with mocked Octokit.
+ * Repository for merging branches: creates a PR, waits for that PR's check runs (or status checks),
+ * then merges the PR; on failure, falls back to a direct Git merge.
+ *
+ * Check runs are filtered by PR (pull_requests) so we only wait for the current PR's checks,
+ * not those of another PR sharing the same head (e.g. release→main vs release→develop).
+ * If the PR has no check runs after a short wait, we proceed to merge (branch may have no required checks).
+ *
+ * @see docs/single-actions/deploy-label-and-merge.mdx for the deploy flow and check-wait behaviour.
  */
 class MergeRepository {
     constructor() {
@@ -46386,10 +46414,13 @@ This PR merges **${head}** into **${base}**.
                         '\n\nThis PR was automatically created by [`copilot`](https://github.com/vypdev/copilot).',
                 });
                 const iteration = 10;
+                /** Give workflows a short window to register check runs for this PR; after this, we allow merge with no check runs (e.g. branch has no required checks). */
+                const maxWaitForPrChecksAttempts = 3;
                 if (timeout > iteration) {
                     // Wait for checks to complete - can use regular token for reading checks
                     let checksCompleted = false;
                     let attempts = 0;
+                    let waitForPrChecksAttempts = 0;
                     const maxAttempts = timeout > iteration ? Math.floor(timeout / iteration) : iteration;
                     while (!checksCompleted && attempts < maxAttempts) {
                         const { data: checkRuns } = await octokit.rest.checks.listForRef({
@@ -46397,6 +46428,11 @@ This PR merges **${head}** into **${base}**.
                             repo: repository,
                             ref: head,
                         });
+                        // Only consider check runs that are for this PR. When the same branch is used in
+                        // multiple PRs (e.g. release→master and release→develop), listForRef returns runs
+                        // for all PRs; we must wait for runs tied to the current PR or we may see completed
+                        // runs from the other PR and merge before this PR's checks have run.
+                        const runsForThisPr = checkRuns.check_runs.filter(run => run.pull_requests?.some(pr => pr.number === pullRequest.number));
                         // Get commit status checks for the PR head commit
                         const { data: commitStatus } = await octokit.rest.repos.getCombinedStatusForRef({
                             owner: owner,
@@ -46404,15 +46440,15 @@ This PR merges **${head}** into **${base}**.
                             ref: head,
                         });
                         (0, logger_1.logDebugInfo)(`Combined status state: ${commitStatus.state}`);
-                        (0, logger_1.logDebugInfo)(`Number of check runs: ${checkRuns.check_runs.length}`);
-                        // If there are check runs, prioritize those over status checks
-                        if (checkRuns.check_runs.length > 0) {
-                            const pendingCheckRuns = checkRuns.check_runs.filter(check => check.status !== 'completed');
+                        (0, logger_1.logDebugInfo)(`Number of check runs for this PR: ${runsForThisPr.length} (total on ref: ${checkRuns.check_runs.length})`);
+                        // If there are check runs for this PR, wait for them to complete
+                        if (runsForThisPr.length > 0) {
+                            const pendingCheckRuns = runsForThisPr.filter(check => check.status !== 'completed');
                             if (pendingCheckRuns.length === 0) {
                                 checksCompleted = true;
                                 (0, logger_1.logDebugInfo)('All check runs have completed.');
                                 // Verify if all checks passed
-                                const failedChecks = checkRuns.check_runs.filter(check => check.conclusion === 'failure');
+                                const failedChecks = runsForThisPr.filter(check => check.conclusion === 'failure');
                                 if (failedChecks.length > 0) {
                                     throw new Error(`Checks failed: ${failedChecks.map(check => check.name).join(', ')}`);
                                 }
@@ -46426,6 +46462,37 @@ This PR merges **${head}** into **${base}**.
                                 attempts++;
                                 continue;
                             }
+                        }
+                        else if (checkRuns.check_runs.length > 0 && runsForThisPr.length === 0) {
+                            // There are runs on the ref but none for this PR. Either workflows for this PR
+                            // haven't registered yet, or this PR/base has no required checks.
+                            waitForPrChecksAttempts++;
+                            if (waitForPrChecksAttempts >= maxWaitForPrChecksAttempts) {
+                                // Give up waiting for PR-specific check runs; fall back to status checks
+                                // before proceeding to merge (PR may have required status checks).
+                                const pendingChecksFallback = commitStatus.statuses.filter(status => {
+                                    (0, logger_1.logDebugInfo)(`Status check (fallback): ${status.context} (State: ${status.state})`);
+                                    return status.state === 'pending';
+                                });
+                                if (pendingChecksFallback.length === 0) {
+                                    checksCompleted = true;
+                                    (0, logger_1.logDebugInfo)(`No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; no pending status checks; proceeding to merge.`);
+                                }
+                                else {
+                                    (0, logger_1.logDebugInfo)(`No check runs for this PR after ${maxWaitForPrChecksAttempts} polls; falling back to status checks. Waiting for ${pendingChecksFallback.length} status checks to complete.`);
+                                    pendingChecksFallback.forEach(check => {
+                                        (0, logger_1.logDebugInfo)(`  - ${check.context} (State: ${check.state})`);
+                                    });
+                                    await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                    attempts++;
+                                }
+                            }
+                            else {
+                                (0, logger_1.logDebugInfo)('Check runs exist on ref but none for this PR yet; waiting for workflows to register.');
+                                await new Promise(resolve => setTimeout(resolve, iteration * 1000));
+                                attempts++;
+                            }
+                            continue;
                         }
                         else {
                             // Fall back to status checks if no check runs exist
@@ -48470,11 +48537,12 @@ const TEMPLATE = `You are in the repository workspace. Your task is to produce a
    - **Breaking Changes:** list any, or "None".
    - **Notes for Reviewers / Additional Context:** fill only if useful; otherwise a short placeholder or omit.
 5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules). Use checkboxes \`- [ ]\` / \`- [x]\` only where they add value; you may simplify or drop a section if it does not apply.
+6. **Output format:** Return only the filled template content. Do not add any preamble, meta-commentary, or framing phrases (e.g. "Based on my analysis...", "After reviewing the diff...", "Here is the description..."). Start directly with the first heading of the template (e.g. # Summary). Do not wrap the output in code blocks.
 
 **Issue description:**
 {{issueDescription}}
 
-Output only the filled template content (the PR description body), starting with the first heading of the template (e.g. # Summary). Do not wrap it in code blocks or add extra commentary.`;
+Output only the filled template content (the PR description body), starting with the first heading. No preamble, no commentary.`;
 function getUpdatePullRequestDescriptionPrompt(params) {
     return (0, fill_1.fillTemplate)(TEMPLATE, {
         projectContextInstruction: params.projectContextInstruction,
@@ -48653,12 +48721,23 @@ class CheckProgressUseCase {
                 baseBranch: developmentBranch,
                 currentBranch: branch,
             });
+            (0, logger_1.logDebugInfo)(`CheckProgress: prompt length=${prompt.length}, issue description length=${issueDescription.length}.`);
             (0, logger_1.logInfo)('🤖 Analyzing progress using OpenCode Plan agent...');
             const attemptResult = await this.fetchProgressAttempt(param.ai, prompt);
             const progress = attemptResult.progress;
             const summary = attemptResult.summary;
             const reasoning = attemptResult.reasoning;
             const remaining = attemptResult.remaining;
+            (0, logger_1.logDebugInfo)(`CheckProgress: raw progress=${progress}, summary length=${summary.length}, reasoning length=${reasoning.length}, remaining length=${remaining?.length ?? 0}. Full summary:\n${summary}`);
+            if (reasoning) {
+                (0, logger_1.logDebugInfo)(`CheckProgress: full reasoning:\n${reasoning}`);
+            }
+            if (remaining) {
+                (0, logger_1.logDebugInfo)(`CheckProgress: full remaining:\n${remaining}`);
+            }
+            if (progress < 0 || progress > 100) {
+                (0, logger_1.logWarn)(`CheckProgress: unexpected progress value ${progress} (expected 0-100). Clamping for display.`);
+            }
             if (progress > 0) {
                 (0, logger_1.logInfo)(`✅ Progress detection completed: ${progress}%`);
             }
@@ -48852,6 +48931,7 @@ class CreateReleaseUseCase {
                 }));
             }
             else {
+                (0, logger_1.logWarn)(`CreateRelease: createRelease returned no URL for version ${param.singleAction.version}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -48937,6 +49017,7 @@ class CreateTagUseCase {
                 }));
             }
             else {
+                (0, logger_1.logWarn)(`CreateTag: createTag returned no SHA for version ${param.singleAction.version}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -48979,6 +49060,16 @@ const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
+/**
+ * Single action run after a successful deployment (triggered with the "deployed" action and an issue number).
+ *
+ * Requires the issue to have the "deploy" label and not already have the "deployed" label. Then:
+ * 1. Replaces the "deploy" label with "deployed".
+ * 2. If a release or hotfix branch is configured: merges it into default and develop (each via PR, waiting for that PR's checks).
+ * 3. Closes the issue only when all merges succeed.
+ *
+ * @see docs/single-actions/deploy-label-and-merge.mdx for the full flow and how merge/check waiting works.
+ */
 class DeployedActionUseCase {
     constructor() {
         this.taskId = 'DeployedActionUseCase';
@@ -49403,11 +49494,13 @@ class RecommendStepsUseCase {
                 issueNumber: String(issueNumber),
                 issueDescription,
             });
+            (0, logger_1.logDebugInfo)(`RecommendSteps: prompt length=${prompt.length}, issue description length=${issueDescription.length}.`);
             (0, logger_1.logInfo)(`🤖 Recommending steps using OpenCode Plan agent...`);
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
             const steps = typeof response === 'string'
                 ? response
                 : (response && String(response.steps)) || 'No response.';
+            (0, logger_1.logDebugInfo)(`RecommendSteps: OpenCode response received. Steps length=${steps.length}. Full steps:\n${steps}`);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: true,
@@ -49960,9 +50053,10 @@ class SingleActionUseCase {
         const results = [];
         try {
             if (!param.singleAction.validSingleAction) {
-                (0, logger_1.logDebugInfo)(`Not a valid single action: ${param.singleAction.currentSingleAction}`);
+                (0, logger_1.logWarn)(`Single action invoked but not a valid single action: ${param.singleAction.currentSingleAction}. Skipping.`);
                 return results;
             }
+            (0, logger_1.logDebugInfo)(`SingleAction: dispatching to handler for action: ${param.singleAction.currentSingleAction}.`);
             if (param.singleAction.isDeployedAction) {
                 results.push(...await new deployed_action_use_case_1.DeployedActionUseCase().invoke(param));
             }
@@ -50382,8 +50476,10 @@ class BugbotAutofixUseCase {
         }
         const verifyCommands = execution.ai.getBugbotFixVerifyCommands?.() ?? [];
         const prompt = (0, build_bugbot_fix_prompt_1.buildBugbotFixPrompt)(execution, context, idsToFix, userComment, verifyCommands);
+        (0, logger_1.logDebugInfo)(`BugbotAutofix: prompt length=${prompt.length}, target finding ids=${idsToFix.length}, verifyCommands=${verifyCommands.length}.`);
         (0, logger_1.logInfo)("Running OpenCode build agent to fix selected findings (changes applied in workspace).");
         const response = await this.aiRepository.copilotMessage(execution.ai, prompt);
+        (0, logger_1.logDebugInfo)(`BugbotAutofix: OpenCode build agent response length=${response?.text?.length ?? 0}. Full response:\n${response?.text ?? '(none)'}`);
         if (!response?.text) {
             (0, logger_1.logError)("Bugbot autofix: no response from OpenCode build agent.");
             results.push(new result_1.Result({
@@ -50730,6 +50826,7 @@ class DetectBugbotFixIntentUseCase {
             parentCommentBody = parentBody ?? undefined;
         }
         const prompt = (0, build_bugbot_fix_intent_prompt_1.buildBugbotFixIntentPrompt)(commentBody, unresolvedFindings, parentCommentBody);
+        (0, logger_1.logDebugInfo)(`DetectBugbotFixIntent: prompt length=${prompt.length}, unresolved findings=${unresolvedFindings.length}. Calling OpenCode Plan agent.`);
         const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: schema_1.BUGBOT_FIX_INTENT_RESPONSE_SCHEMA,
@@ -50754,6 +50851,7 @@ class DetectBugbotFixIntentUseCase {
             : [];
         const validIds = new Set(unresolvedIds);
         const filteredIds = targetFindingIds.filter((id) => validIds.has(id));
+        (0, logger_1.logDebugInfo)(`DetectBugbotFixIntent: OpenCode payload is_fix_request=${isFixRequest}, is_do_request=${isDoRequest}, target_finding_ids=${JSON.stringify(targetFindingIds)}, filteredIds=${JSON.stringify(filteredIds)}.`);
         results.push(new result_1.Result({
             id: this.taskId,
             success: true,
@@ -50889,6 +50987,7 @@ const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
 const build_bugbot_fix_prompt_1 = __nccwpck_require__(1822);
 const marker_1 = __nccwpck_require__(2401);
+const logger_1 = __nccwpck_require__(8836);
 /** Builds the text block sent to OpenCode for task 2 (decide which previous findings are now resolved). */
 function buildPreviousFindingsBlock(previousFindings) {
     if (previousFindings.length === 0)
@@ -50919,6 +51018,7 @@ async function loadBugbotContext(param, options) {
     const owner = param.owner;
     const repo = param.repo;
     if (!headBranch) {
+        (0, logger_1.logDebugInfo)('LoadBugbotContext: no head branch (branchOverride or commit.branch); returning empty context.');
         return {
             existingByFindingId: {},
             issueComments: [],
@@ -50984,6 +51084,7 @@ async function loadBugbotContext(param, options) {
     }
     const previousFindingsBlock = buildPreviousFindingsBlock(previousFindingsForPrompt);
     const unresolvedFindingsWithBody = previousFindingsForPrompt.map((p) => ({ id: p.id, fullBody: p.fullBody }));
+    (0, logger_1.logDebugInfo)(`LoadBugbotContext: issue #${issueNumber}, branch ${headBranch}, open PRs=${openPrNumbers.length}, existing findings=${Object.keys(existingByFindingId).length}, unresolved with body=${unresolvedFindingsWithBody.length}.`);
     // PR context is only for publishing: we need file list and diff lines so GitHub review comments attach to valid (path, line).
     let prContext = null;
     if (openPrNumbers.length > 0) {
@@ -51285,12 +51386,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.publishFindings = publishFindings;
 const issue_repository_1 = __nccwpck_require__(57);
 const pull_request_repository_1 = __nccwpck_require__(634);
+const comment_watermark_1 = __nccwpck_require__(4467);
 const logger_1 = __nccwpck_require__(8836);
 const marker_1 = __nccwpck_require__(2401);
 const path_validation_1 = __nccwpck_require__(1999);
 /** Creates or updates issue comments for each finding; creates PR review comments only when finding.file is in prFiles. */
 async function publishFindings(param) {
-    const { execution, context, findings, overflowCount = 0, overflowTitles = [] } = param;
+    const { execution, context, findings, commitSha, overflowCount = 0, overflowTitles = [] } = param;
     const { existingByFindingId, openPrNumbers, prContext } = context;
     const issueNumber = execution.issueNumber;
     const token = execution.tokens.token;
@@ -51298,18 +51400,22 @@ async function publishFindings(param) {
     const repo = execution.repo;
     const issueRepository = new issue_repository_1.IssueRepository();
     const pullRequestRepository = new pull_request_repository_1.PullRequestRepository();
+    const bugbotWatermark = commitSha && owner && repo
+        ? (0, comment_watermark_1.getCommentWatermark)({ commitSha, owner, repo })
+        : (0, comment_watermark_1.getCommentWatermark)();
     const prFiles = prContext?.prFiles ?? [];
     const pathToFirstDiffLine = prContext?.pathToFirstDiffLine ?? {};
     const prCommentsToCreate = [];
     for (const finding of findings) {
         const existing = existingByFindingId[finding.id];
         const commentBody = (0, marker_1.buildCommentBody)(finding, false);
+        const bodyWithWatermark = `${commentBody}\n\n${bugbotWatermark}`;
         if (existing?.issueCommentId != null) {
-            await issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token);
+            await issueRepository.updateComment(owner, repo, issueNumber, existing.issueCommentId, commentBody, token, commitSha ? { commitSha } : undefined);
             (0, logger_1.logDebugInfo)(`Updated bugbot comment for finding ${finding.id} on issue.`);
         }
         else {
-            await issueRepository.addComment(owner, repo, issueNumber, commentBody, token);
+            await issueRepository.addComment(owner, repo, issueNumber, commentBody, token, commitSha ? { commitSha } : undefined);
             (0, logger_1.logDebugInfo)(`Added bugbot comment for finding ${finding.id} on issue.`);
         }
         // PR review comment: only if this finding's file is in the PR changed files (so GitHub can attach the comment).
@@ -51318,10 +51424,10 @@ async function publishFindings(param) {
             if (path) {
                 const line = finding.line ?? pathToFirstDiffLine[path] ?? 1;
                 if (existing?.prCommentId != null && existing.prNumber === openPrNumbers[0]) {
-                    await pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, commentBody, token);
+                    await pullRequestRepository.updatePullRequestReviewComment(owner, repo, existing.prCommentId, bodyWithWatermark, token);
                 }
                 else {
-                    prCommentsToCreate.push({ path, line, body: commentBody });
+                    prCommentsToCreate.push({ path, line, body: bodyWithWatermark });
                 }
             }
             else if (finding.file != null && String(finding.file).trim() !== "") {
@@ -51339,7 +51445,7 @@ async function publishFindings(param) {
         const overflowBody = `## More findings (comment limit)
 
 There are **${overflowCount}** more finding(s) that were not published as individual comments. Review locally or in the full diff to see the list.${titlesList}`;
-        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token);
+        await issueRepository.addComment(owner, repo, issueNumber, overflowBody, token, commitSha ? { commitSha } : undefined);
         (0, logger_1.logDebugInfo)(`Added overflow comment: ${overflowCount} additional finding(s) not published individually.`);
     }
 }
@@ -51579,7 +51685,7 @@ class CheckChangesIssueSizeUseCase {
             }
         }
         catch (error) {
-            (0, logger_1.logError)(error);
+            (0, logger_1.logError)(`CheckChangesIssueSize: failed for issue #${param.issueNumber}.`, error instanceof Error ? { stack: error.stack } : undefined);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51599,12 +51705,46 @@ exports.CheckChangesIssueSizeUseCase = CheckChangesIssueSizeUseCase;
 /***/ }),
 
 /***/ 7395:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DetectPotentialProblemsUseCase = void 0;
+const github = __importStar(__nccwpck_require__(5438));
 const result_1 = __nccwpck_require__(7305);
 const ai_repository_1 = __nccwpck_require__(8307);
 const constants_1 = __nccwpck_require__(8593);
@@ -51635,11 +51775,13 @@ class DetectPotentialProblemsUseCase {
                 return results;
             }
             if (param.issueNumber === -1) {
-                (0, logger_1.logDebugInfo)('No issue number for this branch; skipping.');
+                (0, logger_1.logDebugInfo)('No issue number for this branch; skipping potential problems detection.');
                 return results;
             }
+            (0, logger_1.logDebugInfo)(`DetectPotentialProblems: loading context for issue #${param.issueNumber}.`);
             const context = await (0, load_bugbot_context_use_case_1.loadBugbotContext)(param);
             const prompt = (0, build_bugbot_prompt_1.buildBugbotPrompt)(param, context);
+            (0, logger_1.logDebugInfo)(`DetectPotentialProblems: prompt length=${prompt.length}. Calling OpenCode Plan agent.`);
             (0, logger_1.logInfo)('Detecting potential problems via OpenCode (agent computes changes and checks resolved)...');
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
@@ -51647,7 +51789,7 @@ class DetectPotentialProblemsUseCase {
                 schemaName: 'bugbot_findings',
             });
             if (response == null || typeof response !== 'object') {
-                (0, logger_1.logDebugInfo)('No response from OpenCode.');
+                (0, logger_1.logDebugInfo)('DetectPotentialProblems: No response from OpenCode.');
                 return results;
             }
             const payload = response;
@@ -51655,6 +51797,7 @@ class DetectPotentialProblemsUseCase {
             const resolvedFindingIdsRaw = Array.isArray(payload.resolved_finding_ids) ? payload.resolved_finding_ids : [];
             const resolvedFindingIds = new Set(resolvedFindingIdsRaw);
             const normalizedResolvedIds = new Set(resolvedFindingIdsRaw.map(marker_1.sanitizeFindingIdForMarker));
+            (0, logger_1.logDebugInfo)(`DetectPotentialProblems: OpenCode returned findings=${findings.length}, resolved_finding_ids=${resolvedFindingIdsRaw.length}. Resolved ids: ${JSON.stringify([...resolvedFindingIds])}.`);
             const ignorePatterns = param.ai?.getAiIgnoreFiles?.() ?? [];
             const minSeverity = (0, severity_1.normalizeMinSeverity)(param.ai?.getBugbotMinSeverity?.());
             findings = findings.filter((f) => f.file == null || String(f.file).trim() === '' || (0, path_validation_1.isSafeFindingFilePath)(f.file));
@@ -51663,8 +51806,9 @@ class DetectPotentialProblemsUseCase {
             findings = (0, deduplicate_findings_1.deduplicateFindings)(findings);
             const maxComments = param.ai?.getBugbotCommentLimit?.() ?? constants_1.BUGBOT_MAX_COMMENTS;
             const { toPublish, overflowCount, overflowTitles } = (0, limit_comments_1.applyCommentLimit)(findings, maxComments);
+            (0, logger_1.logDebugInfo)(`DetectPotentialProblems: after filters and limit — toPublish=${toPublish.length}, overflow=${overflowCount}, minSeverity applied, ignore patterns applied.`);
             if (toPublish.length === 0 && resolvedFindingIds.size === 0) {
-                (0, logger_1.logDebugInfo)('OpenCode returned no new findings (after filters) and no resolved ids.');
+                (0, logger_1.logDebugInfo)('DetectPotentialProblems: OpenCode returned no new findings (after filters) and no resolved ids.');
                 results.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -51683,6 +51827,7 @@ class DetectPotentialProblemsUseCase {
                 execution: param,
                 context,
                 findings: toPublish,
+                commitSha: github.context.sha,
                 overflowCount: overflowCount > 0 ? overflowCount : undefined,
                 overflowTitles: overflowCount > 0 ? overflowTitles : undefined,
             });
@@ -51834,7 +51979,7 @@ ${this.separator}
             await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, commentBody, param.tokens.token);
         }
         catch (error) {
-            (0, logger_1.logError)(error);
+            (0, logger_1.logError)(`NotifyNewCommitOnIssue: failed to notify issue #${param.issueNumber}.`, error instanceof Error ? { stack: error.stack } : undefined);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -51903,8 +52048,10 @@ class DoUserRequestUseCase {
             issueNumber: String(execution.issueNumber),
             userComment: (0, sanitize_user_comment_for_prompt_1.sanitizeUserCommentForPrompt)(userComment),
         });
+        (0, logger_1.logDebugInfo)(`DoUserRequest: prompt length=${prompt.length}, user comment length=${commentTrimmed.length}.`);
         (0, logger_1.logInfo)("Running OpenCode build agent to perform user request (changes applied in workspace).");
         const response = await this.aiRepository.copilotMessage(execution.ai, prompt);
+        (0, logger_1.logDebugInfo)(`DoUserRequest: OpenCode build agent response length=${response?.text?.length ?? 0}. Full response:\n${response?.text ?? '(none)'}`);
         if (!response?.text) {
             (0, logger_1.logError)("DoUserRequest: no response from OpenCode build agent.");
             results.push(new result_1.Result({
@@ -51985,6 +52132,7 @@ class CheckPermissionsUseCase {
                     }));
                 }
                 else {
+                    (0, logger_1.logWarn)(`CheckPermissions: @${param.issue.creator} not authorized to create [${param.labels.currentIssueLabels.join(',')}] issues.`);
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: false,
@@ -52003,7 +52151,7 @@ class CheckPermissionsUseCase {
             }
         }
         catch (error) {
-            (0, logger_1.logError)(error);
+            (0, logger_1.logError)(`CheckPermissions: failed to get project members or check creator.`, error instanceof Error ? { stack: error.stack } : undefined);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -52362,6 +52510,7 @@ class GetReleaseVersionUseCase {
             }
             const description = await this.issueRepository.getDescription(param.owner, param.repo, number, param.tokens.token);
             if (description === undefined) {
+                (0, logger_1.logDebugInfo)(`GetReleaseVersion: no description for issue/PR ${number}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -52372,6 +52521,7 @@ class GetReleaseVersionUseCase {
             }
             const releaseVersion = (0, content_utils_1.extractVersion)('Release Version', description);
             if (releaseVersion === undefined) {
+                (0, logger_1.logDebugInfo)(`GetReleaseVersion: no "Release Version" found in description (issue/PR ${number}).`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -52389,12 +52539,12 @@ class GetReleaseVersionUseCase {
             }));
         }
         catch (error) {
-            (0, logger_1.logError)(error);
+            (0, logger_1.logError)(`GetReleaseVersion: failed to get version for issue/PR.`, error instanceof Error ? { stack: error.stack } : undefined);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
                 executed: true,
-                steps: [`Tried to check action permissions.`],
+                steps: [`Tried to get the release version but there was a problem.`],
                 error: error,
             }));
         }
@@ -52547,6 +52697,22 @@ ${errors}
 Check your project configuration, if everything is okay consider [opening an issue](https://github.com/vypdev/copilot/issues/new/choose).
 `;
             }
+            let debugLogSection = '';
+            if (param.debug) {
+                const logsText = (0, logger_1.getAccumulatedLogsAsText)();
+                if (logsText.length > 0) {
+                    debugLogSection = `
+
+<details>
+<summary>Debug log</summary>
+
+\`\`\`
+${logsText}
+\`\`\`
+</details>
+`;
+                }
+            }
             const commentBody = `# ${title}
 ${content}
 ${errors.length > 0 ? errors : ''}
@@ -52554,7 +52720,7 @@ ${errors.length > 0 ? errors : ''}
 ${stupidGif}
 
 ${footer}
-
+${debugLogSection}
 🚀 Happy coding!
             `;
             if (content.length === 0) {
@@ -52616,7 +52782,7 @@ class StoreConfigurationUseCase {
             await this.handler.update(param);
         }
         catch (error) {
-            (0, logger_1.logError)(error);
+            (0, logger_1.logError)(`StoreConfiguration: failed to update configuration.`, error instanceof Error ? { stack: error.stack } : undefined);
         }
     }
 }
@@ -52646,6 +52812,7 @@ class ThinkUseCase {
     }
     async invoke(param) {
         const results = [];
+        (0, logger_1.logInfo)('Think: processing comment (AI Q&A).');
         try {
             const commentBody = param.issue.isIssueComment
                 ? (param.issue.commentBody ?? '')
@@ -52708,11 +52875,13 @@ class ThinkUseCase {
             const contextBlock = issueDescription
                 ? `\n\nContext (issue #${issueNumberForContext} description):\n${issueDescription}\n\n`
                 : '\n\n';
+            (0, logger_1.logDebugInfo)(`Think: question length=${question.length}, issue context length=${issueDescription.length}. Full question:\n${question}`);
             const prompt = (0, prompts_1.getThinkPrompt)({
                 projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
                 contextBlock,
                 question,
             });
+            (0, logger_1.logDebugInfo)(`Think: calling OpenCode Plan agent (prompt length=${prompt.length}).`);
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
@@ -52723,6 +52892,7 @@ class ThinkUseCase {
                 typeof response.answer === 'string'
                 ? response.answer.trim()
                 : '';
+            (0, logger_1.logDebugInfo)(`Think: OpenCode response received. Answer length=${answer.length}. Full answer:\n${answer}`);
             if (!answer) {
                 (0, logger_1.logError)('OpenCode returned no answer for Think.');
                 results.push(new result_1.Result({
@@ -52916,6 +53086,7 @@ class AnswerIssueHelpUseCase {
     }
     async invoke(param) {
         const results = [];
+        (0, logger_1.logInfo)('AnswerIssueHelp: checking if initial help reply is needed (AI).');
         try {
             if (!param.issue.opened) {
                 results.push(new result_1.Result({
@@ -52966,6 +53137,7 @@ class AnswerIssueHelpUseCase {
                 description,
                 projectContextInstruction: opencode_project_context_instruction_1.OPENCODE_PROJECT_CONTEXT_INSTRUCTION,
             });
+            (0, logger_1.logDebugInfo)(`AnswerIssueHelp: prompt length=${prompt.length}, issue description length=${description.length}. Calling OpenCode Plan agent.`);
             const response = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
                 expectJson: true,
                 schema: ai_repository_1.THINK_RESPONSE_SCHEMA,
@@ -52976,6 +53148,7 @@ class AnswerIssueHelpUseCase {
                 typeof response.answer === 'string'
                 ? response.answer.trim()
                 : '';
+            (0, logger_1.logDebugInfo)(`AnswerIssueHelp: OpenCode response. Answer length=${answer.length}. Full answer:\n${answer}`);
             if (!answer) {
                 (0, logger_1.logError)('OpenCode returned no answer for initial help.');
                 results.push(new result_1.Result({
@@ -53331,6 +53504,7 @@ class CloseIssueAfterMergingUseCase {
         try {
             const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
             if (closed) {
+                (0, logger_1.logInfo)(`Issue #${param.issueNumber} closed after merging PR #${param.pullRequest.number}.`);
                 await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue was closed after merging #${param.pullRequest.number}.`, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -53342,6 +53516,7 @@ class CloseIssueAfterMergingUseCase {
                 }));
             }
             else {
+                (0, logger_1.logDebugInfo)(`Issue #${param.issueNumber} was already closed or close failed after merge.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -53350,6 +53525,7 @@ class CloseIssueAfterMergingUseCase {
             }
         }
         catch (error) {
+            (0, logger_1.logError)(`CloseIssueAfterMerging: failed to close issue #${param.issueNumber}.`, error instanceof Error ? { stack: error.stack } : undefined);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -53390,6 +53566,7 @@ class CloseNotAllowedIssueUseCase {
         try {
             const closed = await this.issueRepository.closeIssue(param.owner, param.repo, param.issueNumber, param.tokens.token);
             if (closed) {
+                (0, logger_1.logInfo)(`Issue #${param.issueNumber} closed (author not allowed). Adding comment.`);
                 await this.issueRepository.addComment(param.owner, param.repo, param.issueNumber, `This issue has been closed because the author is not a member of the project. The user may be banned if the fact is repeated.`, param.tokens.token);
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -53401,6 +53578,7 @@ class CloseNotAllowedIssueUseCase {
                 }));
             }
             else {
+                (0, logger_1.logDebugInfo)(`Issue #${param.issueNumber} was already closed or close failed.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
@@ -53409,6 +53587,7 @@ class CloseNotAllowedIssueUseCase {
             }
         }
         catch (error) {
+            (0, logger_1.logError)(`CloseNotAllowedIssue: failed to close issue #${param.issueNumber}.`, error instanceof Error ? { stack: error.stack } : undefined);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -53641,8 +53820,13 @@ class LinkIssueProjectUseCase {
         (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         const columnName = param.project.getProjectColumnIssueCreated();
+        const projects = param.project.getProjects();
+        if (projects.length === 0) {
+            (0, logger_1.logDebugInfo)('LinkIssueProject: no projects configured; skipping.');
+            return result;
+        }
         try {
-            for (const project of param.project.getProjects()) {
+            for (const project of projects) {
                 const issueId = await this.issueRepository.getId(param.owner, param.repo, param.issue.number, param.tokens.token);
                 let actionDone = await this.projectRepository.linkContentId(project, issueId, param.tokens.token);
                 if (actionDone) {
@@ -53662,6 +53846,7 @@ class LinkIssueProjectUseCase {
                         }));
                     }
                     else {
+                        (0, logger_1.logWarn)(`LinkIssueProject: linked issue to project "${project?.title}" but move to column "${columnName}" failed.`);
                         result.push(new result_1.Result({
                             id: this.taskId,
                             success: true,
@@ -53669,6 +53854,9 @@ class LinkIssueProjectUseCase {
                             steps: []
                         }));
                     }
+                }
+                else {
+                    (0, logger_1.logDebugInfo)(`LinkIssueProject: issue already linked to project "${project?.title}" or link failed.`);
                 }
             }
             return result;
@@ -53872,6 +54060,7 @@ class PrepareBranchesUseCase {
                     }
                 }
                 else {
+                    (0, logger_1.logWarn)('PrepareBranches: hotfix requested but no tag or base version found.');
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: false,
@@ -53955,6 +54144,7 @@ class PrepareBranchesUseCase {
                     }
                 }
                 else {
+                    (0, logger_1.logWarn)('PrepareBranches: release requested but no release version found.');
                     result.push(new result_1.Result({
                         id: this.taskId,
                         success: false,
@@ -54034,7 +54224,7 @@ class PrepareBranchesUseCase {
             return result;
         }
         catch (error) {
-            (0, logger_1.logError)(error);
+            (0, logger_1.logError)(`PrepareBranches: error preparing branches for issue #${param.issueNumber}.`, error instanceof Error ? { stack: error.stack } : undefined);
             result.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -54087,8 +54277,10 @@ class RemoveIssueBranchesUseCase {
                 if (!matchingBranch)
                     continue;
                 branchName = matchingBranch;
+                (0, logger_1.logDebugInfo)(`RemoveIssueBranches: attempting to remove branch ${branchName}.`);
                 const removed = await this.branchRepository.removeBranch(param.owner, param.repo, branchName, param.tokens.token);
                 if (removed) {
+                    (0, logger_1.logDebugInfo)(`RemoveIssueBranches: removed branch ${branchName}.`);
                     results.push(new result_1.Result({
                         id: this.taskId,
                         success: true,
@@ -54108,16 +54300,19 @@ class RemoveIssueBranchesUseCase {
                         }));
                     }
                 }
+                else {
+                    (0, logger_1.logWarn)(`RemoveIssueBranches: failed to remove branch ${branchName}.`);
+                }
             }
         }
         catch (error) {
-            (0, logger_1.logError)(error);
+            (0, logger_1.logError)(`RemoveIssueBranches: error removing branches for issue #${param.issueNumber}.`, error instanceof Error ? { stack: error.stack } : undefined);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
                 executed: true,
                 steps: [
-                    `Tried to update issue's title, but there was a problem.`,
+                    `Tried to remove issue branches, but there was a problem.`,
                 ],
                 error: error,
             }));
@@ -54360,6 +54555,7 @@ If you'd like this comment to be translated again, please delete the entire comm
         }
         const locale = param.locale.issue;
         let prompt = (0, prompts_1.getCheckCommentLanguagePrompt)({ locale, commentBody });
+        (0, logger_1.logDebugInfo)(`CheckIssueCommentLanguage: locale=${locale}, comment length=${commentBody.length}. Calling OpenCode for language check.`);
         const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
@@ -54370,6 +54566,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             typeof checkResponse.status === 'string'
             ? checkResponse.status
             : '';
+        (0, logger_1.logDebugInfo)(`CheckIssueCommentLanguage: language check status=${status}.`);
         if (status === 'done') {
             results.push(new result_1.Result({
                 id: this.taskId,
@@ -54379,6 +54576,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             return results;
         }
         prompt = (0, prompts_1.getTranslateCommentPrompt)({ locale, commentBody });
+        (0, logger_1.logDebugInfo)(`CheckIssueCommentLanguage: translating comment (prompt length=${prompt.length}).`);
         const translationResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.TRANSLATION_RESPONSE_SCHEMA,
@@ -54389,6 +54587,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             typeof translationResponse.translatedText === 'string'
             ? translationResponse.translatedText.trim()
             : '';
+        (0, logger_1.logDebugInfo)(`CheckIssueCommentLanguage: translation received. translatedText length=${translatedText.length}. Full translated text:\n${translatedText}`);
         if (!translatedText) {
             const reason = translationResponse != null &&
                 typeof translationResponse === 'object' &&
@@ -54657,8 +54856,13 @@ class LinkPullRequestProjectUseCase {
         (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
         const result = [];
         const columnName = param.project.getProjectColumnPullRequestCreated();
+        const projects = param.project.getProjects();
+        if (projects.length === 0) {
+            (0, logger_1.logDebugInfo)('LinkPullRequestProject: no projects configured; skipping.');
+            return result;
+        }
         try {
-            for (const project of param.project.getProjects()) {
+            for (const project of projects) {
                 let actionDone = await this.projectRepository.linkContentId(project, param.pullRequest.id, param.tokens.token);
                 if (actionDone) {
                     /**
@@ -54677,6 +54881,7 @@ class LinkPullRequestProjectUseCase {
                         }));
                     }
                     else {
+                        (0, logger_1.logWarn)(`LinkPullRequestProject: linked PR to project "${project?.title}" but move to column "${columnName}" failed.`);
                         result.push(new result_1.Result({
                             id: this.taskId,
                             success: false,
@@ -54686,6 +54891,9 @@ class LinkPullRequestProjectUseCase {
                             ],
                         }));
                     }
+                }
+                else {
+                    (0, logger_1.logDebugInfo)(`LinkPullRequestProject: PR already linked to project "${project?.title}" or link failed.`);
                 }
             }
             return result;
@@ -54818,7 +55026,7 @@ class UpdatePullRequestDescriptionUseCase {
         this.projectRepository = new project_repository_1.ProjectRepository();
     }
     async invoke(param) {
-        (0, logger_1.logDebugInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId}.`);
+        (0, logger_1.logInfo)(`${(0, task_emoji_1.getTaskEmoji)(this.taskId)} Executing ${this.taskId} (AI PR description).`);
         const result = [];
         try {
             const prNumber = param.pullRequest.number;
@@ -54869,10 +55077,12 @@ class UpdatePullRequestDescriptionUseCase {
                 issueNumber: String(param.issueNumber),
                 issueDescription,
             });
+            (0, logger_1.logDebugInfo)(`UpdatePullRequestDescription: prompt length=${prompt.length}, issue description length=${issueDescription.length}. Calling OpenCode Plan agent.`);
             const agentResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt);
             const prBody = typeof agentResponse === 'string'
                 ? agentResponse
                 : (agentResponse && String(agentResponse.description)) || '';
+            (0, logger_1.logDebugInfo)(`UpdatePullRequestDescription: OpenCode response received. Description length=${prBody.length}. Full description:\n${prBody}`);
             if (!prBody.trim()) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -54943,6 +55153,7 @@ If you'd like this comment to be translated again, please delete the entire comm
         }
         const locale = param.locale.pullRequest;
         let prompt = (0, prompts_1.getCheckCommentLanguagePrompt)({ locale, commentBody });
+        (0, logger_1.logDebugInfo)(`CheckPullRequestCommentLanguage: locale=${locale}, comment length=${commentBody.length}. Calling OpenCode for language check.`);
         const checkResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.LANGUAGE_CHECK_RESPONSE_SCHEMA,
@@ -54953,6 +55164,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             typeof checkResponse.status === 'string'
             ? checkResponse.status
             : '';
+        (0, logger_1.logDebugInfo)(`CheckPullRequestCommentLanguage: language check status=${status}.`);
         if (status === 'done') {
             results.push(new result_1.Result({
                 id: this.taskId,
@@ -54962,6 +55174,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             return results;
         }
         prompt = (0, prompts_1.getTranslateCommentPrompt)({ locale, commentBody });
+        (0, logger_1.logDebugInfo)(`CheckPullRequestCommentLanguage: translating comment (prompt length=${prompt.length}).`);
         const translationResponse = await this.aiRepository.askAgent(param.ai, ai_repository_1.OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: ai_repository_1.TRANSLATION_RESPONSE_SCHEMA,
@@ -54972,6 +55185,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             typeof translationResponse.translatedText === 'string'
             ? translationResponse.translatedText.trim()
             : '';
+        (0, logger_1.logDebugInfo)(`CheckPullRequestCommentLanguage: translation received. translatedText length=${translatedText.length}. Full translated text:\n${translatedText}`);
         if (!translatedText) {
             const reason = translationResponse != null &&
                 typeof translationResponse === 'object' &&
@@ -54995,6 +55209,34 @@ ${this.translatedKey}
     }
 }
 exports.CheckPullRequestCommentLanguageUseCase = CheckPullRequestCommentLanguageUseCase;
+
+
+/***/ }),
+
+/***/ 4467:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Watermark appended to comments (issues and PRs) to attribute Copilot.
+ * Bugbot comments include commit link and note about auto-update on new commits.
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.COPILOT_MARKETPLACE_URL = void 0;
+exports.getCommentWatermark = getCommentWatermark;
+exports.COPILOT_MARKETPLACE_URL = 'https://github.com/marketplace/actions/copilot-github-with-super-powers';
+const DEFAULT_WATERMARK = `<sup>Made with ❤️ by [vypdev/copilot](${exports.COPILOT_MARKETPLACE_URL})</sup>`;
+function commitUrl(owner, repo, sha) {
+    return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commit/${sha}`;
+}
+function getCommentWatermark(options) {
+    if (options?.commitSha && options?.owner && options?.repo) {
+        const url = commitUrl(options.owner, options.repo, options.commitSha);
+        return `<sup>Written by [vypdev/copilot](${exports.COPILOT_MARKETPLACE_URL}) for commit [${options.commitSha}](${url}). This will update automatically on new commits.</sup>`;
+    }
+    return DEFAULT_WATERMARK;
+}
 
 
 /***/ }),
@@ -55513,6 +55755,9 @@ exports.getRandomElement = getRandomElement;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getAccumulatedLogEntries = getAccumulatedLogEntries;
+exports.getAccumulatedLogsAsText = getAccumulatedLogsAsText;
+exports.clearAccumulatedLogs = clearAccumulatedLogs;
 exports.setGlobalLoggerDebug = setGlobalLoggerDebug;
 exports.setStructuredLogging = setStructuredLogging;
 exports.logInfo = logInfo;
@@ -55525,6 +55770,29 @@ exports.logDebugError = logDebugError;
 let loggerDebug = false;
 let loggerRemote = false;
 let structuredLogging = false;
+const accumulatedLogEntries = [];
+/** Removes markdown code fences from message so log output does not break when visualized (e.g. GitHub Actions). */
+function sanitizeLogMessage(message) {
+    return message.replace(/```/g, '');
+}
+function pushLogEntry(entry) {
+    accumulatedLogEntries.push(entry);
+}
+function getAccumulatedLogEntries() {
+    return [...accumulatedLogEntries];
+}
+function getAccumulatedLogsAsText() {
+    return accumulatedLogEntries
+        .map((e) => {
+        const prefix = `[${e.level.toUpperCase()}]`;
+        const meta = e.metadata?.stack ? `\n${String(e.metadata.stack)}` : '';
+        return `${prefix} ${e.message}${meta}`;
+    })
+        .join('\n');
+}
+function clearAccumulatedLogs() {
+    accumulatedLogEntries.length = 0;
+}
 function setGlobalLoggerDebug(debug, isRemote = false) {
     loggerDebug = debug;
     loggerRemote = isRemote;
@@ -55535,33 +55803,39 @@ function setStructuredLogging(enabled) {
 function formatStructuredLog(entry) {
     return JSON.stringify(entry);
 }
-function logInfo(message, previousWasSingleLine = false, metadata) {
+function logInfo(message, previousWasSingleLine = false, metadata, skipAccumulation) {
+    const sanitized = sanitizeLogMessage(message);
+    if (!skipAccumulation) {
+        pushLogEntry({ level: 'info', message: sanitized, timestamp: Date.now(), metadata });
+    }
     if (previousWasSingleLine && !loggerRemote) {
         console.log();
     }
     if (structuredLogging) {
         console.log(formatStructuredLog({
             level: 'info',
-            message,
+            message: sanitized,
             timestamp: Date.now(),
             metadata
         }));
     }
     else {
-        console.log(message);
+        console.log(sanitized);
     }
 }
 function logWarn(message, metadata) {
+    const sanitized = sanitizeLogMessage(message);
+    pushLogEntry({ level: 'warn', message: sanitized, timestamp: Date.now(), metadata });
     if (structuredLogging) {
         console.warn(formatStructuredLog({
             level: 'warn',
-            message,
+            message: sanitized,
             timestamp: Date.now(),
             metadata
         }));
     }
     else {
-        console.warn(message);
+        console.warn(sanitized);
     }
 }
 function logWarning(message) {
@@ -55569,33 +55843,38 @@ function logWarning(message) {
 }
 function logError(message, metadata) {
     const errorMessage = message instanceof Error ? message.message : String(message);
+    const sanitized = sanitizeLogMessage(errorMessage);
+    const metaWithStack = {
+        ...metadata,
+        stack: message instanceof Error ? message.stack : undefined
+    };
+    pushLogEntry({ level: 'error', message: sanitized, timestamp: Date.now(), metadata: metaWithStack });
     if (structuredLogging) {
         console.error(formatStructuredLog({
             level: 'error',
-            message: errorMessage,
+            message: sanitized,
             timestamp: Date.now(),
-            metadata: {
-                ...metadata,
-                stack: message instanceof Error ? message.stack : undefined
-            }
+            metadata: metaWithStack
         }));
     }
     else {
-        console.error(errorMessage);
+        console.error(sanitized);
     }
 }
 function logDebugInfo(message, previousWasSingleLine = false, metadata) {
     if (loggerDebug) {
+        const sanitized = sanitizeLogMessage(message);
+        pushLogEntry({ level: 'debug', message: sanitized, timestamp: Date.now(), metadata });
         if (structuredLogging) {
             console.log(formatStructuredLog({
                 level: 'debug',
-                message,
+                message: sanitized,
                 timestamp: Date.now(),
                 metadata
             }));
         }
         else {
-            logInfo(message, previousWasSingleLine);
+            logInfo(sanitized, previousWasSingleLine, undefined, true);
         }
     }
 }

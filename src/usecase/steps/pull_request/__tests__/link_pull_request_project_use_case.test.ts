@@ -3,6 +3,8 @@ import { LinkPullRequestProjectUseCase } from '../link_pull_request_project_use_
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  logDebugInfo: jest.fn(),
+  logWarn: jest.fn(),
 }));
 
 const mockLinkContentId = jest.fn();

@@ -8,6 +8,14 @@ import { DetectPotentialProblemsUseCase } from '../detect_potential_problems_use
 import { Ai } from '../../../../data/model/ai';
 import type { Execution } from '../../../../data/model/execution';
 
+jest.mock('@actions/github', () => {
+  const actual = jest.requireActual<typeof import('@actions/github')>('@actions/github');
+  return {
+    ...actual,
+    context: { ...actual.context, sha: undefined },
+  };
+});
+
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
@@ -225,7 +233,7 @@ describe('DetectPotentialProblemsUseCase', () => {
     expect(results[0].success).toBe(true);
     expect(results[0].steps?.[0]).toContain('1 new/current finding(s)');
     expect(mockAddComment).toHaveBeenCalledTimes(1);
-    expect(mockAddComment).toHaveBeenCalledWith('owner', 'repo', 42, expect.any(String), 'token');
+    expect(mockAddComment).toHaveBeenCalledWith('owner', 'repo', 42, expect.any(String), 'token', undefined);
     expect(mockAddComment.mock.calls[0][3]).toContain('Possible null dereference');
     expect(mockAddComment.mock.calls[0][3]).toContain('copilot-bugbot');
     expect(mockAddComment.mock.calls[0][3]).toContain('finding_id:"src/foo.ts:10:possible-null"');
@@ -282,7 +290,7 @@ describe('DetectPotentialProblemsUseCase', () => {
 
     await useCase.invoke(baseParam());
 
-    expect(mockUpdateComment).toHaveBeenCalledWith('owner', 'repo', 42, 999, expect.any(String), 'token');
+    expect(mockUpdateComment).toHaveBeenCalledWith('owner', 'repo', 42, 999, expect.any(String), 'token', undefined);
     expect(mockAddComment).not.toHaveBeenCalled();
   });
 
@@ -423,7 +431,7 @@ describe('DetectPotentialProblemsUseCase', () => {
 
     await useCase.invoke(baseParam());
 
-    expect(mockAddComment).toHaveBeenCalledWith('owner', 'repo', 42, expect.any(String), 'token');
+    expect(mockAddComment).toHaveBeenCalledWith('owner', 'repo', 42, expect.any(String), 'token', undefined);
     expect(mockCreateReviewWithComments).not.toHaveBeenCalled();
   });
 

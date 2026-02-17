@@ -1,6 +1,9 @@
 import {
   setGlobalLoggerDebug,
   setStructuredLogging,
+  clearAccumulatedLogs,
+  getAccumulatedLogEntries,
+  getAccumulatedLogsAsText,
   logInfo,
   logWarn,
   logWarning,
@@ -19,6 +22,7 @@ describe('logger', () => {
     jest.clearAllMocks();
     setGlobalLoggerDebug(false);
     setStructuredLogging(false);
+    clearAccumulatedLogs();
   });
 
   afterAll(() => {
@@ -31,6 +35,13 @@ describe('logger', () => {
     it('logInfo logs plain message when structured logging is off', () => {
       logInfo('hello');
       expect(consoleLogSpy).toHaveBeenCalledWith('hello');
+    });
+
+    it('logInfo strips markdown code fences from message so output does not break when visualized', () => {
+      logInfo('some ```json\n{"x":1}\n``` content');
+      expect(consoleLogSpy).toHaveBeenCalledWith('some json\n{"x":1}\n content');
+      const entries = getAccumulatedLogEntries();
+      expect(entries[0].message).toBe('some json\n{"x":1}\n content');
     });
 
     it('logInfo logs JSON when structured logging is on', () => {
@@ -55,6 +66,11 @@ describe('logger', () => {
       expect(consoleWarnSpy).toHaveBeenCalledWith('warn msg');
     });
 
+    it('logWarn strips markdown code fences from message', () => {
+      logWarn('error ```code``` here');
+      expect(consoleWarnSpy).toHaveBeenCalledWith('error code here');
+    });
+
     it('logWarn logs JSON when structured is on', () => {
       setStructuredLogging(true);
       logWarn('warn msg', { key: 'value' });
@@ -73,6 +89,11 @@ describe('logger', () => {
     it('logs string message when structured is off', () => {
       logError('error string');
       expect(consoleErrorSpy).toHaveBeenCalledWith('error string');
+    });
+
+    it('strips markdown code fences from error message', () => {
+      logError('failed with ```output```');
+      expect(consoleErrorSpy).toHaveBeenCalledWith('failed with output');
     });
 
     it('logs Error message when given Error', () => {
@@ -136,6 +157,80 @@ describe('logger', () => {
       setGlobalLoggerDebug(true);
       logDebugError('de');
       expect(consoleErrorSpy).toHaveBeenCalledWith('de');
+    });
+  });
+
+  describe('accumulated logs', () => {
+    it('accumulates logInfo entries', () => {
+      logInfo('a');
+      logInfo('b');
+      const entries = getAccumulatedLogEntries();
+      expect(entries).toHaveLength(2);
+      expect(entries[0]).toMatchObject({ level: 'info', message: 'a' });
+      expect(entries[1]).toMatchObject({ level: 'info', message: 'b' });
+    });
+
+    it('accumulates logWarn and logError entries', () => {
+      logWarn('w');
+      logError('e');
+      const entries = getAccumulatedLogEntries();
+      expect(entries).toHaveLength(2);
+      expect(entries[0]).toMatchObject({ level: 'warn', message: 'w' });
+      expect(entries[1]).toMatchObject({ level: 'error', message: 'e' });
+    });
+
+    it('getAccumulatedLogsAsText formats entries with level prefix', () => {
+      logInfo('hello');
+      logWarn('world');
+      expect(getAccumulatedLogsAsText()).toBe('[INFO] hello\n[WARN] world');
+    });
+
+    it('getAccumulatedLogsAsText includes stack for errors with stack', () => {
+      const err = new Error('fail');
+      err.stack = 'Error: fail\n  at foo.js:1:1';
+      logError(err);
+      const text = getAccumulatedLogsAsText();
+      expect(text).toContain('[ERROR] fail');
+      expect(text).toContain('Error: fail');
+    });
+
+    it('clearAccumulatedLogs removes all entries', () => {
+      logInfo('x');
+      expect(getAccumulatedLogEntries()).toHaveLength(1);
+      clearAccumulatedLogs();
+      expect(getAccumulatedLogEntries()).toHaveLength(0);
+      expect(getAccumulatedLogsAsText()).toBe('');
+    });
+
+    it('logDebugInfo only accumulates when debug is on', () => {
+      setGlobalLoggerDebug(false);
+      logDebugInfo('hidden');
+      expect(getAccumulatedLogEntries()).toHaveLength(0);
+      setGlobalLoggerDebug(true);
+      logDebugInfo('visible');
+      const entries = getAccumulatedLogEntries();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ level: 'debug', message: 'visible' });
+    });
+
+    it('logInfo with skipAccumulation does not accumulate', () => {
+      logInfo('skip', false, undefined, true);
+      expect(getAccumulatedLogEntries()).toHaveLength(0);
+    });
+
+    it('logWarning accumulates via logWarn', () => {
+      logWarning('warn msg');
+      const entries = getAccumulatedLogEntries();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ level: 'warn', message: 'warn msg' });
+    });
+
+    it('getAccumulatedLogEntries returns a copy so mutating it does not affect internal buffer', () => {
+      logInfo('one');
+      const entries = getAccumulatedLogEntries();
+      entries.push({ level: 'info', message: 'fake', timestamp: 0 });
+      expect(getAccumulatedLogEntries()).toHaveLength(1);
+      expect(getAccumulatedLogsAsText()).toBe('[INFO] one');
     });
   });
 });

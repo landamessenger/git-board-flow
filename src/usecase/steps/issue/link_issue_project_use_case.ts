@@ -2,7 +2,7 @@ import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
-import { logError, logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo, logWarn } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -18,8 +18,13 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
         const result: Result[] = []
 
         const columnName = param.project.getProjectColumnIssueCreated();
+        const projects = param.project.getProjects();
+        if (projects.length === 0) {
+            logDebugInfo('LinkIssueProject: no projects configured; skipping.');
+            return result;
+        }
         try {
-            for (const project of param.project.getProjects()) {
+            for (const project of projects) {
                 const issueId = await this.issueRepository.getId(
                     param.owner,
                     param.repo,
@@ -54,6 +59,7 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                             })
                         )
                     } else {
+                        logWarn(`LinkIssueProject: linked issue to project "${project?.title}" but move to column "${columnName}" failed.`);
                         result.push(
                             new Result({
                                 id: this.taskId,
@@ -63,6 +69,8 @@ export class LinkIssueProjectUseCase implements ParamUseCase<Execution, Result[]
                             })
                         )
                     }
+                } else {
+                    logDebugInfo(`LinkIssueProject: issue already linked to project "${project?.title}" or link failed.`);
                 }
             }
 

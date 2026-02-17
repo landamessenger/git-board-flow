@@ -4,6 +4,7 @@ import { Result } from '../../../../data/model/result';
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
   logError: jest.fn(),
+  logDebugInfo: jest.fn(),
 }));
 
 const mockGetDescription = jest.fn();
@@ -150,6 +151,6 @@ describe('GetReleaseVersionUseCase', () => {
     const results = await useCase.invoke(param);
 
     expect(results[0].success).toBe(false);
-    expect(results[0].steps).toContain('Tried to check action permissions.');
+    expect(results[0].steps).toContain('Tried to get the release version but there was a problem.');
   });
 });

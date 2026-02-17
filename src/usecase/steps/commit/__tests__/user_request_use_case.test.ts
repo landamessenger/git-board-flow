@@ -7,6 +7,7 @@ import { DoUserRequestUseCase } from "../user_request_use_case";
 jest.mock("../../../../utils/logger", () => ({
     logInfo: jest.fn(),
     logError: jest.fn(),
+    logDebugInfo: jest.fn(),
 }));
 
 const mockCopilotMessage = jest.fn();

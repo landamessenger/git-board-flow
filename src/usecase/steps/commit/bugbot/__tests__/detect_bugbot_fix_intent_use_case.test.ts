@@ -8,6 +8,7 @@ import { Result } from "../../../../../data/model/result";
 
 jest.mock("../../../../../utils/logger", () => ({
     logInfo: jest.fn(),
+    logDebugInfo: jest.fn(),
 }));
 
 const mockLoadBugbotContext = jest.fn();

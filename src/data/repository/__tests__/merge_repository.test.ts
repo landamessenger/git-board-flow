@@ -1,5 +1,8 @@
 /**
- * Unit tests for MergeRepository: mergeBranch (PR merge and direct merge fallback).
+ * Unit tests for MergeRepository.mergeBranch: PR creation, waiting for checks per PR,
+ * fallback when the PR has no check runs, timeout, and direct merge fallback.
+ *
+ * Used by the deploy flow (release/hotfix → default and develop). See docs/single-actions/deploy-label-and-merge.mdx.
  */
 
 import { MergeRepository } from '../merge_repository';
@@ -50,6 +53,7 @@ describe('MergeRepository', () => {
         mockReposGetCombinedStatusForRef.mockReset();
     });
 
+    describe('PR creation and merge (timeout <= 10 skips waiting for checks)', () => {
     it('creates PR, updates body, merges and returns success (timeout <= 10 skips wait)', async () => {
         mockPullsCreate.mockResolvedValue({
             data: { number: 42 },
@@ -136,7 +140,9 @@ describe('MergeRepository', () => {
         expect(result.some(r => r.success === false && r.steps?.some(s => s.includes('Failed to merge')))).toBe(true);
         expect(result.length).toBeGreaterThanOrEqual(2);
     });
+    });
 
+    describe('waiting for checks (timeout > 10): per-PR check runs, no checks, timeout', () => {
     it('when timeout > 10 waits for check runs (all completed) then merges', async () => {
         mockPullsCreate.mockResolvedValue({ data: { number: 1 } });
         mockPullsListCommits.mockResolvedValue({ data: [{ commit: { message: 'msg' } }] });
@@ -145,7 +151,7 @@ describe('MergeRepository', () => {
         mockChecksListForRef.mockResolvedValue({
             data: {
                 check_runs: [
-                    { name: 'ci', status: 'completed', conclusion: 'success' },
+                    { name: 'ci', status: 'completed', conclusion: 'success', pull_requests: [{ number: 1 }] },
                 ],
             },
         });
@@ -179,7 +185,7 @@ describe('MergeRepository', () => {
         mockChecksListForRef.mockResolvedValue({
             data: {
                 check_runs: [
-                    { name: 'ci', status: 'completed', conclusion: 'failure' },
+                    { name: 'ci', status: 'completed', conclusion: 'failure', pull_requests: [{ number: 1 }] },
                 ],
             },
         });
@@ -214,6 +220,122 @@ describe('MergeRepository', () => {
         expect(mockReposGetCombinedStatusForRef).toHaveBeenCalled();
     });
 
+    it('when timeout > 10 waits only for check runs tied to this PR (ignores runs from other PRs with same head)', async () => {
+        jest.useFakeTimers();
+        mockPullsCreate.mockResolvedValue({ data: { number: 42 } });
+        mockPullsListCommits.mockResolvedValue({ data: [{ commit: { message: 'msg' } }] });
+        mockPullsUpdate.mockResolvedValue({});
+        mockPullsMerge.mockResolvedValue({});
+        // First poll: runs exist but for another PR (e.g. release→master already merged). We must not treat as completed.
+        mockChecksListForRef
+            .mockResolvedValueOnce({
+                data: {
+                    check_runs: [
+                        { name: 'ci', status: 'completed', conclusion: 'success', pull_requests: [{ number: 1 }] },
+                    ],
+                },
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    check_runs: [
+                        { name: 'ci', status: 'completed', conclusion: 'success', pull_requests: [{ number: 42 }] },
+                    ],
+                },
+            });
+        mockReposGetCombinedStatusForRef.mockResolvedValue({
+            data: { state: 'success', statuses: [] },
+        });
+
+        const promise = repo.mergeBranch(
+            'owner',
+            'repo',
+            'release/1.0',
+            'develop',
+            30,
+            'token',
+        );
+        await jest.runAllTimersAsync();
+        const result = await promise;
+
+        jest.useRealTimers();
+        expect(result).toHaveLength(1);
+        expect(result[0].success).toBe(true);
+        expect(mockChecksListForRef).toHaveBeenCalledTimes(2);
+        expect(mockPullsMerge).toHaveBeenCalled();
+    });
+
+    it('when timeout > 10 and no check runs for this PR after a few polls, proceeds to merge (branch may have no required checks)', async () => {
+        jest.useFakeTimers();
+        mockPullsCreate.mockResolvedValue({ data: { number: 99 } });
+        mockPullsListCommits.mockResolvedValue({ data: [] });
+        mockPullsUpdate.mockResolvedValue({});
+        mockPullsMerge.mockResolvedValue({});
+        // Check runs on ref are for another PR only; this PR (99) has none (e.g. develop has no required checks).
+        mockChecksListForRef.mockResolvedValue({
+            data: {
+                check_runs: [
+                    { name: 'ci', status: 'completed', conclusion: 'success', pull_requests: [{ number: 1 }] },
+                ],
+            },
+        });
+        mockReposGetCombinedStatusForRef.mockResolvedValue({
+            data: { state: 'success', statuses: [] },
+        });
+
+        const promise = repo.mergeBranch('o', 'r', 'release/1.0', 'develop', 60, 'token');
+        await jest.runAllTimersAsync();
+        const result = await promise;
+
+        jest.useRealTimers();
+        expect(result).toHaveLength(1);
+        expect(result[0].success).toBe(true);
+        expect(mockChecksListForRef).toHaveBeenCalledTimes(3);
+        expect(mockPullsMerge).toHaveBeenCalled();
+    });
+
+    it('when no check runs for this PR after max polls but status checks are pending, falls back to status checks and waits then merges', async () => {
+        jest.useFakeTimers();
+        mockPullsCreate.mockResolvedValue({ data: { number: 99 } });
+        mockPullsListCommits.mockResolvedValue({ data: [] });
+        mockPullsUpdate.mockResolvedValue({});
+        mockPullsMerge.mockResolvedValue({});
+        // Check runs on ref are for another PR only; this PR (99) has none.
+        mockChecksListForRef.mockResolvedValue({
+            data: {
+                check_runs: [
+                    { name: 'ci', status: 'completed', conclusion: 'success', pull_requests: [{ number: 1 }] },
+                ],
+            },
+        });
+        // First 4 polls: pending status check; 5th: completed so we proceed to merge.
+        mockReposGetCombinedStatusForRef
+            .mockResolvedValueOnce({
+                data: { state: 'pending', statuses: [{ context: 'ci', state: 'pending' }] },
+            })
+            .mockResolvedValueOnce({
+                data: { state: 'pending', statuses: [{ context: 'ci', state: 'pending' }] },
+            })
+            .mockResolvedValueOnce({
+                data: { state: 'pending', statuses: [{ context: 'ci', state: 'pending' }] },
+            })
+            .mockResolvedValueOnce({
+                data: { state: 'pending', statuses: [{ context: 'ci', state: 'pending' }] },
+            })
+            .mockResolvedValue({
+                data: { state: 'success', statuses: [{ context: 'ci', state: 'success' }] },
+            });
+
+        const promise = repo.mergeBranch('o', 'r', 'release/1.0', 'develop', 60, 'token');
+        await jest.runAllTimersAsync();
+        const result = await promise;
+
+        jest.useRealTimers();
+        expect(result).toHaveLength(1);
+        expect(result[0].success).toBe(true);
+        expect(mockReposGetCombinedStatusForRef).toHaveBeenCalled();
+        expect(mockPullsMerge).toHaveBeenCalled();
+    });
+
     it('when timeout > 10 and checks never complete throws then direct merge succeeds', async () => {
         jest.useFakeTimers();
         mockPullsCreate.mockResolvedValue({ data: { number: 1 } });
@@ -221,7 +343,7 @@ describe('MergeRepository', () => {
         mockPullsUpdate.mockResolvedValue({});
         mockChecksListForRef.mockResolvedValue({
             data: {
-                check_runs: [{ name: 'ci', status: 'in_progress', conclusion: null }],
+                check_runs: [{ name: 'ci', status: 'in_progress', conclusion: null, pull_requests: [{ number: 1 }] }],
             },
         });
         mockReposGetCombinedStatusForRef.mockResolvedValue({
@@ -235,5 +357,6 @@ describe('MergeRepository', () => {
 
         jest.useRealTimers();
         expect(result.some(r => r.success === true && r.steps?.some(s => s.includes('direct merge')))).toBe(true);
+    });
     });
 });

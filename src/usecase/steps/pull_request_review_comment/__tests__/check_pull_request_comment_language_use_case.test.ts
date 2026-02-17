@@ -2,6 +2,7 @@ import { CheckPullRequestCommentLanguageUseCase } from '../check_pull_request_co
 
 jest.mock('../../../../utils/logger', () => ({
   logInfo: jest.fn(),
+  logDebugInfo: jest.fn(),
 }));
 
 const translatedKey = `<!-- content_translated

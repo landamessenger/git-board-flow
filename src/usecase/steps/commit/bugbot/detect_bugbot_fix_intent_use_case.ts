@@ -1,7 +1,7 @@
 import type { Execution } from "../../../../data/model/execution";
 import { AiRepository, OPENCODE_AGENT_PLAN } from "../../../../data/repository/ai_repository";
 import { PullRequestRepository } from "../../../../data/repository/pull_request_repository";
-import { logInfo } from "../../../../utils/logger";
+import { logDebugInfo, logInfo } from "../../../../utils/logger";
 import { getTaskEmoji } from "../../../../utils/task_emoji";
 import { ParamUseCase } from "../../../base/param_usecase";
 import { Result } from "../../../../data/model/result";
@@ -110,6 +110,7 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
 
         const prompt = buildBugbotFixIntentPrompt(commentBody, unresolvedFindings, parentCommentBody);
 
+        logDebugInfo(`DetectBugbotFixIntent: prompt length=${prompt.length}, unresolved findings=${unresolvedFindings.length}. Calling OpenCode Plan agent.`);
         const response = await this.aiRepository.askAgent(param.ai, OPENCODE_AGENT_PLAN, prompt, {
             expectJson: true,
             schema: BUGBOT_FIX_INTENT_RESPONSE_SCHEMA as unknown as Record<string, unknown>,
@@ -143,6 +144,8 @@ export class DetectBugbotFixIntentUseCase implements ParamUseCase<Execution, Res
 
         const validIds = new Set(unresolvedIds);
         const filteredIds = targetFindingIds.filter((id) => validIds.has(id));
+
+        logDebugInfo(`DetectBugbotFixIntent: OpenCode payload is_fix_request=${isFixRequest}, is_do_request=${isDoRequest}, target_finding_ids=${JSON.stringify(targetFindingIds)}, filteredIds=${JSON.stringify(filteredIds)}.`);
 
         results.push(
             new Result({

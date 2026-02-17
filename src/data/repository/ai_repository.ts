@@ -62,13 +62,6 @@ function ensureNoTrailingSlash(url: string): string {
     return url.replace(/\/+$/, '') || url;
 }
 
-function truncate(s: string, maxLen: number): string {
-    return s.length <= maxLen ? s : s.slice(0, maxLen) + '...';
-}
-
-const OPENCODE_PROMPT_LOG_PREVIEW_LEN = 500;
-const OPENCODE_PROMPT_LOG_FULL_LEN = 3000;
-
 /** Result of validating AI config for OpenCode calls. null when invalid. */
 interface OpenCodeConfig {
     serverUrl: string;
@@ -157,20 +150,16 @@ function parseJsonFromAgentText(text: string): Record<string, unknown> {
                 } catch (e) {
                     const msg = e instanceof Error ? e.message : String(e);
                     logDebugInfo(
-                        `OpenCode agent response (expectJson): failed to parse extracted JSON. Full text length=${trimmed.length} firstChars=${JSON.stringify(trimmed.slice(0, 200))}`
+                        `OpenCode agent response (expectJson): failed to parse extracted JSON. Full text length=${trimmed.length}. Full text:\n${trimmed}`
                     );
                     throw new Error(`Agent response is not valid JSON: ${msg}`);
                 }
             }
-            const previewLen = 500;
-            const msg = trimmed.length > previewLen ? `${trimmed.slice(0, previewLen)}...` : trimmed;
-            const fullTruncated = trimmed.length > 3000 ? `${trimmed.slice(0, 3000)}... [total ${trimmed.length} chars]` : trimmed;
             logDebugInfo(
-                `OpenCode agent response (expectJson): no JSON object found. length=${trimmed.length} preview=${JSON.stringify(msg)}`
+                `OpenCode agent response (expectJson): no JSON object found. length=${trimmed.length}. Full text:\n${trimmed}`
             );
-            logDebugInfo(`OpenCode agent response (expectJson) full text for debugging:\n${fullTruncated}`);
             throw new Error(
-                `Agent response is not valid JSON: no JSON object found. Response starts with: ${msg.slice(0, 150)}`
+                `Agent response is not valid JSON: no JSON object found. Response length: ${trimmed.length} chars.`
             );
         }
     }
@@ -188,16 +177,10 @@ function extractPartsByType(parts: unknown, type: string, joinWith: string): str
         .trim();
 }
 
-const OPENCODE_RESPONSE_LOG_MAX_LEN = 80000;
-
-/** Parse response as JSON; on empty or invalid body throw a clear error with context. */
+/** Parse response as JSON; on empty or invalid body throw a clear error with context. Logs full body (no truncation). */
 async function parseJsonResponse<T>(res: Response, context: string): Promise<T> {
     const raw = await res.text();
-    const truncated =
-        raw.length > OPENCODE_RESPONSE_LOG_MAX_LEN
-            ? `${raw.slice(0, OPENCODE_RESPONSE_LOG_MAX_LEN)}... [truncated, total ${raw.length} chars]`
-            : raw;
-    logDebugInfo(`OpenCode response [${context}] status=${res.status} bodyLength=${raw.length}: ${truncated}`);
+    logDebugInfo(`OpenCode response [${context}] status=${res.status} bodyLength=${raw.length}. Full body:\n${raw}`);
     if (!raw || !raw.trim()) {
         throw new Error(
             `${context}: empty response body (status ${res.status}). The server may have returned nothing or closed the connection early.`
@@ -206,9 +189,8 @@ async function parseJsonResponse<T>(res: Response, context: string): Promise<T> 
     try {
         return JSON.parse(raw) as T;
     } catch (parseError) {
-        const snippet = raw.length > 200 ? `${raw.slice(0, 200)}...` : raw;
         const err = new Error(
-            `${context}: invalid JSON (status ${res.status}). Body snippet: ${snippet}`
+            `${context}: invalid JSON (status ${res.status}). Body length: ${raw.length} chars. See debug log for full body.`
         );
         if (parseError instanceof Error && 'cause' in err) (err as Error & { cause: unknown }).cause = parseError;
         throw err;
@@ -225,27 +207,27 @@ function extractReasoningFromParts(parts: unknown): string {
     return extractPartsByType(parts, 'reasoning', '\n\n');
 }
 
-/** Max length of per-part text preview in debug log (to avoid huge log lines). */
-const OPENCODE_PART_PREVIEW_LEN = 80;
-
 /**
- * Build a short summary of OpenCode message parts for debug logs (types, text lengths, and short preview).
+ * Log OpenCode message parts: summary line and full text of each part (no truncation).
  */
-function summarizePartsForLog(parts: unknown[], context: string): string {
+function logPartsForDebug(parts: unknown[], context: string): void {
     if (!Array.isArray(parts) || parts.length === 0) {
-        return `${context}: 0 parts`;
+        logDebugInfo(`${context}: 0 parts`);
+        return;
     }
-    const items = (parts as Array<{ type?: string; text?: string }>).map((p, i) => {
+    const summary = (parts as Array<{ type?: string; text?: string }>).map((p, i) => {
+        const type = p?.type ?? '(missing type)';
+        const len = typeof p?.text === 'string' ? p.text.length : 0;
+        return `[${i}] type=${type} length=${len}`;
+    }).join(' | ');
+    logDebugInfo(`${context}: ${parts.length} part(s) — ${summary}`);
+    (parts as Array<{ type?: string; text?: string }>).forEach((p, i) => {
         const type = p?.type ?? '(missing type)';
         const text = typeof p?.text === 'string' ? p.text : '';
-        const len = text.length;
-        const preview =
-            len > OPENCODE_PART_PREVIEW_LEN
-                ? `${text.slice(0, OPENCODE_PART_PREVIEW_LEN).replace(/\n/g, ' ')}...`
-                : text.replace(/\n/g, ' ');
-        return `[${i}] type=${type} length=${len}${preview ? ` preview=${JSON.stringify(preview)}` : ''}`;
+        if (text) {
+            logDebugInfo(`OpenCode part [${i}] type=${type} full text:\n${text}`);
+        }
     });
-    return `${context}: ${parts.length} part(s) — ${items.join(' | ')}`;
 }
 
 /** Default OpenCode agent for analysis/planning (read-only, no file edits). */
@@ -331,8 +313,8 @@ async function opencodeMessageWithAgentRaw(
     logInfo(
         `OpenCode request [agent ${options.agent}] model=${options.providerID}/${options.modelID} promptLength=${options.promptText.length}`
     );
-    logInfo(`OpenCode sending prompt (preview): ${truncate(options.promptText, OPENCODE_PROMPT_LOG_PREVIEW_LEN)}`);
-    logDebugInfo(`OpenCode prompt (full): ${truncate(options.promptText, OPENCODE_PROMPT_LOG_FULL_LEN)}`);
+    logInfo(`OpenCode sending prompt (full):\n${options.promptText}`);
+    logDebugInfo(`OpenCode prompt (full, no truncation):\n${options.promptText}`);
     logDebugInfo(
         `OpenCode message body: agent=${options.agent}, model=${options.providerID}/${options.modelID}, parts[0].text length=${options.promptText.length}`
     );
@@ -382,7 +364,7 @@ async function opencodeMessageWithAgentRaw(
     );
     const parts = messageData?.parts ?? messageData?.data?.parts ?? [];
     const partsArray = Array.isArray(parts) ? parts : [];
-    logDebugInfo(summarizePartsForLog(partsArray, `OpenCode agent "${options.agent}" message parts`));
+    logPartsForDebug(partsArray, `OpenCode agent "${options.agent}" message parts`);
     const text = extractTextFromParts(partsArray);
     logInfo(
         `OpenCode response [agent ${options.agent}] responseLength=${text.length} sessionId=${sessionId}`
@@ -467,9 +449,8 @@ export class AiRepository {
                 if (!text) throw new Error('Empty response text');
                 const reasoning = options.includeReasoning ? extractReasoningFromParts(parts) : '';
                 if (options.expectJson && options.schema) {
-                    const maxLogLen = 5000000;
-                    const toLog = text.length > maxLogLen ? `${text.slice(0, maxLogLen)}\n... [truncated, total ${text.length} chars]` : text;
-                    logInfo(`OpenCode agent response (full text, expectJson=true) length=${text.length}:\n${toLog}`);
+                    logInfo(`OpenCode agent response (expectJson=true) length=${text.length}`);
+                    logDebugInfo(`OpenCode agent response (full text, no truncation) length=${text.length}:\n${text}`);
                     const parsed = parseJsonFromAgentText(text);
                     if (options.includeReasoning && reasoning) {
                         return { ...parsed, reasoning };

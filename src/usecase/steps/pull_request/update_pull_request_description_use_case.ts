@@ -5,7 +5,7 @@ import { IssueRepository } from "../../../data/repository/issue_repository";
 import { ProjectRepository } from "../../../data/repository/project_repository";
 import { PullRequestRepository } from "../../../data/repository/pull_request_repository";
 import { getUpdatePullRequestDescriptionPrompt } from "../../../prompts";
-import { logDebugInfo, logError } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { OPENCODE_PROJECT_CONTEXT_INSTRUCTION } from "../../../utils/opencode_project_context_instruction";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
@@ -19,7 +19,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
     private projectRepository = new ProjectRepository();
 
     async invoke(param: Execution): Promise<Result[]> {
-        logDebugInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId}.`);
+        logInfo(`${getTaskEmoji(this.taskId)} Executing ${this.taskId} (AI PR description).`);
 
         const result: Result[] = [];
 
@@ -97,6 +97,7 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 issueDescription,
             });
 
+            logDebugInfo(`UpdatePullRequestDescription: prompt length=${prompt.length}, issue description length=${issueDescription.length}. Calling OpenCode Plan agent.`);
             const agentResponse = await this.aiRepository.askAgent(
                 param.ai,
                 OPENCODE_AGENT_PLAN,
@@ -107,6 +108,8 @@ export class UpdatePullRequestDescriptionUseCase implements ParamUseCase<Executi
                 typeof agentResponse === 'string'
                     ? agentResponse
                     : (agentResponse && String((agentResponse as Record<string, unknown>).description)) || '';
+
+            logDebugInfo(`UpdatePullRequestDescription: OpenCode response received. Description length=${prBody.length}. Full description:\n${prBody}`);
 
             if (!prBody.trim()) {
                 result.push(

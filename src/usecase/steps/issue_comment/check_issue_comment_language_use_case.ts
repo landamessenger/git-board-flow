@@ -8,7 +8,7 @@ import {
 } from "../../../data/repository/ai_repository";
 import { IssueRepository } from "../../../data/repository/issue_repository";
 import { getCheckCommentLanguagePrompt, getTranslateCommentPrompt } from "../../../prompts";
-import { logInfo } from "../../../utils/logger";
+import { logDebugInfo, logInfo } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -41,6 +41,7 @@ If you'd like this comment to be translated again, please delete the entire comm
 
         const locale = param.locale.issue;
         let prompt = getCheckCommentLanguagePrompt({ locale, commentBody });
+        logDebugInfo(`CheckIssueCommentLanguage: locale=${locale}, comment length=${commentBody.length}. Calling OpenCode for language check.`);
         const checkResponse = await this.aiRepository.askAgent(
             param.ai,
             OPENCODE_AGENT_PLAN,
@@ -57,6 +58,7 @@ If you'd like this comment to be translated again, please delete the entire comm
             typeof (checkResponse as Record<string, unknown>).status === 'string'
                 ? ((checkResponse as Record<string, unknown>).status as string)
                 : '';
+        logDebugInfo(`CheckIssueCommentLanguage: language check status=${status}.`);
         if (status === 'done') {
             results.push(
                 new Result({
@@ -69,6 +71,7 @@ If you'd like this comment to be translated again, please delete the entire comm
         }
 
         prompt = getTranslateCommentPrompt({ locale, commentBody });
+        logDebugInfo(`CheckIssueCommentLanguage: translating comment (prompt length=${prompt.length}).`);
         const translationResponse = await this.aiRepository.askAgent(
             param.ai,
             OPENCODE_AGENT_PLAN,
@@ -86,6 +89,8 @@ If you'd like this comment to be translated again, please delete the entire comm
             typeof (translationResponse as Record<string, unknown>).translatedText === 'string'
                 ? ((translationResponse as Record<string, unknown>).translatedText as string).trim()
                 : '';
+
+        logDebugInfo(`CheckIssueCommentLanguage: translation received. translatedText length=${translatedText.length}. Full translated text:\n${translatedText}`);
 
         if (!translatedText) {
             const reason =

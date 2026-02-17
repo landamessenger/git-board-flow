@@ -1,7 +1,7 @@
 import { Execution } from "../../../data/model/execution";
 import { Result } from "../../../data/model/result";
 import { IssueRepository } from "../../../data/repository/issue_repository";
-import { logInfo } from "../../../utils/logger";
+import { logDebugInfo, logError, logInfo } from "../../../utils/logger";
 import { getTaskEmoji } from "../../../utils/task_emoji";
 import { ParamUseCase } from "../../base/param_usecase";
 
@@ -22,6 +22,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                 param.tokens.token,
             );
             if (closed) {
+                logInfo(`Issue #${param.issueNumber} closed after merging PR #${param.pullRequest.number}.`);
                 await this.issueRepository.addComment(
                     param.owner,
                     param.repo,
@@ -40,6 +41,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
                     })
                 );
             } else {
+                logDebugInfo(`Issue #${param.issueNumber} was already closed or close failed after merge.`);
                 result.push(
                     new Result({
                         id: this.taskId,
@@ -50,6 +52,7 @@ export class CloseIssueAfterMergingUseCase implements ParamUseCase<Execution, Re
             }
 
         } catch (error) {
+            logError(`CloseIssueAfterMerging: failed to close issue #${param.issueNumber}.`, error instanceof Error ? { stack: (error as Error).stack } : undefined);
             result.push(
                 new Result({
                     id: this.taskId,

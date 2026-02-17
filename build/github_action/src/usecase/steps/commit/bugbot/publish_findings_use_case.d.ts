@@ -12,6 +12,8 @@ export interface PublishFindingsParam {
     execution: Execution;
     context: BugbotContext;
     findings: BugbotFinding[];
+    /** Commit SHA for bugbot watermark (commit link). When set, comment uses "for commit ..." watermark. */
+    commitSha?: string;
     /** When findings were limited by max comments, add one summary comment with this overflow info. */
     overflowCount?: number;
     overflowTitles?: string[];
