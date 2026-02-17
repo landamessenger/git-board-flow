@@ -224,4 +224,158 @@ describe("publishFindings", () => {
         expect(overflowCall[3]).toContain("Finding 0");
         expect(overflowCall[3]).not.toContain("Finding 19");
     });
+
+    it("uses commitSha for watermark and passes commitSha to addComment when provided", async () => {
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext(),
+            findings: [finding()],
+            commitSha: "abc123",
+        });
+
+        expect(mockAddComment).toHaveBeenCalledWith(
+            "o",
+            "r",
+            42,
+            expect.any(String),
+            "t",
+            { commitSha: "abc123" }
+        );
+    });
+
+    it("passes commitSha to updateComment when finding has issueCommentId and commitSha is provided", async () => {
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext({
+                existingByFindingId: { f1: { issueCommentId: 100, resolved: false } },
+            }),
+            findings: [finding()],
+            commitSha: "def456",
+        });
+
+        expect(mockUpdateComment).toHaveBeenCalledWith(
+            "o",
+            "r",
+            42,
+            100,
+            expect.any(String),
+            "t",
+            { commitSha: "def456" }
+        );
+    });
+
+    it("uses line 1 when finding has no line and pathToFirstDiffLine has no entry for path", async () => {
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext({
+                openPrNumbers: [50],
+                prContext: {
+                    prHeadSha: "sha1",
+                    prFiles: [{ filename: "src/b.ts", status: "modified" }],
+                    pathToFirstDiffLine: {},
+                },
+            }),
+            findings: [finding({ id: "f2", file: "src/b.ts" })],
+        });
+
+        expect(mockCreateReviewWithComments).toHaveBeenCalledWith(
+            "o",
+            "r",
+            50,
+            "sha1",
+            expect.arrayContaining([
+                expect.objectContaining({ path: "src/b.ts", line: 1 }),
+            ]),
+            "t"
+        );
+    });
+
+    it("creates new PR review comment when existing prCommentId is for a different PR", async () => {
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext({
+                openPrNumbers: [50],
+                existingByFindingId: { f1: { prCommentId: 300, prNumber: 99, resolved: false } },
+                prContext: {
+                    prHeadSha: "sha1",
+                    prFiles: [{ filename: "src/foo.ts", status: "modified" }],
+                    pathToFirstDiffLine: {},
+                },
+            }),
+            findings: [finding({ file: "src/foo.ts" })],
+        });
+
+        expect(mockUpdatePullRequestReviewComment).not.toHaveBeenCalled();
+        expect(mockCreateReviewWithComments).toHaveBeenCalledWith(
+            "o",
+            "r",
+            50,
+            "sha1",
+            expect.arrayContaining([
+                expect.objectContaining({ path: "src/foo.ts", body: expect.any(String) }),
+            ]),
+            "t"
+        );
+    });
+
+    it("adds overflow comment with no titles list when overflowTitles is empty", async () => {
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext(),
+            findings: [],
+            overflowCount: 2,
+            overflowTitles: [],
+        });
+
+        const overflowCall = mockAddComment.mock.calls.find(
+            (c: unknown[]) => (c[3] as string).includes("More findings")
+        );
+        expect(overflowCall).toBeDefined();
+        expect(overflowCall[3]).toContain("**2**");
+        expect(overflowCall[3]).not.toMatch(/\n- /);
+    });
+
+    it("passes commitSha to addComment when adding overflow comment", async () => {
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext(),
+            findings: [],
+            overflowCount: 1,
+            overflowTitles: [],
+            commitSha: "overflow-sha",
+        });
+
+        const overflowCall = mockAddComment.mock.calls.find(
+            (c: unknown[]) => (c[3] as string).includes("More findings")
+        );
+        expect(overflowCall).toBeDefined();
+        expect(overflowCall[5]).toEqual({ commitSha: "overflow-sha" });
+    });
+
+    it("does not log when finding.file is not in prFiles but file is null or empty", async () => {
+        const { logInfo } = await import("../../../../../utils/logger");
+        (logInfo as jest.Mock).mockClear();
+        await publishFindings({
+            execution: baseExecution,
+            context: baseContext({
+                openPrNumbers: [50],
+                prContext: {
+                    prHeadSha: "sha1",
+                    prFiles: [{ filename: "src/only.ts", status: "modified" }],
+                    pathToFirstDiffLine: {},
+                },
+            }),
+            findings: [
+                finding({ id: "no-file", file: undefined }),
+                finding({ id: "empty-file", file: "" }),
+                finding({ id: "whitespace-file", file: "   " }),
+            ],
+        });
+
+        expect(mockAddComment).toHaveBeenCalledTimes(3);
+        expect(mockCreateReviewWithComments).not.toHaveBeenCalled();
+        expect(logInfo).not.toHaveBeenCalledWith(
+            expect.stringContaining("not in PR changed files")
+        );
+    });
 });
