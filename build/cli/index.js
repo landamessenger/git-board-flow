@@ -53456,11 +53456,12 @@ const TEMPLATE = `You are in the repository workspace. Your task is to produce a
    - **Breaking Changes:** list any, or "None".
    - **Notes for Reviewers / Additional Context:** fill only if useful; otherwise a short placeholder or omit.
 5. Do not output a single compact paragraph. Output the full filled template so the PR description is well-structured and easy to scan. Preserve the template's formatting (headings with # and ##, horizontal rules). Use checkboxes \`- [ ]\` / \`- [x]\` only where they add value; you may simplify or drop a section if it does not apply.
+6. **Output format:** Return only the filled template content. Do not add any preamble, meta-commentary, or framing phrases (e.g. "Based on my analysis...", "After reviewing the diff...", "Here is the description..."). Start directly with the first heading of the template (e.g. # Summary). Do not wrap the output in code blocks.
 
 **Issue description:**
 {{issueDescription}}
 
-Output only the filled template content (the PR description body), starting with the first heading of the template (e.g. # Summary). Do not wrap it in code blocks or add extra commentary.`;
+Output only the filled template content (the PR description body), starting with the first heading. No preamble, no commentary.`;
 function getUpdatePullRequestDescriptionPrompt(params) {
     return (0, fill_1.fillTemplate)(TEMPLATE, {
         projectContextInstruction: params.projectContextInstruction,
