@@ -47856,16 +47856,11 @@ class ContentInterface {
                 if (description === undefined) {
                     return undefined;
                 }
-                const startIndex = description.indexOf(this.startPattern);
-                if (startIndex === -1) {
+                const indices = this.getBlockIndices(description);
+                if (!indices) {
                     return undefined;
                 }
-                const contentStart = startIndex + this.startPattern.length;
-                const endIndex = description.indexOf(this.endPattern, contentStart);
-                if (endIndex === -1) {
-                    return undefined;
-                }
-                return description.substring(contentStart, endIndex);
+                return description.substring(indices.contentStart, indices.endIndex);
             }
             catch (error) {
                 (0, logger_1.logError)(`Error reading issue configuration: ${error}`);
@@ -47882,20 +47877,14 @@ class ContentInterface {
             }
         };
         this._updateContent = (description, content) => {
-            const startIndex = description.indexOf(this.startPattern);
-            if (startIndex === -1) {
+            const indices = this.getBlockIndices(description);
+            if (!indices) {
                 (0, logger_1.logError)(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
                 return undefined;
             }
-            const contentStart = startIndex + this.startPattern.length;
-            const endIndex = description.indexOf(this.endPattern, contentStart);
-            if (endIndex === -1) {
-                (0, logger_1.logError)(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
-                return undefined;
-            }
-            const start = description.substring(0, startIndex);
+            const start = description.substring(0, indices.startIndex);
             const mid = `${this.startPattern}\n${content}\n${this.endPattern}`;
-            const end = description.substring(endIndex + this.endPattern.length);
+            const end = description.substring(indices.endIndex + this.endPattern.length);
             return `${start}${mid}${end}`;
         };
         this.updateContent = (description, content) => {
@@ -47929,6 +47918,18 @@ class ContentInterface {
             return `<!-- ${this._id}-end -->`;
         }
         return `${this._id}-end -->`;
+    }
+    getBlockIndices(description) {
+        const startIndex = description.indexOf(this.startPattern);
+        if (startIndex === -1) {
+            return undefined;
+        }
+        const contentStart = startIndex + this.startPattern.length;
+        const endIndex = description.indexOf(this.endPattern, contentStart);
+        if (endIndex === -1) {
+            return undefined;
+        }
+        return { startIndex, contentStart, endIndex };
     }
 }
 exports.ContentInterface = ContentInterface;

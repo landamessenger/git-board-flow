@@ -4,6 +4,7 @@ export declare abstract class ContentInterface {
     abstract get visibleContent(): boolean;
     private get startPattern();
     private get endPattern();
+    private getBlockIndices;
     getContent: (description: string | undefined) => string | undefined;
     private _addContent;
     private _updateContent;
