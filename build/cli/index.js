@@ -48180,7 +48180,7 @@ class Execution {
                 this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
             }
             catch (error) {
-                const isInitialSetup = this.singleAction.currentSingleAction === 'initial_setup';
+                const isInitialSetup = this.singleAction.currentSingleAction === constants_1.ACTIONS.INITIAL_SETUP;
                 if (this.isSingleAction && isInitialSetup) {
                     (0, logger_1.logDebugInfo)('Skipping initial labels fetch for setup action.');
                     this.labels.currentIssueLabels = [];
