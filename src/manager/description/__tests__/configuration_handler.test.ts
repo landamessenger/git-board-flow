@@ -106,23 +106,18 @@ describe('ConfigurationHandler', () => {
       expect(updatedDesc).toMatch(/"workingBranch":\s*"feature\/123"/);
     });
 
-    it('preserves stored keys when current has undefined', async () => {
+    it('preserves all stored keys (including unknown ones) when current has undefined', async () => {
       const storedJson = JSON.stringify({
         parentBranch: 'main',
-        releaseBranch: 'release/1',
-        branchType: 'hotfix',
+        unknownKey: 'preserve-me',
+        branchConfiguration: { name: 'leaf' },
       });
       mockGetDescription.mockResolvedValue(descriptionWithConfig(storedJson));
       mockUpdateDescription.mockResolvedValue(undefined);
 
       const execution = minimalExecution({
         currentConfiguration: {
-          branchType: 'feature',
-          releaseBranch: undefined,
-          workingBranch: 'feature/123',
           parentBranch: undefined,
-          hotfixOriginBranch: undefined,
-          hotfixBranch: undefined,
           branchConfiguration: undefined,
         },
       });
@@ -131,8 +126,80 @@ describe('ConfigurationHandler', () => {
 
       expect(mockUpdateDescription).toHaveBeenCalled();
       const fullDesc = mockUpdateDescription.mock.calls[0][3];
-      expect(fullDesc).toContain('"parentBranch": "main"');
-      expect(fullDesc).toContain('"releaseBranch": "release/1"');
+      const parsed = JSON.parse(handler.getContent(fullDesc)!.trim());
+      expect(parsed.parentBranch).toBe('main');
+      expect(parsed.unknownKey).toBe('preserve-me');
+      expect(parsed.branchConfiguration).toEqual({ name: 'leaf' });
+    });
+
+    it('always excludes results from the saved payload even if present in stored', async () => {
+      const storedJson = JSON.stringify({
+        results: [{ some: 'result' }],
+        parentBranch: 'main',
+      });
+      mockGetDescription.mockResolvedValue(descriptionWithConfig(storedJson));
+      mockUpdateDescription.mockResolvedValue(undefined);
+
+      const execution = minimalExecution({
+        currentConfiguration: {
+          parentBranch: 'develop',
+        },
+      });
+
+      await handler.update(execution);
+
+      const fullDesc = mockUpdateDescription.mock.calls[0][3];
+      const parsed = JSON.parse(handler.getContent(fullDesc)!.trim());
+      expect(parsed.results).toBeUndefined();
+      expect(parsed.parentBranch).toBe('develop');
+    });
+
+    it('fails safely when block is mangled (missing end tag)', async () => {
+      const mangledDesc = `body\n${CONFIG_START}\n{"x":1}\nno end tag here`;
+      mockGetDescription.mockResolvedValue(mangledDesc);
+
+      const execution = minimalExecution();
+      const result = await handler.update(execution);
+
+      // Should log error and return undefined instead of corrupting or crashing
+      expect(result).toBeUndefined();
+      const { logError } = require('../../../utils/logger');
+      expect(logError).toHaveBeenCalledWith(expect.stringContaining('problem with open-close tags'));
+    });
+
+    it('handles malformed JSON in stored config gracefully', async () => {
+      mockGetDescription.mockResolvedValue(descriptionWithConfig('invalid { json'));
+      mockUpdateDescription.mockResolvedValue(undefined);
+
+      const execution = minimalExecution({
+        currentConfiguration: {
+          branchType: 'feature',
+          workingBranch: 'feat/new',
+        },
+      });
+
+      await handler.update(execution);
+
+      expect(mockUpdateDescription).toHaveBeenCalled();
+      const fullDesc = mockUpdateDescription.mock.calls[0][3];
+      expect(fullDesc).toContain('"branchType": "feature"');
+      expect(fullDesc).toContain('"workingBranch": "feat/new"');
+    });
+
+    it('handles empty stored config block gracefully', async () => {
+      mockGetDescription.mockResolvedValue(descriptionWithConfig('  '));
+      mockUpdateDescription.mockResolvedValue(undefined);
+
+      const execution = minimalExecution({
+        currentConfiguration: {
+          branchType: 'feature',
+        },
+      });
+
+      await handler.update(execution);
+
+      expect(mockUpdateDescription).toHaveBeenCalled();
+      expect(mockUpdateDescription.mock.calls[0][3]).toContain('"branchType": "feature"');
     });
 
     it('returns undefined on error', async () => {
@@ -142,6 +209,21 @@ describe('ConfigurationHandler', () => {
       const result = await handler.update(execution);
 
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe('edge cases', () => {
+    it('get returns undefined when internalGetter returns empty string', async () => {
+      mockGetDescription.mockResolvedValue('');
+      const execution = minimalExecution();
+      const result = await handler.get(execution);
+      expect(result).toBeUndefined();
+    });
+
+    it('get throws informative error on invalid JSON', async () => {
+      mockGetDescription.mockResolvedValue(descriptionWithConfig('{ "broken": '));
+      const execution = minimalExecution();
+      await expect(handler.get(execution)).rejects.toThrow(/Unexpected end of JSON input|SyntaxError/);
     });
   });
 });

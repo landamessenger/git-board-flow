@@ -3,15 +3,6 @@ import { Execution } from "../../data/model/execution";
 import { logError } from "../../utils/logger";
 import { IssueContentInterface } from "./base/issue_content_interface";
 
-/** Keys that must be preserved from stored config when current has undefined (e.g. when branch already existed). */
-const CONFIG_KEYS_TO_PRESERVE = [
-    'parentBranch',
-    'workingBranch',
-    'releaseBranch',
-    'hotfixBranch',
-    'hotfixOriginBranch',
-    'branchType',
-] as const;
 
 export class ConfigurationHandler extends IssueContentInterface {
     get id(): string {
@@ -39,7 +30,8 @@ export class ConfigurationHandler extends IssueContentInterface {
             if (storedRaw != null && storedRaw.trim().length > 0) {
                 try {
                     const stored = JSON.parse(storedRaw) as Record<string, unknown>;
-                    for (const key of CONFIG_KEYS_TO_PRESERVE) {
+                    // Merge all fields from stored that are undefined in current payload
+                    for (const key in stored) {
                         if (payload[key] === undefined && stored[key] !== undefined) {
                             payload[key] = stored[key];
                         }
@@ -48,6 +40,9 @@ export class ConfigurationHandler extends IssueContentInterface {
                     /* ignore parse errors, save current as-is */
                 }
             }
+
+            // Ensure results is never saved to prevent payload bloat
+            delete payload['results'];
 
             return await this.internalUpdate(execution, JSON.stringify(payload, null, 4));
         } catch (error) {
