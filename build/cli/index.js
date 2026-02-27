@@ -48281,6 +48281,9 @@ class Execution {
                 this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1;
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
+                if (!this.currentConfiguration.parentBranch) {
+                    this.currentConfiguration.parentBranch = this.pullRequest.base;
+                }
             }
             this.currentConfiguration.branchType = this.issueType;
             // logDebugInfo(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
@@ -52772,10 +52775,12 @@ class ContentInterface {
                 if (description === undefined) {
                     return undefined;
                 }
-                if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+                const startIndex = this.findExactMatch(description, this.startPattern);
+                const endIndex = this.findExactMatch(description, this.endPattern);
+                if (startIndex === -1 || endIndex === -1) {
                     return undefined;
                 }
-                return description.split(this.startPattern)[1].split(this.endPattern)[0];
+                return description.substring(startIndex + this.startPattern.length, endIndex);
             }
             catch (error) {
                 (0, logger_1.logError)(`Error reading issue configuration: ${error}`);
@@ -52783,7 +52788,7 @@ class ContentInterface {
             }
         };
         this._addContent = (description, content) => {
-            if (description.indexOf(this.startPattern) === -1 && description.indexOf(this.endPattern) === -1) {
+            if (this.findExactMatch(description, this.startPattern) === -1 && this.findExactMatch(description, this.endPattern) === -1) {
                 const newContent = `${this.startPattern}\n${content}\n${this.endPattern}`;
                 return `${description}\n\n${newContent}`;
             }
@@ -52792,13 +52797,15 @@ class ContentInterface {
             }
         };
         this._updateContent = (description, content) => {
-            if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+            const startIndex = this.findExactMatch(description, this.startPattern);
+            const endIndex = this.findExactMatch(description, this.endPattern);
+            if (startIndex === -1 || endIndex === -1) {
                 (0, logger_1.logError)(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
                 return undefined;
             }
-            const start = description.split(this.startPattern)[0];
+            const start = description.substring(0, startIndex);
             const mid = `${this.startPattern}\n${content}\n${this.endPattern}`;
-            const end = description.split(this.endPattern)[1];
+            const end = description.substring(endIndex + this.endPattern.length);
             return `${start}${mid}${end}`;
         };
         this.updateContent = (description, content) => {
@@ -52832,6 +52839,19 @@ class ContentInterface {
             return `<!-- ${this._id}-end -->`;
         }
         return `${this._id}-end -->`;
+    }
+    findExactMatch(description, pattern) {
+        let index = 0;
+        while ((index = description.indexOf(pattern, index)) !== -1) {
+            const nextChar = description[index + pattern.length];
+            // If the next character is alphanumeric or a hyphen, it's a partial match (e.g., "-starts-here")
+            // So we skip it. Otherwise, it's an exact match.
+            if (!nextChar || !/[a-zA-Z0-9-]/.test(nextChar)) {
+                return index;
+            }
+            index += pattern.length;
+        }
+        return -1;
     }
 }
 exports.ContentInterface = ContentInterface;
@@ -52960,7 +52980,6 @@ class ConfigurationHandler extends issue_content_interface_1.IssueContentInterfa
                     parentBranch: current.parentBranch,
                     hotfixOriginBranch: current.hotfixOriginBranch,
                     hotfixBranch: current.hotfixBranch,
-                    results: current.results,
                     branchConfiguration: current.branchConfiguration,
                 };
                 const storedRaw = await this.internalGetter(execution);
