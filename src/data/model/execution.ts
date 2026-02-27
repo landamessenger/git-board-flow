@@ -4,7 +4,7 @@ import { ConfigurationHandler } from "../../manager/description/configuration_ha
 import { GetHotfixVersionUseCase } from "../../usecase/steps/common/get_hotfix_version_use_case";
 import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_type_use_case";
 import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
-import { INPUT_KEYS } from "../../utils/constants";
+import { ACTIONS, INPUT_KEYS } from "../../utils/constants";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
 import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
@@ -303,7 +303,7 @@ export class Execution {
                 this.tokens.token
             );
         } catch (error) {
-            const isInitialSetup = this.singleAction.currentSingleAction === 'initial_setup';
+            const isInitialSetup = this.singleAction.currentSingleAction === ACTIONS.INITIAL_SETUP;
             if (this.isSingleAction && isInitialSetup) {
                 logDebugInfo('Skipping initial labels fetch for setup action.');
                 this.labels.currentIssueLabels = [];
