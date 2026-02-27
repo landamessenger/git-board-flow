@@ -49434,8 +49434,8 @@ function logPartsForDebug(parts, context) {
         }
     });
 }
-/** Default OpenCode agent for analysis/planning (read-only, no file edits). */
-exports.OPENCODE_AGENT_PLAN = 'plan';
+/** Default OpenCode agent for analysis/planning (read-only, no file edits). Changed to build to support diffs. */
+exports.OPENCODE_AGENT_PLAN = 'build';
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
 exports.OPENCODE_AGENT_BUILD = 'build';
 /** JSON schema for translation responses: translatedText (required), optional reason if translation failed. */

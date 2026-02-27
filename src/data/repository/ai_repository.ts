@@ -230,8 +230,8 @@ function logPartsForDebug(parts: unknown[], context: string): void {
     });
 }
 
-/** Default OpenCode agent for analysis/planning (read-only, no file edits). */
-export const OPENCODE_AGENT_PLAN = 'plan';
+/** Default OpenCode agent for analysis/planning (read-only, no file edits). Changed to build to support diffs. */
+export const OPENCODE_AGENT_PLAN = 'build';
 
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
 export const OPENCODE_AGENT_BUILD = 'build';
@@ -412,8 +412,8 @@ export async function getSessionDiff(
         const list = Array.isArray(data)
             ? data
             : Array.isArray((data as { data?: OpenCodeFileDiff[] }).data)
-              ? (data as { data: OpenCodeFileDiff[] }).data
-              : [];
+                ? (data as { data: OpenCodeFileDiff[] }).data
+                : [];
         logInfo(`OpenCode response [session diff] fileCount=${list.length}`);
         return list;
     }, 'session diff');
