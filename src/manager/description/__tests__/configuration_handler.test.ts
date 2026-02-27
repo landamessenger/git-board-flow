@@ -41,7 +41,6 @@ function minimalExecution(overrides: Record<string, unknown> = {}): Execution {
       parentBranch: 'develop',
       hotfixOriginBranch: undefined,
       hotfixBranch: undefined,
-      results: [],
       branchConfiguration: undefined,
     },
     ...overrides,
@@ -124,7 +123,6 @@ describe('ConfigurationHandler', () => {
           parentBranch: undefined,
           hotfixOriginBranch: undefined,
           hotfixBranch: undefined,
-          results: [],
           branchConfiguration: undefined,
         },
       });

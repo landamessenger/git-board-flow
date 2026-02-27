@@ -411,6 +411,10 @@ export class Execution {
             );
             this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
+
+            if (!this.currentConfiguration.parentBranch) {
+                this.currentConfiguration.parentBranch = this.pullRequest.base;
+            }
         }
 
         this.currentConfiguration.branchType = this.issueType

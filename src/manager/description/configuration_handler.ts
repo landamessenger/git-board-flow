@@ -32,7 +32,6 @@ export class ConfigurationHandler extends IssueContentInterface {
                 parentBranch: current.parentBranch,
                 hotfixOriginBranch: current.hotfixOriginBranch,
                 hotfixBranch: current.hotfixBranch,
-                results: current.results,
                 branchConfiguration: current.branchConfiguration,
             };
 
