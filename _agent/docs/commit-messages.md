@@ -1,6 +1,6 @@
 ---
-name: CommitMessages
-description: Specific nomenclature and branch-prefix requirements for commits.
+name: Commit Messages
+description: Commit message nomenclature (prefix = current branch)
 ---
 
 # Commit messages

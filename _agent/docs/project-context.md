@@ -1,6 +1,6 @@
 ---
-name: ProjectContext
-description: High-level overview, common commands, and ignore paths.
+name: Project Context
+description: Copilot – quick read, commands, and where to find more
 ---
 
 # Copilot – Project Context
@@ -33,3 +33,8 @@ npm run lint:fix
 
 - **`build/`** – Generated output; do not edit or run tests/lint against it.
 - **`.agent-sessions/`** – Session data; ignore unless debugging.
+
+## Other rules
+
+- **Architecture & paths**: see `architecture.md` (entry points, use cases, single actions, key files).
+- **Code conventions**: see `code-conventions.md` (logger, constants, adding inputs, ncc).

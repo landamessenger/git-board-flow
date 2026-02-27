@@ -1,0 +1,148 @@
+---
+name: Use Case Flows
+description: Schematic overview of all use case flows (common_action → use case → steps)
+---
+
+# Use case flows (schematic)
+
+Entry point: `mainRun(execution)` in `src/actions/common_action.ts`. After `execution.setup()` and optionally `waitForPreviousRuns`, the dispatch is:
+
+```
+mainRun
+├── runnedByToken && singleAction → SingleActionUseCase (only if validSingleAction)
+├── issueNumber === -1 → SingleActionUseCase (only if isSingleActionWithoutIssue) or skip
+├── welcome → log boxen and continue
+└── try:
+    ├── isSingleAction        → SingleActionUseCase
+    ├── isIssue                → issue.isIssueComment ? IssueCommentUseCase : IssueUseCase
+    ├── isPullRequest          → pullRequest.isPullRequestReviewComment ? PullRequestReviewCommentUseCase : PullRequestUseCase
+    ├── isPush                 → CommitUseCase
+    └── else                   → core.setFailed
+```
+
+---
+
+## 1. IssueUseCase (`on: issues`, not a comment)
+
+**Step order:**
+
+1. **CheckPermissionsUseCase** → if it fails (not allowed): CloseNotAllowedIssueUseCase and return.
+2. **RemoveIssueBranchesUseCase** (only if `cleanIssueBranches`).
+3. **AssignMemberToIssueUseCase**
+4. **UpdateTitleUseCase**
+5. **UpdateIssueTypeUseCase**
+6. **LinkIssueProjectUseCase**
+7. **CheckPriorityIssueSizeUseCase**
+8. **PrepareBranchesUseCase** (if `isBranched`) **or** **RemoveIssueBranchesUseCase** (if not).
+9. **RemoveNotNeededBranchesUseCase**
+10. **DeployAddedUseCase** (deploy label)
+11. **DeployedAddedUseCase** (deployed label)
+12. If **issue.opened**:
+    - If not release and not question/help → **RecommendStepsUseCase**
+    - If question or help → **AnswerIssueHelpUseCase**
+
+---
+
+## 2. IssueCommentUseCase (`on: issue_comment`)
+
+**Step order:**
+
+1. **CheckIssueCommentLanguageUseCase** (translation)
+2. **DetectBugbotFixIntentUseCase** → payload: `isFixRequest`, `isDoRequest`, `targetFindingIds`, `context`, `branchOverride`
+3. **ProjectRepository.isActorAllowedToModifyFiles(owner, actor, token)** (permission to modify files)
+4. Branch A – **if runAutofix && allowed**:
+   - **BugbotAutofixUseCase** → **runBugbotAutofixCommitAndPush** → if committed: **markFindingsResolved**
+5. Branch B – **if !runAutofix && canRunDoUserRequest && allowed**:
+   - **DoUserRequestUseCase** → **runUserRequestCommitAndPush**
+6. **If no file-modifying action ran** → **ThinkUseCase**
+
+---
+
+## 3. PullRequestReviewCommentUseCase (`on: pull_request_review_comment`)
+
+Same flow as **IssueCommentUseCase**, with:
+
+- CheckIssueCommentLanguageUseCase → **CheckPullRequestCommentLanguageUseCase**
+- User comment: `param.pullRequest.commentBody`
+- DetectBugbotFixIntentUseCase may use **parent comment** (commentInReplyToId) in the prompt.
+
+---
+
+## 4. PullRequestUseCase (`on: pull_request`, not a review comment)
+
+**Branches by PR state:**
+
+- **pullRequest.isOpened**:
+  1. UpdateTitleUseCase  
+  2. AssignMemberToIssueUseCase  
+  3. AssignReviewersToIssueUseCase  
+  4. LinkPullRequestProjectUseCase  
+  5. LinkPullRequestIssueUseCase  
+  6. SyncSizeAndProgressLabelsFromIssueToPrUseCase  
+  7. CheckPriorityPullRequestSizeUseCase  
+  8. If AI PR description: **UpdatePullRequestDescriptionUseCase**
+
+- **pullRequest.isSynchronize** (new pushes):
+  - If AI PR description: **UpdatePullRequestDescriptionUseCase**
+
+- **pullRequest.isClosed && isMerged**:
+  - **CloseIssueAfterMergingUseCase**
+
+---
+
+## 5. CommitUseCase (`on: push`)
+
+**Precondition:** `param.commit.commits.length > 0` (if 0, return with no steps).
+
+**Order:**
+
+1. **NotifyNewCommitOnIssueUseCase**
+2. **CheckChangesIssueSizeUseCase**
+3. **CheckProgressUseCase** (OpenCode: progress + size labels on issue and PRs)
+4. **DetectPotentialProblemsUseCase** (Bugbot: detection, publish to issue/PR, resolved markers)
+
+---
+
+## 6. SingleActionUseCase
+
+Invoked when:
+- `runnedByToken && isSingleAction && validSingleAction`, or
+- `issueNumber === -1 && isSingleAction && isSingleActionWithoutIssue`, or
+- `isSingleAction` in the main try block.
+
+**Dispatch by action (one per run):**
+
+| Action | Use case |
+|--------|----------|
+| `deployed_action` | DeployedActionUseCase |
+| `publish_github_action` | PublishGithubActionUseCase |
+| `create_release` | CreateReleaseUseCase |
+| `create_tag` | CreateTagUseCase |
+| `think_action` | ThinkUseCase |
+| `initial_setup` | InitialSetupUseCase |
+| `check_progress_action` | CheckProgressUseCase |
+| `detect_potential_problems_action` | DetectPotentialProblemsUseCase |
+| `recommend_steps_action` | RecommendStepsUseCase |
+
+(Action names in constants: check_progress_action, detect_potential_problems_action, recommend_steps_action.)
+
+---
+
+## 7. Summary by event
+
+| Event | Use case | Schematic content |
+|--------|----------|------------------------|
+| **issues** (opened/edited/labeled…) | IssueUseCase | Permissions → close if not ok; branches; assign; title; issue type; project; priority/size; prepare/remove branches; deploy labels; if opened: recommend steps or answer help. |
+| **issue_comment** | IssueCommentUseCase | Language → intent (fix/do) → permission → [BugbotAutofix + commit + mark] or [DoUserRequest + commit] or Think. |
+| **pull_request** (opened/sync/closed) | PullRequestUseCase | Title, assign, reviewers, project, link issue, sync labels, size, [AI description]; if merged: close issue. |
+| **pull_request_review_comment** | PullRequestReviewCommentUseCase | Same as IssueCommentUseCase (language → intent → permission → autofix/do/Think). |
+| **push** | CommitUseCase | Notify commit → size → progress (OpenCode) → bugbot detect (OpenCode). |
+| **single-action** | SingleActionUseCase | One of: deployed, publish_github_action, create_release, create_tag, think, initial_setup, check_progress, detect_potential_problems, recommend_steps. |
+
+---
+
+## 8. Flow dependencies
+
+- **Bugbot autofix / Do user request**: require OpenCode, `isActorAllowedToModifyFiles` (org member or repo owner), and on issue_comment optionally branch from PR (`getHeadBranchForIssue`).
+- **Think**: used in IssueComment and PullRequestReviewComment when neither autofix nor do user request runs (by intent or by permission).
+- **CommitUseCase**: NotifyNewCommitOnIssue, CheckChangesIssueSize, CheckProgress, DetectPotentialProblems (bugbot) always run in that order on every push with commits.

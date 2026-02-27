@@ -1,11 +1,13 @@
 ---
 name: Bugbot
-description: Detailed technical reference for Bugbot (detection, markers, context, intent, autofix, do user request, permissions).
+description: Detailed technical reference for Bugbot (detection, markers, context, intent, autofix, do user request, permissions)
 ---
 
 # Bugbot – technical reference
 
 Bugbot has two main modes: **detection** (on push or single action) and **fix/do** (on issue comment or PR review comment). All Bugbot code lives under `src/usecase/steps/commit/bugbot/` and `src/usecase/steps/commit/` (DetectPotentialProblemsUseCase, user_request_use_case).
+
+---
 
 ## 1. Detection flow (push or single action)
 
@@ -21,6 +23,19 @@ Bugbot has two main modes: **detection** (on push or single action) and **fix/do
 6. **Mark resolved:** `markFindingsResolved(execution, context, resolvedFindingIds, normalizedResolvedIds)` – for each existing finding in context whose id is in resolved set, update issue comment (and PR review comment if any) via `replaceMarkerInBody` to set `resolved:true`; if PR comment, call `resolveReviewThread` when applicable.
 7. **Publish:** `publishFindings(execution, context, toPublish, overflowCount?, overflowTitles?)` – for each finding: add or update **issue comment** (always); add or update **PR review comment** only when `finding.file` is in `prContext.prFiles` (using `pathToFirstDiffLine` when finding has no line). Each comment body is built with `buildCommentBody(finding, resolved)` and includes the **marker** `<!-- copilot-bugbot finding_id:"id" resolved:false -->`. Overflow: one extra issue comment summarizing excess findings.
 
+**Key paths (detection):**
+
+- `detect_potential_problems_use_case.ts` – orchestration
+- `load_bugbot_context_use_case.ts` – issue/PR comments, markers, previousFindingsBlock, prContext
+- `build_bugbot_prompt.ts` – prompt for plan agent (task 1: new findings, task 2: resolved ids)
+- `schema.ts` – BUGBOT_RESPONSE_SCHEMA (findings, resolved_finding_ids)
+- `marker.ts` – BUGBOT_MARKER_PREFIX, buildMarker, parseMarker, replaceMarkerInBody, extractTitleFromBody, buildCommentBody
+- `publish_findings_use_case.ts` – add/update issue comment, create/update PR review comment
+- `mark_findings_resolved_use_case.ts` – update comment body with resolved marker, resolve PR thread
+- `severity.ts`, `file_ignore.ts`, `path_validation.ts`, `limit_comments.ts`, `deduplicate_findings.ts`
+
+---
+
 ## 2. Marker format and context
 
 **Marker:** Hidden HTML comment in every finding comment (issue and PR):
@@ -30,6 +45,14 @@ Bugbot has two main modes: **detection** (on push or single action) and **fix/do
 - **Parse:** `parseMarker(body)` returns `{ findingId, resolved }[]`. Used when loading context from issue comments and PR review comments.
 - **Build:** `buildMarker(findingId, resolved)`. IDs are sanitized (`sanitizeFindingIdForMarker`) so they cannot break HTML (no `-->`, `<`, `>`, newlines, etc.).
 - **Update:** `replaceMarkerInBody(body, findingId, newResolved)` – used when marking a finding as resolved (same comment, body updated with `resolved:true`).
+
+**Context (`BugbotContext`):**
+
+- `existingByFindingId[id]`: `{ issueCommentId?, prCommentId?, prNumber?, resolved }` – from parsing all issue + PR comments for markers.
+- `issueComments`: raw list from API (for body when building previousFindingsBlock / unresolvedFindingsWithBody).
+- `openPrNumbers`, `previousFindingsBlock`, `prContext` (prHeadSha, prFiles, pathToFirstDiffLine), `unresolvedFindingsWithBody`: `{ id, fullBody }[]` for findings that are not resolved (body truncated to MAX_FINDING_BODY_LENGTH when loading).
+
+---
 
 ## 3. Fix intent and file-modifying actions (issue comment / PR review comment)
 
@@ -62,3 +85,44 @@ Bugbot has two main modes: **detection** (on push or single action) and **fix/do
    - If success: `runUserRequestCommitAndPush(execution, { branchOverride })` – same verify/checkout/add/commit/push with message `chore(#N): apply user request` or `chore: apply user request`.
 
 5. **Think** (when no file-modifying action ran): `ThinkUseCase.invoke(param)` – answers the user (e.g. question).
+
+**Key paths (fix/do):**
+
+- `detect_bugbot_fix_intent_use_case.ts` – intent detection, branch resolution for issue_comment
+- `build_bugbot_fix_intent_prompt.ts` – prompt for is_fix_request / is_do_request / target_finding_ids
+- `bugbot_fix_intent_payload.ts` – getBugbotFixIntentPayload, canRunBugbotAutofix, canRunDoUserRequest
+- `schema.ts` – BUGBOT_FIX_INTENT_RESPONSE_SCHEMA (is_fix_request, target_finding_ids, is_do_request)
+- `bugbot_autofix_use_case.ts` – build prompt, copilotMessage (build agent)
+- `build_bugbot_fix_prompt.ts` – fix prompt (findings block, verify commands, truncate finding body to MAX_FINDING_BODY_LENGTH)
+- `bugbot_autofix_commit.ts` – runBugbotAutofixCommitAndPush, runUserRequestCommitAndPush (checkout, verify commands max 20, git config, add, commit, push)
+- `user_request_use_case.ts` – DoUserRequestUseCase, buildUserRequestPrompt
+- `mark_findings_resolved_use_case.ts` – update issue/PR comment with resolved marker
+- `project_repository.ts` – isActorAllowedToModifyFiles
+
+---
+
+## 4. Configuration (inputs / Ai model)
+
+- **bugbot-severity:** Minimum severity to publish (info, low, medium, high). Default low. `getBugbotMinSeverity()`, `normalizeMinSeverity`, `meetsMinSeverity`.
+- **bugbot-comment-limit:** Max individual finding comments per issue/PR (overflow gets one summary). Default 20. `getBugbotCommentLimit()`, `applyCommentLimit`.
+- **bugbot-fix-verify-commands:** Comma-separated commands run after autofix (and do user request) before commit. `getBugbotFixVerifyCommands()`, parsed with shell-quote; max 20 executed. Stored in `Ai` model; read in `github_action.ts` / `local_action.ts`.
+- **ai-ignore-files:** Exclude paths from detection (and from reporting). Used in buildBugbotPrompt and in filtering findings.
+
+---
+
+## 5. Constants and types
+
+- `BUGBOT_MARKER_PREFIX`: `'copilot-bugbot'`
+- `BUGBOT_MAX_COMMENTS`: 20 (default limit)
+- `MAX_FINDING_BODY_LENGTH`: 12000 (truncation when loading context and in build_bugbot_fix_prompt)
+- `MAX_VERIFY_COMMANDS`: 20 (in bugbot_autofix_commit)
+- Types: `BugbotContext`, `BugbotFinding` (id, title, description, file?, line?, severity?, suggestion?), `UnresolvedFindingSummary`, `BugbotFixIntentPayload`.
+
+---
+
+## 6. Sanitization and safety
+
+- **User comment in prompts:** `sanitizeUserCommentForPrompt(raw)` – trim, escape backslashes, replace `"""`, truncate 4000 with no lone trailing backslash.
+- **Finding body in prompts:** `truncateFindingBody(body, MAX_FINDING_BODY_LENGTH)` with suffix `[... truncated for length ...]` (used in load_bugbot_context and build_bugbot_fix_prompt).
+- **Verify commands:** Parsed with shell-quote; no shell operators (;, |, etc.); max 20 run.
+- **Path:** `isSafeFindingFilePath` (no null byte, no `..`, no absolute); PR review comment only if file in `prFiles`.

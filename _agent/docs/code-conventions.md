@@ -1,6 +1,6 @@
 ---
-name: CodeConventions
-description: Coding standards, logging, and adding new inputs.
+name: Code Conventions
+description: Copilot – coding conventions and where to change things
 ---
 
 # Code Conventions
