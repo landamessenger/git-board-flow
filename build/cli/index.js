@@ -48174,9 +48174,21 @@ class Execution {
             }
             this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
             /**
-             * Get labels of issue
+             * Get labels of issue (skip if it's the initial setup and it fails)
              */
-            this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+            try {
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+            }
+            catch (error) {
+                const isInitialSetup = this.singleAction.currentSingleAction === 'initial_setup';
+                if (this.isSingleAction && isInitialSetup) {
+                    (0, logger_1.logDebugInfo)('Skipping initial labels fetch for setup action.');
+                    this.labels.currentIssueLabels = [];
+                }
+                else {
+                    throw error;
+                }
+            }
             /**
              * Contains release label
              */
@@ -50613,12 +50625,22 @@ class IssueRepository {
                 return [];
             }
             const octokit = github.getOctokit(token);
-            const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
-                owner: owner,
-                repo: repository,
-                issue_number: issueNumber,
-            });
-            return labels.map(label => label.name);
+            try {
+                const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                });
+                return labels.map(label => label.name);
+            }
+            catch (error) {
+                if (error.status === 404) {
+                    (0, logger_1.logDebugInfo)(`Issue #${issueNumber} not found or no access; returning empty labels.`);
+                    return [];
+                }
+                (0, logger_1.logError)(`Error fetching labels for issue #${issueNumber}: ${error}`);
+                return [];
+            }
         };
         this.setLabels = async (owner, repository, issueNumber, labels, token) => {
             const octokit = github.getOctokit(token);

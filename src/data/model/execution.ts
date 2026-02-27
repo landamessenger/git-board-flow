@@ -6,7 +6,7 @@ import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_ty
 import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
 import { INPUT_KEYS } from "../../utils/constants";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
-import { setGlobalLoggerDebug } from "../../utils/logger";
+import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
 import { incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
@@ -31,7 +31,7 @@ import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Welcome } from "./welcome";
 import { Workflows } from "./workflows";
- 
+
 export class Execution {
     debug: boolean = false;
     welcome: Welcome | undefined;
@@ -220,7 +220,7 @@ export class Execution {
 
     setup = async () => {
         setGlobalLoggerDebug(this.debug, this.inputs === undefined);
-      
+
         const issueRepository = new IssueRepository();
         const projectRepository = new ProjectRepository();
 
@@ -293,14 +293,24 @@ export class Execution {
         this.previousConfiguration = await new ConfigurationHandler().get(this)
 
         /**
-         * Get labels of issue
+         * Get labels of issue (skip if it's the initial setup and it fails)
          */
-        this.labels.currentIssueLabels = await issueRepository.getLabels(
-            this.owner,
-            this.repo,
-            this.issueNumber,
-            this.tokens.token
-        );
+        try {
+            this.labels.currentIssueLabels = await issueRepository.getLabels(
+                this.owner,
+                this.repo,
+                this.issueNumber,
+                this.tokens.token
+            );
+        } catch (error) {
+            const isInitialSetup = this.singleAction.currentSingleAction === 'initial_setup';
+            if (this.isSingleAction && isInitialSetup) {
+                logDebugInfo('Skipping initial labels fetch for setup action.');
+                this.labels.currentIssueLabels = [];
+            } else {
+                throw error;
+            }
+        }
 
         /**
          * Contains release label

@@ -1,0 +1,33 @@
+---
+name: CodeConventions
+description: Coding standards, logging, and adding new inputs.
+---
+
+# Code Conventions
+
+## Logging and constants
+
+- Use **logger**: `logInfo`, `logError`, `logDebugInfo` from `src/utils/logger`. No ad-hoc `console.log`.
+- Use **constants**: `INPUT_KEYS` and `ACTIONS` from `src/utils/constants.ts` for input names and action names. No hardcoded strings for these.
+
+## Adding a new action input
+
+1. **`action.yml`**: Add the input with `description` and `default` (if any).
+2. **`src/utils/constants.ts`**: Add the key to `INPUT_KEYS` (e.g. `NEW_INPUT: 'new-input'`).
+3. **`src/actions/github_action.ts`**: Read the input (e.g. `core.getInput(INPUT_KEYS.NEW_INPUT)`) and pass it into the object used to build `Execution`.
+4. **Optional**: If the CLI must support it, add to `local_action.ts` and the corresponding CLI option.
+
+## Where to change content/descriptions
+
+- **PR description** (template filling, AI content): `src/manager/description/` (configuration_handler, content interfaces).
+- **Hotfix/release changelog** (markdown extraction, formatting): `src/manager/description/markdown_content_hotfix_handler.ts`.
+
+## Build and bundles
+
+- The project uses **`@vercel/ncc`** to bundle the action and CLI. Keep imports and dependencies compatible with ncc (no dynamic requires that ncc cannot see).
+- **Do not** edit or rely on `build/`; it is generated. Run tests and lint only on `src/`.
+
+## Style and lint
+
+- Prefer TypeScript; avoid `any` (lint rule: no-explicit-any).
+- Run `npm run lint` before committing; use `npm run lint:fix` when possible.

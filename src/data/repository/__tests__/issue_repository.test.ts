@@ -460,6 +460,16 @@ describe('IssueRepository', () => {
         issue_number: 1,
       });
     });
+
+    it('returns empty array when listLabelsOnIssue returns 404', async () => {
+      mockRest.issues.listLabelsOnIssue.mockRejectedValue({
+        status: 404,
+        message: 'Not Found'
+      });
+      const result = await repo.getLabels('owner', 'repo', 1, 'token');
+      expect(result).toEqual([]);
+      expect(mockRest.issues.listLabelsOnIssue).toHaveBeenCalled();
+    });
   });
 
   describe('setLabels', () => {
