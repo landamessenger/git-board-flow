@@ -4,7 +4,6 @@ export declare abstract class ContentInterface {
     abstract get visibleContent(): boolean;
     private get startPattern();
     private get endPattern();
-    private findExactMatch;
     getContent: (description: string | undefined) => string | undefined;
     private _addContent;
     private _updateContent;

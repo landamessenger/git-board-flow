@@ -23,32 +23,22 @@ export abstract class ContentInterface {
         return `${this._id}-end -->`
     }
 
-    private findExactMatch(description: string, pattern: string): number {
-        let index = 0;
-        while ((index = description.indexOf(pattern, index)) !== -1) {
-            const nextChar = description[index + pattern.length];
-            // If the next character is alphanumeric or a hyphen, it's a partial match (e.g., "-starts-here")
-            // So we skip it. Otherwise, it's an exact match.
-            if (!nextChar || !/[a-zA-Z0-9-]/.test(nextChar)) {
-                return index;
-            }
-            index += pattern.length;
-        }
-        return -1;
-    }
-
     getContent = (description: string | undefined): string | undefined => {
         try {
             if (description === undefined) {
                 return undefined;
             }
-            const startIndex = this.findExactMatch(description, this.startPattern);
-            const endIndex = this.findExactMatch(description, this.endPattern);
-            if (startIndex === -1 || endIndex === -1) {
+            const startIndex = description.indexOf(this.startPattern);
+            if (startIndex === -1) {
+                return undefined;
+            }
+            const contentStart = startIndex + this.startPattern.length;
+            const endIndex = description.indexOf(this.endPattern, contentStart);
+            if (endIndex === -1) {
                 return undefined;
             }
 
-            return description.substring(startIndex + this.startPattern.length, endIndex);
+            return description.substring(contentStart, endIndex);
         } catch (error) {
             logError(`Error reading issue configuration: ${error}`);
             throw error;
@@ -56,7 +46,7 @@ export abstract class ContentInterface {
     }
 
     private _addContent = (description: string, content: string) => {
-        if (this.findExactMatch(description, this.startPattern) === -1 && this.findExactMatch(description, this.endPattern) === -1) {
+        if (description.indexOf(this.startPattern) === -1 && description.indexOf(this.endPattern) === -1) {
             const newContent = `${this.startPattern}\n${content}\n${this.endPattern}`;
             return `${description}\n\n${newContent}`;
         } else {
@@ -65,9 +55,14 @@ export abstract class ContentInterface {
     }
 
     private _updateContent = (description: string, content: string) => {
-        const startIndex = this.findExactMatch(description, this.startPattern);
-        const endIndex = this.findExactMatch(description, this.endPattern);
-        if (startIndex === -1 || endIndex === -1) {
+        const startIndex = description.indexOf(this.startPattern);
+        if (startIndex === -1) {
+            logError(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
+            return undefined;
+        }
+        const contentStart = startIndex + this.startPattern.length;
+        const endIndex = description.indexOf(this.endPattern, contentStart);
+        if (endIndex === -1) {
             logError(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
             return undefined;
         }

@@ -166,9 +166,18 @@ describe('ContentInterface', () => {
         expect(handler.getContent(desc)).toBe('\n{"valid":"true"}\n');
       });
 
-      it('ignores partial matches of start or end tags', () => {
-        const desc = `<!-- copilot-config-starts-here \n${start}\n{"some":"data"}\n${end}\n copilot-config-end-here -->`;
-        expect(handler.getContent(desc)).toBe('\n{"some":"data"}\n');
+      it('returns empty string when there is no content between tags', () => {
+        const desc = `pre\n${start}${end}\npost`;
+        expect(handler.getContent(desc)).toBe('');
+      });
+
+      it('returns undefined when tags are inverted (end appears before start)', () => {
+        const desc = `pre\n${end}\nsome content\n${start}\npost`;
+        expect(handler.getContent(desc)).toBeUndefined();
+      });
+
+      it('returns undefined for an empty description string', () => {
+        expect(handler.getContent('')).toBeUndefined();
       });
     });
 
@@ -208,7 +217,25 @@ describe('ContentInterface', () => {
         const result = handler.updateContent(desc, 'new');
         expect(result).toBe(`pre\r\n${start}\nnew\n${end}\r\npost`);
       });
-    });
 
+      it('returns undefined when description is empty string (should append)', () => {
+        const desc = '';
+        const result = handler.updateContent(desc, 'new');
+        expect(result).toBe(`\n\n${start}\nnew\n${end}`);
+      });
+
+      it('correctly updates even when substituting with empty content', () => {
+        const desc = `pre\n${start}\nold\n${end}\npost`;
+        const result = handler.updateContent(desc, '');
+        expect(result).toBe(`pre\n${start}\n\n${end}\npost`);
+      });
+
+      it('correctly updates when new content contains tag-like strings', () => {
+        const desc = `pre\n${start}\nold\n${end}\npost`;
+        const tagLikeContent = `{"fakeStart": "${start}"}`;
+        const result = handler.updateContent(desc, tagLikeContent);
+        expect(result).toBe(`pre\n${start}\n${tagLikeContent}\n${end}\npost`);
+      });
+    });
   });
 });
