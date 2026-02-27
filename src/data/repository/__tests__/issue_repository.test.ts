@@ -85,6 +85,20 @@ function makeLabels(overrides: { currentIssueLabels?: string[] } = {}): Labels {
   return labels;
 }
 
+function makeIssueTypes(): IssueTypes {
+  return new IssueTypes(
+    'Task', 'Task desc', 'BLUE',
+    'Bug', 'Bug desc', 'RED',
+    'Feature', 'Feature desc', 'GREEN',
+    'Docs', 'Docs desc', 'GREY',
+    'Maintenance', 'Maint desc', 'GREY',
+    'Hotfix', 'Hotfix desc', 'RED',
+    'Release', 'Release desc', 'BLUE',
+    'Question', 'Q desc', 'PURPLE',
+    'Help', 'Help desc', 'PURPLE'
+  );
+}
+
 describe('IssueRepository', () => {
   const repo = new IssueRepository();
 
@@ -459,6 +473,22 @@ describe('IssueRepository', () => {
         repo: 'repo',
         issue_number: 1,
       });
+    });
+
+    it('returns empty array when listLabelsOnIssue returns 404', async () => {
+      mockRest.issues.listLabelsOnIssue.mockRejectedValue({
+        status: 404,
+        message: 'Not Found'
+      });
+      const result = await repo.getLabels('owner', 'repo', 1, 'token');
+      expect(result).toEqual([]);
+      expect(mockRest.issues.listLabelsOnIssue).toHaveBeenCalled();
+    });
+
+    it('returns empty array when listLabelsOnIssue returns non-404 error', async () => {
+      mockRest.issues.listLabelsOnIssue.mockRejectedValue(new Error('Some other error'));
+      const result = await repo.getLabels('owner', 'repo', 1, 'token');
+      expect(result).toEqual([]);
     });
   });
 
@@ -1136,6 +1166,41 @@ describe('IssueRepository', () => {
       const result = await repo.ensureIssueTypes('org', issueTypesForTest, 'token');
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors.some((e) => e.includes('Create failed'))).toBe(true);
+    });
+
+    it('setIssueType catches error and continues (re-throws in IssueRepository)', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['bug'] });
+      const issueTypes = makeIssueTypes();
+      mockGraphql.mockRejectedValue(new Error('Global error'));
+      await expect(repo.setIssueType('o', 'r', 1, labels, issueTypes, 't')).rejects.toThrow('Global error');
+    });
+
+    it('createIssueType throws when organization is null', async () => {
+      mockGraphql.mockResolvedValueOnce({ organization: null });
+      await expect(repo.createIssueType('o', 'n', 'd', 'c', 't')).rejects.toThrow('No se pudo obtener la organización o');
+    });
+
+    it('listIssueTypes throws when organization is null', async () => {
+      mockGraphql.mockResolvedValueOnce({ organization: null });
+      await expect(repo.listIssueTypes('o', 't')).rejects.toThrow('No se pudo obtener la organización o');
+    });
+
+    it('createIssueType throws when organization is missing (GraphQL error scenario)', async () => {
+      mockGraphql.mockResolvedValueOnce({ organization: null });
+      await expect(repo.createIssueType('o', 'n', 'd', 'c', 't')).rejects.toThrow('No se pudo obtener la organización o');
+    });
+
+    it('ensureLabel handles 422 error "already exists"', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({ data: [] });
+      mockRest.issues.createLabel.mockRejectedValue({ status: 422, message: 'already exists' });
+      const result = await repo.ensureLabel('o', 'r', 'new', 'c', 'd', 't');
+      expect(result).toEqual({ created: false, existed: true });
+    });
+
+    it('ensureLabel re-throws other errors', async () => {
+      mockRest.issues.listLabelsForRepo.mockResolvedValue({ data: [] });
+      mockRest.issues.createLabel.mockRejectedValue(new Error('Fatal'));
+      await expect(repo.ensureLabel('o', 'r', 'new', 'c', 'd', 't')).rejects.toThrow('Fatal');
     });
   });
 });

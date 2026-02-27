@@ -67,7 +67,7 @@ jest.mock('../../../usecase/steps/common/get_hotfix_version_use_case', () => ({
   })),
 }));
 
-import { INPUT_KEYS } from '../../../utils/constants';
+import { ACTIONS, INPUT_KEYS } from '../../../utils/constants';
 import { Ai } from '../ai';
 import { Branches } from '../branches';
 import { Emoji } from '../emoji';
@@ -749,6 +749,21 @@ describe('Execution', () => {
       await e.setup();
       expect(e.hotfix.baseVersion).toBeUndefined();
       expect(e.hotfix.version).toBeUndefined();
+    });
+    it('setup skips internal label fetch error when ACTION is INITIAL_SETUP', async () => {
+      const singleAction = new SingleAction(ACTIONS.INITIAL_SETUP, '1', '', '', '');
+      const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
+      const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { singleAction, issue });
+      mockGetLabels.mockRejectedValue(new Error('Label error'));
+      await e.setup();
+      expect(e.labels.currentIssueLabels).toEqual([]);
+    });
+
+    it('setup throws when getLabels fails and not INITIAL_SETUP', async () => {
+      const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
+      const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { issue });
+      mockGetLabels.mockRejectedValue(new Error('Fatal label error'));
+      await expect(e.setup()).rejects.toThrow('Fatal label error');
     });
   });
 });

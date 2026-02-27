@@ -381,11 +381,11 @@ export const INPUT_KEYS = {
     PULL_REQUEST_DESIRED_REVIEWERS_COUNT: 'desired-reviewers-count',
     PULL_REQUEST_MERGE_TIMEOUT: 'merge-timeout',
 
-} as const; 
+} as const;
 
 export const ERRORS = {
     GIT_REPOSITORY_NOT_FOUND: '❌ Git repository not found'
-} as const; 
+} as const;
 
 export const ACTIONS = {
     DEPLOYED: 'deployed_action',
@@ -397,7 +397,7 @@ export const ACTIONS = {
     CHECK_PROGRESS: 'check_progress_action',
     DETECT_POTENTIAL_PROBLEMS: 'detect_potential_problems_action',
     RECOMMEND_STEPS: 'recommend_steps_action',
-} as const; 
+} as const;
 
 /** Hidden HTML comment prefix for bugbot findings (issue/PR comments). Format: <!-- copilot-bugbot finding_id:"id" resolved:true|false --> */
 export const BUGBOT_MARKER_PREFIX = 'copilot-bugbot';

@@ -1,6 +1,6 @@
 import { Ai } from '../model/ai';
-/** Default OpenCode agent for analysis/planning (read-only, no file edits). */
-export declare const OPENCODE_AGENT_PLAN = "plan";
+/** Default OpenCode agent for analysis/planning (read-only, no file edits). Changed to build to support diffs. */
+export declare const OPENCODE_AGENT_PLAN = "build";
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
 export declare const OPENCODE_AGENT_BUILD = "build";
 /** JSON schema for translation responses: translatedText (required), optional reason if translation failed. */

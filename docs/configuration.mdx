@@ -121,3 +121,17 @@ Copilot provides extensive configuration options to customize your workflow. Use
     **Commit images:** `images-commit-automatic`, `images-commit-feature`, `images-commit-bugfix`, `images-commit-docs`, `images-commit-chore`, `images-commit-hotfix`, `images-commit-release`
   </Tab>
 </Tabs>
+
+## Persistence & Merging
+
+Copilot persists certain configuration fields directly in the **GitHub Issue description** as a hidden JSON block. This allows the action to "remember" state across different runs and across issues/PRs.
+
+### Merging Strategy
+
+When updating the configuration (e.g. after a push or a label change), Copilot follows a protective merging strategy:
+1. **Current State**: The action computes the latest state (branches, types, etc.).
+2. **Persistence**: It reads the existing JSON block from the issue.
+3. **Smart Merge**: It preserves all fields from the stored configuration that are not explicitly overwritten by the current state. This includes `branchConfiguration` and any unknown keys.
+4. **Exclusions**: The `results` field is explicitly excluded from being saved to prevent payload bloat.
+
+This ensures that manual configuration or metadata added by other tools is not lost during routine updates.
