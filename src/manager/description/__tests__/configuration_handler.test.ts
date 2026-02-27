@@ -132,6 +132,37 @@ describe('ConfigurationHandler', () => {
       expect(parsed.branchConfiguration).toEqual({ name: 'leaf' });
     });
 
+    it('preserves workingBranch from stored when current workingBranch is undefined (PR edited event)', async () => {
+      const storedJson = JSON.stringify({
+        branchType: 'bugfix',
+        workingBranch: 'bugfix/319-setup-crash-on-repository-with-no-issues',
+        parentBranch: 'develop',
+        results: [],
+      });
+      mockGetDescription.mockResolvedValue(descriptionWithConfig(storedJson));
+      mockUpdateDescription.mockResolvedValue(undefined);
+
+      const execution = minimalExecution({
+        currentConfiguration: {
+          branchType: 'bugfix',
+          workingBranch: undefined,  // as in a PR edited event (never assigned in setup())
+          parentBranch: 'develop',
+          hotfixOriginBranch: undefined,
+          hotfixBranch: undefined,
+          branchConfiguration: undefined,
+        },
+      });
+
+      await handler.update(execution);
+
+      const fullDesc = mockUpdateDescription.mock.calls[0][3];
+      const parsed = JSON.parse(handler.getContent(fullDesc)!.trim());
+      expect(parsed.workingBranch).toBe('bugfix/319-setup-crash-on-repository-with-no-issues');
+      expect(parsed.results).toBeUndefined();
+      expect(parsed.parentBranch).toBe('develop');
+      expect(parsed.branchType).toBe('bugfix');
+    });
+
     it('always excludes results from the saved payload even if present in stored', async () => {
       const storedJson = JSON.stringify({
         results: [{ some: 'result' }],

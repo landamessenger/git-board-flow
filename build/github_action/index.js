@@ -43322,9 +43322,13 @@ class Execution {
             }
             else {
                 this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch;
+                this.currentConfiguration.workingBranch = this.previousConfiguration?.workingBranch;
             }
             if (this.currentConfiguration.parentBranch === undefined && this.previousConfiguration?.parentBranch != null) {
                 this.currentConfiguration.parentBranch = this.previousConfiguration.parentBranch;
+            }
+            if (this.currentConfiguration.workingBranch === undefined && this.previousConfiguration?.workingBranch != null) {
+                this.currentConfiguration.workingBranch = this.previousConfiguration.workingBranch;
             }
             if (this.isSingleAction) {
                 /**
