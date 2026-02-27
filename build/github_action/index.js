@@ -43273,9 +43273,21 @@ class Execution {
             }
             this.previousConfiguration = await new configuration_handler_1.ConfigurationHandler().get(this);
             /**
-             * Get labels of issue
+             * Get labels of issue (skip if it's the initial setup and it fails)
              */
-            this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+            try {
+                this.labels.currentIssueLabels = await issueRepository.getLabels(this.owner, this.repo, this.issueNumber, this.tokens.token);
+            }
+            catch (error) {
+                const isInitialSetup = this.singleAction.currentSingleAction === constants_1.ACTIONS.INITIAL_SETUP;
+                if (this.isSingleAction && isInitialSetup) {
+                    (0, logger_1.logDebugInfo)('Skipping initial labels fetch for setup action.');
+                    this.labels.currentIssueLabels = [];
+                }
+                else {
+                    throw error;
+                }
+            }
             /**
              * Contains release label
              */
@@ -43310,9 +43322,13 @@ class Execution {
             }
             else {
                 this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch;
+                this.currentConfiguration.workingBranch = this.previousConfiguration?.workingBranch;
             }
             if (this.currentConfiguration.parentBranch === undefined && this.previousConfiguration?.parentBranch != null) {
                 this.currentConfiguration.parentBranch = this.previousConfiguration.parentBranch;
+            }
+            if (this.currentConfiguration.workingBranch === undefined && this.previousConfiguration?.workingBranch != null) {
+                this.currentConfiguration.workingBranch = this.previousConfiguration.workingBranch;
             }
             if (this.isSingleAction) {
                 /**
@@ -43368,6 +43384,9 @@ class Execution {
                 this.labels.currentPullRequestLabels = await issueRepository.getLabels(this.owner, this.repo, this.pullRequest.number, this.tokens.token);
                 this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1;
                 this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1;
+                if (!this.currentConfiguration.parentBranch) {
+                    this.currentConfiguration.parentBranch = this.pullRequest.base;
+                }
             }
             this.currentConfiguration.branchType = this.issueType;
             // logDebugInfo(`Current configuration: ${JSON.stringify(this.currentConfiguration, null, 2)}`);
@@ -44503,8 +44522,8 @@ function logPartsForDebug(parts, context) {
         }
     });
 }
-/** Default OpenCode agent for analysis/planning (read-only, no file edits). */
-exports.OPENCODE_AGENT_PLAN = 'plan';
+/** Default OpenCode agent for analysis/planning (read-only, no file edits). Changed to build to support diffs. */
+exports.OPENCODE_AGENT_PLAN = 'build';
 /** OpenCode agent with write/edit/bash for development (e.g. copilot when run locally). */
 exports.OPENCODE_AGENT_BUILD = 'build';
 /** JSON schema for translation responses: translatedText (required), optional reason if translation failed. */
@@ -45694,12 +45713,22 @@ class IssueRepository {
                 return [];
             }
             const octokit = github.getOctokit(token);
-            const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
-                owner: owner,
-                repo: repository,
-                issue_number: issueNumber,
-            });
-            return labels.map(label => label.name);
+            try {
+                const { data: labels } = await octokit.rest.issues.listLabelsOnIssue({
+                    owner: owner,
+                    repo: repository,
+                    issue_number: issueNumber,
+                });
+                return labels.map(label => label.name);
+            }
+            catch (error) {
+                if (error.status === 404) {
+                    (0, logger_1.logDebugInfo)(`Issue #${issueNumber} not found or no access; returning empty labels.`);
+                    return [];
+                }
+                (0, logger_1.logError)(`Error fetching labels for issue #${issueNumber}: ${error}`);
+                return [];
+            }
         };
         this.setLabels = async (owner, repository, issueNumber, labels, token) => {
             const octokit = github.getOctokit(token);
@@ -47831,10 +47860,11 @@ class ContentInterface {
                 if (description === undefined) {
                     return undefined;
                 }
-                if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+                const indices = this.getBlockIndices(description);
+                if (!indices) {
                     return undefined;
                 }
-                return description.split(this.startPattern)[1].split(this.endPattern)[0];
+                return description.substring(indices.contentStart, indices.endIndex);
             }
             catch (error) {
                 (0, logger_1.logError)(`Error reading issue configuration: ${error}`);
@@ -47851,13 +47881,14 @@ class ContentInterface {
             }
         };
         this._updateContent = (description, content) => {
-            if (description.indexOf(this.startPattern) === -1 || description.indexOf(this.endPattern) === -1) {
+            const indices = this.getBlockIndices(description);
+            if (!indices) {
                 (0, logger_1.logError)(`The content has a problem with open-close tags: ${this.startPattern} / ${this.endPattern}`);
                 return undefined;
             }
-            const start = description.split(this.startPattern)[0];
+            const start = description.substring(0, indices.startIndex);
             const mid = `${this.startPattern}\n${content}\n${this.endPattern}`;
-            const end = description.split(this.endPattern)[1];
+            const end = description.substring(indices.endIndex + this.endPattern.length);
             return `${start}${mid}${end}`;
         };
         this.updateContent = (description, content) => {
@@ -47891,6 +47922,18 @@ class ContentInterface {
             return `<!-- ${this._id}-end -->`;
         }
         return `${this._id}-end -->`;
+    }
+    getBlockIndices(description) {
+        const startIndex = description.indexOf(this.startPattern);
+        if (startIndex === -1) {
+            return undefined;
+        }
+        const contentStart = startIndex + this.startPattern.length;
+        const endIndex = description.indexOf(this.endPattern, contentStart);
+        if (endIndex === -1) {
+            return undefined;
+        }
+        return { startIndex, contentStart, endIndex };
     }
 }
 exports.ContentInterface = ContentInterface;
@@ -47997,15 +48040,6 @@ exports.ConfigurationHandler = void 0;
 const config_1 = __nccwpck_require__(1106);
 const logger_1 = __nccwpck_require__(8836);
 const issue_content_interface_1 = __nccwpck_require__(9913);
-/** Keys that must be preserved from stored config when current has undefined (e.g. when branch already existed). */
-const CONFIG_KEYS_TO_PRESERVE = [
-    'parentBranch',
-    'workingBranch',
-    'releaseBranch',
-    'hotfixBranch',
-    'hotfixOriginBranch',
-    'branchType',
-];
 class ConfigurationHandler extends issue_content_interface_1.IssueContentInterface {
     constructor() {
         super(...arguments);
@@ -48019,14 +48053,14 @@ class ConfigurationHandler extends issue_content_interface_1.IssueContentInterfa
                     parentBranch: current.parentBranch,
                     hotfixOriginBranch: current.hotfixOriginBranch,
                     hotfixBranch: current.hotfixBranch,
-                    results: current.results,
                     branchConfiguration: current.branchConfiguration,
                 };
                 const storedRaw = await this.internalGetter(execution);
                 if (storedRaw != null && storedRaw.trim().length > 0) {
                     try {
                         const stored = JSON.parse(storedRaw);
-                        for (const key of CONFIG_KEYS_TO_PRESERVE) {
+                        // Merge all fields from stored that are undefined in current payload
+                        for (const key in stored) {
                             if (payload[key] === undefined && stored[key] !== undefined) {
                                 payload[key] = stored[key];
                             }
@@ -48036,6 +48070,8 @@ class ConfigurationHandler extends issue_content_interface_1.IssueContentInterfa
                         /* ignore parse errors, save current as-is */
                     }
                 }
+                // Ensure results is never saved to prevent payload bloat
+                delete payload['results'];
                 return await this.internalUpdate(execution, JSON.stringify(payload, null, 4));
             }
             catch (error) {

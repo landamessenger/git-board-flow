@@ -58,27 +58,27 @@ describe('ContentInterface', () => {
 
       it('logs and rethrows when extraction throws', () => {
         const desc = `pre\n${start}\ninner\n${end}\npost`;
-        const originalSplit = String.prototype.split;
-        (jest.spyOn(String.prototype, 'split') as jest.Mock).mockImplementation(
-          function (this: string, separator: unknown, limit?: number) {
-            if (separator === start) {
-              return ['only-one-element'];
+        const originalIndexOf = String.prototype.indexOf;
+        (jest.spyOn(String.prototype, 'indexOf') as jest.Mock).mockImplementation(
+          function (this: string, searchString: string, position?: number) {
+            if (searchString === start) {
+              throw new Error('indexOf failed');
             }
-            return (originalSplit as (sep: string, limit?: number) => string[]).call(
+            return (originalIndexOf as (searchString: string, position?: number) => number).call(
               this,
-              separator as string,
-              limit,
+              searchString,
+              position,
             );
           },
         );
         const { logError } = require('../../../../utils/logger');
 
-        expect(() => handler.getContent(desc)).toThrow();
+        expect(() => handler.getContent(desc)).toThrow('indexOf failed');
         expect(logError).toHaveBeenCalledWith(
-          expect.stringMatching(/Error reading issue configuration/),
+          expect.stringMatching(/Error reading issue configuration: Error: indexOf failed/),
         );
 
-        (String.prototype.split as jest.Mock).mockRestore();
+        (String.prototype.indexOf as jest.Mock).mockRestore();
       });
     });
 
@@ -111,16 +111,16 @@ describe('ContentInterface', () => {
 
       it('logs and returns undefined when update throws', () => {
         const desc = `pre\n${start}\nold\n${end}\npost`;
-        const originalSplit = String.prototype.split;
-        (jest.spyOn(String.prototype, 'split') as jest.Mock).mockImplementation(
-          function (this: string, separator: unknown, limit?: number) {
-            if (separator === start) {
-              throw new Error('split failed');
+        const originalIndexOf = String.prototype.indexOf;
+        (jest.spyOn(String.prototype, 'indexOf') as jest.Mock).mockImplementation(
+          function (this: string, searchString: string, position?: number) {
+            if (searchString === start) {
+              throw new Error('indexOf failed');
             }
-            return (originalSplit as (sep: string, limit?: number) => string[]).call(
+            return (originalIndexOf as (searchString: string, position?: number) => number).call(
               this,
-              separator as string,
-              limit,
+              searchString,
+              position,
             );
           },
         );
@@ -130,10 +130,10 @@ describe('ContentInterface', () => {
 
         expect(result).toBeUndefined();
         expect(logError).toHaveBeenCalledWith(
-          expect.stringMatching(/Error updating issue description/),
+          expect.stringMatching(/Error updating issue description: Error: indexOf failed/),
         );
 
-        (String.prototype.split as jest.Mock).mockRestore();
+        (String.prototype.indexOf as jest.Mock).mockRestore();
       });
     });
   });
@@ -160,6 +160,25 @@ describe('ContentInterface', () => {
         const desc = `pre\n${start}\n{"x":1}\n${end}\npost`;
         expect(handler.getContent(desc)).toBe('\n{"x":1}\n');
       });
+
+      it('returns content cleanly when there is noisy HTML before and after', () => {
+        const desc = `Some text\n<div>\n${start}\n{"valid":"true"}\n${end}\n</div>\nMore text`;
+        expect(handler.getContent(desc)).toBe('\n{"valid":"true"}\n');
+      });
+
+      it('returns empty string when there is no content between tags', () => {
+        const desc = `pre\n${start}${end}\npost`;
+        expect(handler.getContent(desc)).toBe('');
+      });
+
+      it('returns undefined when tags are inverted (end appears before start)', () => {
+        const desc = `pre\n${end}\nsome content\n${start}\npost`;
+        expect(handler.getContent(desc)).toBeUndefined();
+      });
+
+      it('returns undefined for an empty description string', () => {
+        expect(handler.getContent('')).toBeUndefined();
+      });
     });
 
     describe('updateContent', () => {
@@ -173,6 +192,49 @@ describe('ContentInterface', () => {
         const desc = `pre\n${start}\nold\n${end}\npost`;
         const result = handler.updateContent(desc, 'new');
         expect(result).toBe(`pre\n${start}\nnew\n${end}\npost`);
+      });
+
+      it('safely handles multiple start tags', () => {
+        const desc = `pre\n${start}\n${start}\nold\n${end}\npost`;
+        const result = handler.updateContent(desc, 'new');
+        expect(result).toBe(`pre\n${start}\nnew\n${end}\npost`);
+      });
+
+      it('replaces only the first block when multiple blocks exist', () => {
+        const desc = `pre\n${start}\nold1\n${end}\npost\n${start}\nold2\n${end}`;
+        const result = handler.updateContent(desc, 'new');
+        expect(result).toBe(`pre\n${start}\nnew\n${end}\npost\n${start}\nold2\n${end}`);
+      });
+
+      it('maintains HTML formatting around the block when updated', () => {
+        const desc = `<h1>Summary</h1>\n<p>description</p>\n${start}\n{"old":true}\n${end}\n<footer>bye</footer>`;
+        const result = handler.updateContent(desc, '{"new":true}');
+        expect(result).toBe(`<h1>Summary</h1>\n<p>description</p>\n${start}\n{"new":true}\n${end}\n<footer>bye</footer>`);
+      });
+
+      it('handles descriptions with Windows CRLF line endings', () => {
+        const desc = `pre\r\n${start}\r\nold\r\n${end}\r\npost`;
+        const result = handler.updateContent(desc, 'new');
+        expect(result).toBe(`pre\r\n${start}\nnew\n${end}\r\npost`);
+      });
+
+      it('returns undefined when description is empty string (should append)', () => {
+        const desc = '';
+        const result = handler.updateContent(desc, 'new');
+        expect(result).toBe(`\n\n${start}\nnew\n${end}`);
+      });
+
+      it('correctly updates even when substituting with empty content', () => {
+        const desc = `pre\n${start}\nold\n${end}\npost`;
+        const result = handler.updateContent(desc, '');
+        expect(result).toBe(`pre\n${start}\n\n${end}\npost`);
+      });
+
+      it('correctly updates when new content contains tag-like strings', () => {
+        const desc = `pre\n${start}\nold\n${end}\npost`;
+        const tagLikeContent = `{"fakeStart": "${start}"}`;
+        const result = handler.updateContent(desc, tagLikeContent);
+        expect(result).toBe(`pre\n${start}\n${tagLikeContent}\n${end}\npost`);
       });
     });
   });

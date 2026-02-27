@@ -4,9 +4,9 @@ import { ConfigurationHandler } from "../../manager/description/configuration_ha
 import { GetHotfixVersionUseCase } from "../../usecase/steps/common/get_hotfix_version_use_case";
 import { GetReleaseTypeUseCase } from "../../usecase/steps/common/get_release_type_use_case";
 import { GetReleaseVersionUseCase } from "../../usecase/steps/common/get_release_version_use_case";
-import { INPUT_KEYS } from "../../utils/constants";
+import { ACTIONS, INPUT_KEYS } from "../../utils/constants";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
-import { setGlobalLoggerDebug } from "../../utils/logger";
+import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
 import { incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
@@ -31,7 +31,7 @@ import { SizeThresholds } from "./size_thresholds";
 import { Tokens } from "./tokens";
 import { Welcome } from "./welcome";
 import { Workflows } from "./workflows";
- 
+
 export class Execution {
     debug: boolean = false;
     welcome: Welcome | undefined;
@@ -220,7 +220,7 @@ export class Execution {
 
     setup = async () => {
         setGlobalLoggerDebug(this.debug, this.inputs === undefined);
-      
+
         const issueRepository = new IssueRepository();
         const projectRepository = new ProjectRepository();
 
@@ -293,14 +293,24 @@ export class Execution {
         this.previousConfiguration = await new ConfigurationHandler().get(this)
 
         /**
-         * Get labels of issue
+         * Get labels of issue (skip if it's the initial setup and it fails)
          */
-        this.labels.currentIssueLabels = await issueRepository.getLabels(
-            this.owner,
-            this.repo,
-            this.issueNumber,
-            this.tokens.token
-        );
+        try {
+            this.labels.currentIssueLabels = await issueRepository.getLabels(
+                this.owner,
+                this.repo,
+                this.issueNumber,
+                this.tokens.token
+            );
+        } catch (error) {
+            const isInitialSetup = this.singleAction.currentSingleAction === ACTIONS.INITIAL_SETUP;
+            if (this.isSingleAction && isInitialSetup) {
+                logDebugInfo('Skipping initial labels fetch for setup action.');
+                this.labels.currentIssueLabels = [];
+            } else {
+                throw error;
+            }
+        }
 
         /**
          * Contains release label
@@ -335,10 +345,15 @@ export class Execution {
             }
         } else {
             this.currentConfiguration.parentBranch = this.previousConfiguration?.parentBranch
+            this.currentConfiguration.workingBranch = this.previousConfiguration?.workingBranch
         }
 
         if (this.currentConfiguration.parentBranch === undefined && this.previousConfiguration?.parentBranch != null) {
             this.currentConfiguration.parentBranch = this.previousConfiguration.parentBranch;
+        }
+
+        if (this.currentConfiguration.workingBranch === undefined && this.previousConfiguration?.workingBranch != null) {
+            this.currentConfiguration.workingBranch = this.previousConfiguration.workingBranch;
         }
 
         if (this.isSingleAction) {
@@ -401,6 +416,10 @@ export class Execution {
             );
             this.release.active = this.pullRequest.base.indexOf(`${this.branches.releaseTree}/`) > -1
             this.hotfix.active = this.pullRequest.base.indexOf(`${this.branches.hotfixTree}/`) > -1
+
+            if (!this.currentConfiguration.parentBranch) {
+                this.currentConfiguration.parentBranch = this.pullRequest.base;
+            }
         }
 
         this.currentConfiguration.branchType = this.issueType

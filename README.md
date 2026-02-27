@@ -10,6 +10,8 @@
 
 Full documentation: **[docs.page/vypdev/copilot](https://docs.page/vypdev/copilot)**
 
+*Maintains state and configuration persisted in issue descriptions for seamless workflow automation.*
+
 ---
 
 ## Documentation index

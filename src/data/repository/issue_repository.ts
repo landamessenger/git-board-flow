@@ -344,12 +344,21 @@ export class IssueRepository {
             return [];
         }
         const octokit = github.getOctokit(token);
-        const {data: labels} = await octokit.rest.issues.listLabelsOnIssue({
-            owner: owner,
-            repo: repository,
-            issue_number: issueNumber,
-        });
-        return labels.map(label => label.name);
+        try {
+            const {data: labels} = await octokit.rest.issues.listLabelsOnIssue({
+                owner: owner,
+                repo: repository,
+                issue_number: issueNumber,
+            });
+            return labels.map(label => label.name);
+        } catch (error: any) {
+            if (error.status === 404) {
+                logDebugInfo(`Issue #${issueNumber} not found or no access; returning empty labels.`);
+                return [];
+            }
+            logError(`Error fetching labels for issue #${issueNumber}: ${error}`);
+            return [];
+        }
     }
 
     setLabels = async (
