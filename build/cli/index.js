@@ -53863,6 +53863,7 @@ class CreateReleaseUseCase {
                     `${constants_1.INPUT_KEYS.SINGLE_ACTION_TITLE} is not set.`
                 ],
             }));
+            return result;
         }
         else if (param.singleAction.changelog.length === 0) {
             (0, logger_1.logError)(`Changelog is not set.`);
@@ -53874,6 +53875,7 @@ class CreateReleaseUseCase {
                     `${constants_1.INPUT_KEYS.SINGLE_ACTION_CHANGELOG} is not set.`
                 ],
             }));
+            return result;
         }
         const releaseVersion = `v${param.singleAction.version}`;
         try {
