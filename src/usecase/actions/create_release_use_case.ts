@@ -6,6 +6,28 @@ import { logError, logInfo, logWarn } from "../../utils/logger";
 import { getTaskEmoji } from "../../utils/task_emoji";
 import { ParamUseCase } from "../base/param_usecase";
 
+/** Semantic version pattern: x, x.y, or x.y.z (digits only, no leading 'v'). */
+const SEMVER_PATTERN = /^\d+(\.\d+){0,2}$/;
+
+function normalizeAndValidateVersion(
+    version: string
+): { valid: true; normalized: string } | { valid: false; error: string } {
+    const trimmed = version.trim();
+    const withoutV = trimmed.startsWith("v") ? trimmed.slice(1).trim() : trimmed;
+    if (withoutV.length === 0) {
+        return {
+            valid: false,
+            error: `${INPUT_KEYS.SINGLE_ACTION_VERSION} must be a semantic version (e.g. 1.0.0).`,
+        };
+    }
+    if (!SEMVER_PATTERN.test(withoutV)) {
+        return {
+            valid: false,
+            error: `${INPUT_KEYS.SINGLE_ACTION_VERSION} must be a semantic version (e.g. 1.0.0). Got: ${version}`,
+        };
+    }
+    return { valid: true, normalized: withoutV };
+}
 
 export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> {
     taskId: string = 'CreateReleaseUseCase';
@@ -58,7 +80,21 @@ export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> 
             return result;
         }
 
-        const releaseVersion = `v${param.singleAction.version}`;
+        const versionCheck = normalizeAndValidateVersion(param.singleAction.version);
+        if (!versionCheck.valid) {
+            logError(versionCheck.error);
+            result.push(
+                new Result({
+                    id: this.taskId,
+                    success: false,
+                    executed: true,
+                    errors: [versionCheck.error],
+                })
+            );
+            return result;
+        }
+
+        const releaseVersion = `v${versionCheck.normalized}`;
         try {
             const releaseUrl = await this.projectRepository.createRelease(
                 param.owner,

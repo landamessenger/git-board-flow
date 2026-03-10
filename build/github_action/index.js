@@ -48914,6 +48914,25 @@ const project_repository_1 = __nccwpck_require__(7917);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
+/** Semantic version pattern: x, x.y, or x.y.z (digits only, no leading 'v'). */
+const SEMVER_PATTERN = /^\d+(\.\d+){0,2}$/;
+function normalizeAndValidateVersion(version) {
+    const trimmed = version.trim();
+    const withoutV = trimmed.startsWith("v") ? trimmed.slice(1).trim() : trimmed;
+    if (withoutV.length === 0) {
+        return {
+            valid: false,
+            error: `${constants_1.INPUT_KEYS.SINGLE_ACTION_VERSION} must be a semantic version (e.g. 1.0.0).`,
+        };
+    }
+    if (!SEMVER_PATTERN.test(withoutV)) {
+        return {
+            valid: false,
+            error: `${constants_1.INPUT_KEYS.SINGLE_ACTION_VERSION} must be a semantic version (e.g. 1.0.0). Got: ${version}`,
+        };
+    }
+    return { valid: true, normalized: withoutV };
+}
 class CreateReleaseUseCase {
     constructor() {
         this.taskId = 'CreateReleaseUseCase';
@@ -48958,7 +48977,18 @@ class CreateReleaseUseCase {
             }));
             return result;
         }
-        const releaseVersion = `v${param.singleAction.version}`;
+        const versionCheck = normalizeAndValidateVersion(param.singleAction.version);
+        if (!versionCheck.valid) {
+            (0, logger_1.logError)(versionCheck.error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [versionCheck.error],
+            }));
+            return result;
+        }
+        const releaseVersion = `v${versionCheck.normalized}`;
         try {
             const releaseUrl = await this.projectRepository.createRelease(param.owner, param.repo, releaseVersion, param.singleAction.title, param.singleAction.changelog, param.tokens.token);
             if (releaseUrl) {
