@@ -42,6 +42,7 @@ export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> 
                     ],
                 })
             );
+            return result;
         } else if (param.singleAction.changelog.length === 0) {
             logError(`Changelog is not set.`)
             result.push(
@@ -54,6 +55,7 @@ export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> 
                     ],
                 })
             );
+            return result;
         }
 
         const releaseVersion = `v${param.singleAction.version}`;
