@@ -62,12 +62,12 @@ describe('CreateTagUseCase', () => {
     expect(results).toHaveLength(1);
     expect(results[0]).toBeInstanceOf(Result);
     expect(results[0].success).toBe(true);
-    expect(results[0].steps?.some((s) => s.includes('1.0.0') && s.includes('abc123'))).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('v1.0.0') && s.includes('abc123'))).toBe(true);
     expect(mockCreateTag).toHaveBeenCalledWith(
       'owner',
       'repo',
       'release/1.0.0',
-      '1.0.0',
+      'v1.0.0',
       'token'
     );
   });
