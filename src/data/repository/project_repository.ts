@@ -758,8 +758,8 @@ export class ProjectRepository {
         const { data: release } = await octokit.rest.repos.createRelease({
           owner,
           repo,
-          tag_name: `v${version}`,
-          name: `v${version} - ${title}`,
+          tag_name: version,
+          name: `${version} - ${title}`,
           body: changelog,
           draft: false,
           prerelease: false,

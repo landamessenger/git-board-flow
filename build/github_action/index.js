@@ -47232,8 +47232,8 @@ class ProjectRepository {
                 const { data: release } = await octokit.rest.repos.createRelease({
                     owner,
                     repo,
-                    tag_name: `v${version}`,
-                    name: `v${version} - ${title}`,
+                    tag_name: version,
+                    name: `${version} - ${title}`,
                     body: changelog,
                     draft: false,
                     prerelease: false,
@@ -48914,6 +48914,25 @@ const project_repository_1 = __nccwpck_require__(7917);
 const constants_1 = __nccwpck_require__(8593);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
+/** Semantic version pattern: x, x.y, or x.y.z (digits only, no leading 'v'). */
+const SEMVER_PATTERN = /^\d+(\.\d+){0,2}$/;
+function normalizeAndValidateVersion(version) {
+    const trimmed = version.trim();
+    const withoutV = trimmed.startsWith("v") ? trimmed.slice(1).trim() : trimmed;
+    if (withoutV.length === 0) {
+        return {
+            valid: false,
+            error: `${constants_1.INPUT_KEYS.SINGLE_ACTION_VERSION} must be a semantic version (e.g. 1.0.0).`,
+        };
+    }
+    if (!SEMVER_PATTERN.test(withoutV)) {
+        return {
+            valid: false,
+            error: `${constants_1.INPUT_KEYS.SINGLE_ACTION_VERSION} must be a semantic version (e.g. 1.0.0). Got: ${version}`,
+        };
+    }
+    return { valid: true, normalized: withoutV };
+}
 class CreateReleaseUseCase {
     constructor() {
         this.taskId = 'CreateReleaseUseCase';
@@ -48944,6 +48963,7 @@ class CreateReleaseUseCase {
                     `${constants_1.INPUT_KEYS.SINGLE_ACTION_TITLE} is not set.`
                 ],
             }));
+            return result;
         }
         else if (param.singleAction.changelog.length === 0) {
             (0, logger_1.logError)(`Changelog is not set.`);
@@ -48955,9 +48975,22 @@ class CreateReleaseUseCase {
                     `${constants_1.INPUT_KEYS.SINGLE_ACTION_CHANGELOG} is not set.`
                 ],
             }));
+            return result;
         }
+        const versionCheck = normalizeAndValidateVersion(param.singleAction.version);
+        if (!versionCheck.valid) {
+            (0, logger_1.logError)(versionCheck.error);
+            result.push(new result_1.Result({
+                id: this.taskId,
+                success: false,
+                executed: true,
+                errors: [versionCheck.error],
+            }));
+            return result;
+        }
+        const releaseVersion = `v${versionCheck.normalized}`;
         try {
-            const releaseUrl = await this.projectRepository.createRelease(param.owner, param.repo, param.singleAction.version, param.singleAction.title, param.singleAction.changelog, param.tokens.token);
+            const releaseUrl = await this.projectRepository.createRelease(param.owner, param.repo, releaseVersion, param.singleAction.title, param.singleAction.changelog, param.tokens.token);
             if (releaseUrl) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -48967,7 +49000,7 @@ class CreateReleaseUseCase {
                 }));
             }
             else {
-                (0, logger_1.logWarn)(`CreateRelease: createRelease returned no URL for version ${param.singleAction.version}.`);
+                (0, logger_1.logWarn)(`CreateRelease: createRelease returned no URL for version ${releaseVersion}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -49042,24 +49075,25 @@ class CreateTagUseCase {
             }));
             return result;
         }
+        const tagName = `v${param.singleAction.version}`;
         try {
-            const sha1Tag = await this.projectRepository.createTag(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.singleAction.version, param.tokens.token);
+            const sha1Tag = await this.projectRepository.createTag(param.owner, param.repo, param.currentConfiguration.releaseBranch, tagName, param.tokens.token);
             if (sha1Tag) {
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [`Tag ${param.singleAction.version} is ready: ${sha1Tag}`],
+                    steps: [`Tag ${tagName} is ready: ${sha1Tag}`],
                 }));
             }
             else {
-                (0, logger_1.logWarn)(`CreateTag: createTag returned no SHA for version ${param.singleAction.version}.`);
+                (0, logger_1.logWarn)(`CreateTag: createTag returned no SHA for version ${tagName}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Failed to create tag ${param.singleAction.version}.`
+                        `Failed to create tag ${tagName}.`
                     ],
                 }));
             }
@@ -49070,7 +49104,7 @@ class CreateTagUseCase {
                 id: this.taskId,
                 success: false,
                 executed: true,
-                steps: [`Failed to create tag ${param.singleAction.version}.`],
+                steps: [`Failed to create tag ${tagName}.`],
                 errors: [
                     JSON.stringify(error)
                 ],

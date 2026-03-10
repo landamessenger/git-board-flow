@@ -110,7 +110,7 @@ Changelog can be read from a file or generated in a previous step and passed as 
 
 ## Workflow: create tag
 
-Create only a tag (no release body):
+Create a Git tag with prefix `v` (e.g. `v1.2.0`) from the release branch:
 
 ```yaml
 - uses: vypdev/copilot@v2
@@ -118,7 +118,10 @@ Create only a tag (no release body):
     token: ${{ secrets.PAT }}
     single-action: create_tag
     single-action-version: "1.2.0"
+    single-action-issue: "100"  # Issue with releaseBranch in configuration
 ```
+
+**Note:** The tag is created from the `releaseBranch` stored in the issue configuration. The version input `1.2.0` will create tag `v1.2.0`.
 
 ## Workflow: deployed
 

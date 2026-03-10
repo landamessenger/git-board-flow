@@ -429,7 +429,7 @@ describe("ProjectRepository.createRelease", () => {
         const result = await repo.createRelease(
             "owner",
             "repo",
-            "1.0",
+            "v1.0",
             "First release",
             "Changelog",
             "token"

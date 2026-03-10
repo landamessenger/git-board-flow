@@ -45,12 +45,14 @@ export class CreateTagUseCase  implements ParamUseCase<Execution, Result[]> {
             return result;
         }
 
+        const tagName = `v${param.singleAction.version}`;
+
         try {
             const sha1Tag = await this.projectRepository.createTag(
                 param.owner,
                 param.repo,
                 param.currentConfiguration.releaseBranch,
-                param.singleAction.version,
+                tagName,
                 param.tokens.token,
             );
             if (sha1Tag) {
@@ -59,18 +61,18 @@ export class CreateTagUseCase  implements ParamUseCase<Execution, Result[]> {
                         id: this.taskId,
                         success: true,
                         executed: true,
-                        steps: [`Tag ${param.singleAction.version} is ready: ${sha1Tag}`],
+                        steps: [`Tag ${tagName} is ready: ${sha1Tag}`],
                     })
                 );
             } else {
-                logWarn(`CreateTag: createTag returned no SHA for version ${param.singleAction.version}.`);
+                logWarn(`CreateTag: createTag returned no SHA for version ${tagName}.`);
                 result.push(
                     new Result({
                         id: this.taskId,
                         success: false,
                         executed: true,
                         errors: [
-                            `Failed to create tag ${param.singleAction.version}.`
+                            `Failed to create tag ${tagName}.`
                         ],
                     })
                 );
@@ -82,7 +84,7 @@ export class CreateTagUseCase  implements ParamUseCase<Execution, Result[]> {
                     id: this.taskId,
                     success: false,
                     executed: true,
-                    steps: [`Failed to create tag ${param.singleAction.version}.`],
+                    steps: [`Failed to create tag ${tagName}.`],
                     errors: [
                         JSON.stringify(error)
                     ],
