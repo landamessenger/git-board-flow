@@ -76,7 +76,7 @@ describe('CreateReleaseUseCase', () => {
     expect(mockCreateRelease).toHaveBeenCalledWith(
       'owner',
       'repo',
-      '1.0.0',
+      'v1.0.0',
       'Release title',
       '- Fix bug',
       'token'
