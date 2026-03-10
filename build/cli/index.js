@@ -52151,8 +52151,8 @@ class ProjectRepository {
                 const { data: release } = await octokit.rest.repos.createRelease({
                     owner,
                     repo,
-                    tag_name: `v${version}`,
-                    name: `v${version} - ${title}`,
+                    tag_name: version,
+                    name: `${version} - ${title}`,
                     body: changelog,
                     draft: false,
                     prerelease: false,
@@ -53875,8 +53875,9 @@ class CreateReleaseUseCase {
                 ],
             }));
         }
+        const releaseVersion = `v${param.singleAction.version}`;
         try {
-            const releaseUrl = await this.projectRepository.createRelease(param.owner, param.repo, param.singleAction.version, param.singleAction.title, param.singleAction.changelog, param.tokens.token);
+            const releaseUrl = await this.projectRepository.createRelease(param.owner, param.repo, releaseVersion, param.singleAction.title, param.singleAction.changelog, param.tokens.token);
             if (releaseUrl) {
                 result.push(new result_1.Result({
                     id: this.taskId,
@@ -53886,7 +53887,7 @@ class CreateReleaseUseCase {
                 }));
             }
             else {
-                (0, logger_1.logWarn)(`CreateRelease: createRelease returned no URL for version ${param.singleAction.version}.`);
+                (0, logger_1.logWarn)(`CreateRelease: createRelease returned no URL for version ${releaseVersion}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
@@ -53961,24 +53962,25 @@ class CreateTagUseCase {
             }));
             return result;
         }
+        const tagName = `v${param.singleAction.version}`;
         try {
-            const sha1Tag = await this.projectRepository.createTag(param.owner, param.repo, param.currentConfiguration.releaseBranch, param.singleAction.version, param.tokens.token);
+            const sha1Tag = await this.projectRepository.createTag(param.owner, param.repo, param.currentConfiguration.releaseBranch, tagName, param.tokens.token);
             if (sha1Tag) {
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: true,
                     executed: true,
-                    steps: [`Tag ${param.singleAction.version} is ready: ${sha1Tag}`],
+                    steps: [`Tag ${tagName} is ready: ${sha1Tag}`],
                 }));
             }
             else {
-                (0, logger_1.logWarn)(`CreateTag: createTag returned no SHA for version ${param.singleAction.version}.`);
+                (0, logger_1.logWarn)(`CreateTag: createTag returned no SHA for version ${tagName}.`);
                 result.push(new result_1.Result({
                     id: this.taskId,
                     success: false,
                     executed: true,
                     errors: [
-                        `Failed to create tag ${param.singleAction.version}.`
+                        `Failed to create tag ${tagName}.`
                     ],
                 }));
             }
@@ -53989,7 +53991,7 @@ class CreateTagUseCase {
                 id: this.taskId,
                 success: false,
                 executed: true,
-                steps: [`Failed to create tag ${param.singleAction.version}.`],
+                steps: [`Failed to create tag ${tagName}.`],
                 errors: [
                     JSON.stringify(error)
                 ],

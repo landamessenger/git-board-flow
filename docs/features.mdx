@@ -81,8 +81,8 @@ When you set `single-action` (and, when required, `single-action-issue`, `single
 | **`think_action`** | — | Uses OpenCode Plan for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
 | **`initial_setup`** | — | Performs initial setup steps (e.g. for repo or project). No issue required. |
 | **`create_release`** | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release with the given version, title, and changelog. |
-| **`create_tag`** | `single-action-version` | Creates a Git tag for the given version. |
-| **`publish_github_action`** | — | Publishes or updates the GitHub Action (e.g. versioning, release). |
+| **`create_tag`** | `single-action-version` | Creates a Git tag with prefix `v` (e.g. `v1.2.0`) for the given version from the release branch. |
+| **`publish_github_action`** | `single-action-version` | Publishes or updates the GitHub Action: creates/updates the major version tag (e.g. `v2` from `v2.0.4`). Requires `create_tag` to have been run first. |
 | **`deployed_action`** | `single-action-issue` | Marks the issue as deployed; updates labels and project state (e.g. "deployed"). |
 
 Single actions that **throw an error** if the last step fails: `publish_github_action`, `create_release`, `deployed_action`, `create_tag`. This lets the workflow fail the job when the action does not succeed.

@@ -56,11 +56,12 @@ export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> 
             );
         }
 
+        const releaseVersion = `v${param.singleAction.version}`;
         try {
             const releaseUrl = await this.projectRepository.createRelease(
                 param.owner,
                 param.repo,
-                param.singleAction.version,
+                releaseVersion,
                 param.singleAction.title,
                 param.singleAction.changelog,
                 param.tokens.token,
@@ -75,7 +76,7 @@ export class CreateReleaseUseCase  implements ParamUseCase<Execution, Result[]> 
                     })
                 );
             } else {
-                logWarn(`CreateRelease: createRelease returned no URL for version ${param.singleAction.version}.`);
+                logWarn(`CreateRelease: createRelease returned no URL for version ${releaseVersion}.`);
                 result.push(
                     new Result({
                         id: this.taskId,
