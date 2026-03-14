@@ -44,7 +44,7 @@ giik <command> [options]
 
 | CLI command | Single action equivalent | Required option | Description |
 |-------------|---------------------------|-----------------|-------------|
-| `setup` | `initial_setup` | — | Labels, issue types, verify access |
+| `setup` | `initial_setup` | — | Labels, issue types, verify access; creates default tag `v1.0.0` if repo has no tags |
 | `check-progress` | `check_progress_action` | `-i <issue>` | Progress check on demand |
 | `detect-potential-problems` | `detect_potential_problems_action` | `-i <issue>` [-b \<branch\>] | Bugbot: detect potential problems, report on issue and PR (OpenCode) |
 | `recommend-steps` | `recommend_steps_action` | `-i <issue>` | Recommend steps from issue (OpenCode) |

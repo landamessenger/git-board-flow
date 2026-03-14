@@ -725,7 +725,7 @@ describe('Execution', () => {
       expect(e.release.branch).toBeUndefined();
     });
 
-    it('setup returns early when getLatestTag returns undefined in release path', async () => {
+    it('setup uses default base version 1.0.0 when getLatestTag returns undefined in release path', async () => {
       mockGetLabels.mockResolvedValue(['release']);
       mockConfigGet.mockResolvedValue(undefined);
       mockGetReleaseVersionInvoke.mockResolvedValue([{ executed: true, success: false }]);
@@ -736,10 +736,26 @@ describe('Execution', () => {
       const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
       const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { issue });
       await e.setup();
-      expect(e.release.version).toBeUndefined();
+      expect(e.release.version).toBe('1.1.0');
+      expect(e.release.branch).toBe('release/1.1.0');
     });
 
-    it('setup returns early when getLatestTag returns undefined in hotfix path', async () => {
+    it('setup uses default 1.0.0 for Major release type when no tags exist (release 2.0.0)', async () => {
+      mockGetLabels.mockResolvedValue(['release']);
+      mockConfigGet.mockResolvedValue(undefined);
+      mockGetReleaseVersionInvoke.mockResolvedValue([{ executed: true, success: false }]);
+      mockGetReleaseTypeInvoke.mockResolvedValue([
+        { executed: true, success: true, payload: { releaseType: 'Major' } },
+      ]);
+      mockGetLatestTag.mockResolvedValue(undefined);
+      const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
+      const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { issue });
+      await e.setup();
+      expect(e.release.version).toBe('2.0.0');
+      expect(e.release.branch).toBe('release/2.0.0');
+    });
+
+    it('setup uses default base version 1.0.0 when getLatestTag returns undefined in hotfix path', async () => {
       mockGetLabels.mockResolvedValue(['hotfix']);
       mockConfigGet.mockResolvedValue(undefined);
       mockGetHotfixVersionInvoke.mockResolvedValue([{ executed: true, success: false }]);
@@ -747,8 +763,9 @@ describe('Execution', () => {
       const issue = makeIssue({ eventName: 'issues', issue: { number: 1 } } as never);
       const e = buildExecution({ eventName: 'issues', issue: { number: 1 } } as never, { issue });
       await e.setup();
-      expect(e.hotfix.baseVersion).toBeUndefined();
-      expect(e.hotfix.version).toBeUndefined();
+      expect(e.hotfix.baseVersion).toBe('1.0.0');
+      expect(e.hotfix.version).toBe('1.0.1');
+      expect(e.hotfix.branch).toBe('hotfix/1.0.1');
     });
     it('setup skips internal label fetch error when ACTION is INITIAL_SETUP', async () => {
       const singleAction = new SingleAction(ACTIONS.INITIAL_SETUP, '1', '', '', '');

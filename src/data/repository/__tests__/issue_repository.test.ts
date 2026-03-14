@@ -165,6 +165,29 @@ describe('IssueRepository', () => {
       expect(result).toContain('Add API');
     });
 
+    it('strips Unknown Version from title to prevent repeated appending', async () => {
+      const labels = makeLabels({ currentIssueLabels: ['release'] });
+      mockRest.issues.update.mockResolvedValue(undefined);
+      const result = await repo.updateTitleIssueFormat(
+        'o',
+        'r',
+        '',
+        '🚀 - Unknown Version - Unknown Version - My Release',
+        1,
+        false,
+        'x',
+        labels,
+        'token'
+      );
+      expect(result).toBe('🚀 - My Release');
+      expect(mockRest.issues.update).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 1,
+        title: '🚀 - My Release',
+      });
+    });
+
     it('returns undefined and setFailed when update throws', async () => {
       const labels = makeLabels({ currentIssueLabels: ['bug'] });
       mockRest.issues.update.mockRejectedValue(new Error('API error'));

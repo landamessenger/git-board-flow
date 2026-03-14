@@ -26,6 +26,7 @@ const mockGetReleaseByTag = jest.fn();
 const mockListReleases = jest.fn();
 const mockUpdateRelease = jest.fn();
 const mockCreateRelease = jest.fn();
+const mockReposGet = jest.fn();
 
 const mockContext = { repo: { owner: "test-owner" } };
 jest.mock("@actions/github", () => ({
@@ -49,6 +50,7 @@ jest.mock("@actions/github", () => ({
                 updateRef: (...args: unknown[]) => mockUpdateRef(...args),
             },
             repos: {
+                get: (...args: unknown[]) => mockReposGet(...args),
                 getReleaseByTag: (...args: unknown[]) => mockGetReleaseByTag(...args),
                 listReleases: (...args: unknown[]) => mockListReleases(...args),
                 updateRelease: (...args: unknown[]) => mockUpdateRelease(...args),
@@ -449,6 +451,27 @@ describe("ProjectRepository.createRelease", () => {
     it("returns undefined when create fails", async () => {
         mockCreateRelease.mockRejectedValue(new Error("API error"));
         const result = await repo.createRelease("o", "r", "1.0", "Title", "Body", "token");
+        expect(result).toBeUndefined();
+    });
+});
+
+describe("ProjectRepository.getDefaultBranch", () => {
+    const repo = new ProjectRepository();
+
+    beforeEach(() => {
+        mockReposGet.mockReset();
+    });
+
+    it("returns default_branch from repo", async () => {
+        mockReposGet.mockResolvedValue({ data: { default_branch: "main" } });
+        const result = await repo.getDefaultBranch("owner", "repo", "token");
+        expect(result).toBe("main");
+        expect(mockReposGet).toHaveBeenCalledWith({ owner: "owner", repo: "repo" });
+    });
+
+    it("returns undefined when repos.get fails", async () => {
+        mockReposGet.mockRejectedValue(new Error("API error"));
+        const result = await repo.getDefaultBranch("owner", "repo", "token");
         expect(result).toBeUndefined();
     });
 });

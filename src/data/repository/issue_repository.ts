@@ -61,6 +61,7 @@ export class IssueRepository {
 
             const sanitizedTitle = issueTitle
                 .replace(/\b\d+(\.\d+){2,}\b/g, '')
+                .replace(/\bUnknown Version\b/gi, '')
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')
                 .replace(/[^\S\r\n]+/g, ' ')
@@ -351,8 +352,9 @@ export class IssueRepository {
                 issue_number: issueNumber,
             });
             return labels.map(label => label.name);
-        } catch (error: any) {
-            if (error.status === 404) {
+        } catch (error: unknown) {
+            const err = error as { status?: number };
+            if (err.status === 404) {
                 logDebugInfo(`Issue #${issueNumber} not found or no access; returning empty labels.`);
                 return [];
             }

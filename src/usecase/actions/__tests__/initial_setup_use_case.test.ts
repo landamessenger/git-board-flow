@@ -3,6 +3,7 @@ import { Result } from '../../../data/model/result';
 import type { Execution } from '../../../data/model/execution';
 
 jest.mock('../../../utils/logger', () => ({
+  logDebugInfo: jest.fn(),
   logInfo: jest.fn(),
   logError: jest.fn(),
 }));
@@ -21,9 +22,20 @@ jest.mock('../../../utils/setup_files', () => ({
 }));
 
 const mockGetUserFromToken = jest.fn();
+const mockGetDefaultBranch = jest.fn();
+const mockCreateTag = jest.fn();
 jest.mock('../../../data/repository/project_repository', () => ({
   ProjectRepository: jest.fn().mockImplementation(() => ({
     getUserFromToken: mockGetUserFromToken,
+    getDefaultBranch: mockGetDefaultBranch,
+    createTag: mockCreateTag,
+  })),
+}));
+
+const mockGetLatestTag = jest.fn();
+jest.mock('../../../data/repository/branch_repository', () => ({
+  BranchRepository: jest.fn().mockImplementation(() => ({
+    getLatestTag: mockGetLatestTag,
   })),
 }));
 
@@ -77,6 +89,12 @@ describe('InitialSetupUseCase', () => {
     mockEnsureLabels.mockResolvedValue({ success: true, created: 0, existing: 5, errors: [] });
     mockEnsureProgressLabels.mockResolvedValue({ created: 0, existing: 21, errors: [] });
     mockEnsureIssueTypes.mockResolvedValue({ success: true, created: 0, existing: 3, errors: [] });
+    mockGetLatestTag.mockReset();
+    mockGetLatestTag.mockResolvedValue('1.0.0');
+    mockGetDefaultBranch.mockReset();
+    mockGetDefaultBranch.mockResolvedValue('main');
+    mockCreateTag.mockReset();
+    mockCreateTag.mockResolvedValue('abc123');
   });
 
   it('calls ensureGitHubDirs, copySetupFiles and hasValidSetupToken with process.cwd()', async () => {
@@ -117,6 +135,55 @@ describe('InitialSetupUseCase', () => {
     expect(results[0].steps?.some((s) => s.includes('Labels checked'))).toBe(true);
     expect(results[0].steps?.some((s) => s.includes('Progress labels'))).toBe(true);
     expect(results[0].steps?.some((s) => s.includes('Issue types'))).toBe(true);
+  });
+
+  it('creates default tag v1.0.0 when no version tags exist', async () => {
+    mockGetLatestTag.mockResolvedValue(undefined);
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('Default version tag v1.0.0 created'))).toBe(true);
+    expect(mockGetDefaultBranch).toHaveBeenCalledWith('owner', 'repo', 'token');
+    expect(mockCreateTag).toHaveBeenCalledWith('owner', 'repo', 'main', 'v1.0.0', 'token');
+  });
+
+  it('does not create default tag when repository already has tags', async () => {
+    mockGetLatestTag.mockResolvedValue('2.0.0');
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(true);
+    expect(results[0].steps?.some((s) => s.includes('Default version tag'))).toBe(false);
+    expect(mockCreateTag).not.toHaveBeenCalled();
+    expect(mockGetDefaultBranch).not.toHaveBeenCalled();
+  });
+
+  it('reports error when no tags and getDefaultBranch fails', async () => {
+    mockGetLatestTag.mockResolvedValue(undefined);
+    mockGetDefaultBranch.mockResolvedValue(undefined);
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors?.some((e) => String(e).includes('default branch'))).toBe(true);
+    expect(mockCreateTag).not.toHaveBeenCalled();
+    expect(mockGetDefaultBranch).toHaveBeenCalled();
+  });
+
+  it('reports error when no tags and createTag fails', async () => {
+    mockGetLatestTag.mockResolvedValue(undefined);
+    mockCreateTag.mockResolvedValue(undefined);
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors?.some((e) => String(e).includes('Failed to create tag'))).toBe(true);
+  });
+
+  it('reports error when ensureDefaultVersion throws (e.g. getLatestTag fails)', async () => {
+    mockGetLatestTag.mockRejectedValue(new Error('network error'));
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors?.some((e) => String(e).includes('Error ensuring default version'))).toBe(true);
+    expect(mockGetDefaultBranch).not.toHaveBeenCalled();
   });
 
   it('returns failure when verifyGitHubAccess fails', async () => {
@@ -184,6 +251,6 @@ describe('InitialSetupUseCase', () => {
     const param = baseParam();
     const results = await useCase.invoke(param);
     expect(results[0].success).toBe(false);
-    expect(results[0].errors?.some((e) => String(e).includes('setup inicial'))).toBe(true);
+    expect(results[0].errors?.some((e) => String(e).includes('initial setup'))).toBe(true);
   });
 });

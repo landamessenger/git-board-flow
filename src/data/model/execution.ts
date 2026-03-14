@@ -8,7 +8,7 @@ import { ACTIONS, INPUT_KEYS } from "../../utils/constants";
 import { branchesForManagement, typesForIssue } from "../../utils/label_utils";
 import { logDebugInfo, setGlobalLoggerDebug } from "../../utils/logger";
 import { extractIssueNumberFromBranch, extractIssueNumberFromPush } from "../../utils/title_utils";
-import { incrementVersion } from "../../utils/version_utils";
+import { DEFAULT_BASE_VERSION, incrementVersion } from "../../utils/version_utils";
 import { BranchRepository } from "../repository/branch_repository";
 import { IssueRepository } from "../repository/issue_repository";
 import { ProjectRepository } from "../repository/project_repository";
@@ -377,11 +377,7 @@ export class Execution {
                             return
                         }
 
-                        const lastTag = await branchRepository.getLatestTag();
-                        if (lastTag === undefined) {
-                            return
-                        }
-
+                        const lastTag = await branchRepository.getLatestTag() ?? DEFAULT_BASE_VERSION;
                         this.release.version = incrementVersion(lastTag, this.release.type)
                     }
                 }
@@ -394,10 +390,7 @@ export class Execution {
                     this.hotfix.baseVersion = versionInfo.payload['baseVersion']
                     this.hotfix.version = versionInfo.payload['hotfixVersion']
                 } else {
-                    this.hotfix.baseVersion = await branchRepository.getLatestTag();
-                    if (this.hotfix.baseVersion === undefined) {
-                        return
-                    }
+                    this.hotfix.baseVersion = await branchRepository.getLatestTag() ?? DEFAULT_BASE_VERSION;
                     this.hotfix.version = incrementVersion(this.hotfix.baseVersion, 'Patch')
                 }
 

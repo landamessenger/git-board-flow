@@ -25,9 +25,9 @@ export class UpdateTitleUseCase implements ParamUseCase<Execution, Result[]> {
                     ) ?? param.issue.title;
                     let _version = ''
                     if (param.release.active) {
-                        _version = param.release.version ?? 'Unknown Version';
+                        _version = param.release.version ?? '';
                     } else if (param.hotfix.active) {
-                        _version = param.hotfix.version ?? 'Unknown Version';
+                        _version = param.hotfix.version ?? '';
                     }
 
                     const title = await this.issueRepository.updateTitleIssueFormat(
