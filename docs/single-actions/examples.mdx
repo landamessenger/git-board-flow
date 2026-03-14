@@ -137,7 +137,7 @@ Mark issue `100` as deployed (e.g. from your release workflow):
 
 ## Workflow: initial setup
 
-Run initial setup (labels, issue types, verify access):
+Run initial setup (labels, issue types, verify access). If the repo has no version tags, Copilot creates default tag **`v1.0.0`** so release/hotfix issues get a base version and do not get stuck in an "Unknown Version" loop:
 
 ```yaml
 - uses: vypdev/copilot@v2
@@ -146,7 +146,7 @@ Run initial setup (labels, issue types, verify access):
     single-action: initial_setup
 ```
 
-Often run once per repo or after adding new label/type config.
+Often run once per repo or after adding new label/type config. On new repos, run this before creating release/hotfix issues.
 
 ---
 
