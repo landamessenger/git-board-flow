@@ -772,6 +772,19 @@ export class ProjectRepository {
       }
     }
 
+    getDefaultBranch = async (owner: string, repo: string, token: string): Promise<string | undefined> => {
+      try {
+        const octokit = github.getOctokit(token);
+        const { data } = await octokit.rest.repos.get({ owner, repo });
+        const branch = data.default_branch;
+        logDebugInfo(`Default branch for ${owner}/${repo}: ${branch}`);
+        return branch;
+      } catch (error) {
+        logError(`Error getting default branch for ${owner}/${repo}: ${error}`);
+        return undefined;
+      }
+    };
+
     createTag = async (owner: string, repo: string, branch: string, tag: string, token: string): Promise<string | undefined> => {
       const octokit = github.getOctokit(token);
       

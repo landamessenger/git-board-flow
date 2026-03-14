@@ -79,7 +79,7 @@ When you set `single-action` (and, when required, `single-action-issue`, `single
 | **`detect_potential_problems_action`** | `single-action-issue` | Bugbot: OpenCode analyzes the branch vs base; reports findings as comments on the issue and as PR review comments; updates issue comments and marks PR review threads as resolved when findings are fixed. |
 | **`recommend_steps_action`** | `single-action-issue` | Uses OpenCode Plan to recommend implementation steps from the issue description; posts a comment on the issue. |
 | **`think_action`** | — | Uses OpenCode Plan for deep code analysis and change proposals (reasoning over the codebase). No issue required. |
-| **`initial_setup`** | — | Performs initial setup steps (e.g. for repo or project). No issue required. |
+| **`initial_setup`** | — | Performs initial setup: creates labels, issue types, verifies access. If the repo has no version tags, creates default tag `v1.0.0` so release/hotfix issues get a base version. No issue required. |
 | **`create_release`** | `single-action-version`, `single-action-title`, `single-action-changelog` | Creates a GitHub release with the given version, title, and changelog. |
 | **`create_tag`** | `single-action-version` | Creates a Git tag with prefix `v` (e.g. `v1.2.0`) for the given version from the release branch. |
 | **`publish_github_action`** | `single-action-version` | Publishes or updates the GitHub Action: creates/updates the major version tag (e.g. `v2` from `v2.0.4`). Requires `create_tag` to have been run first. |
