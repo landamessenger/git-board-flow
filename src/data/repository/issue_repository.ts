@@ -352,8 +352,9 @@ export class IssueRepository {
                 issue_number: issueNumber,
             });
             return labels.map(label => label.name);
-        } catch (error: any) {
-            if (error.status === 404) {
+        } catch (error: unknown) {
+            const err = error as { status?: number };
+            if (err.status === 404) {
                 logDebugInfo(`Issue #${issueNumber} not found or no access; returning empty labels.`);
                 return [];
             }

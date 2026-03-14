@@ -45717,7 +45717,8 @@ class IssueRepository {
                 return labels.map(label => label.name);
             }
             catch (error) {
-                if (error.status === 404) {
+                const err = error;
+                if (err.status === 404) {
                     (0, logger_1.logDebugInfo)(`Issue #${issueNumber} not found or no access; returning empty labels.`);
                     return [];
                 }
@@ -49313,7 +49314,7 @@ class InitialSetupUseCase {
                 }));
                 return results;
             }
-            // 1. Verificar acceso a GitHub con Personal Access Token
+            // 1. Verify GitHub access with Personal Access Token
             (0, logger_1.logInfo)('🔐 Checking GitHub access...');
             const githubAccessResult = await this.verifyGitHubAccess(param);
             if (!githubAccessResult.success) {
@@ -49328,7 +49329,7 @@ class InitialSetupUseCase {
                 return results;
             }
             steps.push(`✅ GitHub access verified: ${githubAccessResult.user}`);
-            // 2. Crear todos los labels necesarios
+            // 2. Create all required labels
             (0, logger_1.logInfo)('🏷️  Checking labels...');
             const labelsResult = await this.ensureLabels(param);
             if (!labelsResult.success) {
@@ -49338,7 +49339,7 @@ class InitialSetupUseCase {
             else {
                 steps.push(`✅ Labels checked: ${labelsResult.created} created, ${labelsResult.existing} already existed`);
             }
-            // 2b. Crear labels de progreso (0%, 5%, ..., 100%) con colores rojo→amarillo→verde
+            // 2b. Create progress labels (0%, 5%, ..., 100%) with red→yellow→green colors
             (0, logger_1.logInfo)('📊 Checking progress labels...');
             const progressLabelsResult = await this.ensureProgressLabels(param);
             if (progressLabelsResult.errors.length > 0) {
@@ -49348,7 +49349,7 @@ class InitialSetupUseCase {
             else {
                 steps.push(`✅ Progress labels checked: ${progressLabelsResult.created} created, ${progressLabelsResult.existing} already existed`);
             }
-            // 3. Crear todos los tipos de Issue si no existen
+            // 3. Create all issue types if they do not exist
             (0, logger_1.logInfo)('📋 Checking issue types...');
             const issueTypesResult = await this.ensureIssueTypes(param);
             if (!issueTypesResult.success) {
@@ -49357,7 +49358,7 @@ class InitialSetupUseCase {
             else {
                 steps.push(`✅ Issue types checked: ${issueTypesResult.created} created, ${issueTypesResult.existing} already existed`);
             }
-            // 4. Si no hay tags en el repo, crear versión por defecto v1.0.0
+            // 4. If repo has no tags, create default version v1.0.0
             const defaultVersionResult = await this.ensureDefaultVersion(param);
             if (defaultVersionResult.step) {
                 steps.push(defaultVersionResult.step);
@@ -49375,7 +49376,7 @@ class InitialSetupUseCase {
         }
         catch (error) {
             (0, logger_1.logError)(error);
-            errors.push(`Error ejecutando setup inicial: ${error}`);
+            errors.push(`Error running initial setup: ${error}`);
             results.push(new result_1.Result({
                 id: this.taskId,
                 success: false,
@@ -49394,8 +49395,8 @@ class InitialSetupUseCase {
             return { success: true, user, errors: [] };
         }
         catch (error) {
-            (0, logger_1.logError)(`Error verificando acceso a GitHub: ${error}`);
-            errors.push(`No se pudo verificar el acceso a GitHub: ${error}`);
+            (0, logger_1.logError)(`Error verifying GitHub access: ${error}`);
+            errors.push(`Could not verify GitHub access: ${error}`);
             return { success: false, errors };
         }
     }
@@ -49411,8 +49412,8 @@ class InitialSetupUseCase {
             };
         }
         catch (error) {
-            (0, logger_1.logError)(`Error asegurando labels: ${error}`);
-            return { success: false, created: 0, existing: 0, errors: [`Error asegurando labels: ${error}`] };
+            (0, logger_1.logError)(`Error ensuring labels: ${error}`);
+            return { success: false, created: 0, existing: 0, errors: [`Error ensuring labels: ${error}`] };
         }
     }
     async ensureProgressLabels(param) {
@@ -49421,8 +49422,8 @@ class InitialSetupUseCase {
             return await issueRepository.ensureProgressLabels(param.owner, param.repo, param.tokens.token);
         }
         catch (error) {
-            (0, logger_1.logError)(`Error asegurando progress labels: ${error}`);
-            return { created: 0, existing: 0, errors: [`Error asegurando progress labels: ${error}`] };
+            (0, logger_1.logError)(`Error ensuring progress labels: ${error}`);
+            return { created: 0, existing: 0, errors: [`Error ensuring progress labels: ${error}`] };
         }
     }
     async ensureIssueTypes(param) {
@@ -49437,8 +49438,8 @@ class InitialSetupUseCase {
             };
         }
         catch (error) {
-            (0, logger_1.logError)(`Error asegurando tipos de Issue: ${error}`);
-            return { success: false, created: 0, existing: 0, errors: [`Error asegurando tipos de Issue: ${error}`] };
+            (0, logger_1.logError)(`Error ensuring issue types: ${error}`);
+            return { success: false, created: 0, existing: 0, errors: [`Error ensuring issue types: ${error}`] };
         }
     }
     /**

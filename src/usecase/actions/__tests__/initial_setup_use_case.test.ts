@@ -242,6 +242,6 @@ describe('InitialSetupUseCase', () => {
     const param = baseParam();
     const results = await useCase.invoke(param);
     expect(results[0].success).toBe(false);
-    expect(results[0].errors?.some((e) => String(e).includes('setup inicial'))).toBe(true);
+    expect(results[0].errors?.some((e) => String(e).includes('initial setup'))).toBe(true);
   });
 });
