@@ -8,4 +8,9 @@ export declare class InitialSetupUseCase implements ParamUseCase<Execution, Resu
     private ensureLabels;
     private ensureProgressLabels;
     private ensureIssueTypes;
+    /**
+     * If the repository has no version tags, create default tag v1.0.0 on the default branch.
+     * Used by "copilot setup" so release/hotfix issues get a base version.
+     */
+    private ensureDefaultVersion;
 }

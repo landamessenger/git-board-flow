@@ -48252,10 +48252,7 @@ class Execution {
                             if (this.release.type === undefined) {
                                 return;
                             }
-                            const lastTag = await branchRepository.getLatestTag();
-                            if (lastTag === undefined) {
-                                return;
-                            }
+                            const lastTag = await branchRepository.getLatestTag() ?? version_utils_1.DEFAULT_BASE_VERSION;
                             this.release.version = (0, version_utils_1.incrementVersion)(lastTag, this.release.type);
                         }
                     }
@@ -48269,10 +48266,7 @@ class Execution {
                         this.hotfix.version = versionInfo.payload['hotfixVersion'];
                     }
                     else {
-                        this.hotfix.baseVersion = await branchRepository.getLatestTag();
-                        if (this.hotfix.baseVersion === undefined) {
-                            return;
-                        }
+                        this.hotfix.baseVersion = await branchRepository.getLatestTag() ?? version_utils_1.DEFAULT_BASE_VERSION;
                         this.hotfix.version = (0, version_utils_1.incrementVersion)(this.hotfix.baseVersion, 'Patch');
                     }
                     this.hotfix.branch = `${this.branches.hotfixTree}/${this.hotfix.version}`;
@@ -50413,6 +50407,7 @@ class IssueRepository {
                 }
                 const sanitizedTitle = issueTitle
                     .replace(/\b\d+(\.\d+){2,}\b/g, '')
+                    .replace(/\bUnknown Version\b/gi, '')
                     .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                     .replace(/\u200D/g, '')
                     .replace(/[^\S\r\n]+/g, ' ')
@@ -52161,6 +52156,19 @@ class ProjectRepository {
             }
             catch (error) {
                 (0, logger_1.logError)(`Error creating release: ${error}`);
+                return undefined;
+            }
+        };
+        this.getDefaultBranch = async (owner, repo, token) => {
+            try {
+                const octokit = github.getOctokit(token);
+                const { data } = await octokit.rest.repos.get({ owner, repo });
+                const branch = data.default_branch;
+                (0, logger_1.logDebugInfo)(`Default branch for ${owner}/${repo}: ${branch}`);
+                return branch;
+            }
+            catch (error) {
+                (0, logger_1.logError)(`Error getting default branch for ${owner}/${repo}: ${error}`);
                 return undefined;
             }
         };
@@ -54189,9 +54197,11 @@ exports.DeployedActionUseCase = DeployedActionUseCase;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.InitialSetupUseCase = void 0;
+const branch_repository_1 = __nccwpck_require__(7701);
 const issue_repository_1 = __nccwpck_require__(57);
 const project_repository_1 = __nccwpck_require__(7917);
 const result_1 = __nccwpck_require__(7305);
+const version_utils_1 = __nccwpck_require__(9887);
 const logger_1 = __nccwpck_require__(8836);
 const task_emoji_1 = __nccwpck_require__(9785);
 const setup_files_1 = __nccwpck_require__(1666);
@@ -54265,6 +54275,14 @@ class InitialSetupUseCase {
             }
             else {
                 steps.push(`✅ Issue types checked: ${issueTypesResult.created} created, ${issueTypesResult.existing} already existed`);
+            }
+            // 4. Si no hay tags en el repo, crear versión por defecto v1.0.0
+            const defaultVersionResult = await this.ensureDefaultVersion(param);
+            if (defaultVersionResult.step) {
+                steps.push(defaultVersionResult.step);
+            }
+            if (defaultVersionResult.error) {
+                errors.push(defaultVersionResult.error);
             }
             results.push(new result_1.Result({
                 id: this.taskId,
@@ -54340,6 +54358,39 @@ class InitialSetupUseCase {
         catch (error) {
             (0, logger_1.logError)(`Error asegurando tipos de Issue: ${error}`);
             return { success: false, created: 0, existing: 0, errors: [`Error asegurando tipos de Issue: ${error}`] };
+        }
+    }
+    /**
+     * If the repository has no version tags, create default tag v1.0.0 on the default branch.
+     * Used by "copilot setup" so release/hotfix issues get a base version.
+     */
+    async ensureDefaultVersion(param) {
+        try {
+            const branchRepository = new branch_repository_1.BranchRepository();
+            const existingTag = await branchRepository.getLatestTag();
+            if (existingTag !== undefined) {
+                (0, logger_1.logDebugInfo)(`Repository already has version tags (latest: ${existingTag}). Skipping default tag.`);
+                return {};
+            }
+            (0, logger_1.logInfo)(`🏷️  No version tags found. Creating default tag ${version_utils_1.DEFAULT_INITIAL_TAG}...`);
+            const projectRepository = new project_repository_1.ProjectRepository();
+            const defaultBranch = await projectRepository.getDefaultBranch(param.owner, param.repo, param.tokens.token);
+            if (!defaultBranch) {
+                const msg = 'Could not get default branch to create initial version tag.';
+                (0, logger_1.logError)(msg);
+                return { error: msg };
+            }
+            const sha = await projectRepository.createTag(param.owner, param.repo, defaultBranch, version_utils_1.DEFAULT_INITIAL_TAG, param.tokens.token);
+            if (sha) {
+                const step = `✅ Default version tag ${version_utils_1.DEFAULT_INITIAL_TAG} created on branch ${defaultBranch}. Run \`git fetch --tags\` to update local refs.`;
+                return { step };
+            }
+            return { error: `Failed to create tag ${version_utils_1.DEFAULT_INITIAL_TAG} on ${param.owner}/${param.repo}` };
+        }
+        catch (error) {
+            const msg = `Error ensuring default version: ${error}`;
+            (0, logger_1.logError)(msg);
+            return { error: msg };
         }
     }
 }
@@ -57720,10 +57771,10 @@ class UpdateTitleUseCase {
                     const _title = await this.issueRepository.getTitle(param.owner, param.repo, param.issue.number, param.tokens.token) ?? param.issue.title;
                     let _version = '';
                     if (param.release.active) {
-                        _version = param.release.version ?? 'Unknown Version';
+                        _version = param.release.version ?? '';
                     }
                     else if (param.hotfix.active) {
-                        _version = param.hotfix.version ?? 'Unknown Version';
+                        _version = param.hotfix.version ?? '';
                     }
                     const title = await this.issueRepository.updateTitleIssueFormat(param.owner, param.repo, _version, _title, param.issue.number, param.issue.branchManagementAlways, param.emoji.branchManagementEmoji, param.labels, param.tokens.token);
                     if (title) {
@@ -61018,8 +61069,12 @@ exports.extractIssueNumberFromPush = extractIssueNumberFromPush;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getLatestVersion = exports.incrementVersion = void 0;
+exports.getLatestVersion = exports.incrementVersion = exports.DEFAULT_INITIAL_TAG = exports.DEFAULT_BASE_VERSION = void 0;
 const logger_1 = __nccwpck_require__(8836);
+/** Default base version when the repository has no existing tags (e.g. new repo). */
+exports.DEFAULT_BASE_VERSION = '1.0.0';
+/** Default initial tag name (with "v" prefix) for repos with no tags. Used by setup. */
+exports.DEFAULT_INITIAL_TAG = `v${exports.DEFAULT_BASE_VERSION}`;
 const incrementVersion = (version, releaseType) => {
     (0, logger_1.logDebugInfo)(`Incrementing version ${version}.`);
     const versionParts = version.split('.').map(Number);

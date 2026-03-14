@@ -61,6 +61,7 @@ export class IssueRepository {
 
             const sanitizedTitle = issueTitle
                 .replace(/\b\d+(\.\d+){2,}\b/g, '')
+                .replace(/\bUnknown Version\b/gi, '')
                 .replace(/[^\p{L}\p{N}\p{P}\p{Z}^$\n]/gu, '')
                 .replace(/\u200D/g, '')
                 .replace(/[^\S\r\n]+/g, ' ')

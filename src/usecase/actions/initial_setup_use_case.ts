@@ -1,9 +1,11 @@
 import { Execution } from "../../data/model/execution";
+import { BranchRepository } from "../../data/repository/branch_repository";
 import { IssueRepository } from "../../data/repository/issue_repository";
 import { ProjectRepository } from "../../data/repository/project_repository";
 import { Result } from "../../data/model/result";
 import { ParamUseCase } from "../base/param_usecase";
-import { logError, logInfo } from "../../utils/logger";
+import { DEFAULT_INITIAL_TAG } from "../../utils/version_utils";
+import { logDebugInfo, logError, logInfo } from "../../utils/logger";
 import { getTaskEmoji } from "../../utils/task_emoji";
 import { copySetupFiles, ensureGitHubDirs, hasValidSetupToken } from "../../utils/setup_files";
 
@@ -84,6 +86,15 @@ export class InitialSetupUseCase implements ParamUseCase<Execution, Result[]> {
                 errors.push(...issueTypesResult.errors);
             } else {
                 steps.push(`✅ Issue types checked: ${issueTypesResult.created} created, ${issueTypesResult.existing} already existed`);
+            }
+
+            // 4. Si no hay tags en el repo, crear versión por defecto v1.0.0
+            const defaultVersionResult = await this.ensureDefaultVersion(param);
+            if (defaultVersionResult.step) {
+                steps.push(defaultVersionResult.step);
+            }
+            if (defaultVersionResult.error) {
+                errors.push(defaultVersionResult.error);
             }
 
             results.push(
@@ -177,6 +188,47 @@ export class InitialSetupUseCase implements ParamUseCase<Execution, Result[]> {
         } catch (error) {
             logError(`Error asegurando tipos de Issue: ${error}`);
             return { success: false, created: 0, existing: 0, errors: [`Error asegurando tipos de Issue: ${error}`] };
+        }
+    }
+
+    /**
+     * If the repository has no version tags, create default tag v1.0.0 on the default branch.
+     * Used by "copilot setup" so release/hotfix issues get a base version.
+     */
+    private async ensureDefaultVersion(param: Execution): Promise<{ step?: string; error?: string }> {
+        try {
+            const branchRepository = new BranchRepository();
+            const existingTag = await branchRepository.getLatestTag();
+            if (existingTag !== undefined) {
+                logDebugInfo(`Repository already has version tags (latest: ${existingTag}). Skipping default tag.`);
+                return {};
+            }
+
+            logInfo(`🏷️  No version tags found. Creating default tag ${DEFAULT_INITIAL_TAG}...`);
+            const projectRepository = new ProjectRepository();
+            const defaultBranch = await projectRepository.getDefaultBranch(param.owner, param.repo, param.tokens.token);
+            if (!defaultBranch) {
+                const msg = 'Could not get default branch to create initial version tag.';
+                logError(msg);
+                return { error: msg };
+            }
+
+            const sha = await projectRepository.createTag(
+                param.owner,
+                param.repo,
+                defaultBranch,
+                DEFAULT_INITIAL_TAG,
+                param.tokens.token,
+            );
+            if (sha) {
+                const step = `✅ Default version tag ${DEFAULT_INITIAL_TAG} created on branch ${defaultBranch}. Run \`git fetch --tags\` to update local refs.`;
+                return { step };
+            }
+            return { error: `Failed to create tag ${DEFAULT_INITIAL_TAG} on ${param.owner}/${param.repo}` };
+        } catch (error) {
+            const msg = `Error ensuring default version: ${error}`;
+            logError(msg);
+            return { error: msg };
         }
     }
 

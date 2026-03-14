@@ -157,6 +157,30 @@ describe('UpdateTitleUseCase', () => {
     );
   });
 
+  it('passes empty version when release active but version undefined to avoid Unknown Version loop', async () => {
+    mockGetTitle.mockResolvedValue('My Release');
+    mockUpdateTitleIssueFormat.mockResolvedValue('🚀 - My Release');
+    const param = baseParam({
+      isIssue: true,
+      emoji: { emojiLabeledTitle: true, branchManagementEmoji: '' },
+      release: { active: true, version: undefined },
+    });
+
+    await useCase.invoke(param);
+
+    expect(mockUpdateTitleIssueFormat).toHaveBeenCalledWith(
+      'o',
+      'r',
+      '',
+      'My Release',
+      1,
+      false,
+      '',
+      {},
+      't'
+    );
+  });
+
   it('returns success with new title when isPullRequest and updateTitlePullRequestFormat returns title', async () => {
     mockGetTitle.mockResolvedValue('Issue Title');
     mockUpdateTitlePullRequestFormat.mockResolvedValue('feat: PR title');

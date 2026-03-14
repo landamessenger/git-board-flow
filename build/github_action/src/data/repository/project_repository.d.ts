@@ -38,5 +38,6 @@ export declare class ProjectRepository {
     updateTag: (owner: string, repo: string, sourceTag: string, targetTag: string, token: string) => Promise<void>;
     updateRelease: (owner: string, repo: string, sourceTag: string, targetTag: string, token: string) => Promise<string | undefined>;
     createRelease: (owner: string, repo: string, version: string, title: string, changelog: string, token: string) => Promise<string | undefined>;
+    getDefaultBranch: (owner: string, repo: string, token: string) => Promise<string | undefined>;
     createTag: (owner: string, repo: string, branch: string, tag: string, token: string) => Promise<string | undefined>;
 }

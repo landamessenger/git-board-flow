@@ -1,5 +1,11 @@
 import { logDebugInfo } from "./logger";
 
+/** Default base version when the repository has no existing tags (e.g. new repo). */
+export const DEFAULT_BASE_VERSION = '1.0.0';
+
+/** Default initial tag name (with "v" prefix) for repos with no tags. Used by setup. */
+export const DEFAULT_INITIAL_TAG = `v${DEFAULT_BASE_VERSION}`;
+
 export const incrementVersion = (version: string, releaseType: string): string => {
     logDebugInfo(`Incrementing version ${version}.`)
     const versionParts = version.split('.').map(Number);

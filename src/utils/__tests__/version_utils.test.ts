@@ -1,10 +1,28 @@
-import { incrementVersion, getLatestVersion } from '../version_utils';
+import { DEFAULT_BASE_VERSION, DEFAULT_INITIAL_TAG, incrementVersion, getLatestVersion } from '../version_utils';
 
 jest.mock('../logger', () => ({
   logDebugInfo: jest.fn(),
 }));
 
 describe('version_utils', () => {
+  describe('DEFAULT_BASE_VERSION', () => {
+    it('is 1.0.0 for repositories with no existing tags', () => {
+      expect(DEFAULT_BASE_VERSION).toBe('1.0.0');
+    });
+
+    it('is valid for incrementVersion (Major, Minor, Patch)', () => {
+      expect(incrementVersion(DEFAULT_BASE_VERSION, 'Major')).toBe('2.0.0');
+      expect(incrementVersion(DEFAULT_BASE_VERSION, 'Minor')).toBe('1.1.0');
+      expect(incrementVersion(DEFAULT_BASE_VERSION, 'Patch')).toBe('1.0.1');
+    });
+  });
+
+  describe('DEFAULT_INITIAL_TAG', () => {
+    it('equals v plus DEFAULT_BASE_VERSION for setup-created tag', () => {
+      expect(DEFAULT_INITIAL_TAG).toBe('v1.0.0');
+    });
+  });
+
   describe('incrementVersion', () => {
     it('increments major version and resets minor and patch', () => {
       expect(incrementVersion('1.2.3', 'Major')).toBe('2.0.0');
