@@ -105,6 +105,32 @@ describe('UpdateTitleUseCase', () => {
     expect(results[0].executed).toBe(false);
   });
 
+  it('uses param.issue.title when getTitle returns undefined for issue', async () => {
+    mockGetTitle.mockResolvedValue(undefined);
+    mockUpdateTitleIssueFormat.mockResolvedValue('🚀 Fallback title');
+    const param = baseParam({
+      isIssue: true,
+      emoji: { emojiLabeledTitle: true, branchManagementEmoji: '' },
+      issue: { number: 1, title: 'Fallback title', branchManagementAlways: false },
+    });
+
+    const results = await useCase.invoke(param);
+
+    expect(results[0].success).toBe(true);
+    expect(results[0].executed).toBe(true);
+    expect(mockUpdateTitleIssueFormat).toHaveBeenCalledWith(
+      'o',
+      'r',
+      '',
+      'Fallback title',
+      1,
+      false,
+      '',
+      {},
+      't'
+    );
+  });
+
   it('returns failure when isPullRequest, emojiLabeledTitle, but getTitle returns undefined', async () => {
     mockGetTitle.mockResolvedValue(undefined);
     const param = baseParam({

@@ -177,6 +177,15 @@ describe('InitialSetupUseCase', () => {
     expect(results[0].errors?.some((e) => String(e).includes('Failed to create tag'))).toBe(true);
   });
 
+  it('reports error when ensureDefaultVersion throws (e.g. getLatestTag fails)', async () => {
+    mockGetLatestTag.mockRejectedValue(new Error('network error'));
+    const param = baseParam();
+    const results = await useCase.invoke(param);
+    expect(results[0].success).toBe(false);
+    expect(results[0].errors?.some((e) => String(e).includes('Error ensuring default version'))).toBe(true);
+    expect(mockGetDefaultBranch).not.toHaveBeenCalled();
+  });
+
   it('returns failure when verifyGitHubAccess fails', async () => {
     mockGetUserFromToken.mockRejectedValue(new Error('Invalid token'));
     const param = baseParam();
